@@ -22,6 +22,7 @@
     "test:unit": "TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit"
   },
   "dependencies": {
+    "@dukerupert/stripe-subscriptions": "file:.yalc/@dukerupert/stripe-subscriptions",
     "@medusajs/admin-sdk": "2.8.3",
     "@medusajs/cli": "2.8.3",
     "@medusajs/framework": "2.8.3",

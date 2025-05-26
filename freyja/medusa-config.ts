@@ -11,6 +11,15 @@ module.exports = defineConfig({
       authCors: process.env.AUTH_CORS!,
       jwtSecret: process.env.JWT_SECRET || "supersecret",
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
-    }
-  }
+    },
+  },
+  modules: [
+    {
+      resolve: "./src/modules/stripe_product",
+      options: {
+        secret: "supersecret_stripe_key",
+        webhook: "supersecret_stripe_webhook_key"
+      },
+    },
+  ],
 })
