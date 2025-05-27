@@ -1,6 +1,6 @@
-import { loadEnv, defineConfig } from '@medusajs/framework/utils'
+import { loadEnv, defineConfig } from "@medusajs/framework/utils";
 
-loadEnv(process.env.NODE_ENV || 'development', process.cwd())
+loadEnv(process.env.NODE_ENV || "development", process.cwd());
 
 module.exports = defineConfig({
   projectConfig: {
@@ -18,8 +18,12 @@ module.exports = defineConfig({
       resolve: "./src/modules/stripe_product",
       options: {
         api_secret: process.env.STRIPE_SECRET || "supersecret_stripe_key",
-        webhook_secret: "supersecret_stripe_webhook_key"
+        webhook_secret: "supersecret_stripe_webhook_key",
       },
     },
+    {
+      resolve: "./src/modules/plan",
+      options: {},
+    },
   ],
-})
+});

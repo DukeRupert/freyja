@@ -1,9 +1,0 @@
-{
-  "version": "v1",
-  "packages": {
-    "@dukerupert/stripe-subscriptions": {
-      "signature": "637a5e6ae2c931aa6637aa72e6498769",
-      "file": true
-    }
-  }
-}
