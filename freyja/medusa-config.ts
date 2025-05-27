@@ -17,8 +17,8 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/stripe_product",
       options: {
-        secret: "supersecret_stripe_key",
-        webhook: "supersecret_stripe_webhook_key"
+        api_secret: process.env.STRIPE_SECRET || "supersecret_stripe_key",
+        webhook_secret: "supersecret_stripe_webhook_key"
       },
     },
   ],
