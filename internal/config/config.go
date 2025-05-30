@@ -62,9 +62,9 @@ type MessageBusConfig struct {
 }
 
 // Load loads configuration from environment variables
-func Load() (*Config, error) {
+func Load(path string) (*Config, error) {
 	// Load .env file if it exists
-	godotenv.Load()
+	godotenv.Load(path)
 
 	cfg := &Config{
 		App: AppConfig{

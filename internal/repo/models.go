@@ -5,6 +5,8 @@
 package repo
 
 import (
+	"encoding/json"
+
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/lib/pq"
 )
@@ -39,7 +41,7 @@ type Product struct {
 	ExternalID                     pgtype.Text        `db:"external_id" json:"external_id"`
 	ProductTypeID                  pgtype.UUID        `db:"product_type_id" json:"product_type_id"`
 	CollectionID                   pgtype.UUID        `db:"collection_id" json:"collection_id"`
-	Metadata                       pgtype.JSONCodec   `db:"metadata" json:"metadata"`
+	Metadata                       json.RawMessage    `db:"metadata" json:"metadata"`
 	CreatedAt                      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt                      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	DeletedAt                      pgtype.Timestamptz `db:"deleted_at" json:"deleted_at"`

@@ -186,8 +186,8 @@ paths:
                 $ref: "#/components/schemas/Product"
         "404":
           $ref: "#/components/responses/NotFound"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
+        "400":
+          $ref: "#/components/responses/BadRequest"
 
     patch:
       tags: [products]

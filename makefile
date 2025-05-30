@@ -1,177 +1,164 @@
-# Makefile for Coffee Roasting E-commerce Application
+# Updated Makefile with optimized test commands
 
-# Include environment variables from .env file
-include .env
-export
-
-# Set default values if not provided in .env
-GOOSE_DRIVER ?= postgres
-GOOSE_MIGRATION_DIR ?= internal/migrations
-GOOSE_TABLE ?= goose_db_version
-
-# Construct database connection string from individual components
-GOOSE_DBSTRING ?= postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSL_MODE)
+.PHONY: help generate sqlc oapi-gen migrate-up migrate-down migrate-create dev build test test-unit test-integration test-handler clean
 
 # Default target
-.DEFAULT_GOAL := help
+help:
+	@echo "Available commands:"
+	@echo "  generate        - Generate all code (sqlc + oapi-codegen)"
+	@echo "  sqlc            - Generate database code with sqlc"
+	@echo "  oapi-gen        - Generate API code with oapi-codegen"
+	@echo "  migrate-up      - Run database migrations up"
+	@echo "  migrate-down    - Run database migrations down"
+	@echo "  migrate-create NAME=migration_name - Create new migration"
+	@echo "  test            - Run all tests"
+	@echo "  test-unit       - Run unit tests only"
+	@echo "  test-integration- Run integration tests only"
+	@echo "  test-handler    - Run handler tests only"
+	@echo "  test-short      - Run tests in short mode (skip integration)"
+	@echo "  test-verbose    - Run tests with verbose output"
+	@echo "  test-coverage   - Run tests with coverage report"
+	@echo "  dev             - Run development server with hot reload"
+	@echo "  build           - Build the application"
+	@echo "  clean           - Clean generated files"
 
-# Colors for output
-RED := \033[0;31m
-GREEN := \033[0;32m
-YELLOW := \033[1;33m
-BLUE := \033[0;34m
-NC := \033[0m # No Color
+# Install tools if they don't exist
+tools:
+	@which sqlc > /dev/null || go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+	@which oapi-codegen > /dev/null || go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+	@which goose > /dev/null || go install github.com/pressly/goose/v3/cmd/goose@latest
+	@which air > /dev/null || go install github.com/air-verse/air
 
-.PHONY: help
-help: ## Show this help message
-	@echo "$(BLUE)Coffee Roasting E-commerce - Available Commands$(NC)"
-	@echo ""
-	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+# Generate all code
+generate: tools sqlc oapi-gen
 
-# Database Migration Commands
-.PHONY: migrate-up
-migrate-up: ## Run all pending migrations
-	@echo "$(YELLOW)Running migrations up...$(NC)"
-	@goose up
-	@echo "$(GREEN)Migrations completed successfully!$(NC)"
-
-.PHONY: migrate-down
-migrate-down: ## Rollback the last migration
-	@echo "$(YELLOW)Rolling back last migration...$(NC)"
-	@goose down
-	@echo "$(GREEN)Migration rollback completed!$(NC)"
-
-.PHONY: migrate-down-to
-migrate-down-to: ## Rollback to specific version (usage: make migrate-down-to VERSION=20240101000000)
-	@if [ -z "$(VERSION)" ]; then \
-		echo "$(RED)Error: VERSION is required. Usage: make migrate-down-to VERSION=20240101000000$(NC)"; \
-		exit 1; \
-	fi
-	@echo "$(YELLOW)Rolling back to migration version $(VERSION)...$(NC)"
-	@goose -dir $(GOOSE_MIGRATION_DIR) $(GOOSE_DRIVER) "$(GOOSE_DBSTRING)" down-to $(VERSION)
-	@echo "$(GREEN)Migration rollback to $(VERSION) completed!$(NC)"
-
-.PHONY: migrate-reset
-migrate-reset: ## Reset database by rolling back all migrations
-	@echo "$(RED)WARNING: This will rollback ALL migrations!$(NC)"
-	@echo "$(YELLOW)Press Ctrl+C to cancel, or any key to continue...$(NC)"
-	@read -n 1
-	@goose -dir $(GOOSE_MIGRATION_DIR) $(GOOSE_DRIVER) "$(GOOSE_DBSTRING)" reset
-	@echo "$(GREEN)Database reset completed!$(NC)"
-
-.PHONY: migrate-status
-migrate-status: ## Show migration status
-	@echo "$(BLUE)Current migration status:$(NC)"
-	@goose -dir $(GOOSE_MIGRATION_DIR) $(GOOSE_DRIVER) "$(GOOSE_DBSTRING)" status
-
-.PHONY: migrate-version
-migrate-version: ## Show current migration version
-	@goose -dir $(GOOSE_MIGRATION_DIR) $(GOOSE_DRIVER) "$(GOOSE_DBSTRING)" version
-
-.PHONY: migrate-create
-migrate-create: ## Create a new migration file (usage: make migrate-create NAME=add_new_table)
-	@if [ -z "$(NAME)" ]; then \
-		echo "$(RED)Error: NAME is required. Usage: make migrate-create NAME=add_new_table$(NC)"; \
-		exit 1; \
-	fi
-	@echo "$(YELLOW)Creating new migration: $(NAME)$(NC)"
-	@goose -dir $(GOOSE_MIGRATION_DIR) create $(NAME) sql
-	@echo "$(GREEN)Migration file created successfully!$(NC)"
-
-# Development Commands
-.PHONY: dev-setup
-dev-setup: ## Set up development environment
-	@echo "$(BLUE)Setting up development environment...$(NC)"
-	@go mod download
-	@go install github.com/pressly/goose/v3/cmd/goose@latest
-	@go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-	@go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
-	@echo "$(GREEN)Development setup completed!$(NC)"
-
-.PHONY: generate
-generate: ## Generate sqlc and OpenAPI code
-	@echo "$(YELLOW)Generating sqlc code...$(NC)"
+# Generate sqlc code
+sqlc:
+	@echo "Generating sqlc code..."
 	@cd internal && sqlc generate
-	@echo "$(YELLOW)Generating OpenAPI server code...$(NC)"
-	@oapi-codegen --config=internal/oapi-codegen.yaml internal/openapi.yaml
-	@echo "$(GREEN)Code generation completed!$(NC)"
 
-.PHONY: build
-build: ## Build the application
-	@echo "$(YELLOW)Building application...$(NC)"
-	@go build -o bin/freyja ./cmd/api
-	@echo "$(GREEN)Build completed! Binary: bin/freyja$(NC)"
+# Generate oapi-codegen code
+oapi-gen:
+	@echo "Generating API code..."
+	@oapi-codegen -config internal/oapi-codegen.yaml internal/openapi.yaml
 
-.PHONY: run
-run: ## Run the application
-	@echo "$(YELLOW)Starting application...$(NC)"
-	@go run ./cmd/api
+# Database migrations
+migrate-up:
+	@echo "Running migrations up..."
+	goose -dir internal/migrations postgres "$(shell go run cmd/config/main.go db-url)" up
 
-.PHONY: test
-test: ## Run tests
-	@echo "$(YELLOW)Running tests...$(NC)"
-	@go test -v ./...
+migrate-down:
+	@echo "Running migrations down..."
+	goose -dir internal/migrations postgres "$(shell go run cmd/config/main.go db-url)" down
 
-.PHONY: test-coverage
-test-coverage: ## Run tests with coverage
-	@echo "$(YELLOW)Running tests with coverage...$(NC)"
-	@go test -v -coverprofile=coverage.out ./...
-	@go tool cover -html=coverage.out -o coverage.html
-	@echo "$(GREEN)Coverage report generated: coverage.html$(NC)"
+migrate-create:
+	@if [ -z "$(NAME)" ]; then echo "Usage: make migrate-create NAME=migration_name"; exit 1; fi
+	@echo "Creating migration: $(NAME)"
+	goose -dir internal/migrations create $(NAME) sql
 
-.PHONY: lint
-lint: ## Run linter
-	@echo "$(YELLOW)Running linter...$(NC)"
-	@golangci-lint run
+# Test commands
+test:
+	@echo "Running all tests..."
+	go test ./...
 
-.PHONY: clean
-clean: ## Clean build artifacts
-	@echo "$(YELLOW)Cleaning build artifacts...$(NC)"
-	@rm -rf bin/
-	@rm -f coverage.out coverage.html
-	@echo "$(GREEN)Clean completed!$(NC)"
+test-unit:
+	@echo "Running unit tests..."
+	go test -short ./...
 
-# Docker Commands (if using Docker)
-.PHONY: docker-build
-docker-build: ## Build Docker image
-	@echo "$(YELLOW)Building Docker image...$(NC)"
-	@docker build -t freyja:latest .
-	@echo "$(GREEN)Docker image built successfully!$(NC)"
+test-integration:
+	@echo "Running integration tests..."
+	go test -run Integration ./...
 
-.PHONY: docker-up
-docker-up: ## Start Docker services
-	@echo "$(YELLOW)Starting Docker services...$(NC)"
-	@docker-compose up -d
-	@echo "$(GREEN)Docker services started!$(NC)"
+test-handler:
+	@echo "Running handler tests..."
+	go test ./internal/handler -v
 
-.PHONY: docker-down
-docker-down: ## Stop Docker services
-	@echo "$(YELLOW)Stopping Docker services...$(NC)"
-	@docker-compose down
-	@echo "$(GREEN)Docker services stopped!$(NC)"
+test-short:
+	@echo "Running tests in short mode (skipping integration tests)..."
+	go test -short ./...
 
-# Database Commands
-.PHONY: db-create
-db-create: ## Create database
-	@echo "$(YELLOW)Creating database $(DB_NAME)...$(NC)"
-	@createdb -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) $(DB_NAME)
-	@echo "$(GREEN)Database $(DB_NAME) created successfully!$(NC)"
+test-verbose:
+	@echo "Running tests with verbose output..."
+	go test -v ./...
 
-.PHONY: db-drop
-db-drop: ## Drop database
-	@echo "$(RED)WARNING: This will permanently delete the database $(DB_NAME)!$(NC)"
-	@echo "$(YELLOW)Press Ctrl+C to cancel, or any key to continue...$(NC)"
-	@read -n 1
-	@dropdb -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) $(DB_NAME)
-	@echo "$(GREEN)Database $(DB_NAME) dropped successfully!$(NC)"
+test-coverage:
+	@echo "Running tests with coverage..."
+	go test -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report generated: coverage.html"
 
-# Show current configuration
-.PHONY: config
-config: ## Show current configuration
-	@echo "$(BLUE)Current Configuration:$(NC)"
-	@echo "  GOOSE_DRIVER: $(GOOSE_DRIVER)"
-	@echo "  GOOSE_MIGRATION_DIR: $(GOOSE_MIGRATION_DIR)"
-	@echo "  GOOSE_TABLE: $(GOOSE_TABLE)"
-	@echo "  Database: $(DB_NAME)"
-	@echo "  Host: $(DB_HOST):$(DB_PORT)"
-	@echo "  User: $(DB_USER)"
+# Test database setup
+setup-test-db:
+	@echo "Setting up test database..."
+	@if [ -z "$(TEST_DB_NAME)" ]; then \
+		export TEST_DB_NAME=coffee_subscriptions_test; \
+	fi
+	@echo "Creating test database: $$TEST_DB_NAME"
+	@psql -h localhost -U postgres -c "DROP DATABASE IF EXISTS $$TEST_DB_NAME;" || true
+	@psql -h localhost -U postgres -c "CREATE DATABASE $$TEST_DB_NAME;"
+	@echo "Running migrations on test database..."
+	@APP_ENV=test DB_NAME=$$TEST_DB_NAME goose -dir internal/migrations postgres "postgres://postgres:postgres@localhost:5432/$$TEST_DB_NAME?sslmode=disable" up
+
+clean-test-db:
+	@echo "Cleaning up test database..."
+	@psql -h localhost -U postgres -c "DROP DATABASE IF EXISTS coffee_subscriptions_test;" || true
+
+# Development
+dev: tools
+	@echo "Starting development server..."
+	air
+
+# Build
+build:
+	@echo "Building application..."
+	go build -o bin/freyja cmd/main.go
+
+# Clean generated files
+clean:
+	@echo "Cleaning generated files..."
+	rm -f internal/api/api.gen.go
+	rm -f internal/repo/*.sql.go
+	rm -f internal/repo/models.go
+	rm -f internal/repo/querier.go
+	rm -f internal/repo/db.go
+	rm -f coverage.out coverage.html
+	rm -rf bin/
+
+# Docker development environment
+docker-up:
+	@echo "Starting Docker development environment..."
+	docker-compose up -d
+
+docker-down:
+	@echo "Stopping Docker development environment..."
+	docker-compose down
+
+# Complete test workflow
+test-all: setup-test-db test clean-test-db
+	@echo "Complete test workflow finished"
+
+# Example curl commands for testing
+test-api:
+	@echo "Testing API endpoints..."
+	@echo "Health check:"
+	curl -s http://localhost:8080/health | jq .
+	@echo "\nList products:"
+	curl -s http://localhost:8080/api/v1/products | jq .
+	@echo "\nCreate product:"
+	curl -s -X POST http://localhost:8080/api/v1/products \
+		-H "Content-Type: application/json" \
+		-d '{"title":"Test Coffee","handle":"test-coffee"}' | jq .
+
+# Load test data
+load-test-data:
+	@echo "Loading test data..."
+	@curl -s -X POST http://localhost:8080/api/v1/products \
+		-H "Content-Type: application/json" \
+		-d '{"title":"Ethiopian Yirgacheffe","handle":"ethiopian-yirgacheffe","origin_country":"Ethiopia","region":"Yirgacheffe","roast_level":"light","processing_method":"washed","flavor_notes":["floral","citrus","tea-like"]}' > /dev/null
+	@curl -s -X POST http://localhost:8080/api/v1/products \
+		-H "Content-Type: application/json" \
+		-d '{"title":"Colombian Supremo","handle":"colombian-supremo","origin_country":"Colombia","region":"Huila","roast_level":"medium","processing_method":"washed","flavor_notes":["chocolate","caramel","nutty"]}' > /dev/null
+	@curl -s -X POST http://localhost:8080/api/v1/products \
+		-H "Content-Type: application/json" \
+		-d '{"title":"Brazilian Pulped Natural","handle":"brazilian-pulped-natural","origin_country":"Brazil","region":"Cerrado","roast_level":"medium_dark","processing_method":"natural","flavor_notes":["chocolate","nuts","brown_sugar"]}' > /dev/null
+	@echo "Test data loaded successfully!"

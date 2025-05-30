@@ -1,9 +1,11 @@
-// internal/service/product_service.go
+// internal/service/product_service.go - Improved error handling
 package service
 
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,6 +14,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/lib/pq"
 	openapi_types "github.com/oapi-codegen/runtime/types"
+)
+
+// Define custom error types for better error handling
+var (
+	ErrProductNotFound = errors.New("product not found")
+	ErrInvalidInput    = errors.New("invalid input")
+	ErrDatabaseError   = errors.New("database error")
 )
 
 type ProductService struct {
@@ -100,6 +109,14 @@ func (s *ProductService) dbProductToAPI(dbProduct repo.Product) api.Product {
 		apiProduct.CollectionId = &collectionId
 	}
 	
+	// Handle metadata (JSONB field) - With json.RawMessage
+	if len(dbProduct.Metadata) > 0 {
+		var metadata map[string]interface{}
+		if err := json.Unmarshal(dbProduct.Metadata, &metadata); err == nil {
+			apiProduct.Metadata = &metadata
+		}
+	}
+	
 	// Handle subscription fields
 	if len(dbProduct.SubscriptionIntervals) > 0 {
 		intervals := make([]api.SubscriptionInterval, len(dbProduct.SubscriptionIntervals))
@@ -134,7 +151,7 @@ func (s *ProductService) apiCreateRequestToDBParams(req api.CreateProductRequest
 	params := repo.CreateProductParams{
 		Title:    req.Title,
 		Handle:   req.Handle,
-		Status:   "draft", // default status
+		Status:   "draft",
 		IsGiftcard: false,
 		Discountable: true,
 		SubscriptionEnabled: false,
@@ -203,6 +220,13 @@ func (s *ProductService) apiCreateRequestToDBParams(req api.CreateProductRequest
 		params.CollectionID = pgtype.UUID{Bytes: uuidBytes, Valid: true}
 	}
 	
+	// Handle metadata (JSONB field) - With json.RawMessage
+	if req.Metadata != nil {
+		if metadataBytes, err := json.Marshal(*req.Metadata); err == nil {
+			params.Metadata = json.RawMessage(metadataBytes)
+		}
+	}
+	
 	// Handle subscription fields
 	if req.SubscriptionEnabled != nil {
 		params.SubscriptionEnabled = *req.SubscriptionEnabled
@@ -221,15 +245,8 @@ func (s *ProductService) apiCreateRequestToDBParams(req api.CreateProductRequest
 		params.MaxSubscriptionQuantity = pgtype.Int4{Int32: int32(*req.MaxSubscriptionQuantity), Valid: true}
 	}
 	if req.SubscriptionDiscountPercentage != nil {
-		params.SubscriptionDiscountPercentage = pgtype.Numeric{
-			Int: nil, // Will be set by pgtype
-			Exp: 0,
-			NaN: false,
-			InfinityModifier: pgtype.Finite,
-			Valid: true,
-		}
-		// You'll need to properly convert float64 to pgtype.Numeric
-		// This is a simplified version
+		// Simple string conversion for numeric
+		params.SubscriptionDiscountPercentage.Scan(fmt.Sprintf("%.2f", *req.SubscriptionDiscountPercentage))
 	}
 	if req.SubscriptionPriority != nil {
 		params.SubscriptionPriority = pgtype.Int4{Int32: int32(*req.SubscriptionPriority), Valid: true}
@@ -258,7 +275,7 @@ func (s *ProductService) GetProduct(ctx context.Context, id openapi_types.UUID) 
 	dbProduct, err := s.queries.GetProduct(ctx, pgUUID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("product not found")
+			return nil, ErrProductNotFound
 		}
 		return nil, fmt.Errorf("failed to get product: %w", err)
 	}

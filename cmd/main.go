@@ -40,7 +40,7 @@ func main() {
 	}
 	
 	// Load configuration
-	cfg, err := config.Load()
+	cfg, err := config.Load(".env")
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to load configuration")
 	}
@@ -90,35 +90,4 @@ func main() {
 	if err := e.Start(fmt.Sprintf(":%d", cfg.App.Port)); err != nil && err != http.ErrServerClosed {
 		logger.Fatal().Err(err).Msg("Failed to start server")
 	}
-}
-
-// Example of how to use the service directly (for testing or other purposes)
-func ExampleDirectUsage() {
-	// This is just an example of how you might use the service layer directly
-	
-	// Initialize database connection (same as above)
-	cfg, _ := config.Load()
-	db, _ := pgxpool.New(context.Background(), cfg.DB.DSN)
-	defer db.Close()
-
-	// Initialize service
-	queries := repo.New(db)
-	productService := service.NewProductService(queries)
-
-	// Create a product
-	createReq := api.CreateProductRequest{
-		Title:  "Ethiopian Yirgacheffe",
-		Handle: "ethiopian-yirgacheffe",
-		// Add other fields as needed
-	}
-
-	ctx := context.Background()
-	product, err := productService.CreateProduct(ctx, createReq)
-	if err != nil {
-		// Handle error
-		return
-	}
-
-	// Use the created product
-	_ = product
 }

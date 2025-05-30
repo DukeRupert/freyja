@@ -7,6 +7,7 @@ package repo
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/lib/pq"
@@ -64,41 +65,41 @@ INSERT INTO products (
 `
 
 type CreateProductParams struct {
-	Title                          string           `db:"title" json:"title"`
-	Handle                         string           `db:"handle" json:"handle"`
-	Subtitle                       pgtype.Text      `db:"subtitle" json:"subtitle"`
-	Description                    pgtype.Text      `db:"description" json:"description"`
-	Thumbnail                      pgtype.Text      `db:"thumbnail" json:"thumbnail"`
-	Status                         string           `db:"status" json:"status"`
-	IsGiftcard                     bool             `db:"is_giftcard" json:"is_giftcard"`
-	Discountable                   bool             `db:"discountable" json:"discountable"`
-	OriginCountry                  pgtype.Text      `db:"origin_country" json:"origin_country"`
-	Region                         pgtype.Text      `db:"region" json:"region"`
-	Farm                           pgtype.Text      `db:"farm" json:"farm"`
-	AltitudeMin                    pgtype.Int4      `db:"altitude_min" json:"altitude_min"`
-	AltitudeMax                    pgtype.Int4      `db:"altitude_max" json:"altitude_max"`
-	ProcessingMethod               pgtype.Text      `db:"processing_method" json:"processing_method"`
-	RoastLevel                     pgtype.Text      `db:"roast_level" json:"roast_level"`
-	FlavorNotes                    pq.StringArray   `db:"flavor_notes" json:"flavor_notes"`
-	Varietal                       pgtype.Text      `db:"varietal" json:"varietal"`
-	HarvestDate                    pgtype.Date      `db:"harvest_date" json:"harvest_date"`
-	WeightGrams                    pgtype.Int4      `db:"weight_grams" json:"weight_grams"`
-	LengthCm                       pgtype.Numeric   `db:"length_cm" json:"length_cm"`
-	HeightCm                       pgtype.Numeric   `db:"height_cm" json:"height_cm"`
-	WidthCm                        pgtype.Numeric   `db:"width_cm" json:"width_cm"`
-	HsCode                         pgtype.Text      `db:"hs_code" json:"hs_code"`
-	MidCode                        pgtype.Text      `db:"mid_code" json:"mid_code"`
-	Material                       pgtype.Text      `db:"material" json:"material"`
-	ExternalID                     pgtype.Text      `db:"external_id" json:"external_id"`
-	ProductTypeID                  pgtype.UUID      `db:"product_type_id" json:"product_type_id"`
-	CollectionID                   pgtype.UUID      `db:"collection_id" json:"collection_id"`
-	Metadata                       pgtype.JSONCodec `db:"metadata" json:"metadata"`
-	SubscriptionEnabled            bool             `db:"subscription_enabled" json:"subscription_enabled"`
-	SubscriptionIntervals          pq.StringArray   `db:"subscription_intervals" json:"subscription_intervals"`
-	MinSubscriptionQuantity        pgtype.Int4      `db:"min_subscription_quantity" json:"min_subscription_quantity"`
-	MaxSubscriptionQuantity        pgtype.Int4      `db:"max_subscription_quantity" json:"max_subscription_quantity"`
-	SubscriptionDiscountPercentage pgtype.Numeric   `db:"subscription_discount_percentage" json:"subscription_discount_percentage"`
-	SubscriptionPriority           pgtype.Int4      `db:"subscription_priority" json:"subscription_priority"`
+	Title                          string          `db:"title" json:"title"`
+	Handle                         string          `db:"handle" json:"handle"`
+	Subtitle                       pgtype.Text     `db:"subtitle" json:"subtitle"`
+	Description                    pgtype.Text     `db:"description" json:"description"`
+	Thumbnail                      pgtype.Text     `db:"thumbnail" json:"thumbnail"`
+	Status                         string          `db:"status" json:"status"`
+	IsGiftcard                     bool            `db:"is_giftcard" json:"is_giftcard"`
+	Discountable                   bool            `db:"discountable" json:"discountable"`
+	OriginCountry                  pgtype.Text     `db:"origin_country" json:"origin_country"`
+	Region                         pgtype.Text     `db:"region" json:"region"`
+	Farm                           pgtype.Text     `db:"farm" json:"farm"`
+	AltitudeMin                    pgtype.Int4     `db:"altitude_min" json:"altitude_min"`
+	AltitudeMax                    pgtype.Int4     `db:"altitude_max" json:"altitude_max"`
+	ProcessingMethod               pgtype.Text     `db:"processing_method" json:"processing_method"`
+	RoastLevel                     pgtype.Text     `db:"roast_level" json:"roast_level"`
+	FlavorNotes                    pq.StringArray  `db:"flavor_notes" json:"flavor_notes"`
+	Varietal                       pgtype.Text     `db:"varietal" json:"varietal"`
+	HarvestDate                    pgtype.Date     `db:"harvest_date" json:"harvest_date"`
+	WeightGrams                    pgtype.Int4     `db:"weight_grams" json:"weight_grams"`
+	LengthCm                       pgtype.Numeric  `db:"length_cm" json:"length_cm"`
+	HeightCm                       pgtype.Numeric  `db:"height_cm" json:"height_cm"`
+	WidthCm                        pgtype.Numeric  `db:"width_cm" json:"width_cm"`
+	HsCode                         pgtype.Text     `db:"hs_code" json:"hs_code"`
+	MidCode                        pgtype.Text     `db:"mid_code" json:"mid_code"`
+	Material                       pgtype.Text     `db:"material" json:"material"`
+	ExternalID                     pgtype.Text     `db:"external_id" json:"external_id"`
+	ProductTypeID                  pgtype.UUID     `db:"product_type_id" json:"product_type_id"`
+	CollectionID                   pgtype.UUID     `db:"collection_id" json:"collection_id"`
+	Metadata                       json.RawMessage `db:"metadata" json:"metadata"`
+	SubscriptionEnabled            bool            `db:"subscription_enabled" json:"subscription_enabled"`
+	SubscriptionIntervals          pq.StringArray  `db:"subscription_intervals" json:"subscription_intervals"`
+	MinSubscriptionQuantity        pgtype.Int4     `db:"min_subscription_quantity" json:"min_subscription_quantity"`
+	MaxSubscriptionQuantity        pgtype.Int4     `db:"max_subscription_quantity" json:"max_subscription_quantity"`
+	SubscriptionDiscountPercentage pgtype.Numeric  `db:"subscription_discount_percentage" json:"subscription_discount_percentage"`
+	SubscriptionPriority           pgtype.Int4     `db:"subscription_priority" json:"subscription_priority"`
 }
 
 func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (Product, error) {
@@ -1062,32 +1063,32 @@ RETURNING id, title, handle, subtitle, description, thumbnail, status, is_giftca
 `
 
 type UpdateProductParams struct {
-	ID                             pgtype.UUID      `db:"id" json:"id"`
-	Title                          string           `db:"title" json:"title"`
-	Subtitle                       pgtype.Text      `db:"subtitle" json:"subtitle"`
-	Description                    pgtype.Text      `db:"description" json:"description"`
-	Thumbnail                      pgtype.Text      `db:"thumbnail" json:"thumbnail"`
-	Status                         string           `db:"status" json:"status"`
-	IsGiftcard                     bool             `db:"is_giftcard" json:"is_giftcard"`
-	Discountable                   bool             `db:"discountable" json:"discountable"`
-	OriginCountry                  pgtype.Text      `db:"origin_country" json:"origin_country"`
-	Region                         pgtype.Text      `db:"region" json:"region"`
-	Farm                           pgtype.Text      `db:"farm" json:"farm"`
-	AltitudeMin                    pgtype.Int4      `db:"altitude_min" json:"altitude_min"`
-	AltitudeMax                    pgtype.Int4      `db:"altitude_max" json:"altitude_max"`
-	ProcessingMethod               pgtype.Text      `db:"processing_method" json:"processing_method"`
-	RoastLevel                     pgtype.Text      `db:"roast_level" json:"roast_level"`
-	FlavorNotes                    pq.StringArray   `db:"flavor_notes" json:"flavor_notes"`
-	Varietal                       pgtype.Text      `db:"varietal" json:"varietal"`
-	HarvestDate                    pgtype.Date      `db:"harvest_date" json:"harvest_date"`
-	WeightGrams                    pgtype.Int4      `db:"weight_grams" json:"weight_grams"`
-	Metadata                       pgtype.JSONCodec `db:"metadata" json:"metadata"`
-	SubscriptionEnabled            bool             `db:"subscription_enabled" json:"subscription_enabled"`
-	SubscriptionIntervals          pq.StringArray   `db:"subscription_intervals" json:"subscription_intervals"`
-	MinSubscriptionQuantity        pgtype.Int4      `db:"min_subscription_quantity" json:"min_subscription_quantity"`
-	MaxSubscriptionQuantity        pgtype.Int4      `db:"max_subscription_quantity" json:"max_subscription_quantity"`
-	SubscriptionDiscountPercentage pgtype.Numeric   `db:"subscription_discount_percentage" json:"subscription_discount_percentage"`
-	SubscriptionPriority           pgtype.Int4      `db:"subscription_priority" json:"subscription_priority"`
+	ID                             pgtype.UUID     `db:"id" json:"id"`
+	Title                          string          `db:"title" json:"title"`
+	Subtitle                       pgtype.Text     `db:"subtitle" json:"subtitle"`
+	Description                    pgtype.Text     `db:"description" json:"description"`
+	Thumbnail                      pgtype.Text     `db:"thumbnail" json:"thumbnail"`
+	Status                         string          `db:"status" json:"status"`
+	IsGiftcard                     bool            `db:"is_giftcard" json:"is_giftcard"`
+	Discountable                   bool            `db:"discountable" json:"discountable"`
+	OriginCountry                  pgtype.Text     `db:"origin_country" json:"origin_country"`
+	Region                         pgtype.Text     `db:"region" json:"region"`
+	Farm                           pgtype.Text     `db:"farm" json:"farm"`
+	AltitudeMin                    pgtype.Int4     `db:"altitude_min" json:"altitude_min"`
+	AltitudeMax                    pgtype.Int4     `db:"altitude_max" json:"altitude_max"`
+	ProcessingMethod               pgtype.Text     `db:"processing_method" json:"processing_method"`
+	RoastLevel                     pgtype.Text     `db:"roast_level" json:"roast_level"`
+	FlavorNotes                    pq.StringArray  `db:"flavor_notes" json:"flavor_notes"`
+	Varietal                       pgtype.Text     `db:"varietal" json:"varietal"`
+	HarvestDate                    pgtype.Date     `db:"harvest_date" json:"harvest_date"`
+	WeightGrams                    pgtype.Int4     `db:"weight_grams" json:"weight_grams"`
+	Metadata                       json.RawMessage `db:"metadata" json:"metadata"`
+	SubscriptionEnabled            bool            `db:"subscription_enabled" json:"subscription_enabled"`
+	SubscriptionIntervals          pq.StringArray  `db:"subscription_intervals" json:"subscription_intervals"`
+	MinSubscriptionQuantity        pgtype.Int4     `db:"min_subscription_quantity" json:"min_subscription_quantity"`
+	MaxSubscriptionQuantity        pgtype.Int4     `db:"max_subscription_quantity" json:"max_subscription_quantity"`
+	SubscriptionDiscountPercentage pgtype.Numeric  `db:"subscription_discount_percentage" json:"subscription_discount_percentage"`
+	SubscriptionPriority           pgtype.Int4     `db:"subscription_priority" json:"subscription_priority"`
 }
 
 func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) (Product, error) {

@@ -28,4 +28,4 @@ sql:
           - column: "*.subscription_intervals"
             go_type: "github.com/lib/pq.StringArray"
           - column: "*.metadata"
-            go_type: "github.com/jackc/pgx/v5/pgtype.JSONCodec"
+            go_type: "encoding/json.RawMessage"
