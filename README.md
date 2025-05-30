@@ -1,62 +1,173 @@
-<p align="center">
-  <a href="https://www.medusajs.com">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://user-images.githubusercontent.com/59018053/229103275-b5e482bb-4601-46e6-8142-244f531cebdb.svg">
-    <source media="(prefers-color-scheme: light)" srcset="https://user-images.githubusercontent.com/59018053/229103726-e5b529a3-9b3f-4970-8a1f-c6af37f087bf.svg">
-    <img alt="Medusa logo" src="https://user-images.githubusercontent.com/59018053/229103726-e5b529a3-9b3f-4970-8a1f-c6af37f087bf.svg">
-    </picture>
-  </a>
-</p>
-<h1 align="center">
-  Medusa
-</h1>
+# Freyja ☕
 
-<h4 align="center">
-  <a href="https://docs.medusajs.com">Documentation</a> |
-  <a href="https://www.medusajs.com">Website</a>
-</h4>
+A modern e-commerce platform specifically designed for coffee roasting businesses, enabling seamless product management, subscription services, and customer engagement.
 
-<p align="center">
-  Building blocks for digital commerce
-</p>
-<p align="center">
-  <a href="https://github.com/medusajs/medusa/blob/master/CONTRIBUTING.md">
-    <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat" alt="PRs welcome!" />
-  </a>
-    <a href="https://www.producthunt.com/posts/medusa"><img src="https://img.shields.io/badge/Product%20Hunt-%231%20Product%20of%20the%20Day-%23DA552E" alt="Product Hunt"></a>
-  <a href="https://discord.gg/xpCwq3Kfn8">
-    <img src="https://img.shields.io/badge/chat-on%20discord-7289DA.svg" alt="Discord Chat" />
-  </a>
-  <a href="https://twitter.com/intent/follow?screen_name=medusajs">
-    <img src="https://img.shields.io/twitter/follow/medusajs.svg?label=Follow%20@medusajs" alt="Follow @medusajs" />
-  </a>
-</p>
+## 🎯 Purpose
 
-## Compatibility
+Freyja empowers coffee roasters to:
+- **Manage Products**: Comprehensive coffee product catalog with origin tracking, roast profiles, and processing methods
+- **Subscription Services**: Automated recurring deliveries with flexible intervals and customer preferences
+- **E-commerce Operations**: Full-featured online store with inventory management and order processing
+- **Customer Experience**: Rich product discovery with detailed coffee information and tasting notes
 
-This starter is compatible with versions >= 2 of `@medusajs/medusa`. 
+Perfect for specialty coffee roasters, coffee shops, and distributors looking to scale their online presence while maintaining the artisanal quality that defines great coffee.
 
-## Getting Started
+## 🛠️ Technologies Used
 
-Visit the [Quickstart Guide](https://docs.medusajs.com/learn/installation) to set up a server.
+### Backend Framework
+- **Go (Golang)** - High-performance backend API
+- **Echo** - Fast and minimalist web framework
+- **PostgreSQL** - Robust relational database for complex queries
 
-Visit the [Docs](https://docs.medusajs.com/learn/installation#get-started) to learn more about our system requirements.
+### Database & Migrations
+- **sqlc** - Type-safe SQL code generation
+- **Goose** - Database migration management
+- **pgx/v5** - High-performance PostgreSQL driver
 
-## What is Medusa
+### API & Documentation
+- **OpenAPI 3.1** - API specification and documentation
+- **oapi-codegen** - Automatic Go server code generation from OpenAPI specs
 
-Medusa is a set of commerce modules and tools that allow you to build rich, reliable, and performant commerce applications without reinventing core commerce logic. The modules can be customized and used to build advanced ecommerce stores, marketplaces, or any product that needs foundational commerce primitives. All modules are open-source and freely available on npm.
+### Payment & Authentication
+- **Stripe** - Secure payment processing and subscription billing
+- **JWT** - Stateless authentication and authorization
 
-Learn more about [Medusa’s architecture](https://docs.medusajs.com/learn/introduction/architecture) and [commerce modules](https://docs.medusajs.com/learn/fundamentals/modules/commerce-modules) in the Docs.
+### Message Queue & Events
+- **NATS** - Lightweight message bus for event-driven architecture
 
-## Community & Contributions
+### Development Tools
+- **Air** - Live reload for Go applications
+- **golangci-lint** - Comprehensive Go linting
+- **Docker** - Containerization for consistent deployments
 
-The community and core team are available in [GitHub Discussions](https://github.com/medusajs/medusa/discussions), where you can ask for support, discuss roadmap, and share ideas.
+## 🚀 Quick Start
 
-Join our [Discord server](https://discord.com/invite/medusajs) to meet other community members.
+### Prerequisites
+- Go 1.21+
+- PostgreSQL 14+
+- Make
 
-## Other channels
+### Setup
+```bash
+# Clone the repository
+git clone <repository-url>
+cd freyja
 
-- [GitHub Issues](https://github.com/medusajs/medusa/issues)
-- [Twitter](https://twitter.com/medusajs)
-- [LinkedIn](https://www.linkedin.com/company/medusajs)
-- [Medusa Blog](https://medusajs.com/blog/)
+# Set up development environment
+make dev-setup
+
+# Configure environment variables
+# Create and edit .env file with your configuration
+
+# Create database and run migrations
+make db-create
+make migrate-up
+
+# Generate code and build
+make generate
+make build
+
+# Start the application
+make run
+```
+
+## 📋 Makefile Commands
+
+### 🗄️ Database Migrations
+```bash
+make migrate-up                              # Run all pending migrations
+make migrate-down                            # Rollback the last migration
+make migrate-down-to VERSION=20240101000000 # Rollback to specific version
+make migrate-reset                           # Reset database (rollback all migrations)
+make migrate-status                          # Show migration status
+make migrate-version                         # Show current migration version
+make migrate-create NAME=add_new_table       # Create a new migration file
+```
+
+### 🔧 Development
+```bash
+make dev-setup        # Install development tools (goose, sqlc, oapi-codegen)
+make generate         # Generate sqlc and OpenAPI code
+make build            # Build the application
+make run              # Run the application
+make clean            # Clean build artifacts
+make config           # Show current configuration
+```
+
+### 🧪 Testing & Quality
+```bash
+make test             # Run tests
+make test-coverage    # Run tests with coverage report
+make lint             # Run linter
+```
+
+### 💾 Database Management
+```bash
+make db-create        # Create database
+make db-drop          # Drop database (with confirmation)
+```
+
+### 🐳 Docker (Optional)
+```bash
+make docker-build     # Build Docker image
+make docker-up        # Start Docker services
+make docker-down      # Stop Docker services
+```
+
+### 📚 Help
+```bash
+make help             # Show all available commands with descriptions
+```
+
+## 🏗️ Project Structure
+
+```
+freyja/
+├── cmd/api/                 # Application entry point
+├── internal/
+│   ├── api/                 # Generated OpenAPI server code
+│   ├── dbstore/             # Generated sqlc database code
+│   ├── migrations/          # Database migration files
+│   ├── handlers/            # HTTP request handlers
+│   ├── services/            # Business logic
+│   └── models/              # Domain models
+├── config/                  # Configuration management
+├── openapi.yaml             # API specification
+├── sqlc.yaml               # sqlc configuration
+├── oapi-codegen.yaml       # OpenAPI code generation config
+├── Makefile                # Development commands
+└── README.md               # This file
+```
+
+## 🌟 Key Features
+
+### Coffee-Specific Product Management
+- **Origin Tracking**: Country, region, farm, and altitude information
+- **Processing Methods**: Washed, natural, honey, semi-washed processing
+- **Roast Profiles**: Light to dark roast level categorization
+- **Flavor Notes**: Tagged flavor descriptors for product discovery
+- **Varietal Information**: Coffee variety and harvest date tracking
+
+### Subscription System
+- **Flexible Intervals**: Weekly, bi-weekly, monthly, quarterly options
+- **Quantity Controls**: Min/max subscription quantities per product
+- **Automatic Discounts**: Percentage-based subscriber discounts
+- **Priority Products**: Featured products for subscription customers
+
+### Developer Experience
+- **Type Safety**: sqlc generates type-safe database operations
+- **API Documentation**: Auto-generated from OpenAPI specification
+- **Live Reload**: Fast development with automatic recompilation
+- **Database Migrations**: Version-controlled schema evolution
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## ☕ About the Name
+
+Freyja is named after the Norse goddess associated with fertility, prosperity, and abundance - qualities that perfectly embody a thriving coffee business bringing quality and joy to customers worldwide.
