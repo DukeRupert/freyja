@@ -23,14 +23,6 @@ ALTER TABLE products ADD CONSTRAINT chk_subscription_intervals
 -- Add indexes for subscription queries
 CREATE INDEX idx_products_subscription_enabled ON products(subscription_enabled) WHERE subscription_enabled = true;
 CREATE INDEX idx_products_subscription_priority ON products(subscription_priority DESC) WHERE subscription_enabled = true;
-
--- Add comments for documentation
-COMMENT ON COLUMN products.subscription_enabled IS 'Whether this product can be purchased as a subscription';
-COMMENT ON COLUMN products.subscription_intervals IS 'Available subscription intervals (weekly, biweekly, monthly, etc.)';
-COMMENT ON COLUMN products.min_subscription_quantity IS 'Minimum quantity for subscription orders';
-COMMENT ON COLUMN products.max_subscription_quantity IS 'Maximum quantity for subscription orders (NULL = no limit)';
-COMMENT ON COLUMN products.subscription_discount_percentage IS 'Percentage discount applied to subscription orders (0-100)';
-COMMENT ON COLUMN products.subscription_priority IS 'Priority for displaying in subscription lists (higher = more prominent)';
 -- +goose StatementEnd
 
 -- +goose Down

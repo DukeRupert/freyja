@@ -32,13 +32,13 @@ help: ## Show this help message
 .PHONY: migrate-up
 migrate-up: ## Run all pending migrations
 	@echo "$(YELLOW)Running migrations up...$(NC)"
-	@goose -dir $(GOOSE_MIGRATION_DIR) $(GOOSE_DRIVER) "$(GOOSE_DBSTRING)" up
+	@goose up
 	@echo "$(GREEN)Migrations completed successfully!$(NC)"
 
 .PHONY: migrate-down
 migrate-down: ## Rollback the last migration
 	@echo "$(YELLOW)Rolling back last migration...$(NC)"
-	@goose -dir $(GOOSE_MIGRATION_DIR) $(GOOSE_DRIVER) "$(GOOSE_DBSTRING)" down
+	@goose down
 	@echo "$(GREEN)Migration rollback completed!$(NC)"
 
 .PHONY: migrate-down-to
@@ -91,9 +91,9 @@ dev-setup: ## Set up development environment
 .PHONY: generate
 generate: ## Generate sqlc and OpenAPI code
 	@echo "$(YELLOW)Generating sqlc code...$(NC)"
-	@sqlc generate
+	@cd internal && sqlc generate
 	@echo "$(YELLOW)Generating OpenAPI server code...$(NC)"
-	@oapi-codegen --config=oapi-codegen.yaml openapi.yaml
+	@oapi-codegen --config=internal/oapi-codegen.yaml internal/openapi.yaml
 	@echo "$(GREEN)Code generation completed!$(NC)"
 
 .PHONY: build

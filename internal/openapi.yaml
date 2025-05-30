@@ -1,16 +1,16 @@
-openapi: 3.1.1
+openapi: 3.0.3
 info:
   title: Coffee Roasting E-commerce API
   description: API for managing coffee products, roasting profiles, and e-commerce operations
   version: 1.0.0
   contact:
-    name: Freyja Support
-    email: logan@fireflysoftware.dev
+    name: Coffee Roasting API Support
+    email: api@coffeeroasting.com
 
 servers:
-  - url: "https://symmetrical-space-garbanzo-wg644q6vq9x2g7r-1323.app.github.dev/v1"
+  - url: "https://api.coffeeroasting.com/v1"
     description: Production server
-  - url: "https://symmetrical-space-garbanzo-wg644q6vq9x2g7r-1323.app.github.dev/v1"
+  - url: "https://staging-api.coffeeroasting.com/v1"
     description: Staging server
 
 security:
@@ -19,8 +19,6 @@ security:
 tags:
   - name: products
     description: Coffee product management
-  - name: inventory
-    description: Product inventory operations
 
 paths:
   /products:
@@ -53,12 +51,6 @@ paths:
           description: Filter by processing method
           schema:
             $ref: "#/components/schemas/ProcessingMethod"
-        - name: search
-          in: query
-          description: Search products by title, description, origin, or varietal
-          schema:
-            type: string
-            example: "geisha ethiopia"
         - name: subscribable
           in: query
           description: Filter to only subscribable products
@@ -112,6 +104,70 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "422":
           $ref: "#/components/responses/ValidationError"
+
+  /products/search:
+    get:
+      tags: [products]
+      summary: Search products
+      description: Search coffee products with advanced filtering
+      operationId: searchProducts
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query
+          schema:
+            type: string
+            example: "single origin ethiopia"
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  products:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Product"
+                  pagination:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /products/subscribable:
+    get:
+      tags: [products]
+      summary: List subscribable products
+      description: Retrieve products available for subscription
+      operationId: listSubscribableProducts
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: interval
+          in: query
+          description: Filter by subscription interval
+          schema:
+            $ref: "#/components/schemas/SubscriptionInterval"
+      responses:
+        "200":
+          description: Subscribable products retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  products:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Product"
+                  pagination:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "400":
+          $ref: "#/components/responses/BadRequest"
 
   /products/{id}:
     get:
@@ -177,37 +233,6 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /products/subscribable:
-    get:
-      tags: [products]
-      summary: List subscribable products
-      description: Retrieve products available for subscription
-      operationId: listSubscribableProducts
-      parameters:
-        - $ref: "#/components/parameters/PageParam"
-        - $ref: "#/components/parameters/LimitParam"
-        - name: interval
-          in: query
-          description: Filter by subscription interval
-          schema:
-            $ref: "#/components/schemas/SubscriptionInterval"
-      responses:
-        "200":
-          description: Subscribable products retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  products:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Product"
-                  pagination:
-                    $ref: "#/components/schemas/PaginationMeta"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-
   /products/{id}/subscription:
     patch:
       tags: [products]
@@ -237,37 +262,6 @@ paths:
           $ref: "#/components/responses/NotFound"
         "422":
           $ref: "#/components/responses/ValidationError"
-    get:
-      tags: [products]
-      summary: Search products
-      description: Search coffee products with advanced filtering
-      operationId: searchProducts
-      parameters:
-        - name: q
-          in: query
-          required: true
-          description: Search query
-          schema:
-            type: string
-            example: "single origin ethiopia"
-        - $ref: "#/components/parameters/PageParam"
-        - $ref: "#/components/parameters/LimitParam"
-      responses:
-        "200":
-          description: Search results
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  products:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Product"
-                  pagination:
-                    $ref: "#/components/schemas/PaginationMeta"
-        "400":
-          $ref: "#/components/responses/BadRequest"
 
 components:
   securitySchemes:
@@ -316,6 +310,7 @@ components:
         - status
         - is_giftcard
         - discountable
+        - subscription_enabled
         - created_at
         - updated_at
       properties:
@@ -339,7 +334,7 @@ components:
         description:
           type: string
           nullable: true
-          example: "A bright and complex coffee with notes of bergamot, lemon, and jasmine. Grown at high altitude in the Gedeo region."
+          example: "A bright and complex coffee with notes of bergamot, lemon, and jasmine."
         thumbnail:
           type: string
           format: uri
@@ -404,19 +399,19 @@ components:
           example: 340
         length_cm:
           type: number
-          format: decimal
+          format: double
           nullable: true
           minimum: 0
           example: 15.5
         height_cm:
           type: number
-          format: decimal
+          format: double
           nullable: true
           minimum: 0
           example: 20.0
         width_cm:
           type: number
-          format: decimal
+          format: double
           nullable: true
           minimum: 0
           example: 8.5
@@ -476,7 +471,7 @@ components:
           description: Maximum quantity for subscription orders (null = no limit)
         subscription_discount_percentage:
           type: number
-          format: decimal
+          format: double
           minimum: 0
           maximum: 100
           default: 0
@@ -557,15 +552,15 @@ components:
           minimum: 0
         length_cm:
           type: number
-          format: decimal
+          format: double
           minimum: 0
         height_cm:
           type: number
-          format: decimal
+          format: double
           minimum: 0
         width_cm:
           type: number
-          format: decimal
+          format: double
           minimum: 0
         hs_code:
           type: string
@@ -579,6 +574,15 @@ components:
         external_id:
           type: string
           maxLength: 100
+        product_type_id:
+          type: string
+          format: uuid
+        collection_id:
+          type: string
+          format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
         subscription_enabled:
           type: boolean
           default: false
@@ -595,22 +599,13 @@ components:
           minimum: 1
         subscription_discount_percentage:
           type: number
-          format: decimal
+          format: double
           minimum: 0
           maximum: 100
           default: 0
         subscription_priority:
           type: integer
           default: 0
-        product_type_id:
-          type: string
-          format: uuid
-        collection_id:
-          type: string
-          format: uuid
-        metadata:
-          type: object
-          additionalProperties: true
 
     UpdateProductRequest:
       type: object
@@ -681,7 +676,7 @@ components:
           minimum: 1
         subscription_discount_percentage:
           type: number
-          format: decimal
+          format: double
           minimum: 0
           maximum: 100
         subscription_priority:
@@ -704,7 +699,7 @@ components:
           minimum: 1
         subscription_discount_percentage:
           type: number
-          format: decimal
+          format: double
           minimum: 0
           maximum: 100
         subscription_priority:

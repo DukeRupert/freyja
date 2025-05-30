@@ -28,14 +28,4 @@ sql:
           - column: "*.subscription_intervals"
             go_type: "github.com/lib/pq.StringArray"
           - column: "*.metadata"
-            go_type: "github.com/jackc/pgx/v5/pgtype.JSON"
-          - column: "products.id"
-            go_type: "github.com/google/uuid.UUID"
-          - column: "products.product_type_id"
-            go_type: 
-              type: "github.com/google/uuid.UUID"
-              pointer: true
-          - column: "products.collection_id"
-            go_type: 
-              type: "github.com/google/uuid.UUID"
-              pointer: true
+            go_type: "github.com/jackc/pgx/v5/pgtype.JSONCodec"

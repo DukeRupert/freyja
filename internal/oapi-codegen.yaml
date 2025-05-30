@@ -1,0 +1,22 @@
+# oapi-codegen.yaml
+package: api
+output: internal/api/api.gen.go
+generate:
+  # Generate Echo server interfaces and handlers
+  echo-server: true
+  # Generate strict server interface (recommended)
+  strict-server: true
+  # Generate request/response models
+  models: true
+  # Generate client code (optional, useful for testing)
+  client: false
+  # Skip generating embedded swagger spec (optional)
+  embedded-spec: true
+
+# Additional configuration options
+output-options:
+  # Skip generating code for unsupported operations
+  skip-fmt: false
+  skip-prune: false
+  
+# Import mapping for external types
