@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 
+	custommiddleware "github.com/dukerupert/freyja/internal/middleware"
+
 	"github.com/dukerupert/freyja/internal/api"
 	"github.com/dukerupert/freyja/internal/config"
 	"github.com/dukerupert/freyja/internal/handler"
@@ -65,7 +67,7 @@ func main() {
 	e := echo.New()
 
 	// Add middleware
-	e.Use(middleware.Logger())
+	e.Use(custommiddleware.RequestLogger(&logger))
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORS())
 
