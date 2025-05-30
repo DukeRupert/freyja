@@ -1,0 +1,829 @@
+openapi: 3.1.1
+info:
+  title: Coffee Roasting E-commerce API
+  description: API for managing coffee products, roasting profiles, and e-commerce operations
+  version: 1.0.0
+  contact:
+    name: Freyja Support
+    email: logan@fireflysoftware.dev
+
+servers:
+  - url: "https://symmetrical-space-garbanzo-wg644q6vq9x2g7r-1323.app.github.dev/v1"
+    description: Production server
+  - url: "https://symmetrical-space-garbanzo-wg644q6vq9x2g7r-1323.app.github.dev/v1"
+    description: Staging server
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: products
+    description: Coffee product management
+  - name: inventory
+    description: Product inventory operations
+
+paths:
+  /products:
+    get:
+      tags: [products]
+      summary: List products
+      description: Retrieve a paginated list of coffee products
+      operationId: listProducts
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: status
+          in: query
+          description: Filter by product status
+          schema:
+            $ref: "#/components/schemas/ProductStatus"
+        - name: origin_country
+          in: query
+          description: Filter by origin country
+          schema:
+            type: string
+            example: "Ethiopia"
+        - name: roast_level
+          in: query
+          description: Filter by roast level
+          schema:
+            $ref: "#/components/schemas/RoastLevel"
+        - name: processing_method
+          in: query
+          description: Filter by processing method
+          schema:
+            $ref: "#/components/schemas/ProcessingMethod"
+        - name: search
+          in: query
+          description: Search products by title, description, origin, or varietal
+          schema:
+            type: string
+            example: "geisha ethiopia"
+        - name: subscribable
+          in: query
+          description: Filter to only subscribable products
+          schema:
+            type: boolean
+        - name: subscription_interval
+          in: query
+          description: Filter by supported subscription interval
+          schema:
+            $ref: "#/components/schemas/SubscriptionInterval"
+      responses:
+        "200":
+          description: Products retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  products:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Product"
+                  pagination:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      tags: [products]
+      summary: Create product
+      description: Create a new coffee product
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductRequest"
+      responses:
+        "201":
+          description: Product created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /products/{id}:
+    get:
+      tags: [products]
+      summary: Get product
+      description: Retrieve a specific coffee product by ID
+      operationId: getProduct
+      parameters:
+        - $ref: "#/components/parameters/ProductIdParam"
+      responses:
+        "200":
+          description: Product retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    patch:
+      tags: [products]
+      summary: Update product
+      description: Update an existing coffee product
+      operationId: updateProduct
+      parameters:
+        - $ref: "#/components/parameters/ProductIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProductRequest"
+      responses:
+        "200":
+          description: Product updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+    delete:
+      tags: [products]
+      summary: Delete product
+      description: Soft delete a coffee product
+      operationId: deleteProduct
+      parameters:
+        - $ref: "#/components/parameters/ProductIdParam"
+      responses:
+        "204":
+          description: Product deleted successfully
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /products/subscribable:
+    get:
+      tags: [products]
+      summary: List subscribable products
+      description: Retrieve products available for subscription
+      operationId: listSubscribableProducts
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: interval
+          in: query
+          description: Filter by subscription interval
+          schema:
+            $ref: "#/components/schemas/SubscriptionInterval"
+      responses:
+        "200":
+          description: Subscribable products retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  products:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Product"
+                  pagination:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /products/{id}/subscription:
+    patch:
+      tags: [products]
+      summary: Update product subscription settings
+      description: Update subscription configuration for a product
+      operationId: updateProductSubscription
+      parameters:
+        - $ref: "#/components/parameters/ProductIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSubscriptionRequest"
+      responses:
+        "200":
+          description: Subscription settings updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    get:
+      tags: [products]
+      summary: Search products
+      description: Search coffee products with advanced filtering
+      operationId: searchProducts
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query
+          schema:
+            type: string
+            example: "single origin ethiopia"
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  products:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Product"
+                  pagination:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ProductIdParam:
+      name: id
+      in: path
+      required: true
+      description: Product UUID
+      schema:
+        type: string
+        format: uuid
+        example: "123e4567-e89b-12d3-a456-426614174000"
+
+    PageParam:
+      name: page
+      in: query
+      description: Page number (1-based)
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+    LimitParam:
+      name: limit
+      in: query
+      description: Number of items per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  schemas:
+    Product:
+      type: object
+      required:
+        - id
+        - title
+        - handle
+        - status
+        - is_giftcard
+        - discountable
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        title:
+          type: string
+          maxLength: 255
+          example: "Ethiopian Yirgacheffe Single Origin"
+        handle:
+          type: string
+          maxLength: 255
+          example: "ethiopian-yirgacheffe-single-origin"
+        subtitle:
+          type: string
+          nullable: true
+          maxLength: 255
+          example: "Light roast with floral notes"
+        description:
+          type: string
+          nullable: true
+          example: "A bright and complex coffee with notes of bergamot, lemon, and jasmine. Grown at high altitude in the Gedeo region."
+        thumbnail:
+          type: string
+          format: uri
+          nullable: true
+          example: "https://cdn.coffeeroasting.com/products/ethiopian-yirgacheffe.jpg"
+        status:
+          $ref: "#/components/schemas/ProductStatus"
+        is_giftcard:
+          type: boolean
+          default: false
+        discountable:
+          type: boolean
+          default: true
+        origin_country:
+          type: string
+          nullable: true
+          maxLength: 100
+          example: "Ethiopia"
+        region:
+          type: string
+          nullable: true
+          maxLength: 100
+          example: "Yirgacheffe"
+        farm:
+          type: string
+          nullable: true
+          maxLength: 255
+          example: "Chelchele Washing Station"
+        altitude_min:
+          type: integer
+          nullable: true
+          minimum: 0
+          example: 1800
+        altitude_max:
+          type: integer
+          nullable: true
+          minimum: 0
+          example: 2200
+        processing_method:
+          $ref: "#/components/schemas/ProcessingMethod"
+        roast_level:
+          $ref: "#/components/schemas/RoastLevel"
+        flavor_notes:
+          type: array
+          items:
+            type: string
+          example: ["bergamot", "lemon", "jasmine", "tea-like"]
+        varietal:
+          type: string
+          nullable: true
+          maxLength: 100
+          example: "Heirloom"
+        harvest_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-02-15"
+        weight_grams:
+          type: integer
+          nullable: true
+          minimum: 0
+          example: 340
+        length_cm:
+          type: number
+          format: decimal
+          nullable: true
+          minimum: 0
+          example: 15.5
+        height_cm:
+          type: number
+          format: decimal
+          nullable: true
+          minimum: 0
+          example: 20.0
+        width_cm:
+          type: number
+          format: decimal
+          nullable: true
+          minimum: 0
+          example: 8.5
+        hs_code:
+          type: string
+          nullable: true
+          maxLength: 20
+          example: "0901.21.00"
+        mid_code:
+          type: string
+          nullable: true
+          maxLength: 20
+        material:
+          type: string
+          nullable: true
+          maxLength: 100
+          example: "Coffee beans"
+        external_id:
+          type: string
+          nullable: true
+          maxLength: 100
+        product_type_id:
+          type: string
+          format: uuid
+          nullable: true
+        collection_id:
+          type: string
+          format: uuid
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+          example:
+            cupping_score: 87
+            certifications: ["organic", "fair_trade"]
+            supplier_notes: "Direct trade relationship"
+        subscription_enabled:
+          type: boolean
+          default: false
+          description: Whether this product can be purchased as a subscription
+        subscription_intervals:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubscriptionInterval"
+          description: Available subscription intervals for this product
+          example: ["monthly", "biweekly"]
+        min_subscription_quantity:
+          type: integer
+          minimum: 1
+          default: 1
+          description: Minimum quantity for subscription orders
+        max_subscription_quantity:
+          type: integer
+          minimum: 1
+          nullable: true
+          description: Maximum quantity for subscription orders (null = no limit)
+        subscription_discount_percentage:
+          type: number
+          format: decimal
+          minimum: 0
+          maximum: 100
+          default: 0
+          description: Percentage discount applied to subscription orders
+          example: 10.5
+        subscription_priority:
+          type: integer
+          default: 0
+          description: Priority for displaying in subscription lists (higher = more prominent)
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+
+    CreateProductRequest:
+      type: object
+      required:
+        - title
+        - handle
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        handle:
+          type: string
+          maxLength: 255
+        subtitle:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        thumbnail:
+          type: string
+          format: uri
+        status:
+          $ref: "#/components/schemas/ProductStatus"
+        is_giftcard:
+          type: boolean
+          default: false
+        discountable:
+          type: boolean
+          default: true
+        origin_country:
+          type: string
+          maxLength: 100
+        region:
+          type: string
+          maxLength: 100
+        farm:
+          type: string
+          maxLength: 255
+        altitude_min:
+          type: integer
+          minimum: 0
+        altitude_max:
+          type: integer
+          minimum: 0
+        processing_method:
+          $ref: "#/components/schemas/ProcessingMethod"
+        roast_level:
+          $ref: "#/components/schemas/RoastLevel"
+        flavor_notes:
+          type: array
+          items:
+            type: string
+        varietal:
+          type: string
+          maxLength: 100
+        harvest_date:
+          type: string
+          format: date
+        weight_grams:
+          type: integer
+          minimum: 0
+        length_cm:
+          type: number
+          format: decimal
+          minimum: 0
+        height_cm:
+          type: number
+          format: decimal
+          minimum: 0
+        width_cm:
+          type: number
+          format: decimal
+          minimum: 0
+        hs_code:
+          type: string
+          maxLength: 20
+        mid_code:
+          type: string
+          maxLength: 20
+        material:
+          type: string
+          maxLength: 100
+        external_id:
+          type: string
+          maxLength: 100
+        subscription_enabled:
+          type: boolean
+          default: false
+        subscription_intervals:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubscriptionInterval"
+        min_subscription_quantity:
+          type: integer
+          minimum: 1
+          default: 1
+        max_subscription_quantity:
+          type: integer
+          minimum: 1
+        subscription_discount_percentage:
+          type: number
+          format: decimal
+          minimum: 0
+          maximum: 100
+          default: 0
+        subscription_priority:
+          type: integer
+          default: 0
+        product_type_id:
+          type: string
+          format: uuid
+        collection_id:
+          type: string
+          format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
+
+    UpdateProductRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        subtitle:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        thumbnail:
+          type: string
+          format: uri
+        status:
+          $ref: "#/components/schemas/ProductStatus"
+        is_giftcard:
+          type: boolean
+        discountable:
+          type: boolean
+        origin_country:
+          type: string
+          maxLength: 100
+        region:
+          type: string
+          maxLength: 100
+        farm:
+          type: string
+          maxLength: 255
+        altitude_min:
+          type: integer
+          minimum: 0
+        altitude_max:
+          type: integer
+          minimum: 0
+        processing_method:
+          $ref: "#/components/schemas/ProcessingMethod"
+        roast_level:
+          $ref: "#/components/schemas/RoastLevel"
+        flavor_notes:
+          type: array
+          items:
+            type: string
+        varietal:
+          type: string
+          maxLength: 100
+        harvest_date:
+          type: string
+          format: date
+        weight_grams:
+          type: integer
+          minimum: 0
+        metadata:
+          type: object
+          additionalProperties: true
+        subscription_enabled:
+          type: boolean
+        subscription_intervals:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubscriptionInterval"
+        min_subscription_quantity:
+          type: integer
+          minimum: 1
+        max_subscription_quantity:
+          type: integer
+          minimum: 1
+        subscription_discount_percentage:
+          type: number
+          format: decimal
+          minimum: 0
+          maximum: 100
+        subscription_priority:
+          type: integer
+
+    UpdateSubscriptionRequest:
+      type: object
+      properties:
+        subscription_enabled:
+          type: boolean
+        subscription_intervals:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubscriptionInterval"
+        min_subscription_quantity:
+          type: integer
+          minimum: 1
+        max_subscription_quantity:
+          type: integer
+          minimum: 1
+        subscription_discount_percentage:
+          type: number
+          format: decimal
+          minimum: 0
+          maximum: 100
+        subscription_priority:
+          type: integer
+
+    ProductStatus:
+      type: string
+      enum: [draft, published, rejected]
+      example: "published"
+
+    ProcessingMethod:
+      type: string
+      enum: [washed, natural, honey, semi_washed, other]
+      example: "washed"
+
+    RoastLevel:
+      type: string
+      enum: [light, medium_light, medium, medium_dark, dark]
+      example: "light"
+
+    SubscriptionInterval:
+      type: string
+      enum: [weekly, biweekly, monthly, bimonthly, quarterly, semiannually, annually]
+      example: "monthly"
+
+    PaginationMeta:
+      type: object
+      required:
+        - page
+        - limit
+        - total
+        - total_pages
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          example: 1
+        limit:
+          type: integer
+          minimum: 1
+          example: 20
+        total:
+          type: integer
+          minimum: 0
+          example: 150
+        total_pages:
+          type: integer
+          minimum: 0
+          example: 8
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          example: "not_found"
+        message:
+          type: string
+          example: "Product not found"
+        details:
+          type: object
+          additionalProperties: true
+
+    ValidationError:
+      type: object
+      required:
+        - error
+        - message
+        - validation_errors
+      properties:
+        error:
+          type: string
+          example: "validation_failed"
+        message:
+          type: string
+          example: "Request validation failed"
+        validation_errors:
+          type: array
+          items:
+            type: object
+            required:
+              - field
+              - message
+            properties:
+              field:
+                type: string
+                example: "title"
+              message:
+                type: string
+                example: "Title is required"
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationError"
