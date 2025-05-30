@@ -2,11 +2,12 @@
 package config
 
 import (
-	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/joho/godotenv"
@@ -69,12 +70,12 @@ func Load() (*Config, error) {
 		App: AppConfig{
 			Name:  getEnv("APP_NAME", "freyja"),
 			Env:   getEnv("APP_ENV", "development"),
-			Port:  getEnvAsInt("APP_PORT", 8080),
+			Port:  getEnvAsIntWithValidation("APP_PORT", 8080, 1, 65535),
 			Debug: getEnvAsBool("APP_DEBUG", true),
 		},
 		DB: DBConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
-			Port:     getEnvAsInt("DB_PORT", 5432),
+			Port:     getEnvAsIntWithValidation("DB_PORT", 5432, 1, 65535),
 			Name:     getEnv("DB_NAME", "coffee_subscriptions"),
 			User:     getEnv("DB_USER", "postgres"),
 			Password: getEnv("DB_PASSWORD", "postgres"),
@@ -96,12 +97,12 @@ func Load() (*Config, error) {
 		},
 	}
 
-	// Validate required configuration
+	// Validate configuration before proceeding
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
-	// Construct database connection string
+	// Construct database connection string only after validation passes
 	cfg.DB.DSN = fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.Name, cfg.DB.SSLMode,
@@ -113,37 +114,151 @@ func Load() (*Config, error) {
 		cfg.DB.User, cfg.DB.Password, cfg.DB.Host, cfg.DB.Port, cfg.DB.Name, cfg.DB.SSLMode,
 	)
 
-	// Add debugging statements
-	fmt.Println("====== Database Configuration ======")
-	fmt.Println("DSN:", cfg.DB.DSN)
-	fmt.Println("MigrateURL:", cfg.DB.MigrateURL)
-	fmt.Println("===================================")
+	// Only show debug info in development
+	if cfg.App.Debug && cfg.App.Env == "development" {
+		fmt.Println("====== Database Configuration ======")
+		fmt.Println("DSN:", cfg.DB.DSN)
+		fmt.Println("MigrateURL:", cfg.DB.MigrateURL)
+		fmt.Println("===================================")
+	}
 
 	return cfg, nil
 }
 
 // validate checks if all required configuration is present
 func (c *Config) validate() error {
-	// In production, some values are required
-	if c.App.Env == "production" {
+	var errors []string
+
+	// Validate essential app configuration
+	if c.App.Name == "" {
+		errors = append(errors, "APP_NAME is required")
+	}
+	
+	if c.App.Port <= 0 || c.App.Port > 65535 {
+		errors = append(errors, fmt.Sprintf("APP_PORT must be between 1 and 65535, got: %d", c.App.Port))
+	}
+
+	// Validate database configuration
+	if c.DB.Host == "" {
+		errors = append(errors, "DB_HOST is required")
+	}
+	
+	if c.DB.Port <= 0 || c.DB.Port > 65535 {
+		errors = append(errors, fmt.Sprintf("DB_PORT must be between 1 and 65535, got: %d", c.DB.Port))
+	}
+	
+	if c.DB.Name == "" {
+		errors = append(errors, "DB_NAME is required")
+	} else {
+		// Verify that the provided database name is valid
+		valid, msg := isValidPostgresIdentifier(c.DB.Name)
+		if !valid {
+			errors = append(errors, fmt.Sprintf("invalid database name '%s': %s", c.DB.Name, msg))
+		}
+	}
+	
+	if c.DB.User == "" {
+		errors = append(errors, "DB_USER is required")
+	}
+	
+	// DB_PASSWORD can be empty for some setups (like peer authentication), so we'll just warn
+	if c.DB.Password == "" && c.App.Env == "production" {
+		errors = append(errors, "DB_PASSWORD should be set in production for security")
+	}
+
+	// Validate environment-specific requirements
+	switch c.App.Env {
+	case "production":
+		// Production-specific validations
 		if c.Stripe.SecretKey == "" {
-			return errors.New("STRIPE_SECRET_KEY is required in production")
+			errors = append(errors, "STRIPE_SECRET_KEY is required in production")
 		}
 		if c.Stripe.WebhookSecret == "" {
-			return errors.New("STRIPE_WEBHOOK_SECRET is required in production")
+			errors = append(errors, "STRIPE_WEBHOOK_SECRET is required in production")
 		}
-		if c.JWT.Secret == "your_jwt_secret_key" {
-			return errors.New("JWT_SECRET must be changed in production")
+		if c.JWT.Secret == "" || c.JWT.Secret == "your_jwt_secret_key" {
+			errors = append(errors, "JWT_SECRET must be set to a secure value in production")
+		}
+		if len(c.JWT.Secret) < 32 {
+			errors = append(errors, "JWT_SECRET should be at least 32 characters long in production")
+		}
+		if c.MessageBus.URL == "" {
+			errors = append(errors, "NATS_URL is required in production")
+		}
+	case "development", "dev":
+		// Development-specific validations (more lenient)
+		if c.JWT.Secret == "" {
+			errors = append(errors, "JWT_SECRET is required even in development")
+		}
+	case "test", "testing":
+		// Test-specific validations
+		if c.JWT.Secret == "" {
+			c.JWT.Secret = "test_jwt_secret_key_32_characters_long" // Set default for tests
+		}
+	default:
+		// Unknown environment
+		errors = append(errors, fmt.Sprintf("unknown environment '%s', expected: production, development, or test", c.App.Env))
+	}
+
+	// Validate JWT configuration
+	if c.JWT.Expiration == "" {
+		errors = append(errors, "JWT_EXPIRATION is required")
+	} else {
+		// Validate that expiration is a valid duration
+		if _, err := time.ParseDuration(c.JWT.Expiration); err != nil {
+			errors = append(errors, fmt.Sprintf("JWT_EXPIRATION must be a valid duration (e.g., '24h', '30m'), got: %s", c.JWT.Expiration))
 		}
 	}
 
-	// Verify that the provided database name is valid
-	valid, msg := isValidPostgresIdentifier(c.DB.Name)
-	if !valid {
-		return fmt.Errorf("invalid database name '%s': %s", c.DB.Name, msg)
+	// Validate MessageBus configuration
+	if c.MessageBus.URL != "" {
+		// Basic URL validation
+		if !strings.HasPrefix(c.MessageBus.URL, "nats://") {
+			errors = append(errors, "NATS_URL must start with 'nats://'")
+		}
+	}
+
+	// Return all validation errors at once
+	if len(errors) > 0 {
+		return fmt.Errorf("configuration validation failed:\n  - %s", strings.Join(errors, "\n  - "))
 	}
 
 	return nil
+}
+
+// validateDuration checks if a string is a valid time duration
+func validateDuration(duration string) error {
+	_, err := time.ParseDuration(duration)
+	return err
+}
+
+// Additional helper function to validate URL format
+func isValidURL(urlStr string) bool {
+	if urlStr == "" {
+		return false
+	}
+	_, err := url.Parse(urlStr)
+	return err == nil
+}
+
+// Enhanced getEnvAsInt with validation
+func getEnvAsIntWithValidation(key string, defaultValue int, min int, max int) int {
+	valueStr := getEnv(key, "")
+	if valueStr == "" {
+		return defaultValue
+	}
+	
+	if value, err := strconv.Atoi(valueStr); err == nil {
+		if value < min || value > max {
+			// Log warning but return default
+			fmt.Printf("Warning: %s value %d is out of range [%d, %d], using default %d\n", key, value, min, max, defaultValue)
+			return defaultValue
+		}
+		return value
+	}
+	
+	fmt.Printf("Warning: %s value '%s' is not a valid integer, using default %d\n", key, valueStr, defaultValue)
+	return defaultValue
 }
 
 // Helper functions to get environment variables with default values
