@@ -1,146 +1,30 @@
-version: "3.8"
-
 services:
-  # =============================================================================
-  # Test Database (for integration tests)
-  # =============================================================================
-  test-postgres:
-    image: postgres:15-alpine
-    container_name: ecommerce-test-postgres
-    restart: "no" # Don't restart automatically
-    environment:
-      POSTGRES_DB: ecommerce_test
-      POSTGRES_USER: test_user
-      POSTGRES_PASSWORD: test_password
-      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
-    ports:
-      - "5433:5432" # Different port to avoid conflicts
-    tmpfs:
-      - /var/lib/postgresql/data # In-memory for faster tests
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U test_user -d ecommerce_test"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-    networks:
-      - ecommerce-network
-    profiles:
-      - testing
-
-  # =============================================================================
-  # MinIO Object Storage (S3-compatible for file storage)
-  # =============================================================================
-  minio:
-    image: minio/minio:RELEASE.2023-11-20T22-40-07Z
-    container_name: ecommerce-minio
-    restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
-      MINIO_BROWSER_REDIRECT_URL: http://localhost:9001
-    ports:
-      - "9000:9000" # API
-      - "9001:9001" # Console
-    volumes:
-      - minio_data:/data
-      - ./config/minio/policy.json:/etc/minio/policy.json
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - ecommerce-network
-
-  # MinIO Client for bucket setup
-  minio-setup:
-    image: minio/mc:RELEASE.2023-11-20T16-30-59Z
-    container_name: ecommerce-minio-setup
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set myminio http://minio:9000 minioadmin minioadmin123;
-      mc mb myminio/ecommerce-products --ignore-existing;
-      mc mb myminio/ecommerce-invoices --ignore-existing;
-      mc mb myminio/ecommerce-assets --ignore-existing;
-      mc anonymous set public myminio/ecommerce-products;
-      mc anonymous set private myminio/ecommerce-invoices;
-      mc anonymous set public myminio/ecommerce-assets;
-      echo 'MinIO buckets created successfully';
-      "
-    networks:
-      - ecommerce-network
-
-  # =============================================================================
-  # Core Application Database
-  # =============================================================================
   postgres:
     image: postgres:15-alpine
-    container_name: ecommerce-postgres
-    restart: unless-stopped
     environment:
-      POSTGRES_DB: ecommerce
-      POSTGRES_USER: ecommerce_user
-      POSTGRES_PASSWORD: secure_password_123
-      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+      POSTGRES_DB: coffee_ecommerce
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ecommerce_user -d ecommerce"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - ecommerce-network
 
-  # =============================================================================
-  # Valkey Cache & Session Store
-  # =============================================================================
   valkey:
     image: valkey/valkey:7.2-alpine
-    container_name: ecommerce-valkey
-    restart: unless-stopped
-    command: valkey-server --appendonly yes --requirepass valkey_password_123
     ports:
       - "6379:6379"
-    volumes:
-      - valkey_data:/data
-      - ./config/valkey/valkey.conf:/usr/local/etc/valkey/valkey.conf
-    healthcheck:
-      test: ["CMD", "valkey-cli", "--raw", "incr", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-    networks:
-      - ecommerce-network
+    command: valkey-server --protected-mode no
 
-  # =============================================================================
-  # NATS Event Streaming & Message Bus
-  # =============================================================================
   nats:
     image: nats:2.10-alpine
-    container_name: ecommerce-nats
-    restart: unless-stopped
-    command:
-      - "--jetstream"
-      - "--store_dir=/data"
-      - "--max_file_store=2GB"
-      - "--max_mem_store=512MB"
-      - "--auth=nats_token_123"
-      - "--cluster_name=ecommerce-cluster"
+    container_name: coffee-nats
     ports:
-      - "4222:4222" # Client connections
-      - "8222:8222" # HTTP monitoring
-      - "6222:6222" # Routing port for clustering
+      - "4222:4222"
+      - "8222:8222"
+    command: ["--jetstream", "--store_dir=/data"]
     volumes:
       - nats_data:/data
-      - ./config/nats/nats.conf:/etc/nats/nats.conf
     healthcheck:
       test:
         [
@@ -154,302 +38,73 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-    networks:
-      - ecommerce-network
 
-  # =============================================================================
-  # Prometheus Monitoring
-  # =============================================================================
+  minio:
+    image: minio/minio:latest
+    container_name: coffee-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
   prometheus:
-    image: prom/prometheus:v2.47.0
-    container_name: ecommerce-prometheus
-    restart: unless-stopped
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--web.console.libraries=/etc/prometheus/console_libraries"
-      - "--web.console.templates=/etc/prometheus/consoles"
-      - "--web.enable-lifecycle"
-      - "--web.enable-admin-api"
-      - "--storage.tsdb.retention.time=30d"
+    image: prom/prometheus:latest
+    container_name: coffee-prometheus
     ports:
       - "9090:9090"
     volumes:
-      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./config/prometheus/alerts.yml:/etc/prometheus/alerts.yml
       - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=200h"
+      - "--web.enable-lifecycle"
+
+  # Add Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: coffee-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgres://postgres:password@postgres:5432/coffee_ecommerce?sslmode=disable
+      VALKEY_ADDR: valkey:6379
+      NATS_URL: nats://nats:4222
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin123
+      MINIO_USE_SSL: "false"
+      PORT: 8080
     depends_on:
       - postgres
       - valkey
       - nats
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://localhost:9090/-/healthy",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - ecommerce-network
+      - minio
 
-  # =============================================================================
-  # Grafana Dashboards
-  # =============================================================================
-  grafana:
-    image: grafana/grafana:10.1.0
-    container_name: ecommerce-grafana
-    restart: unless-stopped
-    environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: grafana_admin_123
-      GF_SECURITY_SECRET_KEY: grafana_secret_key_very_long_and_secure
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
-    ports:
-      - "3000:3000"
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources
-      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards
-      - ./config/grafana/dashboard-configs:/var/lib/grafana/dashboards
-    depends_on:
-      - prometheus
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - ecommerce-network
-
-  # =============================================================================
-  # Alert Manager
-  # =============================================================================
-  alertmanager:
-    image: prom/alertmanager:v0.26.0
-    container_name: ecommerce-alertmanager
-    restart: unless-stopped
-    command:
-      - "--config.file=/etc/alertmanager/alertmanager.yml"
-      - "--storage.path=/alertmanager"
-      - "--web.external-url=http://localhost:9093"
-    ports:
-      - "9093:9093"
-    volumes:
-      - ./config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
-      - alertmanager_data:/alertmanager
-    depends_on:
-      - prometheus
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://localhost:9093/-/healthy",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - ecommerce-network
-
-  # =============================================================================
-  # Database Exporters for Monitoring
-  # =============================================================================
-  postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:v0.14.0
-    container_name: ecommerce-postgres-exporter
-    restart: unless-stopped
-    environment:
-      DATA_SOURCE_NAME: "postgresql://ecommerce_user:secure_password_123@postgres:5432/ecommerce?sslmode=disable"
-      PG_EXPORTER_EXTEND_QUERY_PATH: "/etc/postgres_exporter/queries.yaml"
-    ports:
-      - "9187:9187"
-    volumes:
-      - ./config/postgres-exporter/queries.yaml:/etc/postgres_exporter/queries.yaml
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - ecommerce-network
-
-  # =============================================================================
-  # Valkey Exporter for Monitoring
-  # =============================================================================
-  valkey-exporter:
-    image: oliver006/redis_exporter:v1.55.0
-    container_name: ecommerce-valkey-exporter
-    restart: unless-stopped
-    environment:
-      REDIS_ADDR: "redis://valkey:6379"
-      REDIS_PASSWORD: "valkey_password_123"
-    ports:
-      - "9121:9121"
-    depends_on:
-      valkey:
-        condition: service_healthy
-    networks:
-      - ecommerce-network
-
-  # =============================================================================
-  # NATS Monitoring (Optional)
-  # =============================================================================
-  nats-exporter:
-    image: natsio/prometheus-nats-exporter:0.12.0
-    container_name: ecommerce-nats-exporter
-    restart: unless-stopped
-    command:
-      - "-varz"
-      - "-connz"
-      - "-routez"
-      - "-subz"
-      - "-gatewayz"
-      - "http://nats:8222"
-    ports:
-      - "7777:7777"
-    depends_on:
-      nats:
-        condition: service_healthy
-    networks:
-      - ecommerce-network
-
-  # =============================================================================
-  # Your Coffee E-commerce Application
-  # =============================================================================
-  ecommerce-app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: ecommerce-app
-    restart: unless-stopped
-    environment:
-      # Database
-      DATABASE_URL: "postgres://ecommerce_user:secure_password_123@postgres:5432/ecommerce?sslmode=disable"
-
-      # Valkey (Cache & Sessions)
-      VALKEY_ADDR: "valkey:6379"
-      VALKEY_PASSWORD: "valkey_password_123"
-
-      # NATS
-      NATS_URL: "nats://nats:4222"
-      NATS_TOKEN: "nats_token_123"
-
-      # Application
-      PORT: "8080"
-      ENV: "production"
-      LOG_LEVEL: "info"
-
-      # External Services (you'll need to set these)
-      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY}"
-      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET}"
-
-      # Email (example with SendGrid)
-      SENDGRID_API_KEY: "${SENDGRID_API_KEY}"
-
-      # MinIO File Storage
-      MINIO_ENDPOINT: "minio:9000"
-      MINIO_ACCESS_KEY: "minioadmin"
-      MINIO_SECRET_KEY: "minioadmin123"
-      MINIO_USE_SSL: "false"
-      MINIO_BUCKET_PRODUCTS: "ecommerce-products"
-      MINIO_BUCKET_INVOICES: "ecommerce-invoices"
-      MINIO_BUCKET_ASSETS: "ecommerce-assets"
-
-      # Other configs
-      JWT_SECRET: "your_jwt_secret_key_here_make_it_long_and_secure"
-      CORS_ORIGINS: "http://localhost:3000,https://yourdomain.com"
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./logs:/app/logs
-    depends_on:
-      postgres:
-        condition: service_healthy
-      valkey:
-        condition: service_healthy
-      nats:
-        condition: service_healthy
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://localhost:8080/health",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    networks:
-      - ecommerce-network
-
-  # =============================================================================
-  # Caddy Reverse Proxy (Optional - for production deployment)
-  # =============================================================================
-  caddy:
-    image: caddy:2.7-alpine
-    container_name: ecommerce-caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "2019:2019" # Caddy admin API
-    volumes:
-      - ./config/caddy/Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
-    environment:
-      - CADDY_ADMIN=0.0.0.0:2019
-    depends_on:
-      - ecommerce-app
-      - grafana
-    networks:
-      - ecommerce-network
-    # Uncomment to enable Caddy
-    # profiles:
-    #   - production
-
-# =============================================================================
-# Volumes for Data Persistence
-# =============================================================================
 volumes:
   postgres_data:
-    driver: local
-  valkey_data:
-    driver: local
-  minio_data:
-    driver: local
   nats_data:
-    driver: local
+  minio_data:
   prometheus_data:
-    driver: local
   grafana_data:
-    driver: local
-  alertmanager_data:
-    driver: local
-  caddy_data:
-    driver: local
-  caddy_config:
-    driver: local
-
-# =============================================================================
-# Networks
-# =============================================================================
-networks:
-  ecommerce-network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16

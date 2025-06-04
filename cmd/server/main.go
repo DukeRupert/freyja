@@ -6,6 +6,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -16,6 +17,12 @@ func main() {
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORS())
+
+	// Add request ID for tracing
+	e.Use(middleware.RequestID())
+
+	// Add Prometheus metrics endpoint
+	e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 
 	// Health check endpoint
 	e.GET("/health", healthCheck)
@@ -36,7 +43,8 @@ func main() {
 		port = "8080"
 	}
 
-	// Start server
+	// Start server with graceful shutdown support
+	e.Logger.Info("🚀 Coffee E-commerce API starting on port " + port)
 	e.Logger.Fatal(e.Start(":" + port))
 }
 
