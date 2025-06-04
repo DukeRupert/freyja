@@ -53,6 +53,8 @@ build/
 *.out
 
 # Environment files (security)
+.env
+.env.docker
 .env.local
 .env.production
 
