@@ -38,6 +38,7 @@ coverage/
 node_modules/
 
 # Build outputs (but keep the source)
+main
 dist/
 build/
 *.exe
@@ -68,7 +69,6 @@ tmp/
 temp/
 
 # But DO NOT ignore these important files:
-!main.go
 !go.mod
 !go.sum
 !*.go
