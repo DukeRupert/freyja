@@ -1,8 +1,12 @@
 package main
 
 import (
+	"log"
 	"net/http"
 	"os"
+
+	"github.com/dukerupert/freyja/internal/config"
+	"github.com/dukerupert/freyja/internal/database"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -10,6 +14,25 @@ import (
 )
 
 func main() {
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal("Config validation failed:", err)
+	}
+
+	// Initialize database
+	db, err := database.New(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatal("Database connection failed:", err)
+	}
+	defer db.Close()
+
+	// Run migrations (auto-migrate in development)
+	autoMigrate := os.Getenv("ENV") == "development"
+	if err := db.RunMigrations(autoMigrate); err != nil {
+		log.Fatal("Migration failed:", err)
+	}
+
+	log.Println("✅ Database connected and migrations completed")
 	// Create Echo instance
 	e := echo.New()
 
