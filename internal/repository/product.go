@@ -188,3 +188,11 @@ func (r *PostgresProductRepository) GetCount(ctx context.Context, activeOnly boo
 	}
 	return count, nil
 }
+
+func (r *PostgresProductRepository) GetTotalValue(ctx context.Context) (int32, error) {
+	value, err := r.db.Queries.GetTotalProductValue(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get total product value: %w", err)
+	}
+	return value, nil
+}

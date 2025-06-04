@@ -269,6 +269,19 @@ func (q *Queries) GetProductsInStock(ctx context.Context) ([]Products, error) {
 	return items, nil
 }
 
+const getTotalProductValue = `-- name: GetTotalProductValue :one
+SELECT COALESCE(SUM(price * stock), 0)::integer as total_value
+FROM products
+WHERE active = true
+`
+
+func (q *Queries) GetTotalProductValue(ctx context.Context) (int32, error) {
+	row := q.db.QueryRow(ctx, getTotalProductValue)
+	var total_value int32
+	err := row.Scan(&total_value)
+	return total_value, err
+}
+
 const incrementProductStock = `-- name: IncrementProductStock :one
 UPDATE products
 SET

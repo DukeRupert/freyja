@@ -38,9 +38,17 @@ func main() {
 	log.Println("✅ Database connected and migrations completed")
 
 	// Initialize layers: Repository -> Service -> Handler
+	// Initialize repositories
 	productRepo := repository.NewPostgresProductRepository(db)
+	cartRepo := repository.NewPostgresCartRepository(db)
+
+	// Initialize services
 	productService := service.NewProductService(productRepo)
+	cartService := service.NewCartService(cartRepo, productRepo)
+
+	// Initialize handlers
 	productHandler := handler.NewProductHandler(productService)
+	cartHandler := handler.NewCartHandler(cartService)
 
 	// Create Echo instance
 	e := echo.New()
@@ -73,6 +81,17 @@ func main() {
 		products.GET("/low-stock", productHandler.GetLowStockProducts) // GET /api/v1/products/low-stock
 		products.GET("/stats", productHandler.GetProductStats)         // GET /api/v1/products/stats
 		products.GET("/:id", productHandler.GetProduct)                // GET /api/v1/products/:id
+	}
+
+	// Cart routes
+	cart := api.Group("/cart")
+	{
+		cart.GET("", cartHandler.GetCart)                 // GET /api/v1/cart
+		cart.DELETE("", cartHandler.ClearCart)            // DELETE /api/v1/cart
+		cart.GET("/summary", cartHandler.GetCartSummary)  // GET /api/v1/cart/summary
+		cart.POST("/items", cartHandler.AddItem)          // POST /api/v1/cart/items
+		cart.PUT("/items/:id", cartHandler.UpdateItem)    // PUT /api/v1/cart/items/:id
+		cart.DELETE("/items/:id", cartHandler.RemoveItem) // DELETE /api/v1/cart/items/:id
 	}
 
 	// Get port from environment or default to 8080

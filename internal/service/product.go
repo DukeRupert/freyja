@@ -135,6 +135,12 @@ func (s *ProductService) GetStats(ctx context.Context) (map[string]interface{}, 
 	}
 	totalInactive := totalAll - totalActive
 
+	// Get total inventory value
+	totalValue, err := s.repo.GetTotalValue(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get total inventory value: %w", err)
+	}
+
 	// Get low stock products (threshold: 10)
 	lowStockProducts, err := s.repo.GetLowStock(ctx, 10)
 	if err != nil {
@@ -148,13 +154,15 @@ func (s *ProductService) GetStats(ctx context.Context) (map[string]interface{}, 
 	}
 
 	return map[string]interface{}{
-		"total_active":          totalActive,
-		"total_inactive":        totalInactive,
-		"total_products":        totalAll,
-		"low_stock_count":       len(lowStockProducts),
-		"out_of_stock_count":    len(outOfStockProducts),
-		"low_stock_products":    lowStockProducts,
-		"out_of_stock_products": outOfStockProducts,
+		"total_active":                    totalActive,
+		"total_inactive":                  totalInactive,
+		"total_products":                  totalAll,
+		"total_inventory_value":           totalValue,
+		"total_inventory_value_formatted": formatPrice(totalValue),
+		"low_stock_count":                 len(lowStockProducts),
+		"out_of_stock_count":              len(outOfStockProducts),
+		"low_stock_products":              lowStockProducts,
+		"out_of_stock_products":           outOfStockProducts,
 	}, nil
 }
 
@@ -202,7 +210,7 @@ func (s *ProductService) IsAvailable(ctx context.Context, id int, quantity int) 
 }
 
 // Helper function to format price (same as in handler)
-func formatPrice(priceInCents int) string {
+func formatPrice(priceInCents int32) string {
 	dollars := float64(priceInCents) / 100
 	return fmt.Sprintf("$%.2f", dollars)
 }

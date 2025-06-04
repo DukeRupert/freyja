@@ -6,16 +6,34 @@ package database
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
 	ActivateProduct(ctx context.Context, id int32) (Products, error)
+	ClearCartItems(ctx context.Context, cartID int32) error
+	CreateCart(ctx context.Context, arg CreateCartParams) (Carts, error)
+	CreateCartItem(ctx context.Context, arg CreateCartItemParams) (CartItems, error)
 	CreateCustomer(ctx context.Context, arg CreateCustomerParams) (Customers, error)
 	CreateProduct(ctx context.Context, arg CreateProductParams) (Products, error)
 	DeactivateProduct(ctx context.Context, id int32) (Products, error)
 	DecrementProductStock(ctx context.Context, arg DecrementProductStockParams) (Products, error)
+	DeleteCart(ctx context.Context, id int32) error
+	DeleteCartItem(ctx context.Context, id int32) error
+	DeleteCartItemByProductID(ctx context.Context, arg DeleteCartItemByProductIDParams) error
 	DeleteCustomer(ctx context.Context, id int32) error
 	DeleteProduct(ctx context.Context, id int32) error
+	// internal/database/queries/carts.sql
+	GetCart(ctx context.Context, id int32) (Carts, error)
+	GetCartByCustomerID(ctx context.Context, customerID pgtype.Int4) (Carts, error)
+	GetCartBySessionID(ctx context.Context, sessionID pgtype.Text) (Carts, error)
+	// Cart Items queries
+	GetCartItem(ctx context.Context, id int32) (CartItems, error)
+	GetCartItemByProductID(ctx context.Context, arg GetCartItemByProductIDParams) (CartItems, error)
+	GetCartItemCount(ctx context.Context, cartID int32) (int32, error)
+	GetCartItems(ctx context.Context, cartID int32) ([]GetCartItemsRow, error)
+	GetCartTotal(ctx context.Context, cartID int32) (int32, error)
 	// internal/database/queries/customers.sql
 	GetCustomer(ctx context.Context, id int32) (Customers, error)
 	GetCustomerByEmail(ctx context.Context, lower string) (Customers, error)
@@ -26,12 +44,16 @@ type Querier interface {
 	GetProductByName(ctx context.Context, name string) (Products, error)
 	GetProductCount(ctx context.Context, active bool) (int64, error)
 	GetProductsInStock(ctx context.Context) ([]Products, error)
+	GetTotalProductValue(ctx context.Context) (int32, error)
 	IncrementProductStock(ctx context.Context, arg IncrementProductStockParams) (Products, error)
 	ListAllProducts(ctx context.Context, arg ListAllProductsParams) ([]Products, error)
 	ListCustomers(ctx context.Context, arg ListCustomersParams) ([]Customers, error)
 	ListProducts(ctx context.Context) ([]Products, error)
 	ListProductsByStatus(ctx context.Context, arg ListProductsByStatusParams) ([]Products, error)
 	SearchProducts(ctx context.Context, name string) ([]Products, error)
+	UpdateCartItem(ctx context.Context, arg UpdateCartItemParams) (CartItems, error)
+	UpdateCartItemQuantity(ctx context.Context, arg UpdateCartItemQuantityParams) (CartItems, error)
+	UpdateCartTimestamp(ctx context.Context, id int32) (Carts, error)
 	UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (Customers, error)
 	UpdateCustomerPassword(ctx context.Context, arg UpdateCustomerPasswordParams) (Customers, error)
 	UpdateCustomerStripeID(ctx context.Context, arg UpdateCustomerStripeIDParams) (Customers, error)

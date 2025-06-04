@@ -28,4 +28,5 @@ type ProductRepository interface {
 	UpdateStock(ctx context.Context, id int32, stock int32) error
 	Delete(ctx context.Context, id int32) error
 	GetCount(ctx context.Context, activeOnly bool) (int64, error)
+	GetTotalValue(ctx context.Context) (int32, error)
 }
