@@ -7,6 +7,9 @@ import (
 
 	"github.com/dukerupert/freyja/internal/config"
 	"github.com/dukerupert/freyja/internal/database"
+	"github.com/dukerupert/freyja/internal/handler"
+	"github.com/dukerupert/freyja/internal/repository"
+	"github.com/dukerupert/freyja/internal/service"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -20,7 +23,7 @@ func main() {
 	}
 
 	// Initialize database
-	db, err := database.New(cfg.DatabaseURL)
+	db, err := database.NewDB(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal("Database connection failed:", err)
 	}
@@ -33,6 +36,12 @@ func main() {
 	}
 
 	log.Println("✅ Database connected and migrations completed")
+
+	// Initialize layers: Repository -> Service -> Handler
+	productRepo := repository.NewPostgresProductRepository(db)
+	productService := service.NewProductService(productRepo)
+	productHandler := handler.NewProductHandler(productService)
+
 	// Create Echo instance
 	e := echo.New()
 
@@ -56,9 +65,15 @@ func main() {
 	// API v1 routes group
 	api := e.Group("/api/v1")
 
-	// Basic API endpoints for MVP
-	api.GET("/products", getProducts)
-	api.GET("/products/:id", getProduct)
+	// Product routes
+	products := api.Group("/products")
+	{
+		products.GET("", productHandler.GetProducts)                   // GET /api/v1/products
+		products.GET("/in-stock", productHandler.GetInStockProducts)   // GET /api/v1/products/in-stock
+		products.GET("/low-stock", productHandler.GetLowStockProducts) // GET /api/v1/products/low-stock
+		products.GET("/stats", productHandler.GetProductStats)         // GET /api/v1/products/stats
+		products.GET("/:id", productHandler.GetProduct)                // GET /api/v1/products/:id
+	}
 
 	// Get port from environment or default to 8080
 	port := os.Getenv("PORT")
@@ -86,66 +101,12 @@ func helloWorld(c echo.Context) error {
 		"message": "Welcome to the Coffee E-commerce API!",
 		"docs":    "/api/v1",
 		"health":  "/health",
-	})
-}
-
-// Placeholder product handlers (MVP stubs)
-func getProducts(c echo.Context) error {
-	// Mock product data for now
-	products := []map[string]interface{}{
-		{
-			"id":          1,
-			"name":        "Ethiopian Yirgacheffe",
-			"description": "Bright, floral notes with citrus finish",
-			"price":       1800, // $18.00 in cents
-			"stock":       25,
-			"active":      true,
+		"endpoints": map[string]interface{}{
+			"products":       "/api/v1/products",
+			"product_detail": "/api/v1/products/{id}",
+			"in_stock":       "/api/v1/products/in-stock",
+			"low_stock":      "/api/v1/products/low-stock",
+			"stats":          "/api/v1/products/stats",
 		},
-		{
-			"id":          2,
-			"name":        "Colombian Supremo",
-			"description": "Rich, full-bodied with chocolate undertones",
-			"price":       1600, // $16.00 in cents
-			"stock":       32,
-			"active":      true,
-		},
-		{
-			"id":          3,
-			"name":        "Guatemala Antigua",
-			"description": "Medium body with spicy and smoky flavors",
-			"price":       1750, // $17.50 in cents
-			"stock":       18,
-			"active":      true,
-		},
-	}
-
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"products": products,
-		"total":    len(products),
-	})
-}
-
-func getProduct(c echo.Context) error {
-	id := c.Param("id")
-
-	// Mock single product data
-	if id == "1" {
-		product := map[string]interface{}{
-			"id":            1,
-			"name":          "Ethiopian Yirgacheffe",
-			"description":   "Bright, floral notes with citrus finish. Grown at high altitude in the Sidama region.",
-			"price":         1800,
-			"stock":         25,
-			"active":        true,
-			"origin":        "Ethiopia",
-			"roast_level":   "Medium-Light",
-			"tasting_notes": []string{"Floral", "Citrus", "Tea-like", "Bright acidity"},
-		}
-		return c.JSON(http.StatusOK, product)
-	}
-
-	return c.JSON(http.StatusNotFound, map[string]interface{}{
-		"error": "Product not found",
-		"code":  "PRODUCT_NOT_FOUND",
 	})
 }

@@ -124,8 +124,3 @@ WHERE id = $1;
 
 -- name: GetProductCount :one
 SELECT COUNT(*) FROM products WHERE active = $1;
-
--- name: GetTotalProductValue :one
-SELECT COALESCE(SUM(price * stock), 0) as total_value
-FROM products
-WHERE active = true;

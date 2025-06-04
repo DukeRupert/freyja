@@ -2,33 +2,68 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
 	"github.com/dukerupert/freyja/internal/database/migrations"
+	"github.com/jackc/pgx/v5"
 
-	_ "github.com/lib/pq"
+	_ "github.com/lib/pq" // for migrations only
 )
 
 type DB struct {
-	*sql.DB
+	conn    *pgx.Conn
+	sqlDB   *sql.DB // Keep for migrations
+	Queries *Queries
 }
 
-func New(url string) (*DB, error) {
+func NewDB(url string) (*DB, error) {
 	if url == "" {
 		return nil, fmt.Errorf("DATABASE_URL environment variable required")
 	}
 
-	db, err := sql.Open("postgres", url)
+	// Create pgx connection for main operations
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	if err := db.Ping(); err != nil {
+	// Test the connection
+	if err := conn.Ping(ctx); err != nil {
+		conn.Close(ctx)
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	return &DB{DB: db}, nil
+	// Create standard sql.DB for migrations (goose compatibility)
+	sqlDB, err := sql.Open("postgres", url)
+	if err != nil {
+		conn.Close(ctx)
+		return nil, fmt.Errorf("failed to open sql database for migrations: %w", err)
+	}
+
+	// Create SQLC queries instance
+	queries := New(conn)
+
+	return &DB{
+		conn:    conn,
+		sqlDB:   sqlDB,
+		Queries: queries,
+	}, nil
+}
+
+func (db *DB) Close() {
+	if db.conn != nil {
+		db.conn.Close(context.Background())
+	}
+	if db.sqlDB != nil {
+		db.sqlDB.Close()
+	}
+}
+
+func (db *DB) Conn() *pgx.Conn {
+	return db.conn
 }
 
 func (db *DB) RunMigrations(autoMigrate bool) error {
@@ -37,7 +72,8 @@ func (db *DB) RunMigrations(autoMigrate bool) error {
 		Direction:   "up",
 	}
 
-	return migrations.Run(db.DB, config)
+	// Use sql.DB for migrations
+	return migrations.Run(db.sqlDB, config)
 }
 
 func (db *DB) MigrationStatus() error {
@@ -45,5 +81,6 @@ func (db *DB) MigrationStatus() error {
 		Direction: "status",
 	}
 
-	return migrations.Run(db.DB, config)
+	// Use sql.DB for migrations
+	return migrations.Run(db.sqlDB, config)
 }

@@ -105,3 +105,20 @@ status: ## Check status of development services
 	@echo "Quick health checks:"
 	@curl -s http://localhost:8080/health >/dev/null 2>&1 && echo "✅ API responding" || echo "❌ API not responding"
 	@curl -s http://localhost:5432 >/dev/null 2>&1 && echo "✅ PostgreSQL port open" || echo "❌ PostgreSQL not accessible"
+
+# Seed commands
+.PHONY: seed
+seed: build-seed
+	DATABASE_URL=$(DATABASE_URL) ./bin/seed
+
+.PHONY: seed-clean
+seed-clean: build-seed
+	DATABASE_URL=$(DATABASE_URL) CLEAR_DATA=true ./bin/seed
+
+.PHONY: seed-dev
+seed-dev:
+	DATABASE_URL=$(DATABASE_URL) go run cmd/seed/main.go
+
+.PHONY: seed-clean-dev
+seed-clean-dev:
+	DATABASE_URL=$(DATABASE_URL) CLEAR_DATA=true go run cmd/seed/main.go
