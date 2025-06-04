@@ -7,7 +7,7 @@
 [![Docker](https://img.shields.io/badge/docker-ready-blue)](docker-compose.yml)
 [![Monitoring](https://img.shields.io/badge/monitoring-prometheus-orange)](config/prometheus/)
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # Clone and setup
@@ -21,7 +21,9 @@ make start
 # Access services
 open http://localhost:8080    # Application
 open http://localhost:3000    # Grafana (admin/grafana_admin_123)
-✨ Features
+```
+
+## Features
 
 🛒 Retail E-commerce - Complete online store with cart and checkout
 📦 Subscription Management - Flexible recurring orders and billing
@@ -31,9 +33,7 @@ open http://localhost:3000    # Grafana (admin/grafana_admin_123)
 🔒 Security First - JWT auth, RBAC, audit trails
 📈 Observability - Prometheus metrics and Grafana dashboards
 
-🏗️ Architecture
-Built on modern, cloud-native principles:
-
+## Architecture
 Backend: Go + Echo + PostgreSQL + SQLC
 Caching: Valkey (Redis fork)
 Events: NATS JetStream
@@ -41,14 +41,15 @@ Storage: MinIO/S3-compatible
 Monitoring: Prometheus + Grafana + AlertManager
 Deployment: Docker Compose → Kubernetes
 
-📚 Documentation
+## Documentation
 
 Architecture Decision Records - Key technical decisions
 Getting Started - Setup and development guide
 API Documentation - RESTful API reference
 Deployment Guide - Production setup
 
-🤝 Contributing
+## Contributing
 We welcome contributions! See CONTRIBUTING.md for guidelines.
-📄 License
+
+## License
 MIT License - see LICENSE file for details.
