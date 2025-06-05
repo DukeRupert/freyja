@@ -9,6 +9,7 @@ import (
 	"github.com/dukerupert/freyja/internal/config"
 	"github.com/dukerupert/freyja/internal/database"
 	"github.com/dukerupert/freyja/internal/handler"
+	customMiddleware"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/provider"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/service"
@@ -101,6 +102,8 @@ func main() {
 
 	// Add request ID for tracing
 	e.Use(middleware.RequestID())
+
+	 e.Use(customMiddleware.PrometheusMiddleware())
 
 	// Add Prometheus metrics endpoint
 	e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))

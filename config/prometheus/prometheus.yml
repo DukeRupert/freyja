@@ -14,9 +14,9 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
-  - job_name: "coffee-app"
+  - job_name: "freyja-app"
     static_configs:
-      - targets: ["app:8080"]
+      - targets: ["refactored-umbrella-rp9xx597vq535wg6-8080.app.github.dev"]
     metrics_path: "/metrics"
     scrape_interval: 5s
 
