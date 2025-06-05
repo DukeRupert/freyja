@@ -145,14 +145,61 @@ func healthCheck(c echo.Context) error {
 func helloWorld(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "Welcome to the Coffee E-commerce API!",
+		"version": "1.0.0",
 		"docs":    "/api/v1",
 		"health":  "/health",
+		"metrics": "/metrics",
 		"endpoints": map[string]interface{}{
-			"products":       "/api/v1/products",
-			"product_detail": "/api/v1/products/{id}",
-			"in_stock":       "/api/v1/products/in-stock",
-			"low_stock":      "/api/v1/products/low-stock",
-			"stats":          "/api/v1/products/stats",
+			"products": map[string]interface{}{
+				"list":       "GET /api/v1/products",
+				"detail":     "GET /api/v1/products/{id}",
+				"search":     "GET /api/v1/products?search={query}",
+				"in_stock":   "GET /api/v1/products/in-stock",
+				"low_stock":  "GET /api/v1/products/low-stock",
+				"stats":      "GET /api/v1/products/stats",
+			},
+			"cart": map[string]interface{}{
+				"get":         "GET /api/v1/cart",
+				"clear":       "DELETE /api/v1/cart", 
+				"summary":     "GET /api/v1/cart/summary",
+				"add_item":    "POST /api/v1/cart/items",
+				"update_item": "PUT /api/v1/cart/items/{id}",
+				"remove_item": "DELETE /api/v1/cart/items/{id}",
+			},
+			"checkout": map[string]interface{}{
+				"create_session": "POST /api/v1/checkout",
+				"webhook":        "POST /api/v1/webhooks/stripe",
+			},
+			"orders": map[string]interface{}{
+				"customer_orders": "GET /api/v1/orders",
+				"order_detail":    "GET /api/v1/orders/{id}",
+				"cancel_order":    "POST /api/v1/orders/{id}/cancel",
+			},
+			"admin": map[string]interface{}{
+				"all_orders":        "GET /api/v1/admin/orders",
+				"update_status":     "PUT /api/v1/admin/orders/{id}/status",
+				"order_stats":       "GET /api/v1/admin/orders/stats",
+			},
+		},
+		"authentication": map[string]interface{}{
+			"note": "Most endpoints require authentication via JWT token or X-Customer-ID header for testing",
+			"cart_session": "Cart operations for guests require X-Session-ID header",
+		},
+		"example_usage": map[string]interface{}{
+			"get_products":    "curl -X GET 'http://localhost:8080/api/v1/products'",
+			"add_to_cart":     "curl -X POST 'http://localhost:8080/api/v1/cart/items' -H 'X-Customer-ID: 1' -H 'Content-Type: application/json' -d '{\"product_id\": 1, \"quantity\": 2}'",
+			"create_checkout": "curl -X POST 'http://localhost:8080/api/v1/checkout' -H 'X-Customer-ID: 1' -H 'Content-Type: application/json' -d '{\"success_url\": \"http://localhost:3000/success\", \"cancel_url\": \"http://localhost:3000/cart\"}'",
+			"view_orders":     "curl -X GET 'http://localhost:8080/api/v1/orders' -H 'X-Customer-ID: 1'",
+		},
+		"status": "MVP Ready",
+		"features": []string{
+			"Product catalog with search",
+			"Shopping cart (authenticated & guest)",
+			"Stripe checkout integration", 
+			"Order management",
+			"Admin dashboard",
+			"Event-driven architecture with NATS",
+			"Prometheus metrics",
 		},
 	})
 }
