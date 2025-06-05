@@ -8,8 +8,6 @@ import (
 	"github.com/dukerupert/freyja/internal/database"
 )
 
-type Customer = database.Customers
-
 // =============================================================================
 // Payment Provider Interface
 // =============================================================================

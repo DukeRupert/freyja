@@ -64,7 +64,7 @@ dev-logs: ## Follow development logs
 dev-shell: ## Open shell in app container
 	docker-compose -f docker-compose.dev.yml exec app sh
 
-dev-db-shell: ## Open PostgreSQL shell
+db-shell: ## Open PostgreSQL shell
 	docker exec -it freyja-postgres-1 psql -U postgres -d coffee_ecommerce
 
 # Database operations
@@ -96,7 +96,7 @@ status: ## Check status of development services
 # Seed commands
 .PHONY: seed-dev
 seed-dev:
-	DATABASE_URL=$(DATABASE_URL) go run cmd/seed/main.go
+	DATABASE_URL=postgres://postgres:password@localhost:5432/coffee_ecommerce?sslmode=disable go run cmd/seed/main.go
 
 .PHONY: seed-clean-dev
 seed-clean-dev:

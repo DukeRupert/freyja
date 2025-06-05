@@ -45,7 +45,7 @@ func main() {
 	}
 	defer eventPublisher.Close()
 
-	_, err = provider.NewStripeProvider(cfg.StripeSecretKey)
+	stripeProvider, err := provider.NewStripeProvider(cfg.StripeSecretKey)
 	if err != nil {
 		log.Fatal("Stripe provider initialization failed:", err)
 	}
@@ -55,16 +55,19 @@ func main() {
 	productRepo := repository.NewPostgresProductRepository(db)
 	cartRepo := repository.NewPostgresCartRepository(db)
 	orderRepo := repository.NewPostgresOrderRepository(db)
+	customerRepo := repository.NewPostgresCustomerRepository(db)
 
 	// Initialize services
 	productService := service.NewProductService(productRepo)
 	cartService := service.NewCartService(cartRepo, productRepo)
 	orderService := service.NewOrderService(orderRepo, cartService, eventPublisher)
+	customerService := service.NewCustomerService(customerRepo, stripeProvider, eventPublisher)
 
 	// Initialize handlers
 	productHandler := handler.NewProductHandler(productService)
 	cartHandler := handler.NewCartHandler(cartService)
 	orderHandler := handler.NewOrderHandler(orderService)
+	customerHandler := handler.NewCustomerHandler(customerService)
 
 	// Create Echo instance
 	e := echo.New()
@@ -116,6 +119,15 @@ func main() {
 		orders.GET("", orderHandler.GetOrders)               // Customer order history
 		orders.GET("/:id", orderHandler.GetOrder)            // Order details
 		orders.POST("/:id/cancel", orderHandler.CancelOrder) // Cancel order
+	}
+
+	customers := api.Group("/customers")
+	{
+		customers.POST("", customerHandler.CreateCustomer)                    // POST /api/v1/customers
+		customers.GET("/:id", customerHandler.GetCustomer)                    // GET /api/v1/customers/:id
+		customers.PUT("/:id", customerHandler.UpdateCustomer)                 // PUT /api/v1/customers/:id
+		customers.GET("/by-email/:email", customerHandler.GetCustomerByEmail) // GET /api/v1/customers/by-email/:email
+		customers.POST("/:id/stripe", customerHandler.EnsureStripeCustomer)   // POST /api/v1/customers/:id/stripe
 	}
 
 	// Admin routes

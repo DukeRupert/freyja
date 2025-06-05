@@ -7,11 +7,49 @@ package database
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const archiveCustomer = `-- name: ArchiveCustomer :one
+UPDATE customers
+SET 
+    email = CONCAT('archived_', id, '_', email),
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, email, first_name, last_name, password_hash, stripe_customer_id, created_at, updated_at
+`
+
+type ArchiveCustomerRow struct {
+	ID               int32       `db:"id" json:"id"`
+	Email            string      `db:"email" json:"email"`
+	FirstName        pgtype.Text `db:"first_name" json:"first_name"`
+	LastName         pgtype.Text `db:"last_name" json:"last_name"`
+	PasswordHash     string      `db:"password_hash" json:"password_hash"`
+	StripeCustomerID pgtype.Text `db:"stripe_customer_id" json:"stripe_customer_id"`
+	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time   `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) ArchiveCustomer(ctx context.Context, id int32) (ArchiveCustomerRow, error) {
+	row := q.db.QueryRow(ctx, archiveCustomer, id)
+	var i ArchiveCustomerRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.FirstName,
+		&i.LastName,
+		&i.PasswordHash,
+		&i.StripeCustomerID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createCustomer = `-- name: CreateCustomer :one
+
 INSERT INTO customers (
   email, first_name, last_name, password_hash
 ) VALUES (
@@ -27,14 +65,26 @@ type CreateCustomerParams struct {
 	PasswordHash string      `db:"password_hash" json:"password_hash"`
 }
 
-func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) (Customers, error) {
+type CreateCustomerRow struct {
+	ID               int32       `db:"id" json:"id"`
+	Email            string      `db:"email" json:"email"`
+	FirstName        pgtype.Text `db:"first_name" json:"first_name"`
+	LastName         pgtype.Text `db:"last_name" json:"last_name"`
+	PasswordHash     string      `db:"password_hash" json:"password_hash"`
+	StripeCustomerID pgtype.Text `db:"stripe_customer_id" json:"stripe_customer_id"`
+	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time   `db:"updated_at" json:"updated_at"`
+}
+
+// internal/database/queries/customers.sql
+func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) (CreateCustomerRow, error) {
 	row := q.db.QueryRow(ctx, createCustomer,
 		arg.Email,
 		arg.FirstName,
 		arg.LastName,
 		arg.PasswordHash,
 	)
-	var i Customers
+	var i CreateCustomerRow
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
@@ -59,13 +109,11 @@ func (q *Queries) DeleteCustomer(ctx context.Context, id int32) error {
 }
 
 const getCustomer = `-- name: GetCustomer :one
-
-SELECT id, email, first_name, last_name, password_hash, stripe_customer_id, created_at, updated_at
+SELECT id, email, first_name, last_name, password_hash, stripe_customer_id, created_at, updated_at, archived_at
 FROM customers
 WHERE id = $1
 `
 
-// internal/database/queries/customers.sql
 func (q *Queries) GetCustomer(ctx context.Context, id int32) (Customers, error) {
 	row := q.db.QueryRow(ctx, getCustomer, id)
 	var i Customers
@@ -78,12 +126,13 @@ func (q *Queries) GetCustomer(ctx context.Context, id int32) (Customers, error) 
 		&i.StripeCustomerID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ArchivedAt,
 	)
 	return i, err
 }
 
 const getCustomerByEmail = `-- name: GetCustomerByEmail :one
-SELECT id, email, first_name, last_name, password_hash, stripe_customer_id, created_at, updated_at
+SELECT id, email, first_name, last_name, password_hash, stripe_customer_id, created_at, updated_at, archived_at
 FROM customers
 WHERE LOWER(email) = LOWER($1)
 `
@@ -100,6 +149,30 @@ func (q *Queries) GetCustomerByEmail(ctx context.Context, lower string) (Custome
 		&i.StripeCustomerID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ArchivedAt,
+	)
+	return i, err
+}
+
+const getCustomerByStripeID = `-- name: GetCustomerByStripeID :one
+SELECT id, email, first_name, last_name, password_hash, stripe_customer_id, created_at, updated_at, archived_at
+FROM customers
+WHERE stripe_customer_id = $1
+`
+
+func (q *Queries) GetCustomerByStripeID(ctx context.Context, stripeCustomerID pgtype.Text) (Customers, error) {
+	row := q.db.QueryRow(ctx, getCustomerByStripeID, stripeCustomerID)
+	var i Customers
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.FirstName,
+		&i.LastName,
+		&i.PasswordHash,
+		&i.StripeCustomerID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ArchivedAt,
 	)
 	return i, err
 }
@@ -115,6 +188,102 @@ func (q *Queries) GetCustomerCount(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const getCustomersWithoutStripeID = `-- name: GetCustomersWithoutStripeID :many
+SELECT id, email, first_name, last_name, password_hash, stripe_customer_id, created_at, updated_at, archived_at
+FROM customers
+WHERE stripe_customer_id IS NULL
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type GetCustomersWithoutStripeIDParams struct {
+	Limit  int32 `db:"limit" json:"limit"`
+	Offset int32 `db:"offset" json:"offset"`
+}
+
+func (q *Queries) GetCustomersWithoutStripeID(ctx context.Context, arg GetCustomersWithoutStripeIDParams) ([]Customers, error) {
+	rows, err := q.db.Query(ctx, getCustomersWithoutStripeID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Customers{}
+	for rows.Next() {
+		var i Customers
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.FirstName,
+			&i.LastName,
+			&i.PasswordHash,
+			&i.StripeCustomerID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ArchivedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveCustomers = `-- name: ListActiveCustomers :many
+SELECT id, email, first_name, last_name, password_hash, stripe_customer_id, created_at, updated_at
+FROM customers
+WHERE created_at >= NOW() - INTERVAL '1 year'
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListActiveCustomersParams struct {
+	Limit  int32 `db:"limit" json:"limit"`
+	Offset int32 `db:"offset" json:"offset"`
+}
+
+type ListActiveCustomersRow struct {
+	ID               int32       `db:"id" json:"id"`
+	Email            string      `db:"email" json:"email"`
+	FirstName        pgtype.Text `db:"first_name" json:"first_name"`
+	LastName         pgtype.Text `db:"last_name" json:"last_name"`
+	PasswordHash     string      `db:"password_hash" json:"password_hash"`
+	StripeCustomerID pgtype.Text `db:"stripe_customer_id" json:"stripe_customer_id"`
+	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time   `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) ListActiveCustomers(ctx context.Context, arg ListActiveCustomersParams) ([]ListActiveCustomersRow, error) {
+	rows, err := q.db.Query(ctx, listActiveCustomers, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveCustomersRow{}
+	for rows.Next() {
+		var i ListActiveCustomersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.FirstName,
+			&i.LastName,
+			&i.PasswordHash,
+			&i.StripeCustomerID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCustomers = `-- name: ListCustomers :many
 SELECT id, email, first_name, last_name, password_hash, stripe_customer_id, created_at, updated_at
 FROM customers
@@ -127,15 +296,83 @@ type ListCustomersParams struct {
 	Offset int32 `db:"offset" json:"offset"`
 }
 
-func (q *Queries) ListCustomers(ctx context.Context, arg ListCustomersParams) ([]Customers, error) {
+type ListCustomersRow struct {
+	ID               int32       `db:"id" json:"id"`
+	Email            string      `db:"email" json:"email"`
+	FirstName        pgtype.Text `db:"first_name" json:"first_name"`
+	LastName         pgtype.Text `db:"last_name" json:"last_name"`
+	PasswordHash     string      `db:"password_hash" json:"password_hash"`
+	StripeCustomerID pgtype.Text `db:"stripe_customer_id" json:"stripe_customer_id"`
+	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time   `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) ListCustomers(ctx context.Context, arg ListCustomersParams) ([]ListCustomersRow, error) {
 	rows, err := q.db.Query(ctx, listCustomers, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Customers{}
+	items := []ListCustomersRow{}
 	for rows.Next() {
-		var i Customers
+		var i ListCustomersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.FirstName,
+			&i.LastName,
+			&i.PasswordHash,
+			&i.StripeCustomerID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchCustomers = `-- name: SearchCustomers :many
+SELECT id, email, first_name, last_name, password_hash, stripe_customer_id, created_at, updated_at
+FROM customers
+WHERE 
+    email ILIKE $1 OR 
+    first_name ILIKE $1 OR 
+    last_name ILIKE $1
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type SearchCustomersParams struct {
+	Email  string `db:"email" json:"email"`
+	Limit  int32  `db:"limit" json:"limit"`
+	Offset int32  `db:"offset" json:"offset"`
+}
+
+type SearchCustomersRow struct {
+	ID               int32       `db:"id" json:"id"`
+	Email            string      `db:"email" json:"email"`
+	FirstName        pgtype.Text `db:"first_name" json:"first_name"`
+	LastName         pgtype.Text `db:"last_name" json:"last_name"`
+	PasswordHash     string      `db:"password_hash" json:"password_hash"`
+	StripeCustomerID pgtype.Text `db:"stripe_customer_id" json:"stripe_customer_id"`
+	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time   `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) SearchCustomers(ctx context.Context, arg SearchCustomersParams) ([]SearchCustomersRow, error) {
+	rows, err := q.db.Query(ctx, searchCustomers, arg.Email, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchCustomersRow{}
+	for rows.Next() {
+		var i SearchCustomersRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Email,
@@ -174,14 +411,25 @@ type UpdateCustomerParams struct {
 	LastName  pgtype.Text `db:"last_name" json:"last_name"`
 }
 
-func (q *Queries) UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (Customers, error) {
+type UpdateCustomerRow struct {
+	ID               int32       `db:"id" json:"id"`
+	Email            string      `db:"email" json:"email"`
+	FirstName        pgtype.Text `db:"first_name" json:"first_name"`
+	LastName         pgtype.Text `db:"last_name" json:"last_name"`
+	PasswordHash     string      `db:"password_hash" json:"password_hash"`
+	StripeCustomerID pgtype.Text `db:"stripe_customer_id" json:"stripe_customer_id"`
+	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time   `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (UpdateCustomerRow, error) {
 	row := q.db.QueryRow(ctx, updateCustomer,
 		arg.ID,
 		arg.Email,
 		arg.FirstName,
 		arg.LastName,
 	)
-	var i Customers
+	var i UpdateCustomerRow
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
@@ -209,9 +457,20 @@ type UpdateCustomerPasswordParams struct {
 	PasswordHash string `db:"password_hash" json:"password_hash"`
 }
 
-func (q *Queries) UpdateCustomerPassword(ctx context.Context, arg UpdateCustomerPasswordParams) (Customers, error) {
+type UpdateCustomerPasswordRow struct {
+	ID               int32       `db:"id" json:"id"`
+	Email            string      `db:"email" json:"email"`
+	FirstName        pgtype.Text `db:"first_name" json:"first_name"`
+	LastName         pgtype.Text `db:"last_name" json:"last_name"`
+	PasswordHash     string      `db:"password_hash" json:"password_hash"`
+	StripeCustomerID pgtype.Text `db:"stripe_customer_id" json:"stripe_customer_id"`
+	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time   `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) UpdateCustomerPassword(ctx context.Context, arg UpdateCustomerPasswordParams) (UpdateCustomerPasswordRow, error) {
 	row := q.db.QueryRow(ctx, updateCustomerPassword, arg.ID, arg.PasswordHash)
-	var i Customers
+	var i UpdateCustomerPasswordRow
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
@@ -239,9 +498,20 @@ type UpdateCustomerStripeIDParams struct {
 	StripeCustomerID pgtype.Text `db:"stripe_customer_id" json:"stripe_customer_id"`
 }
 
-func (q *Queries) UpdateCustomerStripeID(ctx context.Context, arg UpdateCustomerStripeIDParams) (Customers, error) {
+type UpdateCustomerStripeIDRow struct {
+	ID               int32       `db:"id" json:"id"`
+	Email            string      `db:"email" json:"email"`
+	FirstName        pgtype.Text `db:"first_name" json:"first_name"`
+	LastName         pgtype.Text `db:"last_name" json:"last_name"`
+	PasswordHash     string      `db:"password_hash" json:"password_hash"`
+	StripeCustomerID pgtype.Text `db:"stripe_customer_id" json:"stripe_customer_id"`
+	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time   `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) UpdateCustomerStripeID(ctx context.Context, arg UpdateCustomerStripeIDParams) (UpdateCustomerStripeIDRow, error) {
 	row := q.db.QueryRow(ctx, updateCustomerStripeID, arg.ID, arg.StripeCustomerID)
-	var i Customers
+	var i UpdateCustomerStripeIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.Email,

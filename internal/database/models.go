@@ -95,14 +95,15 @@ type Carts struct {
 }
 
 type Customers struct {
-	ID               int32       `db:"id" json:"id"`
-	Email            string      `db:"email" json:"email"`
-	FirstName        pgtype.Text `db:"first_name" json:"first_name"`
-	LastName         pgtype.Text `db:"last_name" json:"last_name"`
-	PasswordHash     string      `db:"password_hash" json:"password_hash"`
-	StripeCustomerID pgtype.Text `db:"stripe_customer_id" json:"stripe_customer_id"`
-	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
-	UpdatedAt        time.Time   `db:"updated_at" json:"updated_at"`
+	ID               int32            `db:"id" json:"id"`
+	Email            string           `db:"email" json:"email"`
+	FirstName        pgtype.Text      `db:"first_name" json:"first_name"`
+	LastName         pgtype.Text      `db:"last_name" json:"last_name"`
+	PasswordHash     string           `db:"password_hash" json:"password_hash"`
+	StripeCustomerID pgtype.Text      `db:"stripe_customer_id" json:"stripe_customer_id"`
+	CreatedAt        time.Time        `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time        `db:"updated_at" json:"updated_at"`
+	ArchivedAt       pgtype.Timestamp `db:"archived_at" json:"archived_at"`
 }
 
 type Events struct {
