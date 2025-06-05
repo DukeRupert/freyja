@@ -8,6 +8,7 @@ import (
 	"github.com/dukerupert/freyja/internal/config"
 	"github.com/dukerupert/freyja/internal/database"
 	"github.com/dukerupert/freyja/internal/handler"
+	"github.com/dukerupert/freyja/internal/provider"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/service"
 
@@ -37,18 +38,28 @@ func main() {
 
 	log.Println("✅ Database connected and migrations completed")
 
+	// Initialize NATS event publisher
+	eventPublisher, err := provider.NewNATSEventPublisher(cfg.NATSUrl)
+	if err != nil {
+		log.Fatal("Failed to create NATS event publisher:", err)
+	}
+	defer eventPublisher.Close()
+
 	// Initialize layers: Repository -> Service -> Handler
 	// Initialize repositories
 	productRepo := repository.NewPostgresProductRepository(db)
 	cartRepo := repository.NewPostgresCartRepository(db)
+	orderRepo := repository.NewPostgresOrderRepository(db)
 
 	// Initialize services
 	productService := service.NewProductService(productRepo)
 	cartService := service.NewCartService(cartRepo, productRepo)
+	orderService := service.NewOrderService(orderRepo, cartService, eventPublisher)
 
 	// Initialize handlers
 	productHandler := handler.NewProductHandler(productService)
 	cartHandler := handler.NewCartHandler(cartService)
+	orderHandler := handler.NewOrderHandler(orderService)
 
 	// Create Echo instance
 	e := echo.New()
@@ -92,6 +103,22 @@ func main() {
 		cart.POST("/items", cartHandler.AddItem)          // POST /api/v1/cart/items
 		cart.PUT("/items/:id", cartHandler.UpdateItem)    // PUT /api/v1/cart/items/:id
 		cart.DELETE("/items/:id", cartHandler.RemoveItem) // DELETE /api/v1/cart/items/:id
+	}
+
+	// Customer routes
+	orders := api.Group("/orders")
+	{
+		orders.GET("", orderHandler.GetOrders)               // Customer order history
+		orders.GET("/:id", orderHandler.GetOrder)            // Order details
+		orders.POST("/:id/cancel", orderHandler.CancelOrder) // Cancel order
+	}
+
+	// Admin routes
+	admin := api.Group("/admin")
+	{
+		admin.GET("/orders", orderHandler.GetAllOrders)                 // All orders
+		admin.PUT("/orders/:id/status", orderHandler.UpdateOrderStatus) // Update status
+		admin.GET("/orders/stats", orderHandler.GetOrderStats)          // Analytics
 	}
 
 	// Get port from environment or default to 8080
