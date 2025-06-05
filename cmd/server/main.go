@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/dukerupert/freyja/internal/provider"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/service"
+	"github.com/dukerupert/freyja/internal/subscriber"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -68,6 +70,26 @@ func main() {
 	cartHandler := handler.NewCartHandler(cartService)
 	orderHandler := handler.NewOrderHandler(orderService)
 	customerHandler := handler.NewCustomerHandler(customerService)
+
+	// Initialize event subscribers
+	customerSubscriber := subscriber.NewCustomerEventSubscriber(customerService, eventPublisher)
+
+	// Start event subscribers in background goroutines
+	go func() {
+		if err := customerSubscriber.Start(context.Background()); err != nil {
+			log.Printf("Failed to start customer event subscriber: %v", err)
+		}
+	}()
+
+	// Optional: Run backfill for existing customers (uncomment if needed)
+	// go func() {
+	//     time.Sleep(5 * time.Second) // Wait for services to be fully ready
+	//     if err := customerSubscriber.EnsureAllCustomersHaveStripeIDs(context.Background()); err != nil {
+	//         log.Printf("Failed to backfill customer Stripe IDs: %v", err)
+	//     }
+	// }()
+
+	log.Println("✅ Event subscribers started")
 
 	// Create Echo instance
 	e := echo.New()
