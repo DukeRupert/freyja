@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/joho/godotenv"
+	"github.com/spf13/viper"
 )
 
 type Config struct {
@@ -24,48 +27,60 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
-	cfg := &Config{
-		Port:                 getEnv("PORT", "8080"),
-		Environment:          getEnv("ENV", "development"),
-		MinIOAccessKey:       getEnv("MINIO_ACCESS_KEY", "minioadmin"),
-		MinIOSecretKey:       getEnv("MINIO_SECRET_KEY", "minioadmin123"),
-		MinIOUseSSL:          getEnv("MINIO_USE_SSL", "false") == "true",
-		
-		// Stripe configuration
-		StripeSecretKey:      getEnv("STRIPE_SECRET_KEY", ""),
-		StripePublishableKey: getEnv("STRIPE_PUBLISHABLE_KEY", ""),
-		StripeWebhookSecret:  getEnv("STRIPE_WEBHOOK_SECRET", ""),
-	}
+	// Load .env file first
+    if err := godotenv.Load(); err != nil {
+        fmt.Println("No .env file found")
+    }
+	
+	// Initialize Viper
+	viper.AutomaticEnv()
+	
+	// Set all defaults
+	viper.SetDefault("PORT", "8080")
+	viper.SetDefault("ENV", "development")
+	viper.SetDefault("MINIO_ACCESS_KEY", "minioadmin")
+	viper.SetDefault("MINIO_SECRET_KEY", "minioadmin123")
+	viper.SetDefault("MINIO_USE_SSL", false)
+	viper.SetDefault("STRIPE_SECRET_KEY", "")
+	viper.SetDefault("STRIPE_PUBLISHABLE_KEY", "")
+	viper.SetDefault("STRIPE_WEBHOOK_SECRET", "")
+	viper.SetDefault("VALKEY_ADDR", "localhost:6379")
+	viper.SetDefault("NATS_URL", "nats://localhost:4222")
+	viper.SetDefault("MINIO_ENDPOINT", "localhost:9000")
 
 	// Smart host detection
 	isDocker := isRunningInDocker()
 
-	// Database URL
-	cfg.DatabaseURL = os.Getenv("DATABASE_URL")
+	// Set Docker-aware defaults
+	if isDocker {
+		viper.SetDefault("VALKEY_ADDR", "valkey:6379")
+		viper.SetDefault("NATS_URL", "nats://nats:4222")
+		viper.SetDefault("MINIO_ENDPOINT", "minio:9000")
+	}
+
+	// Build config struct
+	cfg := &Config{
+		Port:                 viper.GetString("PORT"),
+		Environment:          viper.GetString("ENV"),
+		MinIOAccessKey:       viper.GetString("MINIO_ACCESS_KEY"),
+		MinIOSecretKey:       viper.GetString("MINIO_SECRET_KEY"),
+		MinIOUseSSL:          viper.GetBool("MINIO_USE_SSL"),
+		StripeSecretKey:      viper.GetString("STRIPE_SECRET_KEY"),
+		StripePublishableKey: viper.GetString("STRIPE_PUBLISHABLE_KEY"),
+		StripeWebhookSecret:  viper.GetString("STRIPE_WEBHOOK_SECRET"),
+		ValkeyAddr:           viper.GetString("VALKEY_ADDR"),
+		NATSUrl:              viper.GetString("NATS_URL"),
+		MinIOEndpoint:        viper.GetString("MINIO_ENDPOINT"),
+	}
+
+	// Handle DATABASE_URL with smart defaults
+	cfg.DatabaseURL = viper.GetString("DATABASE_URL")
 	if cfg.DatabaseURL == "" {
 		host := "localhost"
 		if isDocker {
 			host = "postgres"
 		}
 		cfg.DatabaseURL = fmt.Sprintf("postgres://postgres:password@%s:5432/coffee_ecommerce?sslmode=disable", host)
-	}
-
-	// Valkey/Redis
-	cfg.ValkeyAddr = getEnv("VALKEY_ADDR", "localhost:6379")
-	if isDocker && cfg.ValkeyAddr == "localhost:6379" {
-		cfg.ValkeyAddr = "valkey:6379"
-	}
-
-	// NATS
-	cfg.NATSUrl = getEnv("NATS_URL", "nats://localhost:4222")
-	if isDocker && cfg.NATSUrl == "nats://localhost:4222" {
-		cfg.NATSUrl = "nats://nats:4222"
-	}
-
-	// MinIO
-	cfg.MinIOEndpoint = getEnv("MINIO_ENDPOINT", "localhost:9000")
-	if isDocker && cfg.MinIOEndpoint == "localhost:9000" {
-		cfg.MinIOEndpoint = "minio:9000"
 	}
 
 	return cfg, cfg.validate()
