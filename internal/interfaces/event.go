@@ -72,8 +72,9 @@ const (
 	EventInventoryReleased = "inventory.released"
 	
 	// Customer events
-	EventCustomerCreated = "customer.created"
-	EventCustomerUpdated = "customer.updated"
+	EventCustomerCreated       = "customer.created"
+	EventCustomerUpdated       = "customer.updated"
+	EventCustomerStripeEnsured = "customer.stripe_ensured"
 	
 	// Product events
 	EventProductCreated     = "product.created"
