@@ -29,7 +29,7 @@ clean: ## Clean up Docker resources
 	docker system prune -f
 
 dev: ## Start development environment
-	docker-compose -f docker-compose.working.yml up -d
+	docker-compose -f docker-compose.dev.yml up -d
 	@echo "✅ Development environment ready!"
 	@echo "🔗 Services:"
 	@echo "  • API: http://localhost:8080"
@@ -39,7 +39,7 @@ dev: ## Start development environment
 
 dev-local: ## Run app locally with Docker services
 	@echo "🏠 Starting local development..."
-	docker-compose -f docker-compose.working.yml up -d postgres valkey
+	docker-compose -f docker-compose.dev.yml up -d postgres valkey
 	@sleep 5
 	@echo "📡 Services started. Run with local environment:"
 	@echo "export DATABASE_URL='postgres://postgres:password@localhost:5432/coffee_ecommerce?sslmode=disable'"
@@ -47,11 +47,11 @@ dev-local: ## Run app locally with Docker services
 	@echo "go run cmd/server/main.go"
 
 dev-services: ## Start just the Docker services (DB, cache, etc.)
-	docker-compose -f docker-compose.working.yml up -d postgres valkey
+	docker-compose -f docker-compose.dev.yml up -d postgres valkey
 	@echo "✅ Services started: PostgreSQL and Valkey"
 
 dev-stop: ## Stop development services
-	docker-compose -f docker-compose.working.yml down
+	docker-compose -f docker-compose.dev.yml down
 
 test-api: ## Test the API endpoints
 	@echo "Testing API endpoints..."
@@ -59,10 +59,10 @@ test-api: ## Test the API endpoints
 	curl -s http://localhost:8080/api/v1/products | jq . || echo "Products endpoint failed"
 
 dev-logs: ## Follow development logs
-	docker-compose -f docker-compose.working.yml logs -f
+	docker-compose -f docker-compose.dev.yml logs -f
 
 dev-shell: ## Open shell in app container
-	docker-compose -f docker-compose.working.yml exec app sh
+	docker-compose -f docker-compose.dev.yml exec app sh
 
 dev-db-shell: ## Open PostgreSQL shell
 	docker exec -it freyja-postgres-1 psql -U postgres -d coffee_ecommerce
@@ -82,19 +82,6 @@ db-create-migration: ## Create new migration (usage: make db-create-migration NA
 	fi
 	goose -dir migrations create $(NAME) sql
 
-# Quick development workflow
-quick-start: ## Quick start for development (services + local app setup)
-	@echo "🚀 Quick development setup..."
-	make dev-services
-	@echo ""
-	@echo "✅ Services started! Now run your app locally:"
-	@echo "   export DATABASE_URL='postgres://postgres:password@localhost:5432/coffee_ecommerce?sslmode=disable'"
-	@echo "   export VALKEY_ADDR='localhost:6379'"
-	@echo "   go run cmd/server/main.go"
-	@echo ""
-	@echo "Or run full Docker setup:"
-	@echo "   make dev"
-
 # Helper to check if services are running
 status: ## Check status of development services
 	@echo "📊 Development environment status:"
@@ -107,14 +94,6 @@ status: ## Check status of development services
 	@curl -s http://localhost:5432 >/dev/null 2>&1 && echo "✅ PostgreSQL port open" || echo "❌ PostgreSQL not accessible"
 
 # Seed commands
-.PHONY: seed
-seed: build-seed
-	DATABASE_URL=$(DATABASE_URL) ./bin/seed
-
-.PHONY: seed-clean
-seed-clean: build-seed
-	DATABASE_URL=$(DATABASE_URL) CLEAR_DATA=true ./bin/seed
-
 .PHONY: seed-dev
 seed-dev:
 	DATABASE_URL=$(DATABASE_URL) go run cmd/seed/main.go
