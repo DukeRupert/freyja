@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/database"
-	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/interfaces"
+	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -149,10 +149,10 @@ func (s *OrderService) CreateOrderFromPayment(ctx context.Context, customerID in
 
 	// Publish order confirmed event
 	if err := s.publishOrderEvent(ctx, interfaces.EventOrderConfirmed, order.ID, map[string]interface{}{
-		"customer_id":        customerID,
-		"payment_intent_id":  paymentIntentID,
-		"total":              order.Total,
-		"item_count":         len(orderItems),
+		"customer_id":       customerID,
+		"payment_intent_id": paymentIntentID,
+		"total":             order.Total,
+		"item_count":        len(orderItems),
 	}); err != nil {
 		fmt.Printf("Failed to publish order confirmed event: %v\n", err)
 	}
@@ -297,7 +297,7 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, orderID int32, req
 	}
 
 	newStatus := database.OrderStatus(req.Status)
-	
+
 	// Validate status transition
 	if !interfaces.CanTransitionTo(currentOrder.Status, newStatus) {
 		return fmt.Errorf("cannot transition from %s to %s", currentOrder.Status, newStatus)
@@ -472,8 +472,4 @@ func (s *OrderService) publishOrderEvent(ctx context.Context, eventType string, 
 	}
 
 	return s.events.PublishEvent(ctx, event)
-}
-
-func generateEventID() string {
-	return fmt.Sprintf("evt_%d", time.Now().UnixNano())
 }

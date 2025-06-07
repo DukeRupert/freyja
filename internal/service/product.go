@@ -6,6 +6,10 @@ import (
 	"fmt"
 
 	"github.com/dukerupert/freyja/internal/interfaces"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/stripe/stripe-go/v82"
+	stripePrice "github.com/stripe/stripe-go/v82/price"
+	stripeProduct "github.com/stripe/stripe-go/v82/product"
 )
 
 type ProductService struct {
@@ -164,6 +168,109 @@ func (s *ProductService) GetStats(ctx context.Context) (map[string]interface{}, 
 		"low_stock_products":              lowStockProducts,
 		"out_of_stock_products":           outOfStockProducts,
 	}, nil
+}
+
+// EnsureStripeProduct ensures a product has Stripe Product and Price objects
+func (s *ProductService) EnsureStripeProduct(ctx context.Context, productID int32) error {
+	product, err := s.repo.GetByID(ctx, productID)
+	if err != nil {
+		return fmt.Errorf("failed to get product: %w", err)
+	}
+
+	// Create Stripe Product if it doesn't exist
+	if product.StripeProductID.String == "" {
+		stripeProduct, err := s.createStripeProduct(product)
+		if err != nil {
+			return fmt.Errorf("failed to create Stripe product: %w", err)
+		}
+
+		// Update product with Stripe Product ID
+		if err := s.repo.UpdateStripeProductID(ctx, productID, stripeProduct.ID); err != nil {
+			return fmt.Errorf("failed to update product with Stripe ID: %w", err)
+		}
+
+		product.StripeProductID = pgtype.Text{String: stripeProduct.ID, Valid: true}
+	}
+
+	// Create all Price objects if they don't exist
+	return s.ensureStripePrices(ctx, product)
+}
+
+func (s *ProductService) createStripeProduct(product *interfaces.Product) (*stripe.Product, error) {
+	params := &stripe.ProductParams{
+		Name:        stripe.String(product.Name),
+		Description: stripe.String(product.Description.String),
+		Active:      stripe.Bool(product.Active),
+		Metadata: map[string]string{
+			"internal_product_id": fmt.Sprintf("%d", product.ID),
+		},
+	}
+
+	return stripeProduct.New(params)
+}
+
+func (s *ProductService) ensureStripePrices(ctx context.Context, product *interfaces.Product) error {
+	priceUpdates := make(map[string]string)
+
+	// One-time purchase price
+	if product.StripePriceOnetimeID.String == "" {
+		price, err := s.createStripePrice(product, nil) // nil = one-time
+		if err != nil {
+			return err
+		}
+		priceUpdates["onetime"] = price.ID
+	}
+
+	// Subscription prices for each interval
+	intervals := map[string]int{"14day": 14, "21day": 21, "30day": 30, "60day": 60}
+	currentPrices := map[string]string{
+		"14day": product.StripePrice14dayID.String,
+		"21day": product.StripePrice21dayID.String,
+		"30day": product.StripePrice30dayID.String,
+		"60day": product.StripePrice60dayID.String,
+	}
+
+	for interval, days := range intervals {
+		if currentPrices[interval] == "" {
+			price, err := s.createStripePrice(product, &days)
+			if err != nil {
+				return err
+			}
+			priceUpdates[interval] = price.ID
+		}
+	}
+
+	// Update all price IDs in database
+	if len(priceUpdates) > 0 {
+		return s.repo.UpdateStripePriceIDs(ctx, product.ID, priceUpdates)
+	}
+
+	return nil
+}
+
+func (s *ProductService) createStripePrice(product *interfaces.Product, recurringDays *int) (*stripe.Price, error) {
+	params := &stripe.PriceParams{
+		Product:    stripe.String(product.StripeProductID.String),
+		UnitAmount: stripe.Int64(int64(product.Price)),
+		Currency:   stripe.String("usd"),
+		Metadata: map[string]string{
+			"internal_product_id": fmt.Sprintf("%d", product.ID),
+		},
+	}
+
+	if recurringDays != nil {
+		// Subscription price
+		params.Recurring = &stripe.PriceRecurringParams{
+			Interval:      stripe.String("day"),
+			IntervalCount: stripe.Int64(int64(*recurringDays)),
+		}
+		params.Metadata["subscription_days"] = fmt.Sprintf("%d", *recurringDays)
+	} else {
+		// One-time price
+		params.Metadata["type"] = "onetime"
+	}
+
+	return stripePrice.New(params)
 }
 
 // ValidateProduct validates product data
