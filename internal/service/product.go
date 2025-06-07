@@ -469,6 +469,20 @@ func (s *ProductService) GetStats(ctx context.Context) (map[string]interface{}, 
 	}, nil
 }
 
+// GetCount returns the total count of products
+func (s *ProductService) GetCount(ctx context.Context, activeOnly bool) (int64, error) {
+	return s.repo.GetCount(ctx, activeOnly)
+}
+
+// GetTotalValue returns the total inventory value
+func (s *ProductService) GetTotalValue(ctx context.Context) (int64, error) {
+	value, err := s.repo.GetTotalValue(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return int64(value), nil
+}
+
 // =============================================================================
 // Helper Methods
 // =============================================================================

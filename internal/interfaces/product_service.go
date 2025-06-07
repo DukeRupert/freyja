@@ -34,6 +34,8 @@ type ProductService interface {
 	ValidateProduct(product *Product) error
 	IsAvailable(ctx context.Context, id int, quantity int) (bool, error)
 	GetStats(ctx context.Context) (map[string]interface{}, error)
+	GetCount(ctx context.Context, activeOnly bool) (int64, error)
+	GetTotalValue(ctx context.Context) (int64, error)
 }
 
 // Request/Response types for Product Service

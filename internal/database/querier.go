@@ -28,6 +28,7 @@ type Querier interface {
 	DeleteCartItemByProductID(ctx context.Context, arg DeleteCartItemByProductIDParams) error
 	DeleteCustomer(ctx context.Context, id int32) error
 	DeleteProduct(ctx context.Context, id int32) error
+	GetArchivedCustomers(ctx context.Context, arg GetArchivedCustomersParams) ([]Customers, error)
 	// internal/database/queries/carts.sql
 	GetCart(ctx context.Context, id int32) (Carts, error)
 	GetCartByCustomerID(ctx context.Context, customerID pgtype.Int4) (Carts, error)
@@ -42,7 +43,10 @@ type Querier interface {
 	GetCustomerByEmail(ctx context.Context, lower string) (Customers, error)
 	GetCustomerByStripeID(ctx context.Context, stripeCustomerID pgtype.Text) (Customers, error)
 	GetCustomerCount(ctx context.Context) (int64, error)
+	GetCustomerCountWithStripeID(ctx context.Context) (int64, error)
 	GetCustomerOrderCount(ctx context.Context, customerID int32) (int64, error)
+	GetCustomerOrderStats(ctx context.Context, customerID int32) (GetCustomerOrderStatsRow, error)
+	GetCustomersWithOrderStats(ctx context.Context, limit int32) ([]GetCustomersWithOrderStatsRow, error)
 	GetCustomersWithoutStripeID(ctx context.Context, arg GetCustomersWithoutStripeIDParams) ([]Customers, error)
 	GetLowStockProducts(ctx context.Context, stock int32) ([]Products, error)
 	// internal/database/queries/orders.sql
@@ -61,6 +65,7 @@ type Querier interface {
 	GetProductCount(ctx context.Context, active bool) (int64, error)
 	GetProductsInStock(ctx context.Context) ([]Products, error)
 	GetProductsWithoutStripeSync(ctx context.Context, arg GetProductsWithoutStripeSyncParams) ([]Products, error)
+	GetRecentCustomers(ctx context.Context, limit int32) ([]GetRecentCustomersRow, error)
 	GetRecentOrders(ctx context.Context, arg GetRecentOrdersParams) ([]Orders, error)
 	GetTotalOrderCount(ctx context.Context) (int32, error)
 	GetTotalProductValue(ctx context.Context) (int32, error)
@@ -71,7 +76,9 @@ type Querier interface {
 	ListCustomers(ctx context.Context, arg ListCustomersParams) ([]ListCustomersRow, error)
 	ListProducts(ctx context.Context) ([]Products, error)
 	ListProductsByStatus(ctx context.Context, arg ListProductsByStatusParams) ([]Products, error)
+	RestoreCustomer(ctx context.Context, id int32) (RestoreCustomerRow, error)
 	SearchCustomers(ctx context.Context, arg SearchCustomersParams) ([]SearchCustomersRow, error)
+	SearchCustomersByEmail(ctx context.Context, arg SearchCustomersByEmailParams) ([]SearchCustomersByEmailRow, error)
 	SearchProducts(ctx context.Context, name string) ([]Products, error)
 	UpdateCartItem(ctx context.Context, arg UpdateCartItemParams) (CartItems, error)
 	UpdateCartItemQuantity(ctx context.Context, arg UpdateCartItemQuantityParams) (CartItems, error)

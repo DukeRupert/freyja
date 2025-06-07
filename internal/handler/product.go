@@ -6,15 +6,14 @@ import (
 	"strconv"
 
 	"github.com/dukerupert/freyja/internal/interfaces"
-	"github.com/dukerupert/freyja/internal/service"
 	"github.com/labstack/echo/v4"
 )
 
 type ProductHandler struct {
-	productService *service.ProductService
+	productService interfaces.ProductService
 }
 
-func NewProductHandler(productService *service.ProductService) *ProductHandler {
+func NewProductHandler(productService interfaces.ProductService) *ProductHandler {
 	return &ProductHandler{
 		productService: productService,
 	}

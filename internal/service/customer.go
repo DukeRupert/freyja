@@ -19,7 +19,7 @@ type CustomerService struct {
 }
 
 func NewCustomerService(
-	repo interfaces.CustomerRepository, 
+	repo interfaces.CustomerRepository,
 	stripeProvider *provider.StripeProvider,
 	events interfaces.EventPublisher,
 ) *CustomerService {
@@ -59,7 +59,7 @@ func (s *CustomerService) CreateCustomer(ctx context.Context, req CreateCustomer
 	stripeParams := &stripe.CustomerParams{
 		Email: stripe.String(req.Email),
 	}
-	
+
 	if req.FirstName != "" || req.LastName != "" {
 		stripeParams.Name = stripe.String(fmt.Sprintf("%s %s", req.FirstName, req.LastName))
 	}
@@ -146,7 +146,7 @@ func (s *CustomerService) UpdateCustomer(ctx context.Context, customerID int, re
 		stripeParams := &stripe.CustomerParams{
 			Email: stripe.String(customer.Email),
 		}
-		
+
 		if customer.FirstName.Valid || customer.LastName.Valid {
 			name := fmt.Sprintf("%s %s", customer.FirstName.String, customer.LastName.String)
 			stripeParams.Name = stripe.String(name)
@@ -184,7 +184,7 @@ func (s *CustomerService) EnsureStripeCustomer(ctx context.Context, customerID i
 	stripeParams := &stripe.CustomerParams{
 		Email: stripe.String(customer.Email),
 	}
-	
+
 	if customer.FirstName.Valid || customer.LastName.Valid {
 		name := fmt.Sprintf("%s %s", customer.FirstName.String, customer.LastName.String)
 		stripeParams.Name = stripe.String(name)
@@ -217,6 +217,154 @@ func (s *CustomerService) validateCreateRequest(req CreateCustomerRequest) error
 func (s *CustomerService) publishCustomerEvent(ctx context.Context, eventType string, customerID int32, data map[string]interface{}) error {
 	event := interfaces.BuildCustomerEvent(eventType, customerID, data)
 	return s.events.PublishEvent(ctx, event)
+}
+
+// GetCustomerByStripeID retrieves a customer by Stripe customer ID
+func (s *CustomerService) GetCustomerByStripeID(ctx context.Context, stripeCustomerID string) (*interfaces.Customer, error) {
+	if stripeCustomerID == "" {
+		return nil, fmt.Errorf("Stripe customer ID is required")
+	}
+
+	// You'd need to add this method to your customer repository
+	return s.repo.GetByStripeID(ctx, stripeCustomerID)
+}
+
+// DeleteCustomer soft deletes a customer
+func (s *CustomerService) DeleteCustomer(ctx context.Context, customerID int) error {
+	if customerID <= 0 {
+		return fmt.Errorf("invalid customer ID: %d", customerID)
+	}
+
+	return s.repo.Delete(ctx, customerID)
+}
+
+// UpdateCustomerInStripe updates customer info in Stripe
+func (s *CustomerService) UpdateCustomerInStripe(ctx context.Context, customerID int) error {
+	customer, err := s.repo.GetByID(ctx, customerID)
+	if err != nil {
+		return fmt.Errorf("failed to get customer: %w", err)
+	}
+
+	if !customer.StripeCustomerID.Valid {
+		return fmt.Errorf("customer has no Stripe ID")
+	}
+
+	// Update logic would go here using stripeProvider
+	return nil
+}
+
+// GetCustomerCount returns total customer count
+func (s *CustomerService) GetCustomerCount(ctx context.Context) (int64, error) {
+	// You'd need to add this to your customer repository
+	return s.repo.GetCount(ctx)
+}
+
+// GetCustomersWithStripeCount returns count of customers with Stripe IDs
+func (s *CustomerService) GetCustomersWithStripeCount(ctx context.Context) (int64, error) {
+	// You'd need to add this to your customer repository
+	return s.repo.GetCountWithStripeID(ctx)
+}
+
+// GetCustomersWithoutStripeIDs returns customers missing Stripe IDs
+func (s *CustomerService) GetCustomersWithoutStripeIDs(ctx context.Context, limit, offset int) ([]interfaces.Customer, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	// You'd need to add this to your customer repository
+	return s.repo.GetWithoutStripeID(ctx, limit, offset)
+}
+
+// GetCustomerStats returns customer analytics
+func (s *CustomerService) GetCustomerStats(ctx context.Context) (*interfaces.CustomerStats, error) {
+	stats := &interfaces.CustomerStats{}
+
+	// Get total customers
+	total, err := s.GetCustomerCount(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get customer count: %w", err)
+	}
+	stats.TotalCustomers = total
+
+	// Get customers with Stripe
+	withStripe, err := s.GetCustomersWithStripeCount(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get customers with Stripe count: %w", err)
+	}
+	stats.CustomersWithStripe = withStripe
+	stats.CustomersWithoutStripe = total - withStripe
+
+	// Calculate percentage
+	if total > 0 {
+		stats.StripeSyncPercentage = float64(withStripe) / float64(total) * 100
+	}
+
+	// Get recent customers
+	recent, err := s.GetRecentCustomers(ctx, 10)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get recent customers: %w", err)
+	}
+	stats.RecentCustomers = recent
+
+	return stats, nil
+}
+
+// SearchCustomers searches customers by email/name
+func (s *CustomerService) SearchCustomers(ctx context.Context, query string, limit, offset int) ([]interfaces.Customer, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	// You'd need to add this to your customer repository
+	return s.repo.Search(ctx, query, limit, offset)
+}
+
+// GetRecentCustomers returns recently created customers
+func (s *CustomerService) GetRecentCustomers(ctx context.Context, limit int) ([]interfaces.Customer, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+
+	// You'd need to add this to your customer repository
+	return s.repo.GetRecent(ctx, limit)
+}
+
+// ValidateCustomer validates customer data
+func (s *CustomerService) ValidateCustomer(customer *interfaces.Customer) error {
+	if customer == nil {
+		return fmt.Errorf("customer cannot be nil")
+	}
+
+	if customer.Email == "" {
+		return fmt.Errorf("customer email is required")
+	}
+
+	// Add more validation as needed
+	return nil
+}
+
+// IsEmailTaken checks if email is already in use
+func (s *CustomerService) IsEmailTaken(ctx context.Context, email string, excludeCustomerID *int) (bool, error) {
+	customer, err := s.repo.GetByEmail(ctx, email)
+	if err != nil {
+		if err.Error() == "customer not found" {
+			return false, nil
+		}
+		return false, err
+	}
+
+	// If excluding a specific customer ID (for updates)
+	if excludeCustomerID != nil && customer.ID == int32(*excludeCustomerID) {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 // Request/Response types
