@@ -9,7 +9,7 @@ import (
 	"github.com/dukerupert/freyja/internal/config"
 	"github.com/dukerupert/freyja/internal/database"
 	"github.com/dukerupert/freyja/internal/handler"
-	customMiddleware"github.com/dukerupert/freyja/internal/middleware"
+	customMiddleware "github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/provider"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/service"
@@ -61,16 +61,18 @@ func main() {
 	customerRepo := repository.NewPostgresCustomerRepository(db)
 
 	// Initialize services
-	productService := service.NewProductService(productRepo)
+	productService := service.NewProductService(productRepo, eventPublisher)
 	cartService := service.NewCartService(cartRepo, productRepo)
 	orderService := service.NewOrderService(orderRepo, cartService, eventPublisher)
 	customerService := service.NewCustomerService(customerRepo, stripeProvider, eventPublisher)
+	adminService := service.NewAdminService(customerService, productService, eventPublisher)
 
 	// Initialize handlers
 	productHandler := handler.NewProductHandler(productService)
 	cartHandler := handler.NewCartHandler(cartService)
 	orderHandler := handler.NewOrderHandler(orderService)
 	customerHandler := handler.NewCustomerHandler(customerService)
+	adminHandler := handler.NewAdminHandler(adminService)
 
 	// Initialize event subscribers
 	customerSubscriber := subscriber.NewCustomerEventSubscriber(customerService, eventPublisher)
@@ -103,7 +105,7 @@ func main() {
 	// Add request ID for tracing
 	e.Use(middleware.RequestID())
 
-	 e.Use(customMiddleware.PrometheusMiddleware())
+	e.Use(customMiddleware.PrometheusMiddleware())
 
 	// Add Prometheus metrics endpoint
 	e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
@@ -149,10 +151,18 @@ func main() {
 	customers := api.Group("/customers")
 	{
 		customers.POST("", customerHandler.CreateCustomer)                    // POST /api/v1/customers
-		customers.GET("/:id", customerHandler.GetCustomer)                    // GET /api/v1/customers/:id
+		customers.GET("", customerHandler.GetCustomers)                       // GET /api/v1/customers
+		customers.GET("/:id", customerHandler.GetCustomerByID)                // GET /api/v1/customers/:id
 		customers.PUT("/:id", customerHandler.UpdateCustomer)                 // PUT /api/v1/customers/:id
+		customers.DELETE("/:id", customerHandler.DeleteCustomer)              // DELETE /api/v1/customers/:id
 		customers.GET("/by-email/:email", customerHandler.GetCustomerByEmail) // GET /api/v1/customers/by-email/:email
+		customers.GET("/search", customerHandler.SearchCustomers)             // GET /api/v1/customers/search
 		customers.POST("/:id/stripe", customerHandler.EnsureStripeCustomer)   // POST /api/v1/customers/:id/stripe
+
+		// Admin/analytics routes
+		customers.GET("/stats", customerHandler.GetCustomerStats)                   // GET /api/v1/customers/stats
+		customers.POST("/sync/stripe", customerHandler.SyncStripeCustomers)         // POST /api/v1/customers/sync/stripe
+		customers.GET("/without-stripe", customerHandler.GetCustomersWithoutStripe) // GET /api/v1/customers/without-stripe
 	}
 
 	// Admin routes
@@ -161,6 +171,12 @@ func main() {
 		admin.GET("/orders", orderHandler.GetAllOrders)                 // All orders
 		admin.PUT("/orders/:id/status", orderHandler.UpdateOrderStatus) // Update status
 		admin.GET("/orders/stats", orderHandler.GetOrderStats)          // Analytics
+
+		// Backfill operations
+		admin.POST("/backfill/customers", adminHandler.BackfillCustomers)     // Start customer backfill
+		admin.POST("/backfill/products", adminHandler.BackfillProducts)       // Start product backfill
+		admin.GET("/sync/status", adminHandler.GetSyncStatus)                 // Get overall sync status
+		admin.GET("/backfill/:job_id/status", adminHandler.GetBackfillStatus) // Get specific job status
 	}
 
 	// Get port from environment or default to 8080
