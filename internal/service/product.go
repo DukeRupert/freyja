@@ -7,21 +7,23 @@ import (
 
 	"github.com/dukerupert/freyja/internal/interfaces"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/stripe/stripe-go/v82"
-	stripePrice "github.com/stripe/stripe-go/v82/price"
-	stripeProduct "github.com/stripe/stripe-go/v82/product"
 )
 
 type ProductService struct {
-	repo interfaces.ProductRepository
-	// Note: cache and events will be added later
+	repo   interfaces.ProductRepository
+	events interfaces.EventPublisher
 }
 
-func NewProductService(repo interfaces.ProductRepository) *ProductService {
+func NewProductService(repo interfaces.ProductRepository, events interfaces.EventPublisher) interfaces.ProductService {
 	return &ProductService{
-		repo: repo,
+		repo:   repo,
+		events: events,
 	}
 }
+
+// =============================================================================
+// Product Retrieval
+// =============================================================================
 
 // GetByID retrieves a product by its ID
 func (s *ProductService) GetByID(ctx context.Context, id int) (*interfaces.Product, error) {
@@ -46,6 +48,20 @@ func (s *ProductService) GetByName(ctx context.Context, name string) (*interface
 	product, err := s.repo.GetByName(ctx, name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get product by name '%s': %w", name, err)
+	}
+
+	return product, nil
+}
+
+// GetByStripeProductID retrieves a product by its Stripe product ID
+func (s *ProductService) GetByStripeProductID(ctx context.Context, stripeProductID string) (*interfaces.Product, error) {
+	if stripeProductID == "" {
+		return nil, fmt.Errorf("Stripe product ID cannot be empty")
+	}
+
+	product, err := s.repo.GetByStripeProductID(ctx, stripeProductID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get product by Stripe ID '%s': %w", stripeProductID, err)
 	}
 
 	return product, nil
@@ -90,8 +106,6 @@ func (s *ProductService) SearchProducts(ctx context.Context, query string) ([]in
 		return s.GetActiveProducts(ctx)
 	}
 
-	// For MVP, we'll use the repository's search method
-	// In the future, this could integrate with Elasticsearch
 	products, err := s.repo.SearchProducts(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search products: %w", err)
@@ -124,154 +138,239 @@ func (s *ProductService) GetLowStock(ctx context.Context, threshold int) ([]inte
 	return products, nil
 }
 
-// GetStats returns product statistics for admin dashboard
-func (s *ProductService) GetStats(ctx context.Context) (map[string]interface{}, error) {
-	// Get total active products
-	totalActive, err := s.repo.GetCount(ctx, true)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get active product count: %w", err)
+// GetProductsWithoutStripeSync retrieves products that haven't been synced to Stripe
+func (s *ProductService) GetProductsWithoutStripeSync(ctx context.Context, limit, offset int) ([]interfaces.Product, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
 	}
 
-	// Get total inactive products
-	totalAll, err := s.repo.GetCount(ctx, false)
+	products, err := s.repo.GetProductsWithoutStripeSync(ctx, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get total product count: %w", err)
-	}
-	totalInactive := totalAll - totalActive
-
-	// Get total inventory value
-	totalValue, err := s.repo.GetTotalValue(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get total inventory value: %w", err)
+		return nil, fmt.Errorf("failed to get products without Stripe sync: %w", err)
 	}
 
-	// Get low stock products (threshold: 10)
-	lowStockProducts, err := s.repo.GetLowStock(ctx, 10)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get low stock products: %w", err)
-	}
-
-	// Get out of stock products
-	outOfStockProducts, err := s.repo.GetLowStock(ctx, 0)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get out of stock products: %w", err)
-	}
-
-	return map[string]interface{}{
-		"total_active":                    totalActive,
-		"total_inactive":                  totalInactive,
-		"total_products":                  totalAll,
-		"total_inventory_value":           totalValue,
-		"total_inventory_value_formatted": formatPrice(totalValue),
-		"low_stock_count":                 len(lowStockProducts),
-		"out_of_stock_count":              len(outOfStockProducts),
-		"low_stock_products":              lowStockProducts,
-		"out_of_stock_products":           outOfStockProducts,
-	}, nil
+	return products, nil
 }
 
-// EnsureStripeProduct ensures a product has Stripe Product and Price objects
-func (s *ProductService) EnsureStripeProduct(ctx context.Context, productID int32) error {
+// =============================================================================
+// Product Management
+// =============================================================================
+
+// CreateProduct creates a product and publishes creation event
+func (s *ProductService) CreateProduct(ctx context.Context, req interfaces.CreateProductRequest) (*interfaces.Product, error) {
+	// Validate product data
+	if err := s.validateCreateRequest(req); err != nil {
+		return nil, fmt.Errorf("validation failed: %w", err)
+	}
+
+	// Create product
+	product := &interfaces.Product{
+		Name:        req.Name,
+		Description: pgtype.Text{String: req.Description, Valid: req.Description != ""},
+		Price:       req.Price,
+		Stock:       req.Stock,
+		Active:      req.Active,
+	}
+
+	if err := s.repo.Create(ctx, product); err != nil {
+		return nil, fmt.Errorf("failed to create product: %w", err)
+	}
+
+	// Publish product created event
+	if err := s.publishProductEvent(ctx, interfaces.EventProductCreated, product.ID, map[string]interface{}{
+		"name":   product.Name,
+		"price":  product.Price,
+		"active": product.Active,
+	}); err != nil {
+		// Log error but don't fail product creation
+		fmt.Printf("Failed to publish product created event: %v\n", err)
+	}
+
+	return product, nil
+}
+
+// UpdateProduct updates a product and publishes update event
+func (s *ProductService) UpdateProduct(ctx context.Context, productID int32, req interfaces.UpdateProductRequest) (*interfaces.Product, error) {
+	// Get existing product
 	product, err := s.repo.GetByID(ctx, productID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get product: %w", err)
+	}
+
+	oldPrice := product.Price
+	oldActive := product.Active
+
+	// Update fields
+	if req.Name != nil {
+		product.Name = *req.Name
+	}
+	if req.Description != nil {
+		product.Description = pgtype.Text{String: *req.Description, Valid: *req.Description != ""}
+	}
+	if req.Price != nil {
+		product.Price = *req.Price
+	}
+	if req.Stock != nil {
+		product.Stock = *req.Stock
+	}
+	if req.Active != nil {
+		product.Active = *req.Active
+	}
+
+	// Update in database
+	if err := s.repo.Update(ctx, product); err != nil {
+		return nil, fmt.Errorf("failed to update product: %w", err)
+	}
+
+	// Determine what changed and publish appropriate events
+	eventData := map[string]interface{}{
+		"name": product.Name,
+	}
+
+	// Check if price changed (triggers Stripe price update)
+	if oldPrice != product.Price {
+		eventData["price_changed"] = true
+		eventData["old_price"] = oldPrice
+		eventData["new_price"] = product.Price
+	}
+
+	// Check if product was deactivated
+	if oldActive && !product.Active {
+		// Publish deactivation event
+		if err := s.publishProductEvent(ctx, interfaces.EventProductDeactivated, product.ID, eventData); err != nil {
+			fmt.Printf("Failed to publish product deactivated event: %v\n", err)
+		}
+	} else {
+		// Publish general update event
+		if err := s.publishProductEvent(ctx, interfaces.EventProductUpdated, product.ID, eventData); err != nil {
+			fmt.Printf("Failed to publish product updated event: %v\n", err)
+		}
+	}
+
+	return product, nil
+}
+
+// UpdateStock updates product stock
+func (s *ProductService) UpdateStock(ctx context.Context, id int, stock int32) error {
+	if id <= 0 {
+		return fmt.Errorf("invalid product ID: %d", id)
+	}
+	if stock < 0 {
+		return fmt.Errorf("stock cannot be negative")
+	}
+
+	return s.repo.UpdateStock(ctx, int32(id), stock)
+}
+
+// DeactivateProduct deactivates a product
+func (s *ProductService) DeactivateProduct(ctx context.Context, id int) error {
+	if id <= 0 {
+		return fmt.Errorf("invalid product ID: %d", id)
+	}
+
+	// Get current product
+	product, err := s.repo.GetByID(ctx, int32(id))
 	if err != nil {
 		return fmt.Errorf("failed to get product: %w", err)
 	}
 
-	// Create Stripe Product if it doesn't exist
-	if product.StripeProductID.String == "" {
-		stripeProduct, err := s.createStripeProduct(product)
-		if err != nil {
-			return fmt.Errorf("failed to create Stripe product: %w", err)
-		}
-
-		// Update product with Stripe Product ID
-		if err := s.repo.UpdateStripeProductID(ctx, productID, stripeProduct.ID); err != nil {
-			return fmt.Errorf("failed to update product with Stripe ID: %w", err)
-		}
-
-		product.StripeProductID = pgtype.Text{String: stripeProduct.ID, Valid: true}
+	if !product.Active {
+		return nil // Already deactivated
 	}
 
-	// Create all Price objects if they don't exist
-	return s.ensureStripePrices(ctx, product)
+	// Update to inactive
+	req := interfaces.UpdateProductRequest{
+		Active: &[]bool{false}[0],
+	}
+
+	_, err = s.UpdateProduct(ctx, int32(id), req)
+	return err
 }
 
-func (s *ProductService) createStripeProduct(product *interfaces.Product) (*stripe.Product, error) {
-	params := &stripe.ProductParams{
-		Name:        stripe.String(product.Name),
-		Description: stripe.String(product.Description.String),
-		Active:      stripe.Bool(product.Active),
-		Metadata: map[string]string{
-			"internal_product_id": fmt.Sprintf("%d", product.ID),
-		},
+// ActivateProduct activates a product
+func (s *ProductService) ActivateProduct(ctx context.Context, id int) error {
+	if id <= 0 {
+		return fmt.Errorf("invalid product ID: %d", id)
 	}
 
-	return stripeProduct.New(params)
+	// Get current product
+	product, err := s.repo.GetByID(ctx, int32(id))
+	if err != nil {
+		return fmt.Errorf("failed to get product: %w", err)
+	}
+
+	if product.Active {
+		return nil // Already active
+	}
+
+	// Update to active
+	req := interfaces.UpdateProductRequest{
+		Active: &[]bool{true}[0],
+	}
+
+	_, err = s.UpdateProduct(ctx, int32(id), req)
+	return err
 }
 
-func (s *ProductService) ensureStripePrices(ctx context.Context, product *interfaces.Product) error {
-	priceUpdates := make(map[string]string)
-
-	// One-time purchase price
-	if product.StripePriceOnetimeID.String == "" {
-		price, err := s.createStripePrice(product, nil) // nil = one-time
-		if err != nil {
-			return err
-		}
-		priceUpdates["onetime"] = price.ID
+// DeleteProduct deletes a product
+func (s *ProductService) DeleteProduct(ctx context.Context, id int) error {
+	if id <= 0 {
+		return fmt.Errorf("invalid product ID: %d", id)
 	}
 
-	// Subscription prices for each interval
-	intervals := map[string]int{"14day": 14, "21day": 21, "30day": 30, "60day": 60}
-	currentPrices := map[string]string{
-		"14day": product.StripePrice14dayID.String,
-		"21day": product.StripePrice21dayID.String,
-		"30day": product.StripePrice30dayID.String,
-		"60day": product.StripePrice60dayID.String,
+	return s.repo.Delete(ctx, int32(id))
+}
+
+// =============================================================================
+// Stripe Integration
+// =============================================================================
+
+// UpdateStripeProductID updates a product's Stripe product ID
+func (s *ProductService) UpdateStripeProductID(ctx context.Context, productID int32, stripeProductID string) error {
+	if productID <= 0 {
+		return fmt.Errorf("invalid product ID: %d", productID)
+	}
+	if stripeProductID == "" {
+		return fmt.Errorf("Stripe product ID cannot be empty")
 	}
 
-	for interval, days := range intervals {
-		if currentPrices[interval] == "" {
-			price, err := s.createStripePrice(product, &days)
-			if err != nil {
-				return err
-			}
-			priceUpdates[interval] = price.ID
-		}
+	return s.repo.UpdateStripeProductID(ctx, productID, stripeProductID)
+}
+
+// UpdateStripePriceIDs updates a product's Stripe price IDs
+func (s *ProductService) UpdateStripePriceIDs(ctx context.Context, productID int32, priceIDs map[string]string) error {
+	if productID <= 0 {
+		return fmt.Errorf("invalid product ID: %d", productID)
+	}
+	if len(priceIDs) == 0 {
+		return fmt.Errorf("price IDs map cannot be empty")
 	}
 
-	// Update all price IDs in database
-	if len(priceUpdates) > 0 {
-		return s.repo.UpdateStripePriceIDs(ctx, product.ID, priceUpdates)
+	return s.repo.UpdateStripePriceIDs(ctx, productID, priceIDs)
+}
+
+// EnsureStripeProduct ensures a product has Stripe Product and Price objects
+func (s *ProductService) EnsureStripeProduct(ctx context.Context, productID int32) error {
+	if productID <= 0 {
+		return fmt.Errorf("invalid product ID: %d", productID)
+	}
+
+	// Publish sync request event - the subscriber will handle the actual sync
+	if err := s.publishProductEvent(ctx, interfaces.EventProductStripeSync, productID, map[string]interface{}{
+		"sync_requested": true,
+	}); err != nil {
+		return fmt.Errorf("failed to publish Stripe sync event: %w", err)
 	}
 
 	return nil
 }
 
-func (s *ProductService) createStripePrice(product *interfaces.Product, recurringDays *int) (*stripe.Price, error) {
-	params := &stripe.PriceParams{
-		Product:    stripe.String(product.StripeProductID.String),
-		UnitAmount: stripe.Int64(int64(product.Price)),
-		Currency:   stripe.String("usd"),
-		Metadata: map[string]string{
-			"internal_product_id": fmt.Sprintf("%d", product.ID),
-		},
-	}
-
-	if recurringDays != nil {
-		// Subscription price
-		params.Recurring = &stripe.PriceRecurringParams{
-			Interval:      stripe.String("day"),
-			IntervalCount: stripe.Int64(int64(*recurringDays)),
-		}
-		params.Metadata["subscription_days"] = fmt.Sprintf("%d", *recurringDays)
-	} else {
-		// One-time price
-		params.Metadata["type"] = "onetime"
-	}
-
-	return stripePrice.New(params)
-}
+// =============================================================================
+// Validation and Utilities
+// =============================================================================
 
 // ValidateProduct validates product data
 func (s *ProductService) ValidateProduct(product *interfaces.Product) error {
@@ -314,6 +413,82 @@ func (s *ProductService) IsAvailable(ctx context.Context, id int, quantity int) 
 	}
 
 	return true, nil
+}
+
+// GetStats returns product statistics for admin dashboard
+func (s *ProductService) GetStats(ctx context.Context) (map[string]interface{}, error) {
+	// Get total active products
+	totalActive, err := s.repo.GetCount(ctx, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get active product count: %w", err)
+	}
+
+	// Get total inactive products
+	totalAll, err := s.repo.GetCount(ctx, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get total product count: %w", err)
+	}
+	totalInactive := totalAll - totalActive
+
+	// Get total inventory value
+	totalValue, err := s.repo.GetTotalValue(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get total inventory value: %w", err)
+	}
+
+	// Get low stock products (threshold: 10)
+	lowStockProducts, err := s.repo.GetLowStock(ctx, 10)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get low stock products: %w", err)
+	}
+
+	// Get out of stock products
+	outOfStockProducts, err := s.repo.GetLowStock(ctx, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get out of stock products: %w", err)
+	}
+
+	// Get products without Stripe sync
+	unsyncedProducts, err := s.repo.GetProductsWithoutStripeSync(ctx, 100, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get unsynced products: %w", err)
+	}
+
+	return map[string]interface{}{
+		"total_active":                    totalActive,
+		"total_inactive":                  totalInactive,
+		"total_products":                  totalAll,
+		"total_inventory_value":           totalValue,
+		"total_inventory_value_formatted": formatPrice(totalValue),
+		"low_stock_count":                 len(lowStockProducts),
+		"out_of_stock_count":              len(outOfStockProducts),
+		"unsynced_stripe_count":           len(unsyncedProducts),
+		"low_stock_products":              lowStockProducts,
+		"out_of_stock_products":           outOfStockProducts,
+		"unsynced_stripe_products":        unsyncedProducts,
+	}, nil
+}
+
+// =============================================================================
+// Helper Methods
+// =============================================================================
+
+func (s *ProductService) publishProductEvent(ctx context.Context, eventType string, productID int32, data map[string]interface{}) error {
+	event := interfaces.BuildProductEvent(eventType, productID, data)
+	return s.events.PublishEvent(ctx, event)
+}
+
+func (s *ProductService) validateCreateRequest(req interfaces.CreateProductRequest) error {
+	if req.Name == "" {
+		return fmt.Errorf("product name is required")
+	}
+	if req.Price <= 0 {
+		return fmt.Errorf("product price must be positive")
+	}
+	if req.Stock < 0 {
+		return fmt.Errorf("product stock cannot be negative")
+	}
+	return nil
 }
 
 // Helper function to format price (same as in handler)

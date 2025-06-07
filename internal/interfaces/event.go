@@ -15,13 +15,13 @@ import (
 type EventPublisher interface {
 	// Publish a single event
 	PublishEvent(ctx context.Context, event Event) error
-	
+
 	// Publish multiple events in a batch
 	PublishEvents(ctx context.Context, events []Event) error
-	
+
 	// Subscribe to events (for consumers)
 	Subscribe(ctx context.Context, eventType string, handler EventHandler) error
-	
+
 	// Close the publisher
 	Close() error
 }
@@ -49,38 +49,39 @@ const (
 	EventCartItemUpdated = "cart.item_updated"
 	EventCartItemRemoved = "cart.item_removed"
 	EventCartCleared     = "cart.cleared"
-	
+
 	// Checkout events
-	EventCheckoutInitiated     = "checkout.initiated"
+	EventCheckoutInitiated      = "checkout.initiated"
 	EventCheckoutSessionCreated = "checkout.session_created"
-	
+
 	// Payment events
 	EventPaymentProcessing = "payment.processing"
 	EventPaymentConfirmed  = "payment.confirmed"
 	EventPaymentFailed     = "payment.failed"
-	
+
 	// Order events
 	EventOrderCreated   = "order.created"
 	EventOrderConfirmed = "order.confirmed"
 	EventOrderCancelled = "order.cancelled"
 	EventOrderShipped   = "order.shipped"
 	EventOrderDelivered = "order.delivered"
-	
+
 	// Inventory events
-	EventInventoryReserved = "inventory.reserved"
+	EventInventoryReserved  = "inventory.reserved"
 	EventInventoryCommitted = "inventory.committed"
-	EventInventoryReleased = "inventory.released"
-	
+	EventInventoryReleased  = "inventory.released"
+
 	// Customer events
 	EventCustomerCreated       = "customer.created"
 	EventCustomerUpdated       = "customer.updated"
 	EventCustomerStripeEnsured = "customer.stripe_ensured"
-	
+
 	// Product events
 	EventProductCreated     = "product.created"
 	EventProductUpdated     = "product.updated"
 	EventProductDeactivated = "product.deactivated"
 	EventProductStockLow    = "product.stock_low"
+	EventProductStripeSync  = "product.stripe_sync_requested"
 )
 
 // =============================================================================
@@ -102,18 +103,18 @@ type PaymentConfirmedData struct {
 }
 
 type OrderCreatedData struct {
-	OrderID     int32 `json:"order_id"`
-	CustomerID  int32 `json:"customer_id"`
-	Total       int32 `json:"total"`
-	ItemCount   int   `json:"item_count"`
-	PaymentID   string `json:"payment_id,omitempty"`
+	OrderID    int32  `json:"order_id"`
+	CustomerID int32  `json:"customer_id"`
+	Total      int32  `json:"total"`
+	ItemCount  int    `json:"item_count"`
+	PaymentID  string `json:"payment_id,omitempty"`
 }
 
 type InventoryReservedData struct {
-	ProductID    int32     `json:"product_id"`
-	Quantity     int32     `json:"quantity"`
-	ReservationID string   `json:"reservation_id"`
-	ExpiresAt    time.Time `json:"expires_at"`
+	ProductID     int32     `json:"product_id"`
+	Quantity      int32     `json:"quantity"`
+	ReservationID string    `json:"reservation_id"`
+	ExpiresAt     time.Time `json:"expires_at"`
 }
 
 // =============================================================================
@@ -196,11 +197,11 @@ func ExtractAggregateID(aggregateID string) (int32, error) {
 	if len(parts) != 2 {
 		return 0, fmt.Errorf("invalid aggregate ID format: %s", aggregateID)
 	}
-	
+
 	id, err := strconv.ParseInt(parts[1], 10, 32)
 	if err != nil {
 		return 0, fmt.Errorf("invalid aggregate ID: %w", err)
 	}
-	
+
 	return int32(id), nil
 }
