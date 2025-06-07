@@ -22,7 +22,7 @@ func NewCustomerService(
 	repo interfaces.CustomerRepository,
 	stripeProvider *provider.StripeProvider,
 	events interfaces.EventPublisher,
-) *CustomerService {
+) interfaces.CustomerService {
 	return &CustomerService{
 		repo:           repo,
 		stripeProvider: stripeProvider,
@@ -31,7 +31,7 @@ func NewCustomerService(
 }
 
 // CreateCustomer creates a customer in both our database and Stripe
-func (s *CustomerService) CreateCustomer(ctx context.Context, req CreateCustomerRequest) (*interfaces.Customer, error) {
+func (s *CustomerService) CreateCustomer(ctx context.Context, req interfaces.CreateCustomerRequest) (*interfaces.Customer, error) {
 	// Validate request
 	if err := s.validateCreateRequest(req); err != nil {
 		return nil, fmt.Errorf("validation failed: %w", err)
@@ -71,7 +71,7 @@ func (s *CustomerService) CreateCustomer(ctx context.Context, req CreateCustomer
 		fmt.Printf("Warning: Failed to create Stripe customer for %s: %v\n", req.Email, err)
 	} else {
 		// Update our customer record with the Stripe customer ID
-		if err := s.repo.UpdateStripeID(ctx, int(customer.ID), stripeCustomer.ID); err != nil {
+		if err := s.repo.UpdateStripeID(ctx, customer.ID, stripeCustomer.ID); err != nil {
 			fmt.Printf("Warning: Failed to update Stripe customer ID: %v\n", err)
 		} else {
 			customer.StripeCustomerID = pgtype.Text{String: stripeCustomer.ID, Valid: true}
@@ -90,7 +90,7 @@ func (s *CustomerService) CreateCustomer(ctx context.Context, req CreateCustomer
 }
 
 // GetCustomerByID retrieves a customer by ID
-func (s *CustomerService) GetCustomerByID(ctx context.Context, customerID int) (*interfaces.Customer, error) {
+func (s *CustomerService) GetCustomerByID(ctx context.Context, customerID int32) (*interfaces.Customer, error) {
 	if customerID <= 0 {
 		return nil, fmt.Errorf("invalid customer ID: %d", customerID)
 	}
@@ -118,7 +118,7 @@ func (s *CustomerService) GetCustomerByEmail(ctx context.Context, email string) 
 }
 
 // UpdateCustomer updates customer information
-func (s *CustomerService) UpdateCustomer(ctx context.Context, customerID int, req UpdateCustomerRequest) (*interfaces.Customer, error) {
+func (s *CustomerService) UpdateCustomer(ctx context.Context, customerID int32, req interfaces.UpdateCustomerRequest) (*interfaces.Customer, error) {
 	// Get existing customer
 	customer, err := s.repo.GetByID(ctx, customerID)
 	if err != nil {
@@ -169,7 +169,7 @@ func (s *CustomerService) UpdateCustomer(ctx context.Context, customerID int, re
 }
 
 // EnsureStripeCustomer ensures a customer has a Stripe customer ID
-func (s *CustomerService) EnsureStripeCustomer(ctx context.Context, customerID int) (string, error) {
+func (s *CustomerService) EnsureStripeCustomer(ctx context.Context, customerID int32) (string, error) {
 	customer, err := s.repo.GetByID(ctx, customerID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get customer: %w", err)
@@ -203,34 +203,17 @@ func (s *CustomerService) EnsureStripeCustomer(ctx context.Context, customerID i
 	return stripeCustomer.ID, nil
 }
 
-// Helper methods
-func (s *CustomerService) validateCreateRequest(req CreateCustomerRequest) error {
-	if req.Email == "" {
-		return fmt.Errorf("email is required")
-	}
-	if req.PasswordHash == "" {
-		return fmt.Errorf("password hash is required")
-	}
-	return nil
-}
-
-func (s *CustomerService) publishCustomerEvent(ctx context.Context, eventType string, customerID int32, data map[string]interface{}) error {
-	event := interfaces.BuildCustomerEvent(eventType, customerID, data)
-	return s.events.PublishEvent(ctx, event)
-}
-
 // GetCustomerByStripeID retrieves a customer by Stripe customer ID
 func (s *CustomerService) GetCustomerByStripeID(ctx context.Context, stripeCustomerID string) (*interfaces.Customer, error) {
 	if stripeCustomerID == "" {
 		return nil, fmt.Errorf("Stripe customer ID is required")
 	}
 
-	// You'd need to add this method to your customer repository
 	return s.repo.GetByStripeID(ctx, stripeCustomerID)
 }
 
 // DeleteCustomer soft deletes a customer
-func (s *CustomerService) DeleteCustomer(ctx context.Context, customerID int) error {
+func (s *CustomerService) DeleteCustomer(ctx context.Context, customerID int32) error {
 	if customerID <= 0 {
 		return fmt.Errorf("invalid customer ID: %d", customerID)
 	}
@@ -239,7 +222,7 @@ func (s *CustomerService) DeleteCustomer(ctx context.Context, customerID int) er
 }
 
 // UpdateCustomerInStripe updates customer info in Stripe
-func (s *CustomerService) UpdateCustomerInStripe(ctx context.Context, customerID int) error {
+func (s *CustomerService) UpdateCustomerInStripe(ctx context.Context, customerID int32) error {
 	customer, err := s.repo.GetByID(ctx, customerID)
 	if err != nil {
 		return fmt.Errorf("failed to get customer: %w", err)
@@ -255,13 +238,11 @@ func (s *CustomerService) UpdateCustomerInStripe(ctx context.Context, customerID
 
 // GetCustomerCount returns total customer count
 func (s *CustomerService) GetCustomerCount(ctx context.Context) (int64, error) {
-	// You'd need to add this to your customer repository
 	return s.repo.GetCount(ctx)
 }
 
 // GetCustomersWithStripeCount returns count of customers with Stripe IDs
 func (s *CustomerService) GetCustomersWithStripeCount(ctx context.Context) (int64, error) {
-	// You'd need to add this to your customer repository
 	return s.repo.GetCountWithStripeID(ctx)
 }
 
@@ -274,7 +255,6 @@ func (s *CustomerService) GetCustomersWithoutStripeIDs(ctx context.Context, limi
 		offset = 0
 	}
 
-	// You'd need to add this to your customer repository
 	return s.repo.GetWithoutStripeID(ctx, limit, offset)
 }
 
@@ -321,7 +301,6 @@ func (s *CustomerService) SearchCustomers(ctx context.Context, query string, lim
 		offset = 0
 	}
 
-	// You'd need to add this to your customer repository
 	return s.repo.Search(ctx, query, limit, offset)
 }
 
@@ -331,7 +310,6 @@ func (s *CustomerService) GetRecentCustomers(ctx context.Context, limit int) ([]
 		limit = 10
 	}
 
-	// You'd need to add this to your customer repository
 	return s.repo.GetRecent(ctx, limit)
 }
 
@@ -350,7 +328,7 @@ func (s *CustomerService) ValidateCustomer(customer *interfaces.Customer) error 
 }
 
 // IsEmailTaken checks if email is already in use
-func (s *CustomerService) IsEmailTaken(ctx context.Context, email string, excludeCustomerID *int) (bool, error) {
+func (s *CustomerService) IsEmailTaken(ctx context.Context, email string, excludeCustomerID *int32) (bool, error) {
 	customer, err := s.repo.GetByEmail(ctx, email)
 	if err != nil {
 		if err.Error() == "customer not found" {
@@ -360,23 +338,29 @@ func (s *CustomerService) IsEmailTaken(ctx context.Context, email string, exclud
 	}
 
 	// If excluding a specific customer ID (for updates)
-	if excludeCustomerID != nil && customer.ID == int32(*excludeCustomerID) {
+	if excludeCustomerID != nil && customer.ID == *excludeCustomerID {
 		return false, nil
 	}
 
 	return true, nil
 }
 
-// Request/Response types
-type CreateCustomerRequest struct {
-	Email        string `json:"email" validate:"required,email"`
-	FirstName    string `json:"first_name"`
-	LastName     string `json:"last_name"`
-	PasswordHash string `json:"-"` // Never include in JSON
+// Helper methods
+func (s *CustomerService) validateCreateRequest(req interfaces.CreateCustomerRequest) error {
+	if req.Email == "" {
+		return fmt.Errorf("email is required")
+	}
+	if req.PasswordHash == "" {
+		return fmt.Errorf("password hash is required")
+	}
+	return nil
 }
 
-type UpdateCustomerRequest struct {
-	Email     string  `json:"email,omitempty" validate:"omitempty,email"`
-	FirstName *string `json:"first_name,omitempty"`
-	LastName  *string `json:"last_name,omitempty"`
+func (s *CustomerService) publishCustomerEvent(ctx context.Context, eventType string, customerID int32, data map[string]interface{}) error {
+	if s.events == nil {
+		return nil // Events publisher not configured
+	}
+
+	event := interfaces.BuildCustomerEvent(eventType, customerID, data)
+	return s.events.PublishEvent(ctx, event)
 }

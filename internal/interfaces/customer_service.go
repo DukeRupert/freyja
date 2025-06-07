@@ -6,17 +6,17 @@ import (
 )
 
 type CustomerService interface {
-	// Customer management
+	// Customer management - Fixed to use int32 consistently
 	CreateCustomer(ctx context.Context, req CreateCustomerRequest) (*Customer, error)
-	GetCustomerByID(ctx context.Context, customerID int) (*Customer, error)
+	GetCustomerByID(ctx context.Context, customerID int32) (*Customer, error)
 	GetCustomerByEmail(ctx context.Context, email string) (*Customer, error)
 	GetCustomerByStripeID(ctx context.Context, stripeCustomerID string) (*Customer, error)
-	UpdateCustomer(ctx context.Context, customerID int, req UpdateCustomerRequest) (*Customer, error)
-	DeleteCustomer(ctx context.Context, customerID int) error
+	UpdateCustomer(ctx context.Context, customerID int32, req UpdateCustomerRequest) (*Customer, error)
+	DeleteCustomer(ctx context.Context, customerID int32) error
 
-	// Stripe integration
-	EnsureStripeCustomer(ctx context.Context, customerID int) (string, error)
-	UpdateCustomerInStripe(ctx context.Context, customerID int) error
+	// Stripe integration - Fixed to use int32
+	EnsureStripeCustomer(ctx context.Context, customerID int32) (string, error)
+	UpdateCustomerInStripe(ctx context.Context, customerID int32) error
 
 	// Customer queries and analytics
 	GetCustomerCount(ctx context.Context) (int64, error)
@@ -26,9 +26,9 @@ type CustomerService interface {
 	SearchCustomers(ctx context.Context, query string, limit, offset int) ([]Customer, error)
 	GetRecentCustomers(ctx context.Context, limit int) ([]Customer, error)
 
-	// Validation and utilities
+	// Validation and utilities - Fixed to use int32
 	ValidateCustomer(customer *Customer) error
-	IsEmailTaken(ctx context.Context, email string, excludeCustomerID *int) (bool, error)
+	IsEmailTaken(ctx context.Context, email string, excludeCustomerID *int32) (bool, error)
 }
 
 // Request/Response types for Customer Service

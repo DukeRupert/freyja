@@ -11,14 +11,14 @@ import (
 type Customer = database.Customers
 
 type CustomerRepository interface {
-	// Basic CRUD operations
-	GetByID(ctx context.Context, id int) (*Customer, error)
+	// Basic CRUD operations - Fixed to use int32 consistently
+	GetByID(ctx context.Context, id int32) (*Customer, error)
 	GetByEmail(ctx context.Context, email string) (*Customer, error)
 	GetByStripeID(ctx context.Context, stripeCustomerID string) (*Customer, error)
 	Create(ctx context.Context, customer *Customer) error
 	Update(ctx context.Context, customer *Customer) error
-	UpdateStripeID(ctx context.Context, customerID int, stripeCustomerID string) error
-	Delete(ctx context.Context, id int) error
+	UpdateStripeID(ctx context.Context, customerID int32, stripeCustomerID string) error
+	Delete(ctx context.Context, id int32) error
 
 	// Query operations
 	GetCount(ctx context.Context) (int64, error)

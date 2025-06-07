@@ -22,10 +22,10 @@ func NewPostgresCustomerRepository(db *database.DB) interfaces.CustomerRepositor
 	}
 }
 
-// Basic CRUD operations
+// Basic CRUD operations - Fixed to use int32
 
-func (r *PostgresCustomerRepository) GetByID(ctx context.Context, id int) (*interfaces.Customer, error) {
-	customer, err := r.db.Queries.GetCustomer(ctx, int32(id))
+func (r *PostgresCustomerRepository) GetByID(ctx context.Context, id int32) (*interfaces.Customer, error) {
+	customer, err := r.db.Queries.GetCustomer(ctx, id)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("customer not found")
@@ -102,11 +102,11 @@ func (r *PostgresCustomerRepository) Update(ctx context.Context, customer *inter
 	return nil
 }
 
-func (r *PostgresCustomerRepository) UpdateStripeID(ctx context.Context, customerID int, stripeCustomerID string) error {
+func (r *PostgresCustomerRepository) UpdateStripeID(ctx context.Context, customerID int32, stripeCustomerID string) error {
 	stripeID := pgtype.Text{String: stripeCustomerID, Valid: true}
 
 	_, err := r.db.Queries.UpdateCustomerStripeID(ctx, database.UpdateCustomerStripeIDParams{
-		ID:               int32(customerID),
+		ID:               customerID,
 		StripeCustomerID: stripeID,
 	})
 	if err != nil {
@@ -116,9 +116,9 @@ func (r *PostgresCustomerRepository) UpdateStripeID(ctx context.Context, custome
 	return nil
 }
 
-func (r *PostgresCustomerRepository) Delete(ctx context.Context, id int) error {
+func (r *PostgresCustomerRepository) Delete(ctx context.Context, id int32) error {
 	// Use soft delete (archive) instead of hard delete
-	_, err := r.db.Queries.ArchiveCustomer(ctx, int32(id))
+	_, err := r.db.Queries.ArchiveCustomer(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to archive customer: %w", err)
 	}

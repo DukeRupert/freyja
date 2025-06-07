@@ -9,19 +9,18 @@ import (
 
 	"github.com/dukerupert/freyja/internal/interfaces"
 	"github.com/dukerupert/freyja/internal/metrics"
-	"github.com/dukerupert/freyja/internal/service"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stripe/stripe-go/v82"
 	stripeCustomer "github.com/stripe/stripe-go/v82/customer"
 )
 
 type CustomerEventSubscriber struct {
-	customerService *service.CustomerService
+	customerService interfaces.CustomerService
 	events          interfaces.EventPublisher
 }
 
 func NewCustomerEventSubscriber(
-	customerService *service.CustomerService,
+	customerService interfaces.CustomerService,
 	events interfaces.EventPublisher,
 ) *CustomerEventSubscriber {
 	return &CustomerEventSubscriber{
@@ -61,14 +60,14 @@ func (s *CustomerEventSubscriber) updateCustomerInStripe(customer *interfaces.Cu
 	if customer.FirstName.Valid || customer.LastName.Valid {
 		firstName := ""
 		lastName := ""
-		
+
 		if customer.FirstName.Valid {
 			firstName = customer.FirstName.String
 		}
 		if customer.LastName.Valid {
 			lastName = customer.LastName.String
 		}
-		
+
 		fullName := strings.TrimSpace(fmt.Sprintf("%s %s", firstName, lastName))
 		if fullName != "" {
 			params.Name = stripe.String(fullName)
@@ -110,7 +109,7 @@ func (s *CustomerEventSubscriber) handleCustomerCreated(ctx context.Context, eve
 	}
 
 	// Ensure customer has Stripe customer ID
-	stripeCustomerID, err := s.customerService.EnsureStripeCustomer(ctx, int(customerID))
+	stripeCustomerID, err := s.customerService.EnsureStripeCustomer(ctx, customerID)
 	if err != nil {
 		log.Printf("Failed to ensure Stripe customer for %d: %v", customerID, err)
 		metrics.EventsProcessed.WithLabelValues(event.Type, "customer_subscriber", "error").Inc()
@@ -152,7 +151,7 @@ func (s *CustomerEventSubscriber) handleCustomerUpdated(ctx context.Context, eve
 	}
 
 	// Get customer to check if they have Stripe ID
-	customer, err := s.customerService.GetCustomerByID(ctx, int(customerID))
+	customer, err := s.customerService.GetCustomerByID(ctx, customerID)
 	if err != nil {
 		metrics.EventsProcessed.WithLabelValues(event.Type, "customer_subscriber", "error").Inc()
 		return fmt.Errorf("failed to get customer %d: %w", customerID, err)
@@ -162,7 +161,7 @@ func (s *CustomerEventSubscriber) handleCustomerUpdated(ctx context.Context, eve
 	if !customer.StripeCustomerID.Valid || customer.StripeCustomerID.String == "" {
 		log.Printf("Customer %d updated but missing Stripe ID, ensuring creation", customerID)
 
-		stripeCustomerID, err := s.customerService.EnsureStripeCustomer(ctx, int(customerID))
+		stripeCustomerID, err := s.customerService.EnsureStripeCustomer(ctx, customerID)
 		if err != nil {
 			log.Printf("Failed to ensure Stripe customer for updated customer %d: %v", customerID, err)
 			metrics.EventsProcessed.WithLabelValues(event.Type, "customer_subscriber", "error").Inc()
@@ -209,12 +208,12 @@ func (s *CustomerEventSubscriber) EnsureAllCustomersHaveStripeIDs(ctx context.Co
 
 	// This would require a new method in your customer service to get customers without Stripe IDs
 	// For now, this is a placeholder showing the pattern
-	
+
 	// You could implement this by:
 	// 1. Adding a GetCustomersWithoutStripeID method to your repository/service
 	// 2. Iterating through those customers
 	// 3. Calling EnsureStripeCustomer for each one
-	
+
 	log.Println("✅ Backfill process completed")
 	return nil
 }

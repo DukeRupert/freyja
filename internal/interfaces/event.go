@@ -1,3 +1,4 @@
+// internal/interfaces/events.go
 package interfaces
 
 import (
