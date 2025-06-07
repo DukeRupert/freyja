@@ -8,6 +8,7 @@ import (
 	"github.com/dukerupert/freyja/internal/database"
 	"github.com/dukerupert/freyja/internal/interfaces"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type PostgresProductRepository struct {
@@ -42,6 +43,33 @@ func (r *PostgresProductRepository) GetByName(ctx context.Context, name string) 
 	}
 
 	return &product, nil
+}
+
+func (r *PostgresProductRepository) GetByStripeProductID(ctx context.Context, stripeProductID string) (*interfaces.Product, error) {
+	product, err := r.db.Queries.GetProductByStripeProductID(ctx, pgtype.Text{
+		String: stripeProductID,
+		Valid:  true,
+	})
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("product not found")
+		}
+		return nil, fmt.Errorf("failed to get product by Stripe product ID: %w", err)
+	}
+
+	return &product, nil
+}
+
+func (r *PostgresProductRepository) GetProductsWithoutStripeSync(ctx context.Context, limit, offset int) ([]interfaces.Product, error) {
+	products, err := r.db.Queries.GetProductsWithoutStripeSync(ctx, database.GetProductsWithoutStripeSyncParams{
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get products without Stripe sync: %w", err)
+	}
+
+	return products, nil
 }
 
 func (r *PostgresProductRepository) GetAll(ctx context.Context, filters interfaces.ProductFilters) ([]interfaces.Product, error) {
@@ -121,7 +149,6 @@ func (r *PostgresProductRepository) GetLowStock(ctx context.Context, threshold i
 }
 
 func (r *PostgresProductRepository) Create(ctx context.Context, product *interfaces.Product) error {
-
 	created, err := r.db.Queries.CreateProduct(ctx, database.CreateProductParams{
 		Name:        product.Name,
 		Description: product.Description,
@@ -139,7 +166,6 @@ func (r *PostgresProductRepository) Create(ctx context.Context, product *interfa
 }
 
 func (r *PostgresProductRepository) Update(ctx context.Context, product *interfaces.Product) error {
-
 	updated, err := r.db.Queries.UpdateProduct(ctx, database.UpdateProductParams{
 		ID:          product.ID,
 		Name:        product.Name,
@@ -169,6 +195,54 @@ func (r *PostgresProductRepository) UpdateStock(ctx context.Context, id int32, s
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update product stock: %w", err)
+	}
+	return nil
+}
+
+func (r *PostgresProductRepository) UpdateStripeProductID(ctx context.Context, id int32, stripeProductID string) error {
+	_, err := r.db.Queries.UpdateProductStripeProductID(ctx, database.UpdateProductStripeProductIDParams{
+		ID: id,
+		StripeProductID: pgtype.Text{
+			String: stripeProductID,
+			Valid:  true,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update product Stripe product ID: %w", err)
+	}
+	return nil
+}
+
+func (r *PostgresProductRepository) UpdateStripePriceIDs(ctx context.Context, id int32, priceIDs map[string]string) error {
+	// Convert map to individual pgtype.Text fields
+	var onetimeID, day14ID, day21ID, day30ID, day60ID pgtype.Text
+
+	if priceID, exists := priceIDs["onetime"]; exists && priceID != "" {
+		onetimeID = pgtype.Text{String: priceID, Valid: true}
+	}
+	if priceID, exists := priceIDs["14day"]; exists && priceID != "" {
+		day14ID = pgtype.Text{String: priceID, Valid: true}
+	}
+	if priceID, exists := priceIDs["21day"]; exists && priceID != "" {
+		day21ID = pgtype.Text{String: priceID, Valid: true}
+	}
+	if priceID, exists := priceIDs["30day"]; exists && priceID != "" {
+		day30ID = pgtype.Text{String: priceID, Valid: true}
+	}
+	if priceID, exists := priceIDs["60day"]; exists && priceID != "" {
+		day60ID = pgtype.Text{String: priceID, Valid: true}
+	}
+
+	_, err := r.db.Queries.UpdateProductStripePrices(ctx, database.UpdateProductStripePricesParams{
+		ID:                   id,
+		StripePriceOnetimeID: onetimeID,
+		StripePrice14dayID:   day14ID,
+		StripePrice21dayID:   day21ID,
+		StripePrice30dayID:   day30ID,
+		StripePrice60dayID:   day60ID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update product Stripe price IDs: %w", err)
 	}
 	return nil
 }
