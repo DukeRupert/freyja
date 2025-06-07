@@ -17,7 +17,9 @@ SET
   active = true,
   updated_at = NOW()
 WHERE id = $1
-RETURNING id, name, description, price, stock, active, created_at, updated_at
+RETURNING id, name, description, price, stock, active, created_at, updated_at,
+          stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+          stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
 `
 
 func (q *Queries) ActivateProduct(ctx context.Context, id int32) (Products, error) {
@@ -32,6 +34,12 @@ func (q *Queries) ActivateProduct(ctx context.Context, id int32) (Products, erro
 		&i.Active,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.StripeProductID,
+		&i.StripePriceOnetimeID,
+		&i.StripePrice14dayID,
+		&i.StripePrice21dayID,
+		&i.StripePrice30dayID,
+		&i.StripePrice60dayID,
 	)
 	return i, err
 }
@@ -42,7 +50,9 @@ INSERT INTO products (
 ) VALUES (
   $1, $2, $3, $4, $5
 )
-RETURNING id, name, description, price, stock, active, created_at, updated_at
+RETURNING id, name, description, price, stock, active, created_at, updated_at,
+          stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+          stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
 `
 
 type CreateProductParams struct {
@@ -71,6 +81,12 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (P
 		&i.Active,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.StripeProductID,
+		&i.StripePriceOnetimeID,
+		&i.StripePrice14dayID,
+		&i.StripePrice21dayID,
+		&i.StripePrice30dayID,
+		&i.StripePrice60dayID,
 	)
 	return i, err
 }
@@ -81,7 +97,9 @@ SET
   active = false,
   updated_at = NOW()
 WHERE id = $1
-RETURNING id, name, description, price, stock, active, created_at, updated_at
+RETURNING id, name, description, price, stock, active, created_at, updated_at,
+          stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+          stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
 `
 
 func (q *Queries) DeactivateProduct(ctx context.Context, id int32) (Products, error) {
@@ -96,6 +114,12 @@ func (q *Queries) DeactivateProduct(ctx context.Context, id int32) (Products, er
 		&i.Active,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.StripeProductID,
+		&i.StripePriceOnetimeID,
+		&i.StripePrice14dayID,
+		&i.StripePrice21dayID,
+		&i.StripePrice30dayID,
+		&i.StripePrice60dayID,
 	)
 	return i, err
 }
@@ -106,7 +130,9 @@ SET
   stock = stock - $2,
   updated_at = NOW()
 WHERE id = $1 AND stock >= $2
-RETURNING id, name, description, price, stock, active, created_at, updated_at
+RETURNING id, name, description, price, stock, active, created_at, updated_at,
+          stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+          stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
 `
 
 type DecrementProductStockParams struct {
@@ -126,6 +152,12 @@ func (q *Queries) DecrementProductStock(ctx context.Context, arg DecrementProduc
 		&i.Active,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.StripeProductID,
+		&i.StripePriceOnetimeID,
+		&i.StripePrice14dayID,
+		&i.StripePrice21dayID,
+		&i.StripePrice30dayID,
+		&i.StripePrice60dayID,
 	)
 	return i, err
 }
@@ -141,7 +173,9 @@ func (q *Queries) DeleteProduct(ctx context.Context, id int32) error {
 }
 
 const getLowStockProducts = `-- name: GetLowStockProducts :many
-SELECT id, name, description, price, stock, active, created_at, updated_at
+SELECT id, name, description, price, stock, active, created_at, updated_at,
+       stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+       stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
 FROM products
 WHERE active = true AND stock <= $1
 ORDER BY stock ASC
@@ -165,6 +199,12 @@ func (q *Queries) GetLowStockProducts(ctx context.Context, stock int32) ([]Produ
 			&i.Active,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.StripeProductID,
+			&i.StripePriceOnetimeID,
+			&i.StripePrice14dayID,
+			&i.StripePrice21dayID,
+			&i.StripePrice30dayID,
+			&i.StripePrice60dayID,
 		); err != nil {
 			return nil, err
 		}
@@ -178,7 +218,9 @@ func (q *Queries) GetLowStockProducts(ctx context.Context, stock int32) ([]Produ
 
 const getProduct = `-- name: GetProduct :one
 
-SELECT id, name, description, price, stock, active, created_at, updated_at
+SELECT id, name, description, price, stock, active, created_at, updated_at,
+       stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+       stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
 FROM products
 WHERE id = $1
 `
@@ -196,12 +238,20 @@ func (q *Queries) GetProduct(ctx context.Context, id int32) (Products, error) {
 		&i.Active,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.StripeProductID,
+		&i.StripePriceOnetimeID,
+		&i.StripePrice14dayID,
+		&i.StripePrice21dayID,
+		&i.StripePrice30dayID,
+		&i.StripePrice60dayID,
 	)
 	return i, err
 }
 
 const getProductByName = `-- name: GetProductByName :one
-SELECT id, name, description, price, stock, active, created_at, updated_at
+SELECT id, name, description, price, stock, active, created_at, updated_at,
+       stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+       stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
 FROM products
 WHERE name = $1
 `
@@ -218,6 +268,42 @@ func (q *Queries) GetProductByName(ctx context.Context, name string) (Products, 
 		&i.Active,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.StripeProductID,
+		&i.StripePriceOnetimeID,
+		&i.StripePrice14dayID,
+		&i.StripePrice21dayID,
+		&i.StripePrice30dayID,
+		&i.StripePrice60dayID,
+	)
+	return i, err
+}
+
+const getProductByStripeProductID = `-- name: GetProductByStripeProductID :one
+SELECT id, name, description, price, stock, active, created_at, updated_at,
+       stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+       stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
+FROM products
+WHERE stripe_product_id = $1
+`
+
+func (q *Queries) GetProductByStripeProductID(ctx context.Context, stripeProductID pgtype.Text) (Products, error) {
+	row := q.db.QueryRow(ctx, getProductByStripeProductID, stripeProductID)
+	var i Products
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Price,
+		&i.Stock,
+		&i.Active,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StripeProductID,
+		&i.StripePriceOnetimeID,
+		&i.StripePrice14dayID,
+		&i.StripePrice21dayID,
+		&i.StripePrice30dayID,
+		&i.StripePrice60dayID,
 	)
 	return i, err
 }
@@ -234,7 +320,9 @@ func (q *Queries) GetProductCount(ctx context.Context, active bool) (int64, erro
 }
 
 const getProductsInStock = `-- name: GetProductsInStock :many
-SELECT id, name, description, price, stock, active, created_at, updated_at
+SELECT id, name, description, price, stock, active, created_at, updated_at,
+       stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+       stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
 FROM products
 WHERE active = true AND stock > 0
 ORDER BY stock DESC
@@ -258,6 +346,62 @@ func (q *Queries) GetProductsInStock(ctx context.Context) ([]Products, error) {
 			&i.Active,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.StripeProductID,
+			&i.StripePriceOnetimeID,
+			&i.StripePrice14dayID,
+			&i.StripePrice21dayID,
+			&i.StripePrice30dayID,
+			&i.StripePrice60dayID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getProductsWithoutStripeSync = `-- name: GetProductsWithoutStripeSync :many
+SELECT id, name, description, price, stock, active, created_at, updated_at,
+       stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+       stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
+FROM products
+WHERE active = true AND stripe_product_id IS NULL
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type GetProductsWithoutStripeSyncParams struct {
+	Limit  int32 `db:"limit" json:"limit"`
+	Offset int32 `db:"offset" json:"offset"`
+}
+
+func (q *Queries) GetProductsWithoutStripeSync(ctx context.Context, arg GetProductsWithoutStripeSyncParams) ([]Products, error) {
+	rows, err := q.db.Query(ctx, getProductsWithoutStripeSync, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Products{}
+	for rows.Next() {
+		var i Products
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Price,
+			&i.Stock,
+			&i.Active,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StripeProductID,
+			&i.StripePriceOnetimeID,
+			&i.StripePrice14dayID,
+			&i.StripePrice21dayID,
+			&i.StripePrice30dayID,
+			&i.StripePrice60dayID,
 		); err != nil {
 			return nil, err
 		}
@@ -288,7 +432,9 @@ SET
   stock = stock + $2,
   updated_at = NOW()
 WHERE id = $1
-RETURNING id, name, description, price, stock, active, created_at, updated_at
+RETURNING id, name, description, price, stock, active, created_at, updated_at,
+          stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+          stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
 `
 
 type IncrementProductStockParams struct {
@@ -308,12 +454,20 @@ func (q *Queries) IncrementProductStock(ctx context.Context, arg IncrementProduc
 		&i.Active,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.StripeProductID,
+		&i.StripePriceOnetimeID,
+		&i.StripePrice14dayID,
+		&i.StripePrice21dayID,
+		&i.StripePrice30dayID,
+		&i.StripePrice60dayID,
 	)
 	return i, err
 }
 
 const listAllProducts = `-- name: ListAllProducts :many
-SELECT id, name, description, price, stock, active, created_at, updated_at
+SELECT id, name, description, price, stock, active, created_at, updated_at,
+       stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+       stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
 FROM products
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2
@@ -342,6 +496,12 @@ func (q *Queries) ListAllProducts(ctx context.Context, arg ListAllProductsParams
 			&i.Active,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.StripeProductID,
+			&i.StripePriceOnetimeID,
+			&i.StripePrice14dayID,
+			&i.StripePrice21dayID,
+			&i.StripePrice30dayID,
+			&i.StripePrice60dayID,
 		); err != nil {
 			return nil, err
 		}
@@ -354,7 +514,9 @@ func (q *Queries) ListAllProducts(ctx context.Context, arg ListAllProductsParams
 }
 
 const listProducts = `-- name: ListProducts :many
-SELECT id, name, description, price, stock, active, created_at, updated_at
+SELECT id, name, description, price, stock, active, created_at, updated_at,
+       stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+       stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
 FROM products
 WHERE active = true
 ORDER BY name
@@ -378,6 +540,12 @@ func (q *Queries) ListProducts(ctx context.Context) ([]Products, error) {
 			&i.Active,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.StripeProductID,
+			&i.StripePriceOnetimeID,
+			&i.StripePrice14dayID,
+			&i.StripePrice21dayID,
+			&i.StripePrice30dayID,
+			&i.StripePrice60dayID,
 		); err != nil {
 			return nil, err
 		}
@@ -390,7 +558,9 @@ func (q *Queries) ListProducts(ctx context.Context) ([]Products, error) {
 }
 
 const listProductsByStatus = `-- name: ListProductsByStatus :many
-SELECT id, name, description, price, stock, active, created_at, updated_at
+SELECT id, name, description, price, stock, active, created_at, updated_at,
+       stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+       stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
 FROM products
 WHERE active = $1
 ORDER BY name
@@ -421,6 +591,12 @@ func (q *Queries) ListProductsByStatus(ctx context.Context, arg ListProductsBySt
 			&i.Active,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.StripeProductID,
+			&i.StripePriceOnetimeID,
+			&i.StripePrice14dayID,
+			&i.StripePrice21dayID,
+			&i.StripePrice30dayID,
+			&i.StripePrice60dayID,
 		); err != nil {
 			return nil, err
 		}
@@ -433,7 +609,9 @@ func (q *Queries) ListProductsByStatus(ctx context.Context, arg ListProductsBySt
 }
 
 const searchProducts = `-- name: SearchProducts :many
-SELECT id, name, description, price, stock, active, created_at, updated_at
+SELECT id, name, description, price, stock, active, created_at, updated_at,
+       stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+       stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
 FROM products
 WHERE active = true
   AND (name ILIKE $1 OR description ILIKE $1)
@@ -460,6 +638,12 @@ func (q *Queries) SearchProducts(ctx context.Context, name string) ([]Products, 
 			&i.Active,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.StripeProductID,
+			&i.StripePriceOnetimeID,
+			&i.StripePrice14dayID,
+			&i.StripePrice21dayID,
+			&i.StripePrice30dayID,
+			&i.StripePrice60dayID,
 		); err != nil {
 			return nil, err
 		}
@@ -481,7 +665,9 @@ SET
   active = $6,
   updated_at = NOW()
 WHERE id = $1
-RETURNING id, name, description, price, stock, active, created_at, updated_at
+RETURNING id, name, description, price, stock, active, created_at, updated_at,
+          stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+          stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
 `
 
 type UpdateProductParams struct {
@@ -512,6 +698,12 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) (P
 		&i.Active,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.StripeProductID,
+		&i.StripePriceOnetimeID,
+		&i.StripePrice14dayID,
+		&i.StripePrice21dayID,
+		&i.StripePrice30dayID,
+		&i.StripePrice60dayID,
 	)
 	return i, err
 }
@@ -522,7 +714,9 @@ SET
   price = $2,
   updated_at = NOW()
 WHERE id = $1
-RETURNING id, name, description, price, stock, active, created_at, updated_at
+RETURNING id, name, description, price, stock, active, created_at, updated_at,
+          stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+          stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
 `
 
 type UpdateProductPriceParams struct {
@@ -542,6 +736,12 @@ func (q *Queries) UpdateProductPrice(ctx context.Context, arg UpdateProductPrice
 		&i.Active,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.StripeProductID,
+		&i.StripePriceOnetimeID,
+		&i.StripePrice14dayID,
+		&i.StripePrice21dayID,
+		&i.StripePrice30dayID,
+		&i.StripePrice60dayID,
 	)
 	return i, err
 }
@@ -552,7 +752,9 @@ SET
   stock = $2,
   updated_at = NOW()
 WHERE id = $1
-RETURNING id, name, description, price, stock, active, created_at, updated_at
+RETURNING id, name, description, price, stock, active, created_at, updated_at,
+          stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+          stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
 `
 
 type UpdateProductStockParams struct {
@@ -572,6 +774,103 @@ func (q *Queries) UpdateProductStock(ctx context.Context, arg UpdateProductStock
 		&i.Active,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.StripeProductID,
+		&i.StripePriceOnetimeID,
+		&i.StripePrice14dayID,
+		&i.StripePrice21dayID,
+		&i.StripePrice30dayID,
+		&i.StripePrice60dayID,
+	)
+	return i, err
+}
+
+const updateProductStripePrices = `-- name: UpdateProductStripePrices :one
+UPDATE products
+SET
+  stripe_price_onetime_id = COALESCE($2, stripe_price_onetime_id),
+  stripe_price_14day_id = COALESCE($3, stripe_price_14day_id),
+  stripe_price_21day_id = COALESCE($4, stripe_price_21day_id),
+  stripe_price_30day_id = COALESCE($5, stripe_price_30day_id),
+  stripe_price_60day_id = COALESCE($6, stripe_price_60day_id),
+  updated_at = NOW()
+WHERE id = $1
+RETURNING id, name, description, price, stock, active, created_at, updated_at,
+          stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+          stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
+`
+
+type UpdateProductStripePricesParams struct {
+	ID                   int32       `db:"id" json:"id"`
+	StripePriceOnetimeID pgtype.Text `db:"stripe_price_onetime_id" json:"stripe_price_onetime_id"`
+	StripePrice14dayID   pgtype.Text `db:"stripe_price_14day_id" json:"stripe_price_14day_id"`
+	StripePrice21dayID   pgtype.Text `db:"stripe_price_21day_id" json:"stripe_price_21day_id"`
+	StripePrice30dayID   pgtype.Text `db:"stripe_price_30day_id" json:"stripe_price_30day_id"`
+	StripePrice60dayID   pgtype.Text `db:"stripe_price_60day_id" json:"stripe_price_60day_id"`
+}
+
+func (q *Queries) UpdateProductStripePrices(ctx context.Context, arg UpdateProductStripePricesParams) (Products, error) {
+	row := q.db.QueryRow(ctx, updateProductStripePrices,
+		arg.ID,
+		arg.StripePriceOnetimeID,
+		arg.StripePrice14dayID,
+		arg.StripePrice21dayID,
+		arg.StripePrice30dayID,
+		arg.StripePrice60dayID,
+	)
+	var i Products
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Price,
+		&i.Stock,
+		&i.Active,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StripeProductID,
+		&i.StripePriceOnetimeID,
+		&i.StripePrice14dayID,
+		&i.StripePrice21dayID,
+		&i.StripePrice30dayID,
+		&i.StripePrice60dayID,
+	)
+	return i, err
+}
+
+const updateProductStripeProductID = `-- name: UpdateProductStripeProductID :one
+UPDATE products
+SET
+  stripe_product_id = $2,
+  updated_at = NOW()
+WHERE id = $1
+RETURNING id, name, description, price, stock, active, created_at, updated_at,
+          stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id,
+          stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id
+`
+
+type UpdateProductStripeProductIDParams struct {
+	ID              int32       `db:"id" json:"id"`
+	StripeProductID pgtype.Text `db:"stripe_product_id" json:"stripe_product_id"`
+}
+
+func (q *Queries) UpdateProductStripeProductID(ctx context.Context, arg UpdateProductStripeProductIDParams) (Products, error) {
+	row := q.db.QueryRow(ctx, updateProductStripeProductID, arg.ID, arg.StripeProductID)
+	var i Products
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Price,
+		&i.Stock,
+		&i.Active,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StripeProductID,
+		&i.StripePriceOnetimeID,
+		&i.StripePrice14dayID,
+		&i.StripePrice21dayID,
+		&i.StripePrice30dayID,
+		&i.StripePrice60dayID,
 	)
 	return i, err
 }

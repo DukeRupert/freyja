@@ -57,8 +57,10 @@ type Querier interface {
 	// internal/database/queries/products.sql
 	GetProduct(ctx context.Context, id int32) (Products, error)
 	GetProductByName(ctx context.Context, name string) (Products, error)
+	GetProductByStripeProductID(ctx context.Context, stripeProductID pgtype.Text) (Products, error)
 	GetProductCount(ctx context.Context, active bool) (int64, error)
 	GetProductsInStock(ctx context.Context) ([]Products, error)
+	GetProductsWithoutStripeSync(ctx context.Context, arg GetProductsWithoutStripeSyncParams) ([]Products, error)
 	GetRecentOrders(ctx context.Context, arg GetRecentOrdersParams) ([]Orders, error)
 	GetTotalOrderCount(ctx context.Context) (int32, error)
 	GetTotalProductValue(ctx context.Context) (int32, error)
@@ -81,6 +83,8 @@ type Querier interface {
 	UpdateProduct(ctx context.Context, arg UpdateProductParams) (Products, error)
 	UpdateProductPrice(ctx context.Context, arg UpdateProductPriceParams) (Products, error)
 	UpdateProductStock(ctx context.Context, arg UpdateProductStockParams) (Products, error)
+	UpdateProductStripePrices(ctx context.Context, arg UpdateProductStripePricesParams) (Products, error)
+	UpdateProductStripeProductID(ctx context.Context, arg UpdateProductStripeProductIDParams) (Products, error)
 }
 
 var _ Querier = (*Queries)(nil)

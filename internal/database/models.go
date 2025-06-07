@@ -139,14 +139,20 @@ type Orders struct {
 }
 
 type Products struct {
-	ID          int32       `db:"id" json:"id"`
-	Name        string      `db:"name" json:"name"`
-	Description pgtype.Text `db:"description" json:"description"`
-	Price       int32       `db:"price" json:"price"`
-	Stock       int32       `db:"stock" json:"stock"`
-	Active      bool        `db:"active" json:"active"`
-	CreatedAt   time.Time   `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time   `db:"updated_at" json:"updated_at"`
+	ID                   int32       `db:"id" json:"id"`
+	Name                 string      `db:"name" json:"name"`
+	Description          pgtype.Text `db:"description" json:"description"`
+	Price                int32       `db:"price" json:"price"`
+	Stock                int32       `db:"stock" json:"stock"`
+	Active               bool        `db:"active" json:"active"`
+	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt            time.Time   `db:"updated_at" json:"updated_at"`
+	StripeProductID      pgtype.Text `db:"stripe_product_id" json:"stripe_product_id"`
+	StripePriceOnetimeID pgtype.Text `db:"stripe_price_onetime_id" json:"stripe_price_onetime_id"`
+	StripePrice14dayID   pgtype.Text `db:"stripe_price_14day_id" json:"stripe_price_14day_id"`
+	StripePrice21dayID   pgtype.Text `db:"stripe_price_21day_id" json:"stripe_price_21day_id"`
+	StripePrice30dayID   pgtype.Text `db:"stripe_price_30day_id" json:"stripe_price_30day_id"`
+	StripePrice60dayID   pgtype.Text `db:"stripe_price_60day_id" json:"stripe_price_60day_id"`
 }
 
 type Settings struct {
