@@ -76,11 +76,18 @@ func main() {
 
 	// Initialize event subscribers
 	customerSubscriber := subscriber.NewCustomerEventSubscriber(customerService, eventPublisher)
+	productSubscriber := subscriber.NewProductEventSubscriber(productService, eventPublisher)
 
 	// Start event subscribers in background goroutines
 	go func() {
 		if err := customerSubscriber.Start(context.Background()); err != nil {
 			log.Printf("Failed to start customer event subscriber: %v", err)
+		}
+	}()
+
+	go func() {
+		if err := productSubscriber.Start(context.Background()); err != nil {
+			log.Printf("Failed to start product event subscriber: %v", err)
 		}
 	}()
 
@@ -171,6 +178,11 @@ func main() {
 		admin.GET("/orders", orderHandler.GetAllOrders)                 // All orders
 		admin.PUT("/orders/:id/status", orderHandler.UpdateOrderStatus) // Update status
 		admin.GET("/orders/stats", orderHandler.GetOrderStats)          // Analytics
+
+		admin.POST("/products", productHandler.CreateProduct)    // Create product
+		admin.PUT("/products/:id", productHandler.UpdateProduct) // Update product
+		// admin.PUT("/products/:id/stock", productHandler.UpdateStock) // Update stock only
+		// admin.DELETE("/products/:id", productHandler.DeleteProduct)  // Delete product
 
 		// Backfill operations
 		admin.POST("/backfill/customers", adminHandler.BackfillCustomers)     // Start customer backfill

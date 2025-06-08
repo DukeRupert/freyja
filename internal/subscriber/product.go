@@ -7,7 +7,6 @@ import (
 	"log"
 
 	"github.com/dukerupert/freyja/internal/interfaces"
-	"github.com/dukerupert/freyja/internal/service"
 	"github.com/stripe/stripe-go/v82"
 	stripePrice "github.com/stripe/stripe-go/v82/price"
 	stripeProduct "github.com/stripe/stripe-go/v82/product"
@@ -19,7 +18,7 @@ type ProductEventSubscriber struct {
 }
 
 func NewProductEventSubscriber(
-	productService *service.ProductService,
+	productService interfaces.ProductService,
 	events interfaces.EventPublisher,
 ) *ProductEventSubscriber {
 	return &ProductEventSubscriber{
@@ -91,7 +90,7 @@ func (s *ProductEventSubscriber) handleProductUpdated(ctx context.Context, event
 	// If price changed, we need to create new Price objects in Stripe
 	if priceChanged, exists := event.Data["price_changed"].(bool); exists && priceChanged {
 		log.Printf("Price changed for product %d, creating new Stripe prices", productID)
-		if err := s.createNewStripePrices(ctx, product); err != nil {
+		if err := s.recreateAllStripePricesforProduct(ctx, product); err != nil {
 			return fmt.Errorf("failed to create new Stripe prices: %w", err)
 		}
 	} else {
@@ -171,7 +170,7 @@ func (s *ProductEventSubscriber) createAllStripePrices(ctx context.Context, prod
 
 	// One-time purchase price
 	if !product.StripePriceOnetimeID.Valid {
-		price, err := s.createStripePrice(product, nil)
+		price, err := s.createSingleStripePrice(product, nil)
 		if err != nil {
 			return err
 		}
@@ -189,7 +188,7 @@ func (s *ProductEventSubscriber) createAllStripePrices(ctx context.Context, prod
 
 	for interval, days := range intervals {
 		if !currentPrices[interval] {
-			price, err := s.createStripePrice(product, &days)
+			price, err := s.createSingleStripePrice(product, &days)
 			if err != nil {
 				return err
 			}
@@ -205,7 +204,7 @@ func (s *ProductEventSubscriber) createAllStripePrices(ctx context.Context, prod
 	return nil
 }
 
-func (s *ProductEventSubscriber) createStripePrice(product *interfaces.Product, recurringDays *int) (*stripe.Price, error) {
+func (s *ProductEventSubscriber) createSingleStripePrice(product *interfaces.Product, recurringDays *int) (*stripe.Price, error) {
 	params := &stripe.PriceParams{
 		Product:    stripe.String(product.StripeProductID.String),
 		UnitAmount: stripe.Int64(int64(product.Price)),
@@ -228,12 +227,12 @@ func (s *ProductEventSubscriber) createStripePrice(product *interfaces.Product, 
 	return stripePrice.New(params)
 }
 
-func (s *ProductEventSubscriber) createNewStripePrices(ctx context.Context, product *interfaces.Product) error {
+func (s *ProductEventSubscriber) recreateAllStripePricesforProduct(ctx context.Context, product *interfaces.Product) error {
 	// When price changes, create new Price objects (Stripe Prices are immutable)
 	priceUpdates := make(map[string]string)
 
 	// Create new one-time price
-	price, err := s.createStripePrice(product, nil)
+	price, err := s.createSingleStripePrice(product, nil)
 	if err != nil {
 		return err
 	}
@@ -242,7 +241,7 @@ func (s *ProductEventSubscriber) createNewStripePrices(ctx context.Context, prod
 	// Create new subscription prices
 	intervals := map[string]int{"14day": 14, "21day": 21, "30day": 30, "60day": 60}
 	for interval, days := range intervals {
-		price, err := s.createStripePrice(product, &days)
+		price, err := s.createSingleStripePrice(product, &days)
 		if err != nil {
 			return err
 		}

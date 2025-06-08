@@ -189,6 +189,68 @@ func (h *ProductHandler) GetProductStats(c echo.Context) error {
 	return c.JSON(http.StatusOK, stats)
 }
 
+// CreateProduct handles POST /api/v1/admin/products
+func (h *ProductHandler) CreateProduct(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	var req interfaces.CreateProductRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error": "Invalid request format",
+			"code":  "INVALID_REQUEST",
+		})
+	}
+
+	product, err := h.productService.CreateProduct(ctx, req)
+	if err != nil {
+		c.Logger().Errorf("Failed to create product: %v", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error": "Failed to create product",
+			"code":  "CREATION_FAILED",
+		})
+	}
+
+	return c.JSON(http.StatusCreated, map[string]interface{}{
+		"message": "Product created successfully",
+		"product": product,
+	})
+}
+
+// UpdateProduct handles PUT /api/v1/admin/products/:id
+func (h *ProductHandler) UpdateProduct(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error": "Invalid product ID",
+			"code":  "INVALID_ID",
+		})
+	}
+
+	var req interfaces.UpdateProductRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error": "Invalid request format",
+			"code":  "INVALID_REQUEST",
+		})
+	}
+
+	product, err := h.productService.UpdateProduct(ctx, int32(id), req)
+	if err != nil {
+		c.Logger().Errorf("Failed to update product %d: %v", id, err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error": "Failed to update product",
+			"code":  "UPDATE_FAILED",
+		})
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "Product updated successfully",
+		"product": product,
+	})
+}
+
 // Helper method to convert Product to API format
 func (h *ProductHandler) productToAPI(product interfaces.Product) map[string]interface{} {
 	return map[string]interface{}{
