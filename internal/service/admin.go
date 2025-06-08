@@ -174,7 +174,7 @@ func (s *AdminService) processCustomerBackfill(ctx context.Context, jobID string
 		log.Printf("Starting customer backfill job %s", jobID)
 
 		// Get customers without Stripe IDs (you'd need to implement this method)
-		customers, err := s.getCustomersWithoutStripeIDs(ctx, req.MaxCustomers)
+		customers, err := s.customerService.GetCustomersWithoutStripeIDs(ctx, req.MaxCustomers, 0)
 		if err != nil {
 			job.Status = "failed"
 			job.Errors = append(job.Errors, interfaces.BackfillError{
@@ -189,10 +189,7 @@ func (s *AdminService) processCustomerBackfill(ctx context.Context, jobID string
 		// Process in batches
 		for i := 0; i < len(customers); i += req.BatchSize {
 			end := i + req.BatchSize
-			if end > len(customers) {
-				end = len(customers)
-			}
-
+			end = min(end, len(customers))
 			batch := customers[i:end]
 
 			for _, customer := range batch {
@@ -244,10 +241,7 @@ func (s *AdminService) processProductBackfill(ctx context.Context, jobID string,
 		// Process in batches
 		for i := 0; i < len(products); i += req.BatchSize {
 			end := i + req.BatchSize
-			if end > len(products) {
-				end = len(products)
-			}
-
+			end = min(end, len(products))
 			batch := products[i:end]
 
 			for _, product := range batch {
@@ -301,22 +295,6 @@ func (s *AdminService) publishCustomerSyncEvent(ctx context.Context, customerID 
 		"triggered_by":   "admin_backfill",
 	})
 	return s.events.PublishEvent(ctx, event)
-}
-
-// Placeholder methods - you'd implement these based on your customer repository
-func (s *AdminService) getCustomerCount(ctx context.Context) (int64, error) {
-	// You'd implement this in your customer service/repository
-	return 0, fmt.Errorf("not implemented")
-}
-
-func (s *AdminService) getCustomersWithStripeCount(ctx context.Context) (int64, error) {
-	// You'd implement this in your customer service/repository
-	return 0, fmt.Errorf("not implemented")
-}
-
-func (s *AdminService) getCustomersWithoutStripeIDs(ctx context.Context, limit int) ([]interfaces.Customer, error) {
-	// You'd implement this in your customer service/repository
-	return nil, fmt.Errorf("not implemented")
 }
 
 func generateJobID(prefix string) string {

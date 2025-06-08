@@ -41,6 +41,10 @@ func (s *CustomerEventSubscriber) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to subscribe to customer.updated events: %w", err)
 	}
 
+	if err := s.events.Subscribe(ctx, interfaces.EventCustomerStripeSyncRequested, s.handleCustomerStripeSyncRequested); err != nil {
+		return fmt.Errorf("failed to subscribe to customer.stripe_sync_requested events: %w", err)
+	}
+
 	log.Println("✅ Customer event subscriber started")
 	return nil
 }
@@ -215,5 +219,42 @@ func (s *CustomerEventSubscriber) EnsureAllCustomersHaveStripeIDs(ctx context.Co
 	// 3. Calling EnsureStripeCustomer for each one
 
 	log.Println("✅ Backfill process completed")
+	return nil
+}
+
+func (s *CustomerEventSubscriber) handleCustomerStripeSyncRequested(ctx context.Context, event interfaces.Event) error {
+	timer := prometheus.NewTimer(metrics.EventProcessingDuration.WithLabelValues(event.Type, "customer_subscriber"))
+	defer timer.ObserveDuration()
+
+	log.Printf("Processing customer.stripe_sync_requested event: %s", event.AggregateID)
+
+	// Extract customer ID from aggregate ID
+	customerID, err := interfaces.ExtractAggregateID(event.AggregateID)
+	if err != nil {
+		metrics.EventsProcessed.WithLabelValues(event.Type, "customer_subscriber", "error").Inc()
+		return fmt.Errorf("invalid customer ID in event: %w", err)
+	}
+
+	// Ensure customer has Stripe customer ID
+	stripeCustomerID, err := s.customerService.EnsureStripeCustomer(ctx, customerID)
+	if err != nil {
+		log.Printf("Failed to ensure Stripe customer for %d: %v", customerID, err)
+		metrics.EventsProcessed.WithLabelValues(event.Type, "customer_subscriber", "error").Inc()
+		return fmt.Errorf("failed to ensure Stripe customer: %w", err)
+	}
+
+	log.Printf("✅ Ensured Stripe customer ID for customer %d: %s", customerID, stripeCustomerID)
+
+	// Publish a follow-up event indicating Stripe customer was ensured
+	followUpEvent := interfaces.BuildCustomerEvent("customer.stripe_ensured", customerID, map[string]interface{}{
+		"stripe_customer_id": stripeCustomerID,
+		"triggered_by":       "admin_backfill",
+	})
+
+	if err := s.events.PublishEvent(ctx, followUpEvent); err != nil {
+		log.Printf("Warning: Failed to publish customer.stripe_ensured event: %v", err)
+	}
+
+	metrics.EventsProcessed.WithLabelValues(event.Type, "customer_subscriber", "success").Inc()
 	return nil
 }
