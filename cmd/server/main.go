@@ -48,7 +48,7 @@ func main() {
 	}
 	defer eventPublisher.Close()
 
-	stripeProvider, err := provider.NewStripeProvider(cfg.StripeSecretKey)
+	stripeProvider, err := provider.NewStripeProvider(cfg.StripeSecretKey, cfg.StripeWebhookSecret)
 	if err != nil {
 		log.Fatal("Stripe provider initialization failed:", err)
 	}
@@ -64,16 +64,18 @@ func main() {
 	productService := service.NewProductService(productRepo, eventPublisher)
 	cartService := service.NewCartService(cartRepo, productRepo)
 	orderService := service.NewOrderService(orderRepo, cartService, eventPublisher)
+	checkoutService := service.NewCheckoutService(cartService, orderService, stripeProvider, eventPublisher)
 	customerService := service.NewCustomerService(customerRepo, stripeProvider, eventPublisher)
 	adminService := service.NewAdminService(customerService, productService, eventPublisher)
 
 	// Initialize handlers
 	productHandler := handler.NewProductHandler(productService)
 	cartHandler := handler.NewCartHandler(cartService)
+	checkoutHandler := handler.NewCheckoutHandler(checkoutService)
 	orderHandler := handler.NewOrderHandler(orderService)
 	customerHandler := handler.NewCustomerHandler(customerService)
 	adminHandler := handler.NewAdminHandler(adminService)
-	webhookHandler := handler.NewWebhookHandler(cfg.StripeWebhookSecret, orderService, customerService, eventPublisher)
+	webhookHandler := handler.NewWebhookHandler(stripeProvider, orderService, customerService)
 
 	// Initialize event subscribers
 	customerSubscriber := subscriber.NewCustomerEventSubscriber(customerService, eventPublisher)
@@ -151,6 +153,11 @@ func main() {
 		cart.POST("/items", cartHandler.AddItem)          // POST /api/v1/cart/items
 		cart.PUT("/items/:id", cartHandler.UpdateItem)    // PUT /api/v1/cart/items/:id
 		cart.DELETE("/items/:id", cartHandler.RemoveItem) // DELETE /api/v1/cart/items/:id
+	}
+
+	checkout := api.Group("/checkout")
+	{
+		checkout.POST("", checkoutHandler.CreateCheckoutSession)
 	}
 
 	// Customer routes
