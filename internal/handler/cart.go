@@ -332,8 +332,14 @@ func (h *CartHandler) GetCartSummary(c echo.Context) error {
 // Helper methods
 
 func (h *CartHandler) getCustomerIDFromContext(c echo.Context) *int32 {
-	// TODO: Extract customer ID from JWT token in Authorization header
-	// For now, return nil (will be implemented with auth)
+	// Extract from JWT token or X-Customer-ID header for testing
+	if customerIDHeader := c.Request().Header.Get("X-Customer-ID"); customerIDHeader != "" {
+		if id, err := strconv.Atoi(customerIDHeader); err == nil {
+			customerID := int32(id)
+			return &customerID
+		}
+	}
+	// TODO: Extract from JWT token in production
 	return nil
 }
 

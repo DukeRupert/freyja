@@ -17,8 +17,21 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/go-playground/validator/v10"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+type CustomValidator struct {
+    validator *validator.Validate
+}
+
+func (cv *CustomValidator) Validate(i interface{}) error {
+    if err := cv.validator.Struct(i); err != nil {
+        // Return validation error in the format Echo expects
+        return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+    }
+    return nil
+}
 
 func main() {
 	cfg, err := config.Load()
@@ -106,6 +119,7 @@ func main() {
 
 	// Create Echo instance
 	e := echo.New()
+	e.Validator = &CustomValidator{validator: validator.New()}
 
 	// Middleware
 	e.Use(middleware.Logger())
