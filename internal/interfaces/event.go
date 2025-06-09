@@ -54,6 +54,7 @@ const (
 	// Checkout events
 	EventCheckoutInitiated      = "checkout.initiated"
 	EventCheckoutSessionCreated = "checkout.session_created"
+	EventCheckoutCompleted		= "checkout.session.completed"
 
 	// Payment events
 	EventPaymentProcessing = "payment.processing"

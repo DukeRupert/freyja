@@ -73,6 +73,7 @@ func main() {
 	orderHandler := handler.NewOrderHandler(orderService)
 	customerHandler := handler.NewCustomerHandler(customerService)
 	adminHandler := handler.NewAdminHandler(adminService)
+	webhookHandler := handler.NewWebhookHandler(cfg.StripeWebhookSecret, orderService, customerService, eventPublisher)
 
 	// Initialize event subscribers
 	customerSubscriber := subscriber.NewCustomerEventSubscriber(customerService, eventPublisher)
@@ -122,6 +123,11 @@ func main() {
 
 	// Hello world endpoint
 	e.GET("/", helloWorld)
+
+	webhooks := e.Group("/webhooks")
+	{
+		webhooks.POST("/stripe", webhookHandler.HandleStripeWebhook)
+	}
 
 	// API v1 routes group
 	api := e.Group("/api/v1")
