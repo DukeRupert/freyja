@@ -64,26 +64,44 @@ func (s *StripeProvider) HealthCheck(ctx context.Context) error {
 
 // CreateCheckoutSession creates a Stripe Checkout session
 func (s *StripeProvider) CreateCheckoutSession(ctx context.Context, req interfaces.CheckoutSessionRequest) (*interfaces.CheckoutSessionResponse, error) {
-	// Convert cart items to Stripe line items
+	// Convert cart items to Stripe line items using existing Price IDs
 	var lineItems []*stripe.CheckoutSessionLineItemParams
+	var mode stripe.CheckoutSessionMode = stripe.CheckoutSessionModePayment
+
 	for _, item := range req.Items {
-		lineItems = append(lineItems, &stripe.CheckoutSessionLineItemParams{
-			PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
-				Currency: stripe.String("usd"),
-				ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
-					Name: stripe.String(fmt.Sprintf("Product %d", item.ProductID)), // You might want to include product name in CartItem
+		// *** FIX: Use existing Stripe Price ID instead of creating new PriceData ***
+		if item.StripePriceID != "" {
+			// Use the existing Stripe Price ID (this will link to the real product)
+			lineItems = append(lineItems, &stripe.CheckoutSessionLineItemParams{
+				Price:    stripe.String(item.StripePriceID),
+				Quantity: stripe.Int64(int64(item.Quantity)),
+			})
+			
+			// Check if this is a subscription item (if any item has recurring pricing)
+			if item.PurchaseType == "subscription" {
+				mode = stripe.CheckoutSessionModeSubscription
+			}
+		} else {
+			// Fallback to PriceData if no Stripe Price ID (shouldn't happen after sync)
+			log.Printf("Warning: Cart item %d missing Stripe Price ID, falling back to PriceData", item.ID)
+			lineItems = append(lineItems, &stripe.CheckoutSessionLineItemParams{
+				PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
+					Currency: stripe.String("usd"),
+					ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
+						Name: stripe.String(strconv.Itoa(int(item.ProductID))),
+					},
+					UnitAmount: stripe.Int64(int64(item.Price)),
 				},
-				UnitAmount: stripe.Int64(int64(item.Price)),
-			},
-			Quantity: stripe.Int64(int64(item.Quantity)),
-		})
+				Quantity: stripe.Int64(int64(item.Quantity)),
+			})
+		}
 	}
 
-	// Prepare session parameters
+	// *** FIX: Set mode based on whether we have subscription items ***
 	params := &stripe.CheckoutSessionParams{
 		PaymentMethodTypes: stripe.StringSlice([]string{"card"}),
 		LineItems:          lineItems,
-		Mode:               stripe.String(string(stripe.CheckoutSessionModePayment)),
+		Mode:               stripe.String(string(mode)),
 		SuccessURL:         stripe.String(req.SuccessURL),
 		CancelURL:          stripe.String(req.CancelURL),
 		Metadata: map[string]string{
@@ -107,7 +125,7 @@ func (s *StripeProvider) CreateCheckoutSession(ctx context.Context, req interfac
 		return nil, fmt.Errorf("failed to create Stripe checkout session: %w", err)
 	}
 
-	log.Printf("✅ Created Stripe checkout session: %s", sess.ID)
+	log.Printf("✅ Created Stripe checkout session: %s (mode: %s)", sess.ID, mode)
 
 	return &interfaces.CheckoutSessionResponse{
 		SessionID:   sess.ID,

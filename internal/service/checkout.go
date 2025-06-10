@@ -48,14 +48,17 @@ func (s *CheckoutService) CreateCheckoutSession(ctx context.Context, customerID 
 		return nil, fmt.Errorf("cart is empty")
 	}
 
-	// Convert cart items to checkout request format
+	// *** FIX: Convert cart items with complete information including Stripe Price IDs ***
 	var checkoutItems []interfaces.CartItem
 	for _, item := range validatedCart.Items {
 		checkoutItems = append(checkoutItems, interfaces.CartItem{
-			ID:        item.ID,
-			ProductID: item.ProductID,
-			Quantity:  item.Quantity,
-			Price:     item.Price,
+			ID:                   item.ID,
+			ProductID:            item.ProductID,
+			Quantity:             item.Quantity,
+			Price:                item.Price,
+			PurchaseType:         item.PurchaseType,         // *** Include purchase type ***
+			SubscriptionInterval: item.SubscriptionInterval, // *** Include subscription interval ***
+			StripePriceID:        item.StripePriceID,        // *** Include Stripe Price ID ***
 		})
 	}
 
@@ -84,6 +87,7 @@ func (s *CheckoutService) CreateCheckoutSession(ctx context.Context, customerID 
 	if customerID != nil {
 		eventData["customer_id"] = *customerID
 	}
+
 	if sessionID != nil {
 		eventData["session_id"] = *sessionID
 	}
