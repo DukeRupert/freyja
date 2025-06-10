@@ -44,7 +44,36 @@ func (s *ProductEventSubscriber) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to subscribe to product.deactivated events: %w", err)
 	}
 
+	// *** FIX: Subscribe to product stripe sync events ***
+	if err := s.events.Subscribe(ctx, interfaces.EventProductStripeSync, s.handleProductStripeSyncRequested); err != nil {
+		return fmt.Errorf("failed to subscribe to product.stripe_sync_requested events: %w", err)
+	}
+
 	log.Println("✅ Product event subscriber started")
+	return nil
+}
+
+// *** FIX: Add missing handler for Stripe sync requests ***
+func (s *ProductEventSubscriber) handleProductStripeSyncRequested(ctx context.Context, event interfaces.Event) error {
+	log.Printf("Processing product.stripe_sync_requested event: %s", event.AggregateID)
+
+	productID, err := interfaces.ExtractAggregateID(event.AggregateID)
+	if err != nil {
+		return fmt.Errorf("invalid product ID in event: %w", err)
+	}
+
+	// Get the product
+	product, err := s.productService.GetByID(ctx, int(productID))
+	if err != nil {
+		return fmt.Errorf("failed to get product %d: %w", productID, err)
+	}
+
+	// Sync to Stripe (this will create Product + all Price objects)
+	if err := s.syncProductToStripe(ctx, product); err != nil {
+		return fmt.Errorf("failed to sync product to Stripe: %w", err)
+	}
+
+	log.Printf("✅ Product %d synced to Stripe successfully (via sync request)", productID)
 	return nil
 }
 
