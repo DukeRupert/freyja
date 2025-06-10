@@ -114,15 +114,18 @@ func (r *PostgresCartRepository) GetCartItems(ctx context.Context, cartID int32)
 	items := make([]interfaces.CartItemWithProduct, len(dbItems))
 	for i, item := range dbItems {
 		items[i] = interfaces.CartItemWithProduct{
-			ID:                 item.ID,
-			CartID:             item.CartID,
-			ProductID:          item.ProductID,
-			Quantity:           item.Quantity,
-			Price:              item.Price,
-			CreatedAt:          item.CreatedAt,
-			ProductName:        item.ProductName,
-			ProductDescription: item.ProductDescription.String,
-			ProductStock:       item.ProductStock,
+			ID:                   item.ID,
+			CartID:               item.CartID,
+			ProductID:            item.ProductID,
+			Quantity:             item.Quantity,
+			Price:                item.Price,
+			PurchaseType:         item.PurchaseType,
+			SubscriptionInterval: item.SubscriptionInterval,
+			StripePriceID:        item.StripePriceID,
+			CreatedAt:            item.CreatedAt,
+			ProductName:          item.ProductName,
+			ProductDescription:   item.ProductDescription,
+			ProductStock:         item.ProductStock,
 		}
 	}
 
@@ -137,7 +140,20 @@ func (r *PostgresCartRepository) GetCartItem(ctx context.Context, itemID int32) 
 		}
 		return nil, fmt.Errorf("failed to get cart item: %w", err)
 	}
-	return &item, nil
+
+	cartItem := &interfaces.CartItem{
+		ID:                   item.ID,
+		CartID:               item.CartID,
+		ProductID:            item.ProductID,
+		Quantity:             item.Quantity,
+		Price:                item.Price,
+		PurchaseType:         item.PurchaseType,
+		SubscriptionInterval: item.SubscriptionInterval,
+		StripePriceID:        item.StripePriceID,
+		CreatedAt:            item.CreatedAt,
+	}
+
+	return cartItem, nil
 }
 
 func (r *PostgresCartRepository) GetCartItemByProductID(ctx context.Context, cartID int32, productID int32) (*interfaces.CartItem, error) {
@@ -151,15 +167,127 @@ func (r *PostgresCartRepository) GetCartItemByProductID(ctx context.Context, car
 		}
 		return nil, fmt.Errorf("failed to get cart item by product ID: %w", err)
 	}
-	return &item, nil
+
+	cartItem := &interfaces.CartItem{
+		ID:                   item.ID,
+		CartID:               item.CartID,
+		ProductID:            item.ProductID,
+		Quantity:             item.Quantity,
+		Price:                item.Price,
+		PurchaseType:         item.PurchaseType,
+		SubscriptionInterval: item.SubscriptionInterval,
+		StripePriceID:        item.StripePriceID,
+		CreatedAt:            item.CreatedAt,
+	}
+
+	return cartItem, nil
 }
 
-func (r *PostgresCartRepository) AddItem(ctx context.Context, cartID int32, productID int32, quantity int32, price int32) (*interfaces.CartItem, error) {
-	item, err := r.db.Queries.CreateCartItem(ctx, database.CreateCartItemParams{
+func (r *PostgresCartRepository) GetCartItemsByProduct(ctx context.Context, cartID int32, productID int32) ([]interfaces.CartItem, error) {
+	dbItems, err := r.db.Queries.GetCartItemsByProduct(ctx, database.GetCartItemsByProductParams{
 		CartID:    cartID,
 		ProductID: productID,
-		Quantity:  quantity,
-		Price:     price,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cart items by product: %w", err)
+	}
+
+	items := make([]interfaces.CartItem, len(dbItems))
+	for i, item := range dbItems {
+		items[i] = interfaces.CartItem{
+			ID:                   item.ID,
+			CartID:               item.CartID,
+			ProductID:            item.ProductID,
+			Quantity:             item.Quantity,
+			Price:                item.Price,
+			PurchaseType:         item.PurchaseType,
+			SubscriptionInterval: item.SubscriptionInterval,
+			StripePriceID:        item.StripePriceID,
+			CreatedAt:            item.CreatedAt,
+		}
+	}
+
+	return items, nil
+}
+
+func (r *PostgresCartRepository) GetCartItemByProductAndType(ctx context.Context, cartID int32, productID int32, purchaseType string, subscriptionInterval *string) (*interfaces.CartItem, error) {
+	var interval pgtype.Text
+	if subscriptionInterval != nil {
+		interval = pgtype.Text{String: *subscriptionInterval, Valid: true}
+	}
+
+	item, err := r.db.Queries.GetCartItemByProductAndType(ctx, database.GetCartItemByProductAndTypeParams{
+		CartID:               cartID,
+		ProductID:            productID,
+		PurchaseType:         purchaseType,
+		SubscriptionInterval: interval,
+	})
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("cart item not found")
+		}
+		return nil, fmt.Errorf("failed to get cart item by product and type: %w", err)
+	}
+
+	cartItem := &interfaces.CartItem{
+		ID:                   item.ID,
+		CartID:               item.CartID,
+		ProductID:            item.ProductID,
+		Quantity:             item.Quantity,
+		Price:                item.Price,
+		PurchaseType:         item.PurchaseType,
+		SubscriptionInterval: item.SubscriptionInterval,
+		StripePriceID:        item.StripePriceID,
+		CreatedAt:            item.CreatedAt,
+	}
+
+	return cartItem, nil
+}
+
+func (r *PostgresCartRepository) GetCartItemsByPurchaseType(ctx context.Context, cartID int32, purchaseType string) ([]interfaces.CartItemWithProduct, error) {
+	dbItems, err := r.db.Queries.GetCartItemsByPurchaseType(ctx, database.GetCartItemsByPurchaseTypeParams{
+		CartID:       cartID,
+		PurchaseType: purchaseType,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cart items by purchase type: %w", err)
+	}
+
+	items := make([]interfaces.CartItemWithProduct, len(dbItems))
+	for i, item := range dbItems {
+		items[i] = interfaces.CartItemWithProduct{
+			ID:                   item.ID,
+			CartID:               item.CartID,
+			ProductID:            item.ProductID,
+			Quantity:             item.Quantity,
+			Price:                item.Price,
+			PurchaseType:         item.PurchaseType,
+			SubscriptionInterval: item.SubscriptionInterval,
+			StripePriceID:        item.StripePriceID,
+			CreatedAt:            item.CreatedAt,
+			ProductName:          item.ProductName,
+			ProductDescription:   item.ProductDescription,
+			ProductStock:         item.ProductStock,
+		}
+	}
+
+	return items, nil
+}
+
+func (r *PostgresCartRepository) AddItem(ctx context.Context, cartID int32, productID int32, quantity int32, price int32, purchaseType string, subscriptionInterval *string, stripePriceID string) (*interfaces.CartItem, error) {
+	var interval pgtype.Text
+	if subscriptionInterval != nil {
+		interval = pgtype.Text{String: *subscriptionInterval, Valid: true}
+	}
+
+	item, err := r.db.Queries.CreateCartItem(ctx, database.CreateCartItemParams{
+		CartID:               cartID,
+		ProductID:            productID,
+		Quantity:             quantity,
+		Price:                price,
+		PurchaseType:         purchaseType,
+		SubscriptionInterval: interval,
+		StripePriceID:        stripePriceID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to add cart item: %w", err)
@@ -168,26 +296,48 @@ func (r *PostgresCartRepository) AddItem(ctx context.Context, cartID int32, prod
 	// Update cart timestamp
 	_, _ = r.UpdateTimestamp(ctx, cartID)
 
-	return &item, nil
+	cartItem := &interfaces.CartItem{
+		ID:                   item.ID,
+		CartID:               item.CartID,
+		ProductID:            item.ProductID,
+		Quantity:             item.Quantity,
+		Price:                item.Price,
+		PurchaseType:         item.PurchaseType,
+		SubscriptionInterval: item.SubscriptionInterval,
+		StripePriceID:        item.StripePriceID,
+		CreatedAt:            item.CreatedAt,
+	}
+
+	return cartItem, nil
 }
 
-func (r *PostgresCartRepository) UpdateItem(ctx context.Context, itemID int32, quantity int32, price int32) (*interfaces.CartItem, error) {
+func (r *PostgresCartRepository) UpdateItem(ctx context.Context, itemID int32, quantity int32, price int32, stripePriceID string) (*interfaces.CartItem, error) {
 	item, err := r.db.Queries.UpdateCartItem(ctx, database.UpdateCartItemParams{
-		ID:       itemID,
-		Quantity: quantity,
-		Price:    price,
+		ID:            itemID,
+		Quantity:      quantity,
+		Price:         price,
+		StripePriceID: stripePriceID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update cart item: %w", err)
 	}
 
 	// Update cart timestamp
-	cartItem, _ := r.GetCartItem(ctx, itemID)
-	if cartItem != nil {
-		_, _ = r.UpdateTimestamp(ctx, cartItem.CartID)
+	_, _ = r.UpdateTimestamp(ctx, item.CartID)
+
+	cartItem := &interfaces.CartItem{
+		ID:                   item.ID,
+		CartID:               item.CartID,
+		ProductID:            item.ProductID,
+		Quantity:             item.Quantity,
+		Price:                item.Price,
+		PurchaseType:         item.PurchaseType,
+		SubscriptionInterval: item.SubscriptionInterval,
+		StripePriceID:        item.StripePriceID,
+		CreatedAt:            item.CreatedAt,
 	}
 
-	return &item, nil
+	return cartItem, nil
 }
 
 func (r *PostgresCartRepository) UpdateItemQuantity(ctx context.Context, itemID int32, quantity int32) (*interfaces.CartItem, error) {
@@ -202,7 +352,41 @@ func (r *PostgresCartRepository) UpdateItemQuantity(ctx context.Context, itemID 
 	// Update cart timestamp
 	_, _ = r.UpdateTimestamp(ctx, item.CartID)
 
-	return &item, nil
+	cartItem := &interfaces.CartItem{
+		ID:                   item.ID,
+		CartID:               item.CartID,
+		ProductID:            item.ProductID,
+		Quantity:             item.Quantity,
+		Price:                item.Price,
+		PurchaseType:         item.PurchaseType,
+		SubscriptionInterval: item.SubscriptionInterval,
+		StripePriceID:        item.StripePriceID,
+		CreatedAt:            item.CreatedAt,
+	}
+
+	return cartItem, nil
+}
+
+func (r *PostgresCartRepository) RemoveItemByProductAndType(ctx context.Context, cartID int32, productID int32, purchaseType string, subscriptionInterval *string) error {
+	var interval pgtype.Text
+	if subscriptionInterval != nil {
+		interval = pgtype.Text{String: *subscriptionInterval, Valid: true}
+	}
+
+	err := r.db.Queries.DeleteCartItemByProductAndType(ctx, database.DeleteCartItemByProductAndTypeParams{
+		CartID:               cartID,
+		ProductID:            productID,
+		PurchaseType:         purchaseType,
+		SubscriptionInterval: interval,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to remove cart item by product and type: %w", err)
+	}
+
+	// Update cart timestamp
+	_, _ = r.UpdateTimestamp(ctx, cartID)
+
+	return nil
 }
 
 func (r *PostgresCartRepository) RemoveItem(ctx context.Context, itemID int32) error {

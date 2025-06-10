@@ -78,12 +78,15 @@ type AuditLogs struct {
 }
 
 type CartItems struct {
-	ID        int32     `db:"id" json:"id"`
-	CartID    int32     `db:"cart_id" json:"cart_id"`
-	ProductID int32     `db:"product_id" json:"product_id"`
-	Quantity  int32     `db:"quantity" json:"quantity"`
-	Price     int32     `db:"price" json:"price"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	ID                   int32       `db:"id" json:"id"`
+	CartID               int32       `db:"cart_id" json:"cart_id"`
+	ProductID            int32       `db:"product_id" json:"product_id"`
+	Quantity             int32       `db:"quantity" json:"quantity"`
+	Price                int32       `db:"price" json:"price"`
+	PurchaseType         string      `db:"purchase_type" json:"purchase_type"`
+	SubscriptionInterval pgtype.Text `db:"subscription_interval" json:"subscription_interval"`
+	StripePriceID        string      `db:"stripe_price_id" json:"stripe_price_id"`
+	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
 }
 
 type Carts struct {

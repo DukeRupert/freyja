@@ -59,7 +59,7 @@ func (s *CartService) GetCart(ctx context.Context, cartID int32) (*interfaces.Ca
 }
 
 // AddItem adds an item to the cart or updates quantity if item already exists
-func (s *CartService) AddItem(ctx context.Context, cartID int32, productID int32, quantity int32) (*interfaces.CartItem, error) {
+func (s *CartService) AddItem(ctx context.Context, cartID int32, productID int32, quantity int32, purchaseType string, subscriptionInterval *string) (*interfaces.CartItem, error) {
 	if quantity <= 0 {
 		return nil, fmt.Errorf("quantity must be greater than 0")
 	}
@@ -78,8 +78,14 @@ func (s *CartService) AddItem(ctx context.Context, cartID int32, productID int32
 		return nil, fmt.Errorf("product is not available")
 	}
 
-	// Check if item already exists in cart
-	existingItem, err := s.cartRepo.GetCartItemByProductID(ctx, cartID, productID)
+	// Get the appropriate Stripe Price ID based on purchase type and interval
+	stripePriceID, err := s.getStripePriceID(product, purchaseType, subscriptionInterval)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get stripe price ID: %w", err)
+	}
+
+	// Check if item already exists in cart with same purchase type and interval
+	existingItem, err := s.cartRepo.GetCartItemByProductAndType(ctx, cartID, productID, purchaseType, subscriptionInterval)
 
 	if err != nil && err.Error() != "cart item not found" {
 		return nil, fmt.Errorf("failed to check existing cart item: %w", err)
@@ -107,7 +113,49 @@ func (s *CartService) AddItem(ctx context.Context, cartID int32, productID int32
 	}
 
 	// Add new item to cart
-	return s.cartRepo.AddItem(ctx, cartID, productID, quantity, product.Price)
+	return s.cartRepo.AddItem(ctx, cartID, productID, quantity, product.Price, purchaseType, subscriptionInterval, stripePriceID)
+}
+
+// Helper method to get Stripe Price ID based on purchase type and interval
+// Helper method to get Stripe Price ID based on purchase type and interval
+func (s *CartService) getStripePriceID(product *interfaces.Product, purchaseType string, subscriptionInterval *string) (string, error) {
+	switch purchaseType {
+	case "one_time":
+		if !product.StripePriceOnetimeID.Valid {
+			return "", fmt.Errorf("one-time purchase not available for this product")
+		}
+		return product.StripePriceOnetimeID.String, nil
+	case "subscription":
+		if subscriptionInterval == nil {
+			return "", fmt.Errorf("subscription interval required for subscription purchases")
+		}
+		switch *subscriptionInterval {
+		case "14_day":
+			if !product.StripePrice14dayID.Valid {
+				return "", fmt.Errorf("14-day subscription not available for this product")
+			}
+			return product.StripePrice14dayID.String, nil
+		case "21_day":
+			if !product.StripePrice21dayID.Valid {
+				return "", fmt.Errorf("21-day subscription not available for this product")
+			}
+			return product.StripePrice21dayID.String, nil
+		case "30_day":
+			if !product.StripePrice30dayID.Valid {
+				return "", fmt.Errorf("30-day subscription not available for this product")
+			}
+			return product.StripePrice30dayID.String, nil
+		case "60_day":
+			if !product.StripePrice60dayID.Valid {
+				return "", fmt.Errorf("60-day subscription not available for this product")
+			}
+			return product.StripePrice60dayID.String, nil
+		default:
+			return "", fmt.Errorf("invalid subscription interval: %s", *subscriptionInterval)
+		}
+	default:
+		return "", fmt.Errorf("invalid purchase type: %s", purchaseType)
+	}
 }
 
 // UpdateItemQuantity updates the quantity of a cart item
@@ -141,7 +189,7 @@ func (s *CartService) UpdateItemQuantity(ctx context.Context, itemID int32, quan
 	}
 
 	// Update quantity (and potentially price if it changed)
-	return s.cartRepo.UpdateItem(ctx, itemID, quantity, product.Price)
+	return s.cartRepo.UpdateItem(ctx, itemID, quantity, product.Price, existingItem.StripePriceID)
 }
 
 // RemoveItem removes an item from the cart
@@ -188,7 +236,7 @@ func (s *CartService) ValidateCartForCheckout(ctx context.Context, cartID int32)
 
 		// Update price if it has changed
 		if product.Price != item.Price {
-			_, err := s.cartRepo.UpdateItem(ctx, item.ID, item.Quantity, product.Price)
+			_, err := s.cartRepo.UpdateItem(ctx, item.ID, item.Quantity, item.Price, item.StripePriceID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to update item price: %w", err)
 			}

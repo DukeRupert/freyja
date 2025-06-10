@@ -7,7 +7,6 @@ package database
 
 import (
 	"context"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -49,41 +48,6 @@ func (q *Queries) CreateCart(ctx context.Context, arg CreateCartParams) (Carts, 
 	return i, err
 }
 
-const createCartItem = `-- name: CreateCartItem :one
-INSERT INTO cart_items (
-  cart_id, product_id, quantity, price
-) VALUES (
-  $1, $2, $3, $4
-)
-RETURNING id, cart_id, product_id, quantity, price, created_at
-`
-
-type CreateCartItemParams struct {
-	CartID    int32 `db:"cart_id" json:"cart_id"`
-	ProductID int32 `db:"product_id" json:"product_id"`
-	Quantity  int32 `db:"quantity" json:"quantity"`
-	Price     int32 `db:"price" json:"price"`
-}
-
-func (q *Queries) CreateCartItem(ctx context.Context, arg CreateCartItemParams) (CartItems, error) {
-	row := q.db.QueryRow(ctx, createCartItem,
-		arg.CartID,
-		arg.ProductID,
-		arg.Quantity,
-		arg.Price,
-	)
-	var i CartItems
-	err := row.Scan(
-		&i.ID,
-		&i.CartID,
-		&i.ProductID,
-		&i.Quantity,
-		&i.Price,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const deleteCart = `-- name: DeleteCart :exec
 DELETE FROM carts
 WHERE id = $1
@@ -91,31 +55,6 @@ WHERE id = $1
 
 func (q *Queries) DeleteCart(ctx context.Context, id int32) error {
 	_, err := q.db.Exec(ctx, deleteCart, id)
-	return err
-}
-
-const deleteCartItem = `-- name: DeleteCartItem :exec
-DELETE FROM cart_items
-WHERE id = $1
-`
-
-func (q *Queries) DeleteCartItem(ctx context.Context, id int32) error {
-	_, err := q.db.Exec(ctx, deleteCartItem, id)
-	return err
-}
-
-const deleteCartItemByProductID = `-- name: DeleteCartItemByProductID :exec
-DELETE FROM cart_items
-WHERE cart_id = $1 AND product_id = $2
-`
-
-type DeleteCartItemByProductIDParams struct {
-	CartID    int32 `db:"cart_id" json:"cart_id"`
-	ProductID int32 `db:"product_id" json:"product_id"`
-}
-
-func (q *Queries) DeleteCartItemByProductID(ctx context.Context, arg DeleteCartItemByProductIDParams) error {
-	_, err := q.db.Exec(ctx, deleteCartItemByProductID, arg.CartID, arg.ProductID)
 	return err
 }
 
@@ -174,185 +113,6 @@ func (q *Queries) GetCartBySessionID(ctx context.Context, sessionID pgtype.Text)
 		&i.SessionID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getCartItem = `-- name: GetCartItem :one
-
-SELECT id, cart_id, product_id, quantity, price, created_at
-FROM cart_items
-WHERE id = $1
-`
-
-// Cart Items queries
-func (q *Queries) GetCartItem(ctx context.Context, id int32) (CartItems, error) {
-	row := q.db.QueryRow(ctx, getCartItem, id)
-	var i CartItems
-	err := row.Scan(
-		&i.ID,
-		&i.CartID,
-		&i.ProductID,
-		&i.Quantity,
-		&i.Price,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const getCartItemByProductID = `-- name: GetCartItemByProductID :one
-SELECT id, cart_id, product_id, quantity, price, created_at
-FROM cart_items
-WHERE cart_id = $1 AND product_id = $2
-`
-
-type GetCartItemByProductIDParams struct {
-	CartID    int32 `db:"cart_id" json:"cart_id"`
-	ProductID int32 `db:"product_id" json:"product_id"`
-}
-
-func (q *Queries) GetCartItemByProductID(ctx context.Context, arg GetCartItemByProductIDParams) (CartItems, error) {
-	row := q.db.QueryRow(ctx, getCartItemByProductID, arg.CartID, arg.ProductID)
-	var i CartItems
-	err := row.Scan(
-		&i.ID,
-		&i.CartID,
-		&i.ProductID,
-		&i.Quantity,
-		&i.Price,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const getCartItemCount = `-- name: GetCartItemCount :one
-SELECT COALESCE(SUM(quantity), 0)::integer as item_count
-FROM cart_items
-WHERE cart_id = $1
-`
-
-func (q *Queries) GetCartItemCount(ctx context.Context, cartID int32) (int32, error) {
-	row := q.db.QueryRow(ctx, getCartItemCount, cartID)
-	var item_count int32
-	err := row.Scan(&item_count)
-	return item_count, err
-}
-
-const getCartItems = `-- name: GetCartItems :many
-SELECT ci.id, ci.cart_id, ci.product_id, ci.quantity, ci.price, ci.created_at,
-       p.name as product_name, p.description as product_description, p.stock as product_stock
-FROM cart_items ci
-JOIN products p ON ci.product_id = p.id
-WHERE ci.cart_id = $1
-ORDER BY ci.created_at ASC
-`
-
-type GetCartItemsRow struct {
-	ID                 int32       `db:"id" json:"id"`
-	CartID             int32       `db:"cart_id" json:"cart_id"`
-	ProductID          int32       `db:"product_id" json:"product_id"`
-	Quantity           int32       `db:"quantity" json:"quantity"`
-	Price              int32       `db:"price" json:"price"`
-	CreatedAt          time.Time   `db:"created_at" json:"created_at"`
-	ProductName        string      `db:"product_name" json:"product_name"`
-	ProductDescription pgtype.Text `db:"product_description" json:"product_description"`
-	ProductStock       int32       `db:"product_stock" json:"product_stock"`
-}
-
-func (q *Queries) GetCartItems(ctx context.Context, cartID int32) ([]GetCartItemsRow, error) {
-	rows, err := q.db.Query(ctx, getCartItems, cartID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GetCartItemsRow{}
-	for rows.Next() {
-		var i GetCartItemsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.CartID,
-			&i.ProductID,
-			&i.Quantity,
-			&i.Price,
-			&i.CreatedAt,
-			&i.ProductName,
-			&i.ProductDescription,
-			&i.ProductStock,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getCartTotal = `-- name: GetCartTotal :one
-SELECT COALESCE(SUM(quantity * price), 0)::integer as total
-FROM cart_items
-WHERE cart_id = $1
-`
-
-func (q *Queries) GetCartTotal(ctx context.Context, cartID int32) (int32, error) {
-	row := q.db.QueryRow(ctx, getCartTotal, cartID)
-	var total int32
-	err := row.Scan(&total)
-	return total, err
-}
-
-const updateCartItem = `-- name: UpdateCartItem :one
-UPDATE cart_items
-SET
-  quantity = $2,
-  price = $3
-WHERE id = $1
-RETURNING id, cart_id, product_id, quantity, price, created_at
-`
-
-type UpdateCartItemParams struct {
-	ID       int32 `db:"id" json:"id"`
-	Quantity int32 `db:"quantity" json:"quantity"`
-	Price    int32 `db:"price" json:"price"`
-}
-
-func (q *Queries) UpdateCartItem(ctx context.Context, arg UpdateCartItemParams) (CartItems, error) {
-	row := q.db.QueryRow(ctx, updateCartItem, arg.ID, arg.Quantity, arg.Price)
-	var i CartItems
-	err := row.Scan(
-		&i.ID,
-		&i.CartID,
-		&i.ProductID,
-		&i.Quantity,
-		&i.Price,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const updateCartItemQuantity = `-- name: UpdateCartItemQuantity :one
-UPDATE cart_items
-SET quantity = $2
-WHERE id = $1
-RETURNING id, cart_id, product_id, quantity, price, created_at
-`
-
-type UpdateCartItemQuantityParams struct {
-	ID       int32 `db:"id" json:"id"`
-	Quantity int32 `db:"quantity" json:"quantity"`
-}
-
-func (q *Queries) UpdateCartItemQuantity(ctx context.Context, arg UpdateCartItemQuantityParams) (CartItems, error) {
-	row := q.db.QueryRow(ctx, updateCartItemQuantity, arg.ID, arg.Quantity)
-	var i CartItems
-	err := row.Scan(
-		&i.ID,
-		&i.CartID,
-		&i.ProductID,
-		&i.Quantity,
-		&i.Price,
-		&i.CreatedAt,
 	)
 	return i, err
 }

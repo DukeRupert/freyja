@@ -11,21 +11,7 @@ import (
 // Use database types directly for MVP simplicity
 type Cart = database.Carts
 type CartItem = database.CartItems
-
-// Extended cart item with product details for API responses
-type CartItemWithProduct struct {
-	ID        int32     `json:"id"`
-	CartID    int32     `json:"cart_id"`
-	ProductID int32     `json:"product_id"`
-	Quantity  int32     `json:"quantity"`
-	Price     int32     `json:"price"`
-	CreatedAt time.Time `json:"created_at"`
-
-	// Product details
-	ProductName        string `json:"product_name"`
-	ProductDescription string `json:"product_description,omitempty"`
-	ProductStock       int32  `json:"product_stock"`
-}
+type CartItemWithProduct = database.GetCartItemsRow
 
 // Cart with items and totals for API responses
 type CartWithItems struct {
@@ -63,8 +49,10 @@ type CartRepository interface {
 	GetCartItems(ctx context.Context, cartID int32) ([]CartItemWithProduct, error)
 	GetCartItem(ctx context.Context, itemID int32) (*CartItem, error)
 	GetCartItemByProductID(ctx context.Context, cartID int32, productID int32) (*CartItem, error)
-	AddItem(ctx context.Context, cartID int32, productID int32, quantity int32, price int32) (*CartItem, error)
-	UpdateItem(ctx context.Context, itemID int32, quantity int32, price int32) (*CartItem, error)
+	GetCartItemsByProduct(ctx context.Context, cartID int32, productID int32) ([]CartItem, error)
+	GetCartItemByProductAndType(ctx context.Context, cartID int32, productID int32, purchaseType string, subscriptionInterval *string) (*CartItem, error)
+	AddItem(ctx context.Context, cartID int32, productID int32, quantity int32, price int32, purchaseType string, subscriptionInterval *string, stripePriceID string) (*CartItem, error)
+	UpdateItem(ctx context.Context, itemID int32, quantity int32, price int32, stripePriceID string) (*CartItem, error)
 	UpdateItemQuantity(ctx context.Context, itemID int32, quantity int32) (*CartItem, error)
 	RemoveItem(ctx context.Context, itemID int32) error
 	RemoveItemByProductID(ctx context.Context, cartID int32, productID int32) error

@@ -25,6 +25,7 @@ type Querier interface {
 	DecrementProductStock(ctx context.Context, arg DecrementProductStockParams) (Products, error)
 	DeleteCart(ctx context.Context, id int32) error
 	DeleteCartItem(ctx context.Context, id int32) error
+	DeleteCartItemByProductAndType(ctx context.Context, arg DeleteCartItemByProductAndTypeParams) error
 	DeleteCartItemByProductID(ctx context.Context, arg DeleteCartItemByProductIDParams) error
 	DeleteCustomer(ctx context.Context, id int32) error
 	DeleteProduct(ctx context.Context, id int32) error
@@ -33,11 +34,14 @@ type Querier interface {
 	GetCart(ctx context.Context, id int32) (Carts, error)
 	GetCartByCustomerID(ctx context.Context, customerID pgtype.Int4) (Carts, error)
 	GetCartBySessionID(ctx context.Context, sessionID pgtype.Text) (Carts, error)
-	// Cart Items queries
+	// internal/database/queries/cart_items.sql
 	GetCartItem(ctx context.Context, id int32) (CartItems, error)
+	GetCartItemByProductAndType(ctx context.Context, arg GetCartItemByProductAndTypeParams) (CartItems, error)
 	GetCartItemByProductID(ctx context.Context, arg GetCartItemByProductIDParams) (CartItems, error)
 	GetCartItemCount(ctx context.Context, cartID int32) (int32, error)
 	GetCartItems(ctx context.Context, cartID int32) ([]GetCartItemsRow, error)
+	GetCartItemsByProduct(ctx context.Context, arg GetCartItemsByProductParams) ([]CartItems, error)
+	GetCartItemsByPurchaseType(ctx context.Context, arg GetCartItemsByPurchaseTypeParams) ([]GetCartItemsByPurchaseTypeRow, error)
 	GetCartTotal(ctx context.Context, cartID int32) (int32, error)
 	GetCustomer(ctx context.Context, id int32) (Customers, error)
 	GetCustomerByEmail(ctx context.Context, lower string) (Customers, error)
