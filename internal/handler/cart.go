@@ -99,7 +99,7 @@ func (h *CartHandler) AddItem(c echo.Context) error {
 	}
 
 	// Add item to cart
-	cartItem, err := h.cartService.AddItem(ctx, cart.ID, req.ProductID, req.Quantity)
+	cartItem, err := h.cartService.AddItem(ctx, cart.ID, req.ProductID, req.Quantity, req.PurchaseType, req.SubscriptionInterval)
 	if err != nil {
 		c.Logger().Errorf("Failed to add item to cart: %v", err)
 

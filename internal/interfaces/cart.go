@@ -27,8 +27,10 @@ type CartWithItems struct {
 
 // Request/Response types
 type AddCartItemRequest struct {
-	ProductID int32 `json:"product_id" validate:"required,min=1"`
-	Quantity  int32 `json:"quantity" validate:"required,min=1,max=100"`
+	ProductID            int32   `json:"product_id" validate:"required,min=1"`
+	Quantity             int32   `json:"quantity" validate:"required,min=1,max=100"`
+	PurchaseType         string  `json:"purchase_type" validate:"required,oneof=one_time subscription"`
+	SubscriptionInterval *string `json:"subscription_interval,omitempty" validate:"omitempty,oneof=14_day 21_day 30_day 60_day"`
 }
 
 type UpdateCartItemRequest struct {
