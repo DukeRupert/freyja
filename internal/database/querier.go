@@ -18,8 +18,8 @@ type Querier interface {
 	CreateCartItem(ctx context.Context, arg CreateCartItemParams) (CartItems, error)
 	// internal/database/queries/customers.sql
 	CreateCustomer(ctx context.Context, arg CreateCustomerParams) (CreateCustomerRow, error)
-	CreateOrder(ctx context.Context, arg CreateOrderParams) (Orders, error)
-	CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItems, error)
+	CreateOrder(ctx context.Context, arg CreateOrderParams) (CreateOrderRow, error)
+	CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (CreateOrderItemRow, error)
 	CreateProduct(ctx context.Context, arg CreateProductParams) (Products, error)
 	DeactivateProduct(ctx context.Context, id int32) (Products, error)
 	DecrementProductStock(ctx context.Context, arg DecrementProductStockParams) (Products, error)
@@ -29,6 +29,7 @@ type Querier interface {
 	DeleteCartItemByProductID(ctx context.Context, arg DeleteCartItemByProductIDParams) error
 	DeleteCustomer(ctx context.Context, id int32) error
 	DeleteProduct(ctx context.Context, id int32) error
+	GetAllOrders(ctx context.Context, arg GetAllOrdersParams) ([]GetAllOrdersRow, error)
 	GetArchivedCustomers(ctx context.Context, arg GetArchivedCustomersParams) ([]Customers, error)
 	// internal/database/queries/carts.sql
 	GetCart(ctx context.Context, id int32) (Carts, error)
@@ -48,18 +49,22 @@ type Querier interface {
 	GetCustomerByStripeID(ctx context.Context, stripeCustomerID pgtype.Text) (Customers, error)
 	GetCustomerCount(ctx context.Context) (int64, error)
 	GetCustomerCountWithStripeID(ctx context.Context) (int64, error)
-	GetCustomerOrderCount(ctx context.Context, customerID int32) (int64, error)
 	GetCustomerOrderStats(ctx context.Context, customerID int32) (GetCustomerOrderStatsRow, error)
 	GetCustomersWithOrderStats(ctx context.Context, limit int32) ([]GetCustomersWithOrderStatsRow, error)
 	GetCustomersWithoutStripeID(ctx context.Context, arg GetCustomersWithoutStripeIDParams) ([]Customers, error)
 	GetLowStockProducts(ctx context.Context, stock int32) ([]Products, error)
-	// internal/database/queries/orders.sql
+	// internal/database/queries/orders.sql - Updated queries
 	GetOrder(ctx context.Context, id int32) (Orders, error)
+	GetOrderByStripeChargeID(ctx context.Context, stripeChargeID pgtype.Text) (Orders, error)
 	GetOrderByStripePaymentIntentID(ctx context.Context, stripePaymentIntentID pgtype.Text) (Orders, error)
-	GetOrderByStripeSessionID(ctx context.Context, stripeSessionID pgtype.Text) (Orders, error)
 	GetOrderCountByStatus(ctx context.Context) ([]GetOrderCountByStatusRow, error)
-	GetOrderItems(ctx context.Context, orderID int32) ([]OrderItems, error)
-	GetOrderWithItems(ctx context.Context, id int32) ([]GetOrderWithItemsRow, error)
+	// internal/database/queries/order_items.sql - Updated queries
+	GetOrderItem(ctx context.Context, id int32) (GetOrderItemRow, error)
+	GetOrderItemStats(ctx context.Context, orderID int32) (GetOrderItemStatsRow, error)
+	GetOrderItems(ctx context.Context, orderID int32) ([]GetOrderItemsRow, error)
+	GetOrderItemsByProduct(ctx context.Context, arg GetOrderItemsByProductParams) ([]GetOrderItemsByProductRow, error)
+	GetOrderItemsByPurchaseType(ctx context.Context, arg GetOrderItemsByPurchaseTypeParams) ([]GetOrderItemsByPurchaseTypeRow, error)
+	GetOrderStats(ctx context.Context) (GetOrderStatsRow, error)
 	GetOrdersByCustomerID(ctx context.Context, arg GetOrdersByCustomerIDParams) ([]Orders, error)
 	GetOrdersByStatus(ctx context.Context, arg GetOrdersByStatusParams) ([]Orders, error)
 	// internal/database/queries/products.sql
@@ -70,10 +75,8 @@ type Querier interface {
 	GetProductsInStock(ctx context.Context) ([]Products, error)
 	GetProductsWithoutStripeSync(ctx context.Context, arg GetProductsWithoutStripeSyncParams) ([]Products, error)
 	GetRecentCustomers(ctx context.Context, limit int32) ([]GetRecentCustomersRow, error)
-	GetRecentOrders(ctx context.Context, arg GetRecentOrdersParams) ([]Orders, error)
-	GetTotalOrderCount(ctx context.Context) (int32, error)
+	GetSubscriptionOrderItems(ctx context.Context, orderID int32) ([]GetSubscriptionOrderItemsRow, error)
 	GetTotalProductValue(ctx context.Context) (int32, error)
-	GetTotalRevenue(ctx context.Context) (int32, error)
 	IncrementProductStock(ctx context.Context, arg IncrementProductStockParams) (Products, error)
 	ListActiveCustomers(ctx context.Context, arg ListActiveCustomersParams) ([]ListActiveCustomersRow, error)
 	ListAllProducts(ctx context.Context, arg ListAllProductsParams) ([]Products, error)
@@ -90,12 +93,13 @@ type Querier interface {
 	UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (UpdateCustomerRow, error)
 	UpdateCustomerPassword(ctx context.Context, arg UpdateCustomerPasswordParams) (UpdateCustomerPasswordRow, error)
 	UpdateCustomerStripeID(ctx context.Context, arg UpdateCustomerStripeIDParams) (UpdateCustomerStripeIDRow, error)
-	UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) (Orders, error)
+	UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) (UpdateOrderStatusRow, error)
 	UpdateProduct(ctx context.Context, arg UpdateProductParams) (Products, error)
 	UpdateProductPrice(ctx context.Context, arg UpdateProductPriceParams) (Products, error)
 	UpdateProductStock(ctx context.Context, arg UpdateProductStockParams) (Products, error)
 	UpdateProductStripePrices(ctx context.Context, arg UpdateProductStripePricesParams) (Products, error)
 	UpdateProductStripeProductID(ctx context.Context, arg UpdateProductStripeProductIDParams) (Products, error)
+	UpdateStripeChargeID(ctx context.Context, arg UpdateStripeChargeIDParams) (UpdateStripeChargeIDRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

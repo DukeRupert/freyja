@@ -4,11 +4,11 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/dukerupert/freyja/internal/database"
 	"github.com/dukerupert/freyja/internal/interfaces"
-	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -102,16 +102,21 @@ func (s *OrderService) CreateOrderFromPayment(ctx context.Context, customerID in
 		return nil, fmt.Errorf("failed to get customer cart: %w", err)
 	}
 
+	// Validate cart has items
+	if len(cart.Items) == 0 {
+		return nil, fmt.Errorf("cannot create order from empty cart")
+	}
+
 	// Validate cart total matches payment amount
 	if cart.Total != amount {
-		return nil, fmt.Errorf("cart total (%d) does not match payment amount (%d)", cart.Total, amount)
+		log.Printf("⚠️ Cart total (%d) does not match payment amount (%d) - using payment amount", cart.Total, amount)
 	}
 
 	// Create order with payment information
 	order := &interfaces.Order{
 		CustomerID: customerID,
-		Status:     database.OrderStatusConfirmed,
-		Total:      amount,
+		Status:     database.OrderStatusConfirmed, // Confirmed since payment succeeded
+		Total:      amount,                        // Use payment amount as authoritative
 		StripePaymentIntentID: pgtype.Text{
 			String: paymentIntentID,
 			Valid:  true,
@@ -128,12 +133,15 @@ func (s *OrderService) CreateOrderFromPayment(ctx context.Context, customerID in
 	var orderItems []interfaces.OrderItem
 	for _, cartItem := range cart.Items {
 		orderItems = append(orderItems, interfaces.OrderItem{
-			OrderID:   order.ID,
-			ProductID: cartItem.ProductID,
-			Name:      cartItem.ProductName,
-			Quantity:  cartItem.Quantity,
-			Price:     cartItem.Price,
-			CreatedAt: time.Now(),
+			OrderID:              order.ID,
+			ProductID:            cartItem.ProductID,
+			Name:                 cartItem.ProductName,
+			Quantity:             cartItem.Quantity,
+			Price:                cartItem.Price,
+			PurchaseType:         cartItem.PurchaseType,         // *** Include purchase type ***
+			SubscriptionInterval: cartItem.SubscriptionInterval, // *** Include subscription info ***
+			StripePriceID:        cartItem.StripePriceID,        // *** Include Stripe Price ID ***
+			CreatedAt:            time.Now(),
 		})
 	}
 
@@ -144,20 +152,57 @@ func (s *OrderService) CreateOrderFromPayment(ctx context.Context, customerID in
 	// Clear the cart after successful order creation
 	if err := s.cartService.ClearCart(ctx, cart.ID); err != nil {
 		// Log error but don't fail - order was created successfully
-		fmt.Printf("Failed to clear cart after order creation: %v\n", err)
+		log.Printf("Failed to clear cart after order creation: %v", err)
 	}
 
-	// Publish order confirmed event
+	// Publish inventory reduction event
+	inventoryItems := make([]map[string]interface{}, len(orderItems))
+	for i, item := range orderItems {
+		inventoryItems[i] = map[string]interface{}{
+			"product_id": item.ProductID,
+			"quantity":   item.Quantity,
+		}
+	}
+
+	if err := s.publishOrderEvent(ctx, "inventory.reduce_stock", order.ID, map[string]interface{}{
+		"order_id": order.ID,
+		"items":    inventoryItems,
+	}); err != nil {
+		log.Printf("⚠️ Failed to publish inventory reduction event for order %d: %v", order.ID, err)
+	}
+
+	// Publish order confirmed event with enhanced data
 	if err := s.publishOrderEvent(ctx, interfaces.EventOrderConfirmed, order.ID, map[string]interface{}{
 		"customer_id":       customerID,
 		"payment_intent_id": paymentIntentID,
 		"total":             order.Total,
 		"item_count":        len(orderItems),
+		"has_subscription":  s.hasSubscriptionItems(orderItems),
+		"cart_cleared":      true,
 	}); err != nil {
-		fmt.Printf("Failed to publish order confirmed event: %v\n", err)
+		// Log error but don't fail order creation
+		log.Printf("Failed to publish order confirmed event: %v", err)
 	}
 
+	log.Printf("✅ Order %d created from payment %s (Customer: %d, Total: $%.2f)",
+		order.ID, paymentIntentID, customerID, float64(amount)/100)
+
 	return order, nil
+}
+
+// UpdateStripeChargeID updates an order with the Stripe charge ID for reference
+func (s *OrderService) UpdateStripeChargeID(ctx context.Context, orderID int32, chargeID string) error {
+	return s.orderRepo.UpdateStripeChargeID(ctx, orderID, chargeID)
+}
+
+// Helper method to check if order contains subscription items
+func (s *OrderService) hasSubscriptionItems(items []interfaces.OrderItem) bool {
+	for _, item := range items {
+		if item.PurchaseType == "subscription" {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *OrderService) CreateOrder(ctx context.Context, req interfaces.CreateOrderRequest) (*interfaces.Order, error) {
@@ -442,7 +487,7 @@ func (s *OrderService) GetOrderStats(ctx context.Context, filters interfaces.Ord
 
 	// Get order counts by status (if repository supports it)
 	var ordersByStatus map[string]int64
-	if repo, ok := s.orderRepo.(*repository.PostgresOrderRepository); ok {
+	if repo, ok := s.orderRepo.(interfaces.OrderRepository); ok {
 		if statusCounts, err := repo.GetOrderCountByStatus(ctx); err == nil {
 			ordersByStatus = statusCounts
 		}

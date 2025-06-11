@@ -121,13 +121,16 @@ type Events struct {
 }
 
 type OrderItems struct {
-	ID        int32     `db:"id" json:"id"`
-	OrderID   int32     `db:"order_id" json:"order_id"`
-	ProductID int32     `db:"product_id" json:"product_id"`
-	Name      string    `db:"name" json:"name"`
-	Quantity  int32     `db:"quantity" json:"quantity"`
-	Price     int32     `db:"price" json:"price"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	ID                   int32       `db:"id" json:"id"`
+	OrderID              int32       `db:"order_id" json:"order_id"`
+	ProductID            int32       `db:"product_id" json:"product_id"`
+	Name                 string      `db:"name" json:"name"`
+	Quantity             int32       `db:"quantity" json:"quantity"`
+	Price                int32       `db:"price" json:"price"`
+	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
+	PurchaseType         string      `db:"purchase_type" json:"purchase_type"`
+	SubscriptionInterval pgtype.Text `db:"subscription_interval" json:"subscription_interval"`
+	StripePriceID        string      `db:"stripe_price_id" json:"stripe_price_id"`
 }
 
 type Orders struct {
@@ -139,6 +142,7 @@ type Orders struct {
 	StripePaymentIntentID pgtype.Text `db:"stripe_payment_intent_id" json:"stripe_payment_intent_id"`
 	CreatedAt             time.Time   `db:"created_at" json:"created_at"`
 	UpdatedAt             time.Time   `db:"updated_at" json:"updated_at"`
+	StripeChargeID        pgtype.Text `db:"stripe_charge_id" json:"stripe_charge_id"`
 }
 
 type Products struct {

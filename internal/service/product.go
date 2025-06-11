@@ -4,6 +4,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/dukerupert/freyja/internal/interfaces"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -265,6 +266,33 @@ func (s *ProductService) UpdateStock(ctx context.Context, id int, stock int32) e
 	return s.repo.UpdateStock(ctx, int32(id), stock)
 }
 
+// ReduceStock reduces product stock by the specified quantity
+func (s *ProductService) ReduceStock(ctx context.Context, id int32, quantity int32) error {
+	if id <= 0 {
+		return fmt.Errorf("invalid product ID: %d", id)
+	}
+	if quantity <= 0 {
+		return fmt.Errorf("quantity must be positive: %d", quantity)
+	}
+
+	// Get current product to check stock
+	product, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("failed to get product %d: %w", id, err)
+	}
+
+	// Check if we have enough stock
+	if product.Stock < quantity {
+		return fmt.Errorf("insufficient stock for product %d: have %d, need %d", id, product.Stock, quantity)
+	}
+
+	// Calculate new stock level
+	newStock := product.Stock - quantity
+
+	// Update stock using existing method
+	return s.repo.UpdateStock(ctx, id, newStock)
+}
+
 // DeactivateProduct deactivates a product
 func (s *ProductService) DeactivateProduct(ctx context.Context, id int) error {
 	if id <= 0 {
@@ -481,6 +509,54 @@ func (s *ProductService) GetTotalValue(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return int64(value), nil
+}
+
+// Event Handler Methods
+
+// HandleInventoryReductionEvent processes inventory.reduce_stock events
+func (s *ProductService) HandleInventoryReductionEvent(ctx context.Context, data map[string]interface{}) error {
+    orderID, ok := data["order_id"].(float64) // JSON numbers come as float64
+    if !ok {
+        return fmt.Errorf("invalid order_id in inventory reduction event")
+    }
+
+    items, ok := data["items"].([]interface{})
+    if !ok {
+        return fmt.Errorf("invalid items in inventory reduction event")
+    }
+
+    log.Printf("Processing inventory reduction for order %d", int32(orderID))
+
+    // Process each item
+    for _, itemData := range items {
+        item, ok := itemData.(map[string]interface{})
+        if !ok {
+            log.Printf("⚠️ Invalid item data in inventory reduction event for order %d", int32(orderID))
+            continue
+        }
+
+        productID, ok := item["product_id"].(float64)
+        if !ok {
+            log.Printf("⚠️ Invalid product_id in inventory reduction event for order %d", int32(orderID))
+            continue
+        }
+
+        quantity, ok := item["quantity"].(float64)
+        if !ok {
+            log.Printf("⚠️ Invalid quantity in inventory reduction event for order %d", int32(orderID))
+            continue
+        }
+
+        // Reduce stock for this item
+        if err := s.ReduceStock(ctx, int32(productID), int32(quantity)); err != nil {
+            log.Printf("⚠️ Failed to reduce stock for product %d (order %d): %v", int32(productID), int32(orderID), err)
+            // Continue processing other items even if one fails
+        } else {
+            log.Printf("✅ Reduced stock for product %d by %d units (order %d)", int32(productID), int32(quantity), int32(orderID))
+        }
+    }
+
+    return nil
 }
 
 // =============================================================================

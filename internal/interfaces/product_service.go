@@ -21,6 +21,7 @@ type ProductService interface {
 	CreateProduct(ctx context.Context, req CreateProductRequest) (*Product, error)
 	UpdateProduct(ctx context.Context, productID int32, req UpdateProductRequest) (*Product, error)
 	UpdateStock(ctx context.Context, id int, stock int32) error
+	ReduceStock(ctx context.Context, id int32, quantity int32) error
 	DeactivateProduct(ctx context.Context, id int) error
 	ActivateProduct(ctx context.Context, id int) error
 	DeleteProduct(ctx context.Context, id int) error

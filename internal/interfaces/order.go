@@ -30,9 +30,11 @@ type OrderRepository interface {
 	// Order items operations
 	GetOrderItems(ctx context.Context, orderID int32) ([]OrderItem, error)
 	CreateOrderItems(ctx context.Context, orderID int32, items []OrderItem) error
+	UpdateStripeChargeID(ctx context.Context, orderID int32, chargeID string) error
 	
 	// Statistics and reporting
 	GetOrderCount(ctx context.Context, filters OrderFilters) (int64, error)
+	GetOrderCountByStatus(ctx context.Context) (map[string]int64, error)
 	GetTotalRevenue(ctx context.Context, filters OrderFilters) (int64, error)
 	GetOrdersByDateRange(ctx context.Context, from, to time.Time) ([]Order, error)
 }
@@ -90,6 +92,7 @@ type OrderService interface {
 	
 	// Order management
 	UpdateOrderStatus(ctx context.Context, orderID int32, req UpdateOrderStatusRequest) error
+	UpdateStripeChargeID(ctx context.Context, orderID int32, chargeID string) error
 	CancelOrder(ctx context.Context, orderID int32, reason string) error
 	RefundOrder(ctx context.Context, orderID int32, amount *int32, reason string) error
 	

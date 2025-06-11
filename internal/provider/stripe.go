@@ -264,32 +264,75 @@ func (s *StripeProvider) handlePaymentIntentSucceeded(ctx context.Context, event
 		return fmt.Errorf("invalid amount in payment intent")
 	}
 
-	log.Printf("💰 Payment succeeded: %s (Amount: %.0f cents)", paymentIntentID, amount)
+	// Extract Stripe customer ID from the payment intent
+	stripeCustomerID, ok := eventData["customer"].(string)
+	if !ok {
+		log.Printf("⚠️ No customer ID found in payment intent %s - skipping order creation", paymentIntentID)
+		return nil
+	}
 
-	// Extract customer ID from metadata
-	var customerID *int32
-	if metadata, ok := eventData["metadata"].(map[string]interface{}); ok {
-		if customerIDStr, exists := metadata["customer_id"].(string); exists {
-			if id, err := strconv.ParseInt(customerIDStr, 10, 32); err == nil {
-				customerID32 := int32(id)
-				customerID = &customerID32
-			}
+	// Extract charge ID for linking to Stripe order
+	var chargeID string
+	if latestCharge, ok := eventData["latest_charge"].(string); ok {
+		chargeID = latestCharge
+	}
+
+	log.Printf("💰 Payment succeeded: %s (Amount: %.0f cents, Customer: %s, Charge: %s)", 
+		paymentIntentID, amount, stripeCustomerID, chargeID)
+
+	// Find internal customer ID from Stripe customer ID
+	customerID, err := s.findInternalCustomerID(ctx, stripeCustomerID)
+	if err != nil {
+		log.Printf("❌ Failed to find internal customer for Stripe customer %s: %v", stripeCustomerID, err)
+		return fmt.Errorf("failed to find internal customer: %w", err)
+	}
+
+	if customerID == nil {
+		log.Printf("⚠️ No internal customer found for Stripe customer %s - skipping order creation", stripeCustomerID)
+		return nil
+	}
+
+	// Create order with enhanced payment information
+	order, err := orderService.CreateOrderFromPayment(ctx, *customerID, paymentIntentID, int32(amount))
+	if err != nil {
+		log.Printf("❌ Failed to create order from payment: %v", err)
+		return fmt.Errorf("failed to create order: %w", err)
+	}
+
+	// Update order with Stripe charge ID for reference
+	if chargeID != "" {
+		if err := orderService.UpdateStripeChargeID(ctx, order.ID, chargeID); err != nil {
+			log.Printf("⚠️ Failed to update order with charge ID: %v", err)
 		}
 	}
 
-	// Create order if we have customer ID
-	if customerID != nil && orderService != nil {
-		order, err := orderService.CreateOrderFromPayment(ctx, *customerID, paymentIntentID, int32(amount))
-		if err != nil {
-			log.Printf("❌ Failed to create order from payment: %v", err)
-			return fmt.Errorf("failed to create order: %w", err)
-		}
-		log.Printf("📦 Order created successfully: ID %d", order.ID)
-	} else {
-		log.Printf("⚠️ No customer ID found in payment intent metadata - skipping order creation")
-	}
+	log.Printf("📦 Order created successfully: ID %d (Payment Intent: %s, Charge: %s)", 
+		order.ID, paymentIntentID, chargeID)
 
 	return nil
+}
+
+// Helper method to find internal customer ID from Stripe customer ID
+func (s *StripeProvider) findInternalCustomerID(ctx context.Context, stripeCustomerID string) (*int32, error) {
+	// Get the Stripe customer to check metadata
+	stripeCustomer, err := customer.Get(stripeCustomerID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Stripe customer: %w", err)
+	}
+
+	// Check if we have internal customer ID in metadata
+	if internalIDStr, exists := stripeCustomer.Metadata["internal_customer_id"]; exists {
+		if id, err := strconv.ParseInt(internalIDStr, 10, 32); err == nil {
+			customerID := int32(id)
+			return &customerID, nil
+		}
+	}
+
+	// If no metadata, try to find by email (fallback)
+	// This would require a customer service method to find by email
+	// For now, return nil to indicate no customer found
+	log.Printf("No internal_customer_id found in Stripe customer %s metadata", stripeCustomerID)
+	return nil, nil
 }
 
 func (s *StripeProvider) handlePaymentIntentFailed(ctx context.Context, eventData map[string]interface{}) error {

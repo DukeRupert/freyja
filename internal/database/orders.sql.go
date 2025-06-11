@@ -7,17 +7,18 @@ package database
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createOrder = `-- name: CreateOrder :one
 INSERT INTO orders (
-    customer_id, status, total, stripe_session_id, stripe_payment_intent_id
+  customer_id, status, total, stripe_session_id, stripe_payment_intent_id, stripe_charge_id
 ) VALUES (
-    $1, $2, $3, $4, $5
+  $1, $2, $3, $4, $5, $6
 )
-RETURNING id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at
+RETURNING id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, stripe_charge_id, created_at, updated_at
 `
 
 type CreateOrderParams struct {
@@ -26,17 +27,31 @@ type CreateOrderParams struct {
 	Total                 int32       `db:"total" json:"total"`
 	StripeSessionID       pgtype.Text `db:"stripe_session_id" json:"stripe_session_id"`
 	StripePaymentIntentID pgtype.Text `db:"stripe_payment_intent_id" json:"stripe_payment_intent_id"`
+	StripeChargeID        pgtype.Text `db:"stripe_charge_id" json:"stripe_charge_id"`
 }
 
-func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Orders, error) {
+type CreateOrderRow struct {
+	ID                    int32       `db:"id" json:"id"`
+	CustomerID            int32       `db:"customer_id" json:"customer_id"`
+	Status                OrderStatus `db:"status" json:"status"`
+	Total                 int32       `db:"total" json:"total"`
+	StripeSessionID       pgtype.Text `db:"stripe_session_id" json:"stripe_session_id"`
+	StripePaymentIntentID pgtype.Text `db:"stripe_payment_intent_id" json:"stripe_payment_intent_id"`
+	StripeChargeID        pgtype.Text `db:"stripe_charge_id" json:"stripe_charge_id"`
+	CreatedAt             time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time   `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (CreateOrderRow, error) {
 	row := q.db.QueryRow(ctx, createOrder,
 		arg.CustomerID,
 		arg.Status,
 		arg.Total,
 		arg.StripeSessionID,
 		arg.StripePaymentIntentID,
+		arg.StripeChargeID,
 	)
-	var i Orders
+	var i CreateOrderRow
 	err := row.Scan(
 		&i.ID,
 		&i.CustomerID,
@@ -44,71 +59,75 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 		&i.Total,
 		&i.StripeSessionID,
 		&i.StripePaymentIntentID,
+		&i.StripeChargeID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const createOrderItem = `-- name: CreateOrderItem :one
-INSERT INTO order_items (
-    order_id, product_id, name, quantity, price
-) VALUES (
-    $1, $2, $3, $4, $5
-)
-RETURNING id, order_id, product_id, name, quantity, price, created_at
-`
-
-type CreateOrderItemParams struct {
-	OrderID   int32  `db:"order_id" json:"order_id"`
-	ProductID int32  `db:"product_id" json:"product_id"`
-	Name      string `db:"name" json:"name"`
-	Quantity  int32  `db:"quantity" json:"quantity"`
-	Price     int32  `db:"price" json:"price"`
-}
-
-func (q *Queries) CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItems, error) {
-	row := q.db.QueryRow(ctx, createOrderItem,
-		arg.OrderID,
-		arg.ProductID,
-		arg.Name,
-		arg.Quantity,
-		arg.Price,
-	)
-	var i OrderItems
-	err := row.Scan(
-		&i.ID,
-		&i.OrderID,
-		&i.ProductID,
-		&i.Name,
-		&i.Quantity,
-		&i.Price,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const getCustomerOrderCount = `-- name: GetCustomerOrderCount :one
-SELECT COUNT(*) 
+const getAllOrders = `-- name: GetAllOrders :many
+SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, stripe_charge_id, created_at, updated_at
 FROM orders
-WHERE customer_id = $1
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2
 `
 
-func (q *Queries) GetCustomerOrderCount(ctx context.Context, customerID int32) (int64, error) {
-	row := q.db.QueryRow(ctx, getCustomerOrderCount, customerID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+type GetAllOrdersParams struct {
+	Limit  int32 `db:"limit" json:"limit"`
+	Offset int32 `db:"offset" json:"offset"`
+}
+
+type GetAllOrdersRow struct {
+	ID                    int32       `db:"id" json:"id"`
+	CustomerID            int32       `db:"customer_id" json:"customer_id"`
+	Status                OrderStatus `db:"status" json:"status"`
+	Total                 int32       `db:"total" json:"total"`
+	StripeSessionID       pgtype.Text `db:"stripe_session_id" json:"stripe_session_id"`
+	StripePaymentIntentID pgtype.Text `db:"stripe_payment_intent_id" json:"stripe_payment_intent_id"`
+	StripeChargeID        pgtype.Text `db:"stripe_charge_id" json:"stripe_charge_id"`
+	CreatedAt             time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time   `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) GetAllOrders(ctx context.Context, arg GetAllOrdersParams) ([]GetAllOrdersRow, error) {
+	rows, err := q.db.Query(ctx, getAllOrders, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetAllOrdersRow{}
+	for rows.Next() {
+		var i GetAllOrdersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CustomerID,
+			&i.Status,
+			&i.Total,
+			&i.StripeSessionID,
+			&i.StripePaymentIntentID,
+			&i.StripeChargeID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getOrder = `-- name: GetOrder :one
 
-SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at
+SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at, stripe_charge_id
 FROM orders
 WHERE id = $1
 `
 
-// internal/database/queries/orders.sql
+// internal/database/queries/orders.sql - Updated queries
 func (q *Queries) GetOrder(ctx context.Context, id int32) (Orders, error) {
 	row := q.db.QueryRow(ctx, getOrder, id)
 	var i Orders
@@ -121,12 +140,36 @@ func (q *Queries) GetOrder(ctx context.Context, id int32) (Orders, error) {
 		&i.StripePaymentIntentID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.StripeChargeID,
+	)
+	return i, err
+}
+
+const getOrderByStripeChargeID = `-- name: GetOrderByStripeChargeID :one
+SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at, stripe_charge_id
+FROM orders
+WHERE stripe_charge_id = $1
+`
+
+func (q *Queries) GetOrderByStripeChargeID(ctx context.Context, stripeChargeID pgtype.Text) (Orders, error) {
+	row := q.db.QueryRow(ctx, getOrderByStripeChargeID, stripeChargeID)
+	var i Orders
+	err := row.Scan(
+		&i.ID,
+		&i.CustomerID,
+		&i.Status,
+		&i.Total,
+		&i.StripeSessionID,
+		&i.StripePaymentIntentID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StripeChargeID,
 	)
 	return i, err
 }
 
 const getOrderByStripePaymentIntentID = `-- name: GetOrderByStripePaymentIntentID :one
-SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at
+SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at, stripe_charge_id
 FROM orders
 WHERE stripe_payment_intent_id = $1
 `
@@ -143,28 +186,7 @@ func (q *Queries) GetOrderByStripePaymentIntentID(ctx context.Context, stripePay
 		&i.StripePaymentIntentID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getOrderByStripeSessionID = `-- name: GetOrderByStripeSessionID :one
-SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at
-FROM orders
-WHERE stripe_session_id = $1
-`
-
-func (q *Queries) GetOrderByStripeSessionID(ctx context.Context, stripeSessionID pgtype.Text) (Orders, error) {
-	row := q.db.QueryRow(ctx, getOrderByStripeSessionID, stripeSessionID)
-	var i Orders
-	err := row.Scan(
-		&i.ID,
-		&i.CustomerID,
-		&i.Status,
-		&i.Total,
-		&i.StripeSessionID,
-		&i.StripePaymentIntentID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.StripeChargeID,
 	)
 	return i, err
 }
@@ -201,91 +223,42 @@ func (q *Queries) GetOrderCountByStatus(ctx context.Context) ([]GetOrderCountByS
 	return items, nil
 }
 
-const getOrderItems = `-- name: GetOrderItems :many
-SELECT id, order_id, product_id, name, quantity, price, created_at
-FROM order_items
-WHERE order_id = $1
-ORDER BY created_at ASC
+const getOrderStats = `-- name: GetOrderStats :one
+SELECT 
+  COUNT(*) as total_orders,
+  COALESCE(SUM(total), 0) as total_revenue,
+  COALESCE(AVG(total), 0) as average_order_value,
+  COUNT(CASE WHEN status = 'confirmed' THEN 1 END) as confirmed_orders,
+  COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_orders,
+  COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_orders
+FROM orders
 `
 
-func (q *Queries) GetOrderItems(ctx context.Context, orderID int32) ([]OrderItems, error) {
-	rows, err := q.db.Query(ctx, getOrderItems, orderID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []OrderItems{}
-	for rows.Next() {
-		var i OrderItems
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrderID,
-			&i.ProductID,
-			&i.Name,
-			&i.Quantity,
-			&i.Price,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+type GetOrderStatsRow struct {
+	TotalOrders       int64       `db:"total_orders" json:"total_orders"`
+	TotalRevenue      interface{} `db:"total_revenue" json:"total_revenue"`
+	AverageOrderValue interface{} `db:"average_order_value" json:"average_order_value"`
+	ConfirmedOrders   int64       `db:"confirmed_orders" json:"confirmed_orders"`
+	PendingOrders     int64       `db:"pending_orders" json:"pending_orders"`
+	CancelledOrders   int64       `db:"cancelled_orders" json:"cancelled_orders"`
 }
 
-const getOrderWithItems = `-- name: GetOrderWithItems :many
-SELECT o.id, o.customer_id, o.status, o.total, o.stripe_session_id, o.stripe_payment_intent_id, o.created_at, o.updated_at, oi.id, oi.order_id, oi.product_id, oi.name, oi.quantity, oi.price, oi.created_at
-FROM orders o
-LEFT JOIN order_items oi ON o.id = oi.order_id
-WHERE o.id = $1
-`
-
-type GetOrderWithItemsRow struct {
-	Orders     Orders     `db:"orders" json:"orders"`
-	OrderItems OrderItems `db:"order_items" json:"order_items"`
-}
-
-func (q *Queries) GetOrderWithItems(ctx context.Context, id int32) ([]GetOrderWithItemsRow, error) {
-	rows, err := q.db.Query(ctx, getOrderWithItems, id)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GetOrderWithItemsRow{}
-	for rows.Next() {
-		var i GetOrderWithItemsRow
-		if err := rows.Scan(
-			&i.Orders.ID,
-			&i.Orders.CustomerID,
-			&i.Orders.Status,
-			&i.Orders.Total,
-			&i.Orders.StripeSessionID,
-			&i.Orders.StripePaymentIntentID,
-			&i.Orders.CreatedAt,
-			&i.Orders.UpdatedAt,
-			&i.OrderItems.ID,
-			&i.OrderItems.OrderID,
-			&i.OrderItems.ProductID,
-			&i.OrderItems.Name,
-			&i.OrderItems.Quantity,
-			&i.OrderItems.Price,
-			&i.OrderItems.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) GetOrderStats(ctx context.Context) (GetOrderStatsRow, error) {
+	row := q.db.QueryRow(ctx, getOrderStats)
+	var i GetOrderStatsRow
+	err := row.Scan(
+		&i.TotalOrders,
+		&i.TotalRevenue,
+		&i.AverageOrderValue,
+		&i.ConfirmedOrders,
+		&i.PendingOrders,
+		&i.CancelledOrders,
+	)
+	return i, err
 }
 
 const getOrdersByCustomerID = `-- name: GetOrdersByCustomerID :many
-SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at
+SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at, stripe_charge_id
 FROM orders
 WHERE customer_id = $1
 ORDER BY created_at DESC
@@ -316,6 +289,7 @@ func (q *Queries) GetOrdersByCustomerID(ctx context.Context, arg GetOrdersByCust
 			&i.StripePaymentIntentID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.StripeChargeID,
 		); err != nil {
 			return nil, err
 		}
@@ -328,7 +302,7 @@ func (q *Queries) GetOrdersByCustomerID(ctx context.Context, arg GetOrdersByCust
 }
 
 const getOrdersByStatus = `-- name: GetOrdersByStatus :many
-SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at
+SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at, stripe_charge_id
 FROM orders
 WHERE status = $1
 ORDER BY created_at DESC
@@ -359,6 +333,7 @@ func (q *Queries) GetOrdersByStatus(ctx context.Context, arg GetOrdersByStatusPa
 			&i.StripePaymentIntentID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.StripeChargeID,
 		); err != nil {
 			return nil, err
 		}
@@ -368,81 +343,13 @@ func (q *Queries) GetOrdersByStatus(ctx context.Context, arg GetOrdersByStatusPa
 		return nil, err
 	}
 	return items, nil
-}
-
-const getRecentOrders = `-- name: GetRecentOrders :many
-SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at
-FROM orders
-ORDER BY created_at DESC
-LIMIT $1 OFFSET $2
-`
-
-type GetRecentOrdersParams struct {
-	Limit  int32 `db:"limit" json:"limit"`
-	Offset int32 `db:"offset" json:"offset"`
-}
-
-func (q *Queries) GetRecentOrders(ctx context.Context, arg GetRecentOrdersParams) ([]Orders, error) {
-	rows, err := q.db.Query(ctx, getRecentOrders, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Orders{}
-	for rows.Next() {
-		var i Orders
-		if err := rows.Scan(
-			&i.ID,
-			&i.CustomerID,
-			&i.Status,
-			&i.Total,
-			&i.StripeSessionID,
-			&i.StripePaymentIntentID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getTotalOrderCount = `-- name: GetTotalOrderCount :one
-SELECT COUNT(*)::integer as total_orders
-FROM orders
-`
-
-func (q *Queries) GetTotalOrderCount(ctx context.Context) (int32, error) {
-	row := q.db.QueryRow(ctx, getTotalOrderCount)
-	var total_orders int32
-	err := row.Scan(&total_orders)
-	return total_orders, err
-}
-
-const getTotalRevenue = `-- name: GetTotalRevenue :one
-SELECT COALESCE(SUM(total), 0)::integer as total_revenue
-FROM orders
-WHERE status IN ('confirmed', 'processing', 'shipped', 'delivered')
-`
-
-func (q *Queries) GetTotalRevenue(ctx context.Context) (int32, error) {
-	row := q.db.QueryRow(ctx, getTotalRevenue)
-	var total_revenue int32
-	err := row.Scan(&total_revenue)
-	return total_revenue, err
 }
 
 const updateOrderStatus = `-- name: UpdateOrderStatus :one
 UPDATE orders
-SET
-    status = $2,
-    updated_at = NOW()
+SET status = $2, updated_at = NOW()
 WHERE id = $1
-RETURNING id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at
+RETURNING id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, stripe_charge_id, created_at, updated_at
 `
 
 type UpdateOrderStatusParams struct {
@@ -450,9 +357,21 @@ type UpdateOrderStatusParams struct {
 	Status OrderStatus `db:"status" json:"status"`
 }
 
-func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) (Orders, error) {
+type UpdateOrderStatusRow struct {
+	ID                    int32       `db:"id" json:"id"`
+	CustomerID            int32       `db:"customer_id" json:"customer_id"`
+	Status                OrderStatus `db:"status" json:"status"`
+	Total                 int32       `db:"total" json:"total"`
+	StripeSessionID       pgtype.Text `db:"stripe_session_id" json:"stripe_session_id"`
+	StripePaymentIntentID pgtype.Text `db:"stripe_payment_intent_id" json:"stripe_payment_intent_id"`
+	StripeChargeID        pgtype.Text `db:"stripe_charge_id" json:"stripe_charge_id"`
+	CreatedAt             time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time   `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) (UpdateOrderStatusRow, error) {
 	row := q.db.QueryRow(ctx, updateOrderStatus, arg.ID, arg.Status)
-	var i Orders
+	var i UpdateOrderStatusRow
 	err := row.Scan(
 		&i.ID,
 		&i.CustomerID,
@@ -460,6 +379,48 @@ func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusPa
 		&i.Total,
 		&i.StripeSessionID,
 		&i.StripePaymentIntentID,
+		&i.StripeChargeID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateStripeChargeID = `-- name: UpdateStripeChargeID :one
+UPDATE orders
+SET stripe_charge_id = $2, updated_at = NOW()
+WHERE id = $1
+RETURNING id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, stripe_charge_id, created_at, updated_at
+`
+
+type UpdateStripeChargeIDParams struct {
+	ID             int32       `db:"id" json:"id"`
+	StripeChargeID pgtype.Text `db:"stripe_charge_id" json:"stripe_charge_id"`
+}
+
+type UpdateStripeChargeIDRow struct {
+	ID                    int32       `db:"id" json:"id"`
+	CustomerID            int32       `db:"customer_id" json:"customer_id"`
+	Status                OrderStatus `db:"status" json:"status"`
+	Total                 int32       `db:"total" json:"total"`
+	StripeSessionID       pgtype.Text `db:"stripe_session_id" json:"stripe_session_id"`
+	StripePaymentIntentID pgtype.Text `db:"stripe_payment_intent_id" json:"stripe_payment_intent_id"`
+	StripeChargeID        pgtype.Text `db:"stripe_charge_id" json:"stripe_charge_id"`
+	CreatedAt             time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time   `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) UpdateStripeChargeID(ctx context.Context, arg UpdateStripeChargeIDParams) (UpdateStripeChargeIDRow, error) {
+	row := q.db.QueryRow(ctx, updateStripeChargeID, arg.ID, arg.StripeChargeID)
+	var i UpdateStripeChargeIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.CustomerID,
+		&i.Status,
+		&i.Total,
+		&i.StripeSessionID,
+		&i.StripePaymentIntentID,
+		&i.StripeChargeID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
