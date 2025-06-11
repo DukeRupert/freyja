@@ -14,13 +14,13 @@ import (
 
 type OrderService struct {
 	orderRepo   interfaces.OrderRepository
-	cartService *CartService
+	cartService interfaces.CartService
 	events      interfaces.EventPublisher
 }
 
 func NewOrderService(
 	orderRepo interfaces.OrderRepository,
-	cartService *CartService,
+	cartService interfaces.CartService,
 	events interfaces.EventPublisher,
 ) *OrderService {
 	return &OrderService{
@@ -35,13 +35,13 @@ func NewOrderService(
 // =============================================================================
 
 func (s *OrderService) CreateOrderFromCart(ctx context.Context, customerID int32, cartID int32) (*interfaces.Order, error) {
-	// Get cart with items
-	cart, err := s.cartService.GetCart(ctx, cartID)
+	// Confirm cart has items
+	cartItems, err := s.cartService.GetCartItems(ctx, cartID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get cart: %w", err)
+		return nil, fmt.Errorf("failed to get items for cart: %w", err)
 	}
 
-	if len(cart.Items) == 0 {
+	if len(cartItems) == 0 {
 		return nil, fmt.Errorf("cannot create order from empty cart")
 	}
 
@@ -150,7 +150,7 @@ func (s *OrderService) CreateOrderFromPayment(ctx context.Context, customerID in
 	}
 
 	// Clear the cart after successful order creation
-	if err := s.cartService.ClearCart(ctx, cart.ID); err != nil {
+	if err := s.cartService.Clear(ctx, cart.ID); err != nil {
 		// Log error but don't fail - order was created successfully
 		log.Printf("Failed to clear cart after order creation: %v", err)
 	}

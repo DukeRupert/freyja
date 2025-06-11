@@ -11,14 +11,14 @@ import (
 )
 
 type CheckoutService struct {
-	cartService     *CartService
+	cartService     interfaces.CartService
 	orderService    *OrderService
 	paymentProvider interfaces.PaymentProvider
 	eventPublisher  interfaces.EventPublisher
 }
 
 func NewCheckoutService(
-	cartService *CartService,
+	cartService interfaces.CartService,
 	orderService *OrderService,
 	paymentProvider interfaces.PaymentProvider,
 	eventPublisher interfaces.EventPublisher,
@@ -190,7 +190,7 @@ func (s *CheckoutService) handlePaymentSucceeded(ctx context.Context, eventData 
 		}
 
 		// Clear the cart after successful order creation
-		if err := s.cartService.ClearCart(ctx, order.ID); err != nil {
+		if err := s.cartService.Clear(ctx, order.ID); err != nil {
 			// Log error but don't fail - order was created successfully
 			fmt.Printf("Failed to clear cart after order creation: %v\n", err)
 		}
