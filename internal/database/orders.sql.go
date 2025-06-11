@@ -358,32 +358,136 @@ func (q *Queries) GetOrdersByCustomerID(ctx context.Context, arg GetOrdersByCust
 	return items, nil
 }
 
-const getOrdersByCustomerIDWithFilters = `-- name: GetOrdersByCustomerIDWithFilters :many
+const getOrdersByCustomerIDAndDateRange = `-- name: GetOrdersByCustomerIDAndDateRange :many
 SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at, stripe_charge_id
 FROM orders
 WHERE customer_id = $1
-  AND ($2::text IS NULL OR status = $2::text)
-  AND ($3::timestamptz IS NULL OR created_at >= $3::timestamptz)
-  AND ($4::timestamptz IS NULL OR created_at <= $4::timestamptz)
+  AND created_at >= $2::timestamptz
+  AND created_at <= $3::timestamptz
 ORDER BY created_at DESC
-LIMIT $6 OFFSET $5
+LIMIT $5 OFFSET $4
 `
 
-type GetOrdersByCustomerIDWithFiltersParams struct {
+type GetOrdersByCustomerIDAndDateRangeParams struct {
 	CustomerID  int32              `db:"customer_id" json:"customer_id"`
-	Status      string             `db:"status" json:"status"`
-	DateFrom    pgtype.Timestamptz `db:"date_from" json:"date_from"`
-	DateTo      pgtype.Timestamptz `db:"date_to" json:"date_to"`
+	After       pgtype.Timestamptz `db:"after" json:"after"`
+	Before      pgtype.Timestamptz `db:"before" json:"before"`
 	OffsetCount int32              `db:"offset_count" json:"offset_count"`
 	LimitCount  int32              `db:"limit_count" json:"limit_count"`
 }
 
-func (q *Queries) GetOrdersByCustomerIDWithFilters(ctx context.Context, arg GetOrdersByCustomerIDWithFiltersParams) ([]Orders, error) {
-	rows, err := q.db.Query(ctx, getOrdersByCustomerIDWithFilters,
+func (q *Queries) GetOrdersByCustomerIDAndDateRange(ctx context.Context, arg GetOrdersByCustomerIDAndDateRangeParams) ([]Orders, error) {
+	rows, err := q.db.Query(ctx, getOrdersByCustomerIDAndDateRange,
+		arg.CustomerID,
+		arg.After,
+		arg.Before,
+		arg.OffsetCount,
+		arg.LimitCount,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Orders{}
+	for rows.Next() {
+		var i Orders
+		if err := rows.Scan(
+			&i.ID,
+			&i.CustomerID,
+			&i.Status,
+			&i.Total,
+			&i.StripeSessionID,
+			&i.StripePaymentIntentID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StripeChargeID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOrdersByCustomerIDAndStatus = `-- name: GetOrdersByCustomerIDAndStatus :many
+SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at, stripe_charge_id
+FROM orders
+WHERE customer_id = $1 AND status = $2
+ORDER BY created_at DESC
+LIMIT $3 OFFSET $4
+`
+
+type GetOrdersByCustomerIDAndStatusParams struct {
+	CustomerID int32       `db:"customer_id" json:"customer_id"`
+	Status     OrderStatus `db:"status" json:"status"`
+	Limit      int32       `db:"limit" json:"limit"`
+	Offset     int32       `db:"offset" json:"offset"`
+}
+
+func (q *Queries) GetOrdersByCustomerIDAndStatus(ctx context.Context, arg GetOrdersByCustomerIDAndStatusParams) ([]Orders, error) {
+	rows, err := q.db.Query(ctx, getOrdersByCustomerIDAndStatus,
 		arg.CustomerID,
 		arg.Status,
-		arg.DateFrom,
-		arg.DateTo,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Orders{}
+	for rows.Next() {
+		var i Orders
+		if err := rows.Scan(
+			&i.ID,
+			&i.CustomerID,
+			&i.Status,
+			&i.Total,
+			&i.StripeSessionID,
+			&i.StripePaymentIntentID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StripeChargeID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOrdersByCustomerIDWithStatusAndDateRange = `-- name: GetOrdersByCustomerIDWithStatusAndDateRange :many
+SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at, stripe_charge_id
+FROM orders
+WHERE customer_id = $1
+  AND status = $2
+  AND created_at >= $3::timestamptz
+  AND created_at <= $4::timestamptz
+ORDER BY created_at DESC
+LIMIT $6 OFFSET $5
+`
+
+type GetOrdersByCustomerIDWithStatusAndDateRangeParams struct {
+	CustomerID  int32              `db:"customer_id" json:"customer_id"`
+	Status      OrderStatus        `db:"status" json:"status"`
+	After       pgtype.Timestamptz `db:"after" json:"after"`
+	Before      pgtype.Timestamptz `db:"before" json:"before"`
+	OffsetCount int32              `db:"offset_count" json:"offset_count"`
+	LimitCount  int32              `db:"limit_count" json:"limit_count"`
+}
+
+func (q *Queries) GetOrdersByCustomerIDWithStatusAndDateRange(ctx context.Context, arg GetOrdersByCustomerIDWithStatusAndDateRangeParams) ([]Orders, error) {
+	rows, err := q.db.Query(ctx, getOrdersByCustomerIDWithStatusAndDateRange,
+		arg.CustomerID,
+		arg.Status,
+		arg.After,
+		arg.Before,
 		arg.OffsetCount,
 		arg.LimitCount,
 	)

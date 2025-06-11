@@ -4,6 +4,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/dukerupert/freyja/internal/database"
 	"github.com/dukerupert/freyja/internal/interfaces"
@@ -52,67 +53,31 @@ func (r *OrderRepository) GetByID(ctx context.Context, id int32) (*interfaces.Or
 	return r.convertToOrder(dbOrder), nil
 }
 
-// GetByCustomerID retrieves orders for a customer with comprehensive filtering using SQLC
+// GetByCustomerID retrieves orders for a customer with filters
 func (r *OrderRepository) GetByCustomerID(ctx context.Context, customerID int32, filters interfaces.OrderFilters) ([]interfaces.Order, error) {
-	// Set default pagination
-	limit := int32(filters.Limit)
-	if limit <= 0 {
-		limit = 50 // Default limit
-	}
-	if limit > 100 {
-		limit = 100 // Max limit
-	}
-	
-	offset := int32(filters.Offset)
-	if offset < 0 {
-		offset = 0
-	}
-	
-	// Prepare status parameter - use empty string for NULL check in SQL
-	status := ""
-	if filters.Status != nil && *filters.Status != "" {
-		status = *filters.Status
-	}
-	
-	// Prepare date parameters using pgtype.Timestamptz
-	var dateFrom pgtype.Timestamptz
-	if filters.DateFrom != nil {
-		dateFrom = pgtype.Timestamptz{
-			Time:  *filters.DateFrom,
-			Valid: true,
-		}
-	}
-	// If filters.DateFrom is nil, dateFrom.Valid remains false (equivalent to NULL)
-	
-	var dateTo pgtype.Timestamptz
-	if filters.DateTo != nil {
-		dateTo = pgtype.Timestamptz{
-			Time:  *filters.DateTo,
-			Valid: true,
-		}
-	}
-	// If filters.DateTo is nil, dateTo.Valid remains false (equivalent to NULL)
-	
-	// Call the generated SQLC method
-	dbOrders, err := r.db.Queries.GetOrdersByCustomerIDWithFilters(ctx, database.GetOrdersByCustomerIDWithFiltersParams{
-		CustomerID:  customerID,
-		Status:      status,
-		DateFrom:    dateFrom,
-		DateTo:      dateTo,
-		LimitCount:  limit,
-		OffsetCount: offset,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get orders by customer ID with filters: %w", err)
-	}
-	
-	// Convert database orders to interface orders
-	orders := make([]interfaces.Order, len(dbOrders))
-	for i, dbOrder := range dbOrders {
-		orders[i] = *r.convertToOrder(dbOrder)
-	}
-	
-	return orders, nil
+    limit := int32(10)
+    offset := int32(0)
+    
+    if filters.Limit > 0 {
+        limit = int32(filters.Limit)
+    }
+    if filters.Offset >= 0 {
+        offset = int32(filters.Offset)
+    }
+
+    // Execute the appropriate query using helper function
+    dbOrders, err := r.executeOrderQuery(ctx, customerID, filters, limit, offset)
+    if err != nil {
+        return nil, fmt.Errorf("failed to get orders: %w", err)
+    }
+
+    // Convert results
+    orders := make([]interfaces.Order, len(dbOrders))
+    for i, dbOrder := range dbOrders {
+        orders[i] = *r.convertToOrder(dbOrder)
+    }
+
+    return orders, nil
 }
 
 // GetAll retrieves all orders with comprehensive filtering using generated SQLC interface
@@ -386,4 +351,70 @@ func parseOrderStatus(s string) (database.OrderStatus, error) {
     default:
         return "", fmt.Errorf("invalid order status: %s", s)
     }
+}
+
+// Helper function to execute the appropriate query based on filters
+func (r *OrderRepository) executeOrderQuery(ctx context.Context, customerID int32, filters interfaces.OrderFilters, limit, offset int32) ([]database.Orders, error) {
+    switch {
+    case filters.Status != nil && filters.DateFrom != nil && filters.DateTo != nil:
+        return r.getOrdersWithStatusAndDateRange(ctx, customerID, *filters.Status, *filters.DateFrom, *filters.DateTo, limit, offset)
+    
+    case filters.Status != nil:
+        return r.getOrdersWithStatus(ctx, customerID, *filters.Status, limit, offset)
+    
+    case filters.DateFrom != nil && filters.DateTo != nil:
+        return r.getOrdersWithDateRange(ctx, customerID, *filters.DateFrom, *filters.DateTo, limit, offset)
+    
+    default:
+        return r.getOrdersBasic(ctx, customerID, limit, offset)
+    }
+}
+
+// Individual query methods
+func (r *OrderRepository) getOrdersWithStatusAndDateRange(ctx context.Context, customerID int32, statusStr string, dateFrom, dateTo time.Time, limit, offset int32) ([]database.Orders, error) {
+    status, err := parseOrderStatus(statusStr)
+    if err != nil {
+        return nil, fmt.Errorf("invalid status: %w", err)
+    }
+    
+    return r.db.Queries.GetOrdersByCustomerIDWithStatusAndDateRange(ctx, database.GetOrdersByCustomerIDWithStatusAndDateRangeParams{
+        CustomerID: customerID,
+        Status:     status,
+        After:   pgtype.Timestamptz{Time: dateFrom, Valid: true},
+        Before:     pgtype.Timestamptz{Time: dateTo, Valid: true},
+        LimitCount:      limit,
+        OffsetCount:     offset,
+    })
+}
+
+func (r *OrderRepository) getOrdersWithStatus(ctx context.Context, customerID int32, statusStr string, limit, offset int32) ([]database.Orders, error) {
+    status, err := parseOrderStatus(statusStr)
+    if err != nil {
+        return nil, fmt.Errorf("invalid status: %w", err)
+    }
+    
+    return r.db.Queries.GetOrdersByCustomerIDAndStatus(ctx, database.GetOrdersByCustomerIDAndStatusParams{
+        CustomerID: customerID,
+        Status:     status,
+        Limit:      limit,
+        Offset:     offset,
+    })
+}
+
+func (r *OrderRepository) getOrdersWithDateRange(ctx context.Context, customerID int32, dateFrom, dateTo time.Time, limit, offset int32) ([]database.Orders, error) {
+    return r.db.Queries.GetOrdersByCustomerIDAndDateRange(ctx, database.GetOrdersByCustomerIDAndDateRangeParams{
+        CustomerID: customerID,
+        After:   pgtype.Timestamptz{Time: dateFrom, Valid: true},
+        Before:     pgtype.Timestamptz{Time: dateTo, Valid: true},
+        LimitCount:      limit,
+        OffsetCount:     offset,
+    })
+}
+
+func (r *OrderRepository) getOrdersBasic(ctx context.Context, customerID int32, limit, offset int32) ([]database.Orders, error) {
+    return r.db.Queries.GetOrdersByCustomerID(ctx, database.GetOrdersByCustomerIDParams{
+        CustomerID: customerID,
+        Limit:      limit,
+        Offset:     offset,
+    })
 }

@@ -67,7 +67,9 @@ type Querier interface {
 	GetOrderItemsByPurchaseType(ctx context.Context, arg GetOrderItemsByPurchaseTypeParams) ([]GetOrderItemsByPurchaseTypeRow, error)
 	GetOrderStats(ctx context.Context) (GetOrderStatsRow, error)
 	GetOrdersByCustomerID(ctx context.Context, arg GetOrdersByCustomerIDParams) ([]Orders, error)
-	GetOrdersByCustomerIDWithFilters(ctx context.Context, arg GetOrdersByCustomerIDWithFiltersParams) ([]Orders, error)
+	GetOrdersByCustomerIDAndDateRange(ctx context.Context, arg GetOrdersByCustomerIDAndDateRangeParams) ([]Orders, error)
+	GetOrdersByCustomerIDAndStatus(ctx context.Context, arg GetOrdersByCustomerIDAndStatusParams) ([]Orders, error)
+	GetOrdersByCustomerIDWithStatusAndDateRange(ctx context.Context, arg GetOrdersByCustomerIDWithStatusAndDateRangeParams) ([]Orders, error)
 	GetOrdersByStatus(ctx context.Context, arg GetOrdersByStatusParams) ([]Orders, error)
 	// internal/database/queries/products.sql
 	GetProduct(ctx context.Context, id int32) (Products, error)

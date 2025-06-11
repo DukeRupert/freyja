@@ -5,13 +5,6 @@ SELECT *
 FROM orders
 WHERE id = $1;
 
--- name: GetOrdersByCustomerID :many
-SELECT *
-FROM orders
-WHERE customer_id = $1
-ORDER BY created_at DESC
-LIMIT $2 OFFSET $3;
-
 -- name: GetOrderByStripePaymentIntentID :one
 SELECT *
 FROM orders
@@ -61,13 +54,36 @@ FROM orders
 GROUP BY status
 ORDER BY count DESC;
 
--- name: GetOrdersByCustomerIDWithFilters :many
+-- name: GetOrdersByCustomerID :many
+SELECT *
+FROM orders
+WHERE customer_id = $1
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3;
+
+-- name: GetOrdersByCustomerIDAndStatus :many
+SELECT *
+FROM orders
+WHERE customer_id = $1 AND status = $2
+ORDER BY created_at DESC
+LIMIT $3 OFFSET $4;
+
+-- name: GetOrdersByCustomerIDAndDateRange :many
 SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at, stripe_charge_id
 FROM orders
 WHERE customer_id = @customer_id
-  AND (@status::text IS NULL OR status = @status::text)
-  AND (@date_from::timestamptz IS NULL OR created_at >= @date_from::timestamptz)
-  AND (@date_to::timestamptz IS NULL OR created_at <= @date_to::timestamptz)
+  AND created_at >= @after::timestamptz
+  AND created_at <= @before::timestamptz
+ORDER BY created_at DESC
+LIMIT @limit_count OFFSET @offset_count;
+
+-- name: GetOrdersByCustomerIDWithStatusAndDateRange :many
+SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at, stripe_charge_id
+FROM orders
+WHERE customer_id = @customer_id
+  AND status = @status
+  AND created_at >= @after::timestamptz
+  AND created_at <= @before::timestamptz
 ORDER BY created_at DESC
 LIMIT @limit_count OFFSET @offset_count;
 
