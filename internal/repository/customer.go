@@ -102,13 +102,17 @@ func (r *PostgresCustomerRepository) Update(ctx context.Context, customer *inter
 	return nil
 }
 
+// UpdateStripeID updates the Stripe customer ID for a customer
 func (r *PostgresCustomerRepository) UpdateStripeID(ctx context.Context, customerID int32, stripeCustomerID string) error {
-	stripeID := pgtype.Text{String: stripeCustomerID, Valid: true}
+	params := database.UpdateCustomerStripeIDParams{
+		ID: customerID,
+		StripeCustomerID: pgtype.Text{
+			String: stripeCustomerID,
+			Valid:  true,
+		},
+	}
 
-	_, err := r.db.Queries.UpdateCustomerStripeID(ctx, database.UpdateCustomerStripeIDParams{
-		ID:               customerID,
-		StripeCustomerID: stripeID,
-	})
+	_, err := r.db.Queries.UpdateCustomerStripeID(ctx, params)
 	if err != nil {
 		return fmt.Errorf("failed to update customer Stripe ID: %w", err)
 	}

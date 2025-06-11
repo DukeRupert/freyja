@@ -135,7 +135,7 @@ SET
   stripe_customer_id = $2,
   updated_at = NOW()
 WHERE id = $1
-RETURNING id, email, first_name, last_name, password_hash, stripe_customer_id, created_at, updated_at;
+RETURNING *;
 
 -- name: ArchiveCustomer :one
 UPDATE customers

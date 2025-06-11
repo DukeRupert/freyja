@@ -52,14 +52,16 @@ const (
 	EventCartCleared     = "cart.cleared"
 
 	// Checkout events
-	EventCheckoutInitiated      = "checkout.initiated"
-	EventCheckoutSessionCreated = "checkout.session_created"
-	EventCheckoutCompleted		= "checkout.session.completed"
+	EventCheckoutInitiated        = "checkout.initiated"
+	EventCheckoutSessionCreated   = "checkout.session_created"
+	EventCheckoutSessionCompleted = "checkout.session.completed"
 
 	// Payment events
-	EventPaymentProcessing = "payment.processing"
-	EventPaymentConfirmed  = "payment.confirmed"
-	EventPaymentFailed     = "payment.failed"
+	EventPaymentProcessing      = "payment.processing"
+	EventPaymentConfirmed       = "payment.confirmed"
+	EventPaymentFailed          = "payment.failed"
+	EventPaymentIntentSucceeded = "payment_intent.succeeded"
+	EventPaymentIntentFailed    = "payment_intent.payment_failed"
 
 	// Order events
 	EventOrderCreated   = "order.created"
@@ -75,6 +77,7 @@ const (
 
 	// Customer events
 	EventCustomerCreated             = "customer.created"
+	EventGuestCustomerCreated		 = "customer.created_guest"
 	EventCustomerUpdated             = "customer.updated"
 	EventCustomerStripeEnsured       = "customer.stripe_ensured"
 	EventCustomerStripeSyncRequested = "customer.stripe_sync_requested"

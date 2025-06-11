@@ -14,7 +14,7 @@ type CartService struct {
 	// Note: cache and events will be added later
 }
 
-func NewCartService(cartRepo interfaces.CartRepository, productRepo interfaces.ProductRepository) *CartService {
+func NewCartService(cartRepo interfaces.CartRepository, productRepo interfaces.ProductRepository) interfaces.CartService {
 	return &CartService{
 		cartRepo:    cartRepo,
 		productRepo: productRepo,
@@ -56,6 +56,46 @@ func (s *CartService) GetCart(ctx context.Context, cartID int32) (*interfaces.Ca
 	}
 
 	return s.buildCartWithItems(ctx, cart)
+}
+
+// GetCartItems retrieves all items in a cart with product details
+func (s *CartService) GetCartItems(ctx context.Context, cartID int32) ([]interfaces.CartItemWithProduct, error) {
+	if cartID <= 0 {
+		return nil, fmt.Errorf("invalid cart ID: %d", cartID)
+	}
+
+	// Verify cart exists
+	_, err := s.cartRepo.GetByID(ctx, cartID)
+	if err != nil {
+		return nil, fmt.Errorf("cart not found: %w", err)
+	}
+
+	// Get cart items with product details
+	items, err := s.cartRepo.GetCartItems(ctx, cartID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cart items: %w", err)
+	}
+
+	// Validate each item's product is still active and in stock
+	var validItems []interfaces.CartItemWithProduct
+	for _, item := range items {
+		// Check if product is still active
+		product, err := s.productRepo.GetByID(ctx, item.ProductID)
+		if err != nil {
+			// Product not found - could log this as a warning but don't fail the request
+			continue
+		}
+
+		if !product.Active {
+			// Product is inactive - could log this as a warning but don't fail the request
+			continue
+		}
+
+		// Add item to valid items list
+		validItems = append(validItems, item)
+	}
+
+	return validItems, nil
 }
 
 // AddItem adds an item to the cart or updates quantity if item already exists
@@ -202,8 +242,8 @@ func (s *CartService) RemoveItemByProductID(ctx context.Context, cartID int32, p
 	return s.cartRepo.RemoveItemByProductID(ctx, cartID, productID)
 }
 
-// ClearCart removes all items from the cart
-func (s *CartService) ClearCart(ctx context.Context, cartID int32) error {
+// Clear removes all items from the cart
+func (s *CartService) Clear(ctx context.Context, cartID int32) error {
 	return s.cartRepo.Clear(ctx, cartID)
 }
 

@@ -6,15 +6,14 @@ import (
 	"strconv"
 
 	"github.com/dukerupert/freyja/internal/interfaces"
-	"github.com/dukerupert/freyja/internal/service"
 	"github.com/labstack/echo/v4"
 )
 
 type OrderHandler struct {
-	orderService *service.OrderService
+	orderService interfaces.OrderService
 }
 
-func NewOrderHandler(orderService *service.OrderService) *OrderHandler {
+func NewOrderHandler(orderService interfaces.OrderService) *OrderHandler {
 	return &OrderHandler{
 		orderService: orderService,
 	}
@@ -199,147 +198,6 @@ func (h *OrderHandler) GetAllOrders(c echo.Context) error {
 		"orders": apiOrders,
 		"total":  len(apiOrders),
 		"filters": filters,
-	})
-}
-
-// UpdateOrderStatus handles PUT /api/v1/admin/orders/:id/status
-func (h *OrderHandler) UpdateOrderStatus(c echo.Context) error {
-	ctx := c.Request().Context()
-
-	// Parse order ID
-	orderIDParam := c.Param("id")
-	orderID, err := strconv.Atoi(orderIDParam)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error": "Invalid order ID",
-			"code":  "INVALID_ORDER_ID",
-		})
-	}
-
-	// Parse request body
-	var req interfaces.UpdateOrderStatusRequest
-	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error": "Invalid request format",
-			"code":  "INVALID_REQUEST",
-		})
-	}
-
-	// Validate request
-	if err := interfaces.ValidateUpdateStatusRequest(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error": err.Error(),
-			"code":  "VALIDATION_ERROR",
-		})
-	}
-
-	// Update order status
-	if err := h.orderService.UpdateOrderStatus(ctx, int32(orderID), req); err != nil {
-		c.Logger().Errorf("Failed to update order %d status: %v", orderID, err)
-
-		switch {
-		case err.Error() == "order not found":
-			return c.JSON(http.StatusNotFound, map[string]interface{}{
-				"error": "Order not found",
-				"code":  "ORDER_NOT_FOUND",
-			})
-		case containsString(err.Error(), "transition"):
-			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": err.Error(),
-				"code":  "INVALID_TRANSITION",
-			})
-		default:
-			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-				"error": "Failed to update order status",
-				"code":  "INTERNAL_ERROR",
-			})
-		}
-	}
-
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"message": "Order status updated successfully",
-	})
-}
-
-// CancelOrder handles POST /api/v1/orders/:id/cancel
-func (h *OrderHandler) CancelOrder(c echo.Context) error {
-	ctx := c.Request().Context()
-
-	// Parse order ID
-	orderIDParam := c.Param("id")
-	orderID, err := strconv.Atoi(orderIDParam)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error": "Invalid order ID",
-			"code":  "INVALID_ORDER_ID",
-		})
-	}
-
-	// Check authentication
-	customerID := getCustomerIDFromContext(c)
-	if customerID == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
-			"error": "Authentication required",
-			"code":  "UNAUTHORIZED",
-		})
-	}
-
-	// Parse request body for cancellation reason
-	var req struct {
-		Reason string `json:"reason"`
-	}
-	if err := c.Bind(&req); err != nil {
-		// Reason is optional, so ignore bind errors
-		req.Reason = "Cancelled by customer"
-	}
-
-	// Cancel order
-	if err := h.orderService.CancelOrder(ctx, int32(orderID), req.Reason); err != nil {
-		c.Logger().Errorf("Failed to cancel order %d: %v", orderID, err)
-
-		switch {
-		case err.Error() == "order not found":
-			return c.JSON(http.StatusNotFound, map[string]interface{}{
-				"error": "Order not found",
-				"code":  "ORDER_NOT_FOUND",
-			})
-		case containsString(err.Error(), "cannot be cancelled"):
-			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": err.Error(),
-				"code":  "CANNOT_CANCEL",
-			})
-		default:
-			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-				"error": "Failed to cancel order",
-				"code":  "INTERNAL_ERROR",
-			})
-		}
-	}
-
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"message": "Order cancelled successfully",
-	})
-}
-
-// GetOrderStats handles GET /api/v1/admin/orders/stats
-func (h *OrderHandler) GetOrderStats(c echo.Context) error {
-	ctx := c.Request().Context()
-
-	// Parse optional filters
-	filters := interfaces.OrderFilters{}
-
-	// Get order statistics
-	stats, err := h.orderService.GetOrderStats(ctx, filters)
-	if err != nil {
-		c.Logger().Errorf("Failed to get order stats: %v", err)
-		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-			"error": "Failed to retrieve order statistics",
-			"code":  "INTERNAL_ERROR",
-		})
-	}
-
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"stats": stats,
 	})
 }
 

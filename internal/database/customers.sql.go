@@ -775,7 +775,7 @@ SET
   stripe_customer_id = $2,
   updated_at = NOW()
 WHERE id = $1
-RETURNING id, email, first_name, last_name, password_hash, stripe_customer_id, created_at, updated_at
+RETURNING id, email, first_name, last_name, password_hash, stripe_customer_id, created_at, updated_at, archived_at
 `
 
 type UpdateCustomerStripeIDParams struct {
@@ -783,20 +783,9 @@ type UpdateCustomerStripeIDParams struct {
 	StripeCustomerID pgtype.Text `db:"stripe_customer_id" json:"stripe_customer_id"`
 }
 
-type UpdateCustomerStripeIDRow struct {
-	ID               int32       `db:"id" json:"id"`
-	Email            string      `db:"email" json:"email"`
-	FirstName        pgtype.Text `db:"first_name" json:"first_name"`
-	LastName         pgtype.Text `db:"last_name" json:"last_name"`
-	PasswordHash     string      `db:"password_hash" json:"password_hash"`
-	StripeCustomerID pgtype.Text `db:"stripe_customer_id" json:"stripe_customer_id"`
-	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
-	UpdatedAt        time.Time   `db:"updated_at" json:"updated_at"`
-}
-
-func (q *Queries) UpdateCustomerStripeID(ctx context.Context, arg UpdateCustomerStripeIDParams) (UpdateCustomerStripeIDRow, error) {
+func (q *Queries) UpdateCustomerStripeID(ctx context.Context, arg UpdateCustomerStripeIDParams) (Customers, error) {
 	row := q.db.QueryRow(ctx, updateCustomerStripeID, arg.ID, arg.StripeCustomerID)
-	var i UpdateCustomerStripeIDRow
+	var i Customers
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
@@ -806,6 +795,7 @@ func (q *Queries) UpdateCustomerStripeID(ctx context.Context, arg UpdateCustomer
 		&i.StripeCustomerID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ArchivedAt,
 	)
 	return i, err
 }

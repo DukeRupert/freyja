@@ -3,7 +3,9 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+	"log"
 
 	"github.com/dukerupert/freyja/internal/interfaces"
 	"github.com/dukerupert/freyja/internal/provider"
@@ -87,6 +89,76 @@ func (s *CustomerService) CreateCustomer(ctx context.Context, req interfaces.Cre
 	}
 
 	return customer, nil
+}
+
+// UpdateStripeCustomerID updates the Stripe customer ID for a customer
+func (s *CustomerService) UpdateStripeID(ctx context.Context, customerID int32, stripeCustomerID string) error {
+	return s.repo.UpdateStripeID(ctx, customerID, stripeCustomerID)
+}
+
+// CreateCustomerFromStripe creates a customer record from a Stripe customer (for guest checkouts)
+func (s *CustomerService) CreateCustomerFromStripe(ctx context.Context, stripeCustomerID, email string) (*interfaces.Customer, error) {
+	// Validate email
+	if email == "" {
+		return nil, fmt.Errorf("Stripe customer missing email")
+	}
+
+	// Check if customer already exists with this email
+	existingCustomer, err := s.GetCustomerByEmail(ctx, email)
+	if err == nil && existingCustomer != nil {
+		// Customer exists, just link the Stripe ID
+		log.Printf("Customer with email %s already exists (ID: %d), linking Stripe ID %s", 
+			email, existingCustomer.ID, stripeCustomerID)
+		
+		if err := s.UpdateStripeID(ctx, existingCustomer.ID, stripeCustomerID); err != nil {
+			return nil, fmt.Errorf("failed to link existing customer to Stripe: %w", err)
+		}
+		
+		return existingCustomer, nil
+	}
+
+	// Create new customer for guest checkout
+	// Generate a placeholder password since they checked out as guest
+	placeholderPassword := generateGuestPassword() // You'll need to implement this
+	
+	req := interfaces.CreateCustomerRequest{
+		Email:     email,
+		PasswordHash:  placeholderPassword,
+		FirstName: "",
+		LastName:  "",
+	}
+
+	// Create the customer
+	customer, err := s.CreateCustomer(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create customer: %w", err)
+	}
+
+	// Update with Stripe customer ID
+	if err := s.UpdateStripeID(ctx, customer.ID, stripeCustomerID); err != nil {
+		log.Printf("Warning: Failed to link new customer %d to Stripe ID %s: %v", 
+			customer.ID, stripeCustomerID, err)
+	}
+
+	// Publish event for guest conversion
+	if err := s.publishCustomerEvent(ctx, interfaces.EventGuestCustomerCreated, customer.ID, map[string]interface{}{
+		"email":              customer.Email,
+		"stripe_customer_id": stripeCustomerID,
+		"converted_from":     "guest_checkout",
+	}); err != nil {
+		log.Printf("Warning: Failed to publish guest customer created event: %v", err)
+	}
+
+	return customer, nil
+}
+
+// Helper function to generate a secure placeholder password for guest accounts
+func generateGuestPassword() string {
+	// Generate a random password that the user doesn't know
+	// They'll need to use "forgot password" if they want to access the account
+	bytes := make([]byte, 32)
+	rand.Read(bytes)
+	return fmt.Sprintf("guest_%x", bytes)
 }
 
 // GetCustomerByID retrieves a customer by ID

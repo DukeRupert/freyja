@@ -6,15 +6,14 @@ import (
 	"strconv"
 
 	"github.com/dukerupert/freyja/internal/interfaces"
-	"github.com/dukerupert/freyja/internal/service"
 	"github.com/labstack/echo/v4"
 )
 
 type CartHandler struct {
-	cartService *service.CartService
+	cartService interfaces.CartService
 }
 
-func NewCartHandler(cartService *service.CartService) *CartHandler {
+func NewCartHandler(cartService interfaces.CartService) *CartHandler {
 	return &CartHandler{
 		cartService: cartService,
 	}
@@ -277,7 +276,7 @@ func (h *CartHandler) ClearCart(c echo.Context) error {
 	}
 
 	// Clear cart
-	err = h.cartService.ClearCart(ctx, cart.ID)
+	err = h.cartService.Clear(ctx, cart.ID)
 	if err != nil {
 		c.Logger().Errorf("Failed to clear cart %d: %v", cart.ID, err)
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
@@ -292,42 +291,42 @@ func (h *CartHandler) ClearCart(c echo.Context) error {
 }
 
 // GetCartSummary handles GET /api/v1/cart/summary
-func (h *CartHandler) GetCartSummary(c echo.Context) error {
-	ctx := c.Request().Context()
+// func (h *CartHandler) GetCartSummary(c echo.Context) error {
+// 	ctx := c.Request().Context()
 
-	// Get customer ID from authentication or session ID from header
-	customerID := h.getCustomerIDFromContext(c)
-	sessionID := h.getSessionIDFromHeader(c)
+// 	// Get customer ID from authentication or session ID from header
+// 	customerID := h.getCustomerIDFromContext(c)
+// 	sessionID := h.getSessionIDFromHeader(c)
 
-	if customerID == nil && sessionID == nil {
-		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error": "Authentication required or session ID must be provided",
-			"code":  "MISSING_AUTH_OR_SESSION",
-		})
-	}
+// 	if customerID == nil && sessionID == nil {
+// 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+// 			"error": "Authentication required or session ID must be provided",
+// 			"code":  "MISSING_AUTH_OR_SESSION",
+// 		})
+// 	}
 
-	// Get cart
-	cart, err := h.cartService.GetOrCreateCart(ctx, customerID, sessionID)
-	if err != nil {
-		c.Logger().Errorf("Failed to get cart: %v", err)
-		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-			"error": "Failed to retrieve cart",
-			"code":  "INTERNAL_ERROR",
-		})
-	}
+// 	// Get cart
+// 	cart, err := h.cartService.GetOrCreateCart(ctx, customerID, sessionID)
+// 	if err != nil {
+// 		c.Logger().Errorf("Failed to get cart: %v", err)
+// 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+// 			"error": "Failed to retrieve cart",
+// 			"code":  "INTERNAL_ERROR",
+// 		})
+// 	}
 
-	// Get cart summary
-	summary, err := h.cartService.GetCartSummary(ctx, cart.ID)
-	if err != nil {
-		c.Logger().Errorf("Failed to get cart summary: %v", err)
-		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-			"error": "Failed to retrieve cart summary",
-			"code":  "INTERNAL_ERROR",
-		})
-	}
+// 	// Get cart summary
+// 	summary, err := h.cartService.GetCartSummary(ctx, cart.ID)
+// 	if err != nil {
+// 		c.Logger().Errorf("Failed to get cart summary: %v", err)
+// 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+// 			"error": "Failed to retrieve cart summary",
+// 			"code":  "INTERNAL_ERROR",
+// 		})
+// 	}
 
-	return c.JSON(http.StatusOK, summary)
-}
+// 	return c.JSON(http.StatusOK, summary)
+// }
 
 // Helper methods
 

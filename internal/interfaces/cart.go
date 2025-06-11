@@ -66,32 +66,32 @@ type CartRepository interface {
 
 type CartService interface {
 	// Cart operations
-	GetByID(ctx context.Context, id int32) (*Cart, error)
-	GetByCustomerID(ctx context.Context, customerID int32) (*Cart, error)
-	GetBySessionID(ctx context.Context, sessionID string) (*Cart, error)
-	Create(ctx context.Context, customerID *int32, sessionID *string) (*Cart, error)
+	// GetByID(ctx context.Context, id int32) (*Cart, error)
+	// GetByCustomerID(ctx context.Context, customerID int32) (*Cart, error)
+	// GetBySessionID(ctx context.Context, sessionID string) (*Cart, error)
+	// Create(ctx context.Context, customerID *int32, sessionID *string) (*Cart, error)
 	GetOrCreateCart(ctx context.Context, customerID *int32, sessionID *string) (*CartWithItems, error)
-	UpdateTimestamp(ctx context.Context, cartID int32) (*Cart, error)
-	Delete(ctx context.Context, id int32) error
+	// UpdateTimestamp(ctx context.Context, cartID int32) (*Cart, error)
+	// Delete(ctx context.Context, id int32) error
 	Clear(ctx context.Context, cartID int32) error
 	
 	// Cart item operations
 	GetCartItems(ctx context.Context, cartID int32) ([]CartItemWithProduct, error)
-	GetCartItem(ctx context.Context, itemID int32) (*CartItem, error)
-	GetCartItemByProductID(ctx context.Context, cartID int32, productID int32) (*CartItem, error)
-	GetCartItemsByProduct(ctx context.Context, cartID int32, productID int32) ([]CartItem, error)
-	GetCartItemByProductAndType(ctx context.Context, cartID int32, productID int32, purchaseType string, subscriptionInterval *string) (*CartItem, error)
-	AddItem(ctx context.Context, cartID int32, productID int32, quantity int32, price int32, purchaseType string, subscriptionInterval *string, stripePriceID string) (*CartItem, error)
-	UpdateItem(ctx context.Context, itemID int32, quantity int32, price int32, stripePriceID string) (*CartItem, error)
+	// GetCartItem(ctx context.Context, itemID int32) (*CartItem, error)
+	// GetCartItemByProductID(ctx context.Context, cartID int32, productID int32) (*CartItem, error)
+	// GetCartItemsByProduct(ctx context.Context, cartID int32, productID int32) ([]CartItem, error)
+	// GetCartItemByProductAndType(ctx context.Context, cartID int32, productID int32, purchaseType string, subscriptionInterval *string) (*CartItem, error)
+	AddItem(ctx context.Context, cartID int32, productID int32, quantity int32, purchaseType string, subscriptionInterval *string) (*CartItem, error)
+	// UpdateItem(ctx context.Context, itemID int32, quantity int32, price int32, stripePriceID string) (*CartItem, error)
 	UpdateItemQuantity(ctx context.Context, itemID int32, quantity int32) (*CartItem, error)
 	RemoveItem(ctx context.Context, itemID int32) error
 	RemoveItemByProductID(ctx context.Context, cartID int32, productID int32) error
 
 	// Cart totals and calculations
-	GetCartTotal(ctx context.Context, cartID int32) (int32, error)
-	GetCartItemCount(ctx context.Context, cartID int32) (int32, error)
+	// GetCartTotal(ctx context.Context, cartID int32) (int32, error)
+	// GetCartItemCount(ctx context.Context, cartID int32) (int32, error)
 	
 	// Business logic methods
-	ConvertGuestCart(ctx context.Context, sessionID string, customerID int32) error
+	// ConvertGuestCart(ctx context.Context, sessionID string, customerID int32) error
 	ValidateCartForCheckout(ctx context.Context, cartID int32) (*CartWithItems, error)
 }

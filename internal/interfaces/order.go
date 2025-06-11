@@ -15,28 +15,20 @@ type OrderItem = database.OrderItems
 type OrderRepository interface {
 	// Basic CRUD operations
 	GetByID(ctx context.Context, id int32) (*Order, error)
-	GetWithItems(ctx context.Context, id int32) (*OrderWithItems, error)
 	Create(ctx context.Context, order *Order) error
-	Update(ctx context.Context, order *Order) error
-	UpdateStatus(ctx context.Context, id int32, status database.OrderStatus) error
-	Delete(ctx context.Context, id int32) error
+	UpdateStatus(ctx context.Context, id int32, status string) error
 	
 	// Query operations
 	GetByCustomerID(ctx context.Context, customerID int32, filters OrderFilters) ([]Order, error)
 	GetAll(ctx context.Context, filters OrderFilters) ([]Order, error)
-	GetByStripeSessionID(ctx context.Context, sessionID string) (*Order, error)
-	GetByStripePaymentIntentID(ctx context.Context, paymentIntentID string) (*Order, error)
 	
 	// Order items operations
-	GetOrderItems(ctx context.Context, orderID int32) ([]OrderItem, error)
 	CreateOrderItems(ctx context.Context, orderID int32, items []OrderItem) error
+	GetWithItems(ctx context.Context, id int32) (*OrderWithItems, error)
 	UpdateStripeChargeID(ctx context.Context, orderID int32, chargeID string) error
 	
 	// Statistics and reporting
-	GetOrderCount(ctx context.Context, filters OrderFilters) (int64, error)
 	GetOrderCountByStatus(ctx context.Context) (map[string]int64, error)
-	GetTotalRevenue(ctx context.Context, filters OrderFilters) (int64, error)
-	GetOrdersByDateRange(ctx context.Context, from, to time.Time) ([]Order, error)
 }
 
 type OrderWithItems struct {
@@ -91,17 +83,17 @@ type OrderService interface {
 	GetAll(ctx context.Context, filters OrderFilters) ([]OrderWithItems, error)
 	
 	// Order management
-	UpdateOrderStatus(ctx context.Context, orderID int32, req UpdateOrderStatusRequest) error
+	// UpdateOrderStatus(ctx context.Context, orderID int32, req UpdateOrderStatusRequest) error
 	UpdateStripeChargeID(ctx context.Context, orderID int32, chargeID string) error
-	CancelOrder(ctx context.Context, orderID int32, reason string) error
-	RefundOrder(ctx context.Context, orderID int32, amount *int32, reason string) error
+	// CancelOrder(ctx context.Context, orderID int32, reason string) error
+	// RefundOrder(ctx context.Context, orderID int32, amount *int32, reason string) error
 	
 	// Order validation
 	ValidateOrderForPayment(ctx context.Context, orderID int32) error
 	ValidateOrderForShipping(ctx context.Context, orderID int32) error
 	
 	// Order statistics
-	GetOrderStats(ctx context.Context, filters OrderFilters) (*OrderStats, error)
+	// GetOrderStats(ctx context.Context, filters OrderFilters) (*OrderStats, error)
 }
 
 // =============================================================================

@@ -30,6 +30,7 @@ type Querier interface {
 	DeleteCustomer(ctx context.Context, id int32) error
 	DeleteProduct(ctx context.Context, id int32) error
 	GetAllOrders(ctx context.Context, arg GetAllOrdersParams) ([]GetAllOrdersRow, error)
+	GetAllOrdersWithFilters(ctx context.Context, arg GetAllOrdersWithFiltersParams) ([]Orders, error)
 	GetArchivedCustomers(ctx context.Context, arg GetArchivedCustomersParams) ([]Customers, error)
 	// internal/database/queries/carts.sql
 	GetCart(ctx context.Context, id int32) (Carts, error)
@@ -66,6 +67,7 @@ type Querier interface {
 	GetOrderItemsByPurchaseType(ctx context.Context, arg GetOrderItemsByPurchaseTypeParams) ([]GetOrderItemsByPurchaseTypeRow, error)
 	GetOrderStats(ctx context.Context) (GetOrderStatsRow, error)
 	GetOrdersByCustomerID(ctx context.Context, arg GetOrdersByCustomerIDParams) ([]Orders, error)
+	GetOrdersByCustomerIDWithFilters(ctx context.Context, arg GetOrdersByCustomerIDWithFiltersParams) ([]Orders, error)
 	GetOrdersByStatus(ctx context.Context, arg GetOrdersByStatusParams) ([]Orders, error)
 	// internal/database/queries/products.sql
 	GetProduct(ctx context.Context, id int32) (Products, error)
@@ -92,7 +94,7 @@ type Querier interface {
 	UpdateCartTimestamp(ctx context.Context, id int32) (Carts, error)
 	UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (UpdateCustomerRow, error)
 	UpdateCustomerPassword(ctx context.Context, arg UpdateCustomerPasswordParams) (UpdateCustomerPasswordRow, error)
-	UpdateCustomerStripeID(ctx context.Context, arg UpdateCustomerStripeIDParams) (UpdateCustomerStripeIDRow, error)
+	UpdateCustomerStripeID(ctx context.Context, arg UpdateCustomerStripeIDParams) (Customers, error)
 	UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) (UpdateOrderStatusRow, error)
 	UpdateProduct(ctx context.Context, arg UpdateProductParams) (Products, error)
 	UpdateProductPrice(ctx context.Context, arg UpdateProductPriceParams) (Products, error)

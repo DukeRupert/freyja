@@ -33,17 +33,19 @@ type CustomerRepository interface {
 }
 
 type CustomerService interface {
-	// Customer management - Fixed to use int32 consistently
+	// Customer management
 	CreateCustomer(ctx context.Context, req CreateCustomerRequest) (*Customer, error)
 	GetCustomerByID(ctx context.Context, customerID int32) (*Customer, error)
 	GetCustomerByEmail(ctx context.Context, email string) (*Customer, error)
 	GetCustomerByStripeID(ctx context.Context, stripeCustomerID string) (*Customer, error)
 	UpdateCustomer(ctx context.Context, customerID int32, req UpdateCustomerRequest) (*Customer, error)
+	UpdateStripeID(ctx context.Context, customerID int32, stripeCustomerID string) error
 	DeleteCustomer(ctx context.Context, customerID int32) error
 
-	// Stripe integration - Fixed to use int32
+	// Stripe integration
 	EnsureStripeCustomer(ctx context.Context, customerID int32) (string, error)
 	UpdateCustomerInStripe(ctx context.Context, customerID int32) error
+	CreateCustomerFromStripe(ctx context.Context, stripeCustomerID, email string) (*Customer, error)
 
 	// Customer queries and analytics
 	GetCustomerCount(ctx context.Context) (int64, error)

@@ -5,15 +5,15 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/dukerupert/freyja/internal/service"
+	"github.com/dukerupert/freyja/internal/interfaces"
 	"github.com/labstack/echo/v4"
 )
 
 type CheckoutHandler struct {
-	checkoutService *service.CheckoutService
+	checkoutService interfaces.CheckoutService
 }
 
-func NewCheckoutHandler(checkoutService *service.CheckoutService) *CheckoutHandler {
+func NewCheckoutHandler(checkoutService interfaces.CheckoutService) *CheckoutHandler {
 	return &CheckoutHandler{
 		checkoutService: checkoutService,
 	}

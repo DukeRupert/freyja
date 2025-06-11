@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/dukerupert/freyja/internal/database"
@@ -22,7 +23,7 @@ func NewOrderService(
 	orderRepo interfaces.OrderRepository,
 	cartService interfaces.CartService,
 	events interfaces.EventPublisher,
-) *OrderService {
+) interfaces.OrderService {
 	return &OrderService{
 		orderRepo:   orderRepo,
 		cartService: cartService,
@@ -257,65 +258,189 @@ func (s *OrderService) CreateOrder(ctx context.Context, req interfaces.CreateOrd
 // Order Retrieval
 // =============================================================================
 
+// GetByID retrieves an order with all its items by order ID
 func (s *OrderService) GetByID(ctx context.Context, orderID int32) (*interfaces.OrderWithItems, error) {
 	if orderID <= 0 {
 		return nil, fmt.Errorf("invalid order ID: %d", orderID)
 	}
 
-	order, err := s.orderRepo.GetWithItems(ctx, orderID)
+	// Use the repository's GetWithItems method to get order with items
+	orderWithItems, err := s.orderRepo.GetWithItems(ctx, orderID)
 	if err != nil {
+		// Check if it's a "not found" error and provide appropriate message
+		if strings.Contains(err.Error(), "not found") {
+			return nil, fmt.Errorf("order not found")
+		}
 		return nil, fmt.Errorf("failed to get order %d: %w", orderID, err)
 	}
 
-	return order, nil
+	// Publish order accessed event for analytics (optional)
+	if err := s.publishOrderEvent(ctx, "order.accessed", orderID, map[string]interface{}{
+		"order_id":     orderID,
+		"customer_id":  orderWithItems.CustomerID,
+		"item_count":   len(orderWithItems.Items),
+		"total_amount": orderWithItems.Total,
+		"accessed_at":  time.Now(),
+	}); err != nil {
+		// Log error but don't fail the request
+		fmt.Printf("Failed to publish order access event: %v\n", err)
+	}
+
+	return orderWithItems, nil
 }
 
+// GetByCustomer retrieves all orders for a specific customer with items and filtering
 func (s *OrderService) GetByCustomer(ctx context.Context, customerID int32, filters interfaces.OrderFilters) ([]interfaces.OrderWithItems, error) {
 	if customerID <= 0 {
 		return nil, fmt.Errorf("invalid customer ID: %d", customerID)
 	}
 
-	// Set customer ID in filters
+	// Ensure customer ID is set in filters
 	filters.CustomerID = &customerID
 
-	// Get orders from repository
+	// Set default pagination if not provided
+	if filters.Limit == 0 {
+		filters.Limit = 50 // Default limit
+	}
+	if filters.Limit > 100 {
+		filters.Limit = 100 // Max limit
+	}
+
+	// Get orders from repository (this returns basic order info)
 	orders, err := s.orderRepo.GetByCustomerID(ctx, customerID, filters)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get orders for customer %d: %w", customerID, err)
 	}
 
-	// Convert to OrderWithItems (for MVP, we'll get items separately if needed)
+	// If no orders found, return empty slice
+	if len(orders) == 0 {
+		return []interfaces.OrderWithItems{}, nil
+	}
+
+	// Convert to OrderWithItems by getting items for each order
 	var ordersWithItems []interfaces.OrderWithItems
 	for _, order := range orders {
 		orderWithItems, err := s.orderRepo.GetWithItems(ctx, order.ID)
 		if err != nil {
-			// Log error but continue with other orders
+			// Log error but continue with other orders to provide partial results
 			fmt.Printf("Failed to get items for order %d: %v\n", order.ID, err)
+
+			// Create OrderWithItems with empty items slice as fallback
+			var stripeSessionID *string
+			if order.StripeSessionID.Valid {
+				stripeSessionID = &order.StripeSessionID.String
+			}
+
+			var stripePaymentIntentID *string
+			if order.StripePaymentIntentID.Valid {
+				stripePaymentIntentID = &order.StripePaymentIntentID.String
+			}
+
+			// Create OrderWithItems with empty items slice as fallback
+			fallbackOrder := &interfaces.OrderWithItems{
+				ID:                    order.ID,
+				CustomerID:            order.CustomerID,
+				Status:                string(order.Status),
+				Total:                 order.Total,
+				StripeSessionID:       stripeSessionID,
+				StripePaymentIntentID: stripePaymentIntentID,
+				Items:                 []interfaces.OrderItem{}, // Empty items
+				CreatedAt:             order.CreatedAt,
+				UpdatedAt:             order.UpdatedAt,
+			}
+			ordersWithItems = append(ordersWithItems, *fallbackOrder)
 			continue
 		}
 		ordersWithItems = append(ordersWithItems, *orderWithItems)
+	}
+
+	// Publish customer order accessed event for analytics
+	if err := s.publishOrderEvent(ctx, "customer.orders_accessed", customerID, map[string]interface{}{
+		"customer_id": customerID,
+		"order_count": len(ordersWithItems),
+		"filters":     filters,
+		"accessed_at": time.Now(),
+	}); err != nil {
+		// Log error but don't fail the request
+		fmt.Printf("Failed to publish order access event: %v\n", err)
 	}
 
 	return ordersWithItems, nil
 }
 
+// GetAll retrieves all orders with items based on filters
 func (s *OrderService) GetAll(ctx context.Context, filters interfaces.OrderFilters) ([]interfaces.OrderWithItems, error) {
-	// Get orders from repository
+	// Set default pagination if not provided
+	if filters.Limit == 0 {
+		filters.Limit = 50 // Default limit
+	}
+	if filters.Limit > 100 {
+		filters.Limit = 100 // Max limit to prevent performance issues
+	}
+	if filters.Offset < 0 {
+		filters.Offset = 0
+	}
+
+	// Get orders from repository (this returns basic order info)
 	orders, err := s.orderRepo.GetAll(ctx, filters)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get orders: %w", err)
 	}
 
-	// Convert to OrderWithItems
+	// If no orders found, return empty slice
+	if len(orders) == 0 {
+		return []interfaces.OrderWithItems{}, nil
+	}
+
+	// Convert to OrderWithItems by getting items for each order
 	var ordersWithItems []interfaces.OrderWithItems
+	var failedOrderIDs []int32
+
 	for _, order := range orders {
 		orderWithItems, err := s.orderRepo.GetWithItems(ctx, order.ID)
 		if err != nil {
-			// Log error but continue with other orders
+			// Log error but continue with other orders to provide partial results
 			fmt.Printf("Failed to get items for order %d: %v\n", order.ID, err)
+			failedOrderIDs = append(failedOrderIDs, order.ID)
+
+			// Create OrderWithItems with empty items slice as fallback
+			var stripeSessionID *string
+			if order.StripeSessionID.Valid {
+				stripeSessionID = &order.StripeSessionID.String
+			}
+
+			var stripePaymentIntentID *string
+			if order.StripePaymentIntentID.Valid {
+				stripePaymentIntentID = &order.StripePaymentIntentID.String
+			}
+
+			fallbackOrder := &interfaces.OrderWithItems{
+				ID:                    order.ID,
+				CustomerID:            order.CustomerID,
+				Status:                string(order.Status),
+				Total:                 order.Total,
+				StripeSessionID:       stripeSessionID,
+				StripePaymentIntentID: stripePaymentIntentID,
+				Items:                 []interfaces.OrderItem{}, // Empty items
+				CreatedAt:             order.CreatedAt,
+				UpdatedAt:             order.UpdatedAt,
+			}
+			ordersWithItems = append(ordersWithItems, *fallbackOrder)
 			continue
 		}
 		ordersWithItems = append(ordersWithItems, *orderWithItems)
+	}
+
+	// Publish analytics event for admin access patterns
+	if err := s.publishOrderEvent(ctx, "orders.bulk_accessed", 0, map[string]interface{}{
+		"total_orders":    len(ordersWithItems),
+		"failed_orders":   len(failedOrderIDs),
+		"failed_order_ids": failedOrderIDs,
+		"filters":         filters,
+		"accessed_at":     time.Now(),
+	}); err != nil {
+		// Log error but don't fail the request
+		fmt.Printf("Failed to publish bulk order access event: %v\n", err)
 	}
 
 	return ordersWithItems, nil
@@ -325,105 +450,6 @@ func (s *OrderService) GetAll(ctx context.Context, filters interfaces.OrderFilte
 // Order Management
 // =============================================================================
 
-func (s *OrderService) UpdateOrderStatus(ctx context.Context, orderID int32, req interfaces.UpdateOrderStatusRequest) error {
-	if orderID <= 0 {
-		return fmt.Errorf("invalid order ID: %d", orderID)
-	}
-
-	// Validate request
-	if err := interfaces.ValidateUpdateStatusRequest(req); err != nil {
-		return fmt.Errorf("invalid request: %w", err)
-	}
-
-	// Get current order to check status transition
-	currentOrder, err := s.orderRepo.GetByID(ctx, orderID)
-	if err != nil {
-		return fmt.Errorf("failed to get current order: %w", err)
-	}
-
-	newStatus := database.OrderStatus(req.Status)
-
-	// Validate status transition
-	if !interfaces.CanTransitionTo(currentOrder.Status, newStatus) {
-		return fmt.Errorf("cannot transition from %s to %s", currentOrder.Status, newStatus)
-	}
-
-	// Update order status
-	if err := s.orderRepo.UpdateStatus(ctx, orderID, newStatus); err != nil {
-		return fmt.Errorf("failed to update order status: %w", err)
-	}
-
-	// Publish status change event
-	eventData := map[string]interface{}{
-		"old_status": string(currentOrder.Status),
-		"new_status": req.Status,
-		"order_id":   orderID,
-	}
-
-	if req.TrackingNumber != nil {
-		eventData["tracking_number"] = *req.TrackingNumber
-	}
-
-	if req.Notes != nil {
-		eventData["notes"] = *req.Notes
-	}
-
-	// Determine event type based on new status
-	var eventType string
-	switch newStatus {
-	case database.OrderStatusShipped:
-		eventType = interfaces.EventOrderShipped
-	case database.OrderStatusDelivered:
-		eventType = interfaces.EventOrderDelivered
-	case database.OrderStatusCancelled:
-		eventType = interfaces.EventOrderCancelled
-	default:
-		eventType = "order.status_updated"
-	}
-
-	if err := s.publishOrderEvent(ctx, eventType, orderID, eventData); err != nil {
-		fmt.Printf("Failed to publish order status event: %v\n", err)
-	}
-
-	return nil
-}
-
-func (s *OrderService) CancelOrder(ctx context.Context, orderID int32, reason string) error {
-	if orderID <= 0 {
-		return fmt.Errorf("invalid order ID: %d", orderID)
-	}
-
-	// Get current order
-	currentOrder, err := s.orderRepo.GetByID(ctx, orderID)
-	if err != nil {
-		return fmt.Errorf("failed to get order: %w", err)
-	}
-
-	// Check if order can be cancelled
-	if !interfaces.CanTransitionTo(currentOrder.Status, database.OrderStatusCancelled) {
-		return fmt.Errorf("order with status %s cannot be cancelled", currentOrder.Status)
-	}
-
-	// Update to cancelled status
-	if err := s.orderRepo.UpdateStatus(ctx, orderID, database.OrderStatusCancelled); err != nil {
-		return fmt.Errorf("failed to cancel order: %w", err)
-	}
-
-	// Publish cancellation event
-	if err := s.publishOrderEvent(ctx, interfaces.EventOrderCancelled, orderID, map[string]interface{}{
-		"reason":     reason,
-		"old_status": string(currentOrder.Status),
-	}); err != nil {
-		fmt.Printf("Failed to publish order cancelled event: %v\n", err)
-	}
-
-	return nil
-}
-
-func (s *OrderService) RefundOrder(ctx context.Context, orderID int32, amount *int32, reason string) error {
-	// For MVP, this is a placeholder - full refund logic would integrate with payment provider
-	return fmt.Errorf("refund functionality not implemented in MVP")
-}
 
 // =============================================================================
 // Order Validation
@@ -466,41 +492,6 @@ func (s *OrderService) ValidateOrderForShipping(ctx context.Context, orderID int
 // =============================================================================
 // Order Statistics
 // =============================================================================
-
-func (s *OrderService) GetOrderStats(ctx context.Context, filters interfaces.OrderFilters) (*interfaces.OrderStats, error) {
-	// Get basic counts and revenue
-	totalOrders, err := s.orderRepo.GetOrderCount(ctx, filters)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get order count: %w", err)
-	}
-
-	totalRevenue, err := s.orderRepo.GetTotalRevenue(ctx, filters)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get total revenue: %w", err)
-	}
-
-	// Calculate average order value
-	var averageOrder float64
-	if totalOrders > 0 {
-		averageOrder = float64(totalRevenue) / float64(totalOrders)
-	}
-
-	// Get order counts by status (if repository supports it)
-	var ordersByStatus map[string]int64
-	if repo, ok := s.orderRepo.(interfaces.OrderRepository); ok {
-		if statusCounts, err := repo.GetOrderCountByStatus(ctx); err == nil {
-			ordersByStatus = statusCounts
-		}
-	}
-
-	return &interfaces.OrderStats{
-		TotalOrders:    totalOrders,
-		TotalRevenue:   totalRevenue,
-		AverageOrder:   averageOrder,
-		OrdersByStatus: ordersByStatus,
-		// RevenueByDay can be implemented later with date range queries
-	}, nil
-}
 
 // =============================================================================
 // Helper Methods

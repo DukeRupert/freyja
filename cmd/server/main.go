@@ -15,22 +15,22 @@ import (
 	"github.com/dukerupert/freyja/internal/service"
 	"github.com/dukerupert/freyja/internal/subscriber"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/go-playground/validator/v10"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type CustomValidator struct {
-    validator *validator.Validate
+	validator *validator.Validate
 }
 
 func (cv *CustomValidator) Validate(i interface{}) error {
-    if err := cv.validator.Struct(i); err != nil {
-        // Return validation error in the format Echo expects
-        return echo.NewHTTPError(http.StatusBadRequest, err.Error())
-    }
-    return nil
+	if err := cv.validator.Struct(i); err != nil {
+		// Return validation error in the format Echo expects
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	return nil
 }
 
 func main() {
@@ -70,15 +70,15 @@ func main() {
 	// Initialize repositories
 	productRepo := repository.NewPostgresProductRepository(db)
 	cartRepo := repository.NewPostgresCartRepository(db)
-	orderRepo := repository.NewPostgresOrderRepository(db)
+	orderRepo := repository.NewOrderRepository(db)
 	customerRepo := repository.NewPostgresCustomerRepository(db)
 
 	// Initialize services
 	productService := service.NewProductService(productRepo, eventPublisher)
 	cartService := service.NewCartService(cartRepo, productRepo)
 	orderService := service.NewOrderService(orderRepo, cartService, eventPublisher)
-	checkoutService := service.NewCheckoutService(cartService, orderService, stripeProvider, eventPublisher)
 	customerService := service.NewCustomerService(customerRepo, stripeProvider, eventPublisher)
+	checkoutService := service.NewCheckoutService(customerService, cartService, orderService, stripeProvider, eventPublisher)
 	adminService := service.NewAdminService(customerService, productService, eventPublisher)
 
 	// Initialize handlers
@@ -161,9 +161,9 @@ func main() {
 	// Cart routes
 	cart := api.Group("/cart")
 	{
-		cart.GET("", cartHandler.GetCart)                 // GET /api/v1/cart
-		cart.DELETE("", cartHandler.ClearCart)            // DELETE /api/v1/cart
-		cart.GET("/summary", cartHandler.GetCartSummary)  // GET /api/v1/cart/summary
+		cart.GET("", cartHandler.GetCart)      // GET /api/v1/cart
+		cart.DELETE("", cartHandler.ClearCart) // DELETE /api/v1/cart
+		// cart.GET("/summary", cartHandler.GetCartSummary)  // GET /api/v1/cart/summary
 		cart.POST("/items", cartHandler.AddItem)          // POST /api/v1/cart/items
 		cart.PUT("/items/:id", cartHandler.UpdateItem)    // PUT /api/v1/cart/items/:id
 		cart.DELETE("/items/:id", cartHandler.RemoveItem) // DELETE /api/v1/cart/items/:id
@@ -177,9 +177,9 @@ func main() {
 	// Customer routes
 	orders := api.Group("/orders")
 	{
-		orders.GET("", orderHandler.GetOrders)               // Customer order history
-		orders.GET("/:id", orderHandler.GetOrder)            // Order details
-		orders.POST("/:id/cancel", orderHandler.CancelOrder) // Cancel order
+		orders.GET("", orderHandler.GetOrders)    // Customer order history
+		orders.GET("/:id", orderHandler.GetOrder) // Order details
+		// orders.POST("/:id/cancel", orderHandler.CancelOrder) // Cancel order
 	}
 
 	customers := api.Group("/customers")
@@ -202,9 +202,9 @@ func main() {
 	// Admin routes
 	admin := api.Group("/admin")
 	{
-		admin.GET("/orders", orderHandler.GetAllOrders)                 // All orders
-		admin.PUT("/orders/:id/status", orderHandler.UpdateOrderStatus) // Update status
-		admin.GET("/orders/stats", orderHandler.GetOrderStats)          // Analytics
+		admin.GET("/orders", orderHandler.GetAllOrders) // All orders
+		// admin.PUT("/orders/:id/status", orderHandler.UpdateOrderStatus) // Update status
+		// admin.GET("/orders/stats", orderHandler.GetOrderStats)          // Analytics
 
 		admin.POST("/products", productHandler.CreateProduct)    // Create product
 		admin.PUT("/products/:id", productHandler.UpdateProduct) // Update product

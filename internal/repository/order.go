@@ -11,18 +11,18 @@ import (
 )
 
 type OrderRepository struct {
-	queries *database.Queries
+	db *database.DB
 }
 
-func NewOrderRepository(queries *database.Queries) *OrderRepository {
+func NewOrderRepository(db *database.DB) interfaces.OrderRepository {
 	return &OrderRepository{
-		queries: queries,
+		db: db,
 	}
 }
 
 // Create creates a new order
 func (r *OrderRepository) Create(ctx context.Context, order *interfaces.Order) error {
-	created, err := r.queries.CreateOrder(ctx, database.CreateOrderParams{
+	created, err := r.db.Queries.CreateOrder(ctx, database.CreateOrderParams{
 		CustomerID:            order.CustomerID,
 		Status:                order.Status,
 		Total:                 order.Total,
@@ -44,7 +44,7 @@ func (r *OrderRepository) Create(ctx context.Context, order *interfaces.Order) e
 
 // GetByID retrieves an order by ID
 func (r *OrderRepository) GetByID(ctx context.Context, id int32) (*interfaces.Order, error) {
-	dbOrder, err := r.queries.GetOrder(ctx, id)
+	dbOrder, err := r.db.Queries.GetOrder(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get order: %w", err)
 	}
@@ -52,22 +52,135 @@ func (r *OrderRepository) GetByID(ctx context.Context, id int32) (*interfaces.Or
 	return r.convertToOrder(dbOrder), nil
 }
 
-// GetByCustomerID retrieves orders for a customer
-func (r *OrderRepository) GetByCustomerID(ctx context.Context, customerID int32, limit, offset int) ([]interfaces.Order, error) {
-	dbOrders, err := r.queries.GetOrdersByCustomerID(ctx, database.GetOrdersByCustomerIDParams{
-		CustomerID: customerID,
-		Limit:      int32(limit),
-		Offset:     int32(offset),
+// GetByCustomerID retrieves orders for a customer with comprehensive filtering using SQLC
+func (r *OrderRepository) GetByCustomerID(ctx context.Context, customerID int32, filters interfaces.OrderFilters) ([]interfaces.Order, error) {
+	// Set default pagination
+	limit := int32(filters.Limit)
+	if limit <= 0 {
+		limit = 50 // Default limit
+	}
+	if limit > 100 {
+		limit = 100 // Max limit
+	}
+	
+	offset := int32(filters.Offset)
+	if offset < 0 {
+		offset = 0
+	}
+	
+	// Prepare status parameter - use empty string for NULL check in SQL
+	status := ""
+	if filters.Status != nil && *filters.Status != "" {
+		status = *filters.Status
+	}
+	
+	// Prepare date parameters using pgtype.Timestamptz
+	var dateFrom pgtype.Timestamptz
+	if filters.DateFrom != nil {
+		dateFrom = pgtype.Timestamptz{
+			Time:  *filters.DateFrom,
+			Valid: true,
+		}
+	}
+	// If filters.DateFrom is nil, dateFrom.Valid remains false (equivalent to NULL)
+	
+	var dateTo pgtype.Timestamptz
+	if filters.DateTo != nil {
+		dateTo = pgtype.Timestamptz{
+			Time:  *filters.DateTo,
+			Valid: true,
+		}
+	}
+	// If filters.DateTo is nil, dateTo.Valid remains false (equivalent to NULL)
+	
+	// Call the generated SQLC method
+	dbOrders, err := r.db.Queries.GetOrdersByCustomerIDWithFilters(ctx, database.GetOrdersByCustomerIDWithFiltersParams{
+		CustomerID:  customerID,
+		Status:      status,
+		DateFrom:    dateFrom,
+		DateTo:      dateTo,
+		LimitCount:  limit,
+		OffsetCount: offset,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get orders by customer ID: %w", err)
+		return nil, fmt.Errorf("failed to get orders by customer ID with filters: %w", err)
 	}
-
+	
+	// Convert database orders to interface orders
 	orders := make([]interfaces.Order, len(dbOrders))
 	for i, dbOrder := range dbOrders {
 		orders[i] = *r.convertToOrder(dbOrder)
 	}
+	
+	return orders, nil
+}
 
+// GetAll retrieves all orders with comprehensive filtering using generated SQLC interface
+func (r *OrderRepository) GetAll(ctx context.Context, filters interfaces.OrderFilters) ([]interfaces.Order, error) {
+	// Set default pagination
+	limit := int32(filters.Limit)
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	
+	offset := int32(filters.Offset)
+	if offset < 0 {
+		offset = 0
+	}
+	
+	// Prepare customer ID - use 0 for "no filter" since SQLC generated it as int32
+	customerID := int32(0)
+	if filters.CustomerID != nil {
+		customerID = *filters.CustomerID
+	}
+	
+	// Prepare status parameter - use empty string for "no filter"
+	status := ""
+	if filters.Status != nil && *filters.Status != "" {
+		status = *filters.Status
+	}
+	
+	// Prepare date parameters using pgtype.Timestamptz
+	var dateFrom pgtype.Timestamptz
+	if filters.DateFrom != nil {
+		dateFrom = pgtype.Timestamptz{
+			Time:  *filters.DateFrom,
+			Valid: true,
+		}
+	}
+	// If filters.DateFrom is nil, dateFrom.Valid remains false (equivalent to NULL)
+	
+	var dateTo pgtype.Timestamptz
+	if filters.DateTo != nil {
+		dateTo = pgtype.Timestamptz{
+			Time:  *filters.DateTo,
+			Valid: true,
+		}
+	}
+	// If filters.DateTo is nil, dateTo.Valid remains false (equivalent to NULL)
+	
+	// Call the generated SQLC method
+	dbOrders, err := r.db.Queries.GetAllOrdersWithFilters(ctx, database.GetAllOrdersWithFiltersParams{
+		CustomerID:  customerID,
+		Status:      status,
+		DateFrom:    dateFrom,
+		DateTo:      dateTo,
+		LimitCount:  limit,
+		OffsetCount: offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get orders with filters: %w", err)
+	}
+	
+	// Convert database orders to interface orders
+	orders := make([]interfaces.Order, len(dbOrders))
+	for i, dbOrder := range dbOrders {
+		orders[i] = *r.convertToOrder(dbOrder)
+	}
+	
 	return orders, nil
 }
 
@@ -78,7 +191,7 @@ func (r *OrderRepository) UpdateStatus(ctx context.Context, id int32, status str
 		return fmt.Errorf("Invalid order status: %w", err)
 	}
 
-	_, err = r.queries.UpdateOrderStatus(ctx, database.UpdateOrderStatusParams{
+	_, err = r.db.Queries.UpdateOrderStatus(ctx, database.UpdateOrderStatusParams{
 		ID:     id,
 		Status: s,
 	})
@@ -91,7 +204,7 @@ func (r *OrderRepository) UpdateStatus(ctx context.Context, id int32, status str
 
 // UpdateStripeChargeID updates an order's Stripe charge ID
 func (r *OrderRepository) UpdateStripeChargeID(ctx context.Context, orderID int32, chargeID string) error {
-	_, err := r.queries.UpdateStripeChargeID(ctx, database.UpdateStripeChargeIDParams{
+	_, err := r.db.Queries.UpdateStripeChargeID(ctx, database.UpdateStripeChargeIDParams{
 		ID: orderID,
 		StripeChargeID: pgtype.Text{
 			String: chargeID,
@@ -108,7 +221,7 @@ func (r *OrderRepository) UpdateStripeChargeID(ctx context.Context, orderID int3
 // CreateOrderItems creates order items for an order
 func (r *OrderRepository) CreateOrderItems(ctx context.Context, orderID int32, items []interfaces.OrderItem) error {
 	for _, item := range items {
-		_, err := r.queries.CreateOrderItem(ctx, database.CreateOrderItemParams{
+		_, err := r.db.Queries.CreateOrderItem(ctx, database.CreateOrderItemParams{
 			OrderID:              orderID,
 			ProductID:            item.ProductID,
 			Name:                 item.Name,
@@ -128,7 +241,7 @@ func (r *OrderRepository) CreateOrderItems(ctx context.Context, orderID int32, i
 
 // GetOrderItems retrieves all items for an order
 func (r *OrderRepository) GetOrderItems(ctx context.Context, orderID int32) ([]interfaces.OrderItem, error) {
-	dbItems, err := r.queries.GetOrderItems(ctx, orderID)
+	dbItems, err := r.db.Queries.GetOrderItems(ctx, orderID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get order items: %w", err)
 	}
@@ -141,6 +254,52 @@ func (r *OrderRepository) GetOrderItems(ctx context.Context, orderID int32) ([]i
 	return items, nil
 }
 
+// GetWithItems retrieves an order with all its items
+func (r *OrderRepository) GetWithItems(ctx context.Context, id int32) (*interfaces.OrderWithItems, error) {
+	if id <= 0 {
+		return nil, fmt.Errorf("invalid order ID: %d", id)
+	}
+
+	// Get the order first
+	order, err := r.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get order %d: %w", id, err)
+	}
+
+	// Get the order items using existing method
+	orderItems, err := r.GetOrderItems(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get items for order %d: %w", id, err)
+	}
+
+	// Convert pgtype fields to *string for OrderWithItems
+	var stripeSessionID *string
+	if order.StripeSessionID.Valid {
+		stripeSessionID = &order.StripeSessionID.String
+	}
+
+	var stripePaymentIntentID *string
+	if order.StripePaymentIntentID.Valid {
+		stripePaymentIntentID = &order.StripePaymentIntentID.String
+	}
+
+	// Build OrderWithItems
+	orderWithItems := &interfaces.OrderWithItems{
+		ID:                    order.ID,
+		CustomerID:            order.CustomerID,
+		Status:                string(order.Status),
+		Total:                 order.Total,
+		StripeSessionID:       stripeSessionID,
+		StripePaymentIntentID: stripePaymentIntentID,
+		Items:                 orderItems,
+		CreatedAt:             order.CreatedAt,
+		UpdatedAt:             order.UpdatedAt,
+	}
+
+	return orderWithItems, nil
+}
+
+
 // GetOrdersByStatus retrieves orders by status
 func (r *OrderRepository) GetOrdersByStatus(ctx context.Context, status string, limit, offset int) ([]interfaces.Order, error) {
 	s, err := parseOrderStatus(status)
@@ -148,7 +307,7 @@ func (r *OrderRepository) GetOrdersByStatus(ctx context.Context, status string, 
 		return nil, fmt.Errorf("invalid order status: %w", err)
 	}
 
-	orders, err := r.queries.GetOrdersByStatus(ctx, database.GetOrdersByStatusParams{
+	orders, err := r.db.Queries.GetOrdersByStatus(ctx, database.GetOrdersByStatusParams{
 		Status: s,
 		Limit:  int32(limit),
 		Offset: int32(offset),
@@ -161,7 +320,7 @@ func (r *OrderRepository) GetOrdersByStatus(ctx context.Context, status string, 
 }
 
 func (r *OrderRepository) GetOrderCountByStatus(ctx context.Context) (map[string]int64, error) {
-	results, err := r.queries.GetOrderCountByStatus(ctx)
+	results, err := r.db.Queries.GetOrderCountByStatus(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get order count by status: %w", err)
 	}

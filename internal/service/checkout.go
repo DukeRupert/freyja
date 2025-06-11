@@ -11,19 +11,22 @@ import (
 )
 
 type CheckoutService struct {
+	customerService interfaces.CustomerService
 	cartService     interfaces.CartService
-	orderService    *OrderService
+	orderService    interfaces.OrderService
 	paymentProvider interfaces.PaymentProvider
 	eventPublisher  interfaces.EventPublisher
 }
 
 func NewCheckoutService(
+	customerService interfaces.CustomerService,
 	cartService interfaces.CartService,
-	orderService *OrderService,
+	orderService interfaces.OrderService,
 	paymentProvider interfaces.PaymentProvider,
 	eventPublisher interfaces.EventPublisher,
-) *CheckoutService {
+) interfaces.CheckoutService {
 	return &CheckoutService{
+		customerService: customerService,
 		cartService:     cartService,
 		orderService:    orderService,
 		paymentProvider: paymentProvider,
@@ -62,12 +65,26 @@ func (s *CheckoutService) CreateCheckoutSession(ctx context.Context, customerID 
 		})
 	}
 
+	// Determine customer email for logged-in users
+	var customerEmail *string
+	if customerID != nil {
+		customer, err := s.customerService.GetCustomerByID(ctx, *customerID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get customer: %w", err)
+		}
+		customerEmail = &customer.Email
+	}
+	// For guests (customerID == nil), leave customerEmail as nil
+
 	// Prepare checkout session request
 	req := interfaces.CheckoutSessionRequest{
 		CustomerID: customerID,
 		Items:      checkoutItems,
 		SuccessURL: successURL,
 		CancelURL:  cancelURL,
+	}
+	if customerEmail != nil {
+		req.CustomerEmail = customerEmail
 	}
 
 	// Create Stripe checkout session
