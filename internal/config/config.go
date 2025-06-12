@@ -17,6 +17,7 @@ type Config struct {
 	MinIOAccessKey string
 	MinIOSecretKey string
 	MinIOUseSSL    bool
+	Domain		 string
 	Port           string
 	Environment    string
 	
@@ -24,6 +25,11 @@ type Config struct {
 	StripeSecretKey      string
 	StripePublishableKey string
 	StripeWebhookSecret  string
+
+	// Admin configuration
+	AdminDomain	string
+	ApiVersion 	string
+	ApiURL string
 }
 
 func Load() (*Config, error) {
@@ -36,6 +42,7 @@ func Load() (*Config, error) {
 	viper.AutomaticEnv()
 	
 	// Set all defaults
+	viper.SetDefault("DOMAIN", "localhost")
 	viper.SetDefault("PORT", "8080")
 	viper.SetDefault("ENV", "development")
 	viper.SetDefault("MINIO_ACCESS_KEY", "minioadmin")
@@ -47,6 +54,8 @@ func Load() (*Config, error) {
 	viper.SetDefault("VALKEY_ADDR", "localhost:6379")
 	viper.SetDefault("NATS_URL", "nats://localhost:4222")
 	viper.SetDefault("MINIO_ENDPOINT", "localhost:9000")
+	viper.SetDefault("ADMIN_DOMAIN", "localhost:8081")
+	viper.SetDefault("API_VERSION", "v1")
 
 	// Smart host detection
 	isDocker := isRunningInDocker()
@@ -60,6 +69,7 @@ func Load() (*Config, error) {
 
 	// Build config struct
 	cfg := &Config{
+		Domain:				viper.GetString("DOMAIN"),
 		Port:                 viper.GetString("PORT"),
 		Environment:          viper.GetString("ENV"),
 		MinIOAccessKey:       viper.GetString("MINIO_ACCESS_KEY"),
@@ -71,6 +81,8 @@ func Load() (*Config, error) {
 		ValkeyAddr:           viper.GetString("VALKEY_ADDR"),
 		NATSUrl:              viper.GetString("NATS_URL"),
 		MinIOEndpoint:        viper.GetString("MINIO_ENDPOINT"),
+		AdminDomain: viper.GetString("ADMIN_DOMAIN"),
+		ApiVersion: viper.GetString("API_VERSION"),
 	}
 
 	// Handle DATABASE_URL with smart defaults
@@ -82,6 +94,8 @@ func Load() (*Config, error) {
 		}
 		cfg.DatabaseURL = fmt.Sprintf("postgres://postgres:password@%s:5432/coffee_ecommerce?sslmode=disable", host)
 	}
+	
+	cfg.ApiURL = cfg.Domain + "api/" + cfg.ApiVersion
 
 	return cfg, cfg.validate()
 }

@@ -2,10 +2,13 @@
 package handler
 
 import (
+	"fmt"
+
 	"net/http"
 	"strconv"
 
 	"github.com/dukerupert/freyja/internal/interfaces"
+	"github.com/dukerupert/freyja/web/admin/views"
 	"github.com/labstack/echo/v4"
 )
 
@@ -193,23 +196,51 @@ func (h *ProductHandler) GetProductStats(c echo.Context) error {
 func (h *ProductHandler) CreateProduct(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	var req interfaces.CreateProductRequest
-	if err := c.Bind(&req); err != nil {
+	var formReq interfaces.CreateProductFormRequest
+	if err := c.Bind(&formReq); err != nil {
+		c.Logger().Errorf("CreateProduct - Binding error: %v", err)
+
+		if c.Request().Header.Get("HX-Request") == "true" {
+			return c.HTML(http.StatusBadRequest, fmt.Sprintf(`<div class="text-red-600">Invalid request format: %v</div>`, err))
+		}
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
 			"error": "Invalid request format",
 			"code":  "INVALID_REQUEST",
 		})
 	}
 
+	// Convert form request to service request
+	req := formReq.ToCreateProductRequest()
+
 	product, err := h.productService.CreateProduct(ctx, req)
 	if err != nil {
 		c.Logger().Errorf("Failed to create product: %v", err)
+
+		// Check if this is an HTMX request
+		if c.Request().Header.Get("HX-Request") == "true" {
+			return c.HTML(http.StatusInternalServerError, `<div class="text-red-600">Failed to create product</div>`)
+		}
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error": "Failed to create product",
 			"code":  "CREATION_FAILED",
 		})
 	}
 
+	// Check if this is an HTMX request
+	if c.Request().Header.Get("HX-Request") == "true" {
+		c.Response().Header().Set("HX-Trigger", "productCreated")
+		c.Response().Header().Set("HX-Reswap", "afterbegin")
+		c.Response().Header().Set("HX-Retarget", "#products-table tbody")
+
+		component := views.ProductRow(*product)
+		if err := component.Render(ctx, c.Response().Writer); err != nil {
+			c.Logger().Errorf("Failed to render product row: %v", err)
+			return c.HTML(http.StatusInternalServerError, `<div class="text-red-600">Failed to render product</div>`)
+		}
+		return nil
+	}
+
+	// Default JSON response for API clients
 	return c.JSON(http.StatusCreated, map[string]interface{}{
 		"message": "Product created successfully",
 		"product": product,

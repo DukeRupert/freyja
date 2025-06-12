@@ -70,12 +70,31 @@ type ProductService interface {
 }
 
 // Request/Response types for Product Service
+type CreateProductFormRequest struct {
+	Name        string  `json:"name" form:"name" validate:"required"`
+	Description string  `json:"description" form:"description"`
+	Price       float64 `json:"price" form:"price" validate:"required,min=0.01"`
+	Stock       int32   `json:"stock" form:"stock" validate:"min=0"`
+	Active      string  `json:"active" form:"active"`
+}
+
+// Convert to the service request struct
+func (f CreateProductFormRequest) ToCreateProductRequest() CreateProductRequest {
+	return CreateProductRequest{
+		Name:        f.Name,
+		Description: f.Description,
+		Price:       int32(f.Price * 100), // Convert dollars to cents
+		Stock:       f.Stock,
+		Active:      f.Active == "on" || f.Active == "true" || f.Active == "1",
+	}
+}
+
 type CreateProductRequest struct {
-	Name        string `json:"name" validate:"required"`
-	Description string `json:"description"`
-	Price       int32  `json:"price" validate:"required,min=1"`
-	Stock       int32  `json:"stock" validate:"min=0"`
-	Active      bool   `json:"active"`
+	Name        string `json:"name" form:"name" validate:"required"`
+	Description string `json:"description" form:"description"`
+	Price       int32  `json:"price" form:"price" validate:"required,min=1"`
+	Stock       int32  `json:"stock" form:"stock" validate:"min=0"`
+	Active      bool   `json:"active" form:"active"`
 }
 
 type UpdateProductRequest struct {
