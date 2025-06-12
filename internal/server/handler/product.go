@@ -71,15 +71,9 @@ func (h *ProductHandler) GetProducts(c echo.Context) error {
 		})
 	}
 
-	// Convert to API format
-	apiProducts := make([]map[string]interface{}, len(products))
-	for i, p := range products {
-		apiProducts[i] = h.productToAPI(p)
-	}
-
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"products": apiProducts,
-		"total":    len(apiProducts),
+		"products": products,
+		"total":    len(products),
 		"filters":  filters,
 	})
 }
