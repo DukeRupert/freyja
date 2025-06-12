@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/database"
-	"github.com/dukerupert/freyja/internal/interfaces"
+	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -433,11 +433,11 @@ func (s *OrderService) GetAll(ctx context.Context, filters interfaces.OrderFilte
 
 	// Publish analytics event for admin access patterns
 	if err := s.publishOrderEvent(ctx, "orders.bulk_accessed", 0, map[string]interface{}{
-		"total_orders":    len(ordersWithItems),
-		"failed_orders":   len(failedOrderIDs),
+		"total_orders":     len(ordersWithItems),
+		"failed_orders":    len(failedOrderIDs),
 		"failed_order_ids": failedOrderIDs,
-		"filters":         filters,
-		"accessed_at":     time.Now(),
+		"filters":          filters,
+		"accessed_at":      time.Now(),
 	}); err != nil {
 		// Log error but don't fail the request
 		fmt.Printf("Failed to publish bulk order access event: %v\n", err)
@@ -449,7 +449,6 @@ func (s *OrderService) GetAll(ctx context.Context, filters interfaces.OrderFilte
 // =============================================================================
 // Order Management
 // =============================================================================
-
 
 // =============================================================================
 // Order Validation

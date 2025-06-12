@@ -10,7 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
-	"github.com/dukerupert/freyja/internal/interfaces"
+	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"strconv"
 )
 

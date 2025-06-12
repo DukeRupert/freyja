@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/database"
-	"github.com/dukerupert/freyja/internal/interfaces"
+	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/stripe/stripe-go/v82"
 	"github.com/stripe/stripe-go/v82/account"
 	"github.com/stripe/stripe-go/v82/checkout/session"

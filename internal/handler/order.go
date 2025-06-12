@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/dukerupert/freyja/internal/interfaces"
+	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/labstack/echo/v4"
 )
 
@@ -195,8 +195,8 @@ func (h *OrderHandler) GetAllOrders(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"orders": apiOrders,
-		"total":  len(apiOrders),
+		"orders":  apiOrders,
+		"total":   len(apiOrders),
 		"filters": filters,
 	})
 }
@@ -207,14 +207,14 @@ func (h *OrderHandler) GetAllOrders(c echo.Context) error {
 
 func (h *OrderHandler) orderToAPI(order interfaces.OrderWithItems) map[string]interface{} {
 	apiOrder := map[string]interface{}{
-		"id":          order.ID,
-		"customer_id": order.CustomerID,
-		"status":      order.Status,
-		"total":       order.Total,
-		"created_at":  order.CreatedAt,
-		"updated_at":  order.UpdatedAt,
-		"items":       h.orderItemsToAPI(order.Items),
-		"item_count":  len(order.Items),
+		"id":              order.ID,
+		"customer_id":     order.CustomerID,
+		"status":          order.Status,
+		"total":           order.Total,
+		"created_at":      order.CreatedAt,
+		"updated_at":      order.UpdatedAt,
+		"items":           h.orderItemsToAPI(order.Items),
+		"item_count":      len(order.Items),
 		"total_formatted": formatPrice(order.Total),
 	}
 
@@ -234,15 +234,15 @@ func (h *OrderHandler) orderItemsToAPI(items []interfaces.OrderItem) []map[strin
 	apiItems := make([]map[string]interface{}, len(items))
 	for i, item := range items {
 		apiItems[i] = map[string]interface{}{
-			"id":          item.ID,
-			"product_id":  item.ProductID,
-			"name":        item.Name,
-			"quantity":    item.Quantity,
-			"price":       item.Price,
-			"subtotal":    item.Quantity * item.Price,
-			"price_formatted": formatPrice(item.Price),
+			"id":                 item.ID,
+			"product_id":         item.ProductID,
+			"name":               item.Name,
+			"quantity":           item.Quantity,
+			"price":              item.Price,
+			"subtotal":           item.Quantity * item.Price,
+			"price_formatted":    formatPrice(item.Price),
 			"subtotal_formatted": formatPrice(item.Quantity * item.Price),
-			"created_at":  item.CreatedAt,
+			"created_at":         item.CreatedAt,
 		}
 	}
 	return apiItems

@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/dukerupert/freyja/internal/database"
-	"github.com/dukerupert/freyja/internal/interfaces"
+	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )

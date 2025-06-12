@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/dukerupert/freyja/internal/interfaces"
+	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/stripe/stripe-go/v82"
 	stripePrice "github.com/stripe/stripe-go/v82/price"
 	stripeProduct "github.com/stripe/stripe-go/v82/product"

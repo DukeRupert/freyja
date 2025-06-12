@@ -8,8 +8,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/dukerupert/freyja/internal/interfaces"
 	"github.com/dukerupert/freyja/internal/provider"
+	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/labstack/echo/v4"
 )
 
@@ -96,20 +96,20 @@ func (h *WebhookHandler) handlePaymentIntentSucceeded(ctx context.Context, event
 	internalCustomer, err := h.customerService.GetCustomerByStripeID(ctx, stripeCustomerID)
 	if err == nil && internalCustomer != nil {
 		log.Printf("✅ Found existing customer %d for Stripe customer %s", internalCustomer.ID, stripeCustomerID)
-		
+
 		// Found by Stripe ID, proceed with order creation
 		_, err := h.orderService.CreateOrderFromPayment(ctx, internalCustomer.ID, paymentIntentID, amount)
 		if err != nil {
 			return fmt.Errorf("failed to create order from payment: %w", err)
 		}
-		
+
 		log.Printf("📦 Order created successfully for customer %d (Payment Intent: %s)", internalCustomer.ID, paymentIntentID)
 		return nil
 	}
 
 	// No internal customer found - this was likely a guest checkout
 	log.Printf("🆕 Guest checkout detected, creating new customer for Stripe customer %s", stripeCustomerID)
-	
+
 	// Get full Stripe customer details to create internal customer
 	stripeCustomer, err := h.paymentProvider.GetCustomer(ctx, stripeCustomerID)
 	if err != nil {
@@ -124,7 +124,7 @@ func (h *WebhookHandler) handlePaymentIntentSucceeded(ctx context.Context, event
 		return fmt.Errorf("failed to create customer from Stripe: %w", err)
 	}
 
-	log.Printf("✅ Created new customer %d from guest checkout (Stripe: %s, Email: %s)", 
+	log.Printf("✅ Created new customer %d from guest checkout (Stripe: %s, Email: %s)",
 		newCustomer.ID, stripeCustomerID, stripeCustomer.Email)
 
 	// Now create the order for the new customer

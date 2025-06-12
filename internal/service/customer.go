@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/dukerupert/freyja/internal/interfaces"
 	"github.com/dukerupert/freyja/internal/provider"
+	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stripe/stripe-go/v82"
 	stripeCustomer "github.com/stripe/stripe-go/v82/customer"
@@ -107,25 +107,25 @@ func (s *CustomerService) CreateCustomerFromStripe(ctx context.Context, stripeCu
 	existingCustomer, err := s.GetCustomerByEmail(ctx, email)
 	if err == nil && existingCustomer != nil {
 		// Customer exists, just link the Stripe ID
-		log.Printf("Customer with email %s already exists (ID: %d), linking Stripe ID %s", 
+		log.Printf("Customer with email %s already exists (ID: %d), linking Stripe ID %s",
 			email, existingCustomer.ID, stripeCustomerID)
-		
+
 		if err := s.UpdateStripeID(ctx, existingCustomer.ID, stripeCustomerID); err != nil {
 			return nil, fmt.Errorf("failed to link existing customer to Stripe: %w", err)
 		}
-		
+
 		return existingCustomer, nil
 	}
 
 	// Create new customer for guest checkout
 	// Generate a placeholder password since they checked out as guest
 	placeholderPassword := generateGuestPassword() // You'll need to implement this
-	
+
 	req := interfaces.CreateCustomerRequest{
-		Email:     email,
-		PasswordHash:  placeholderPassword,
-		FirstName: "",
-		LastName:  "",
+		Email:        email,
+		PasswordHash: placeholderPassword,
+		FirstName:    "",
+		LastName:     "",
 	}
 
 	// Create the customer
@@ -136,7 +136,7 @@ func (s *CustomerService) CreateCustomerFromStripe(ctx context.Context, stripeCu
 
 	// Update with Stripe customer ID
 	if err := s.UpdateStripeID(ctx, customer.ID, stripeCustomerID); err != nil {
-		log.Printf("Warning: Failed to link new customer %d to Stripe ID %s: %v", 
+		log.Printf("Warning: Failed to link new customer %d to Stripe ID %s: %v",
 			customer.ID, stripeCustomerID, err)
 	}
 

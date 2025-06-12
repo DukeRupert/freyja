@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dukerupert/freyja/internal/interfaces"
+	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/nats-io/nats.go"
 )
 
@@ -177,10 +177,10 @@ func (n *NATSEventPublisher) PublishEvents(ctx context.Context, events []interfa
 // Subscribe creates a subscription to events of a specific type
 func (n *NATSEventPublisher) Subscribe(ctx context.Context, eventType string, handler interfaces.EventHandler) error {
 	subject := convertEventTypeToSubject(eventType)
-	
+
 	// Create a durable consumer for this event type
 	consumerName := fmt.Sprintf("consumer_%s", sanitizeConsumerName(eventType))
-	
+
 	// Subscribe with manual acknowledgment
 	sub, err := n.js.Subscribe(subject, func(msg *nats.Msg) {
 		// Parse the event
@@ -256,7 +256,7 @@ func sanitizeConsumerName(eventType string) string {
 
 func OrderCreatedHandler(ctx context.Context, event interfaces.Event) error {
 	log.Printf("Processing order created event: %s", event.AggregateID)
-	
+
 	// Extract order data
 	orderID, err := interfaces.ExtractAggregateID(event.AggregateID)
 	if err != nil {
@@ -275,7 +275,7 @@ func OrderCreatedHandler(ctx context.Context, event interfaces.Event) error {
 
 func PaymentConfirmedHandler(ctx context.Context, event interfaces.Event) error {
 	log.Printf("Processing payment confirmed event: %s", event.Data)
-	
+
 	// Business logic for payment confirmed
 	// - Update order status
 	// - Start fulfillment process
@@ -287,7 +287,7 @@ func PaymentConfirmedHandler(ctx context.Context, event interfaces.Event) error 
 
 func InventoryReservedHandler(ctx context.Context, event interfaces.Event) error {
 	log.Printf("Processing inventory reserved event: %s", event.Data)
-	
+
 	// Business logic for inventory reservation
 	// - Update stock levels
 	// - Set reservation expiry
@@ -302,10 +302,10 @@ func InventoryReservedHandler(ctx context.Context, event interfaces.Event) error
 
 // NATSConfig holds NATS configuration
 type NATSConfig struct {
-	URL             string
-	MaxReconnects   int
-	ReconnectWait   time.Duration
-	ConnectionName  string
+	URL            string
+	MaxReconnects  int
+	ReconnectWait  time.Duration
+	ConnectionName string
 }
 
 // NewNATSEventPublisherWithConfig creates a NATS publisher with custom config

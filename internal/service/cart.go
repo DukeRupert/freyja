@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/dukerupert/freyja/internal/interfaces"
+	"github.com/dukerupert/freyja/internal/shared/interfaces"
 )
 
 type CartService struct {

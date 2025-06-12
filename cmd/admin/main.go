@@ -10,7 +10,7 @@ import (
 	"net/http"
 
 	"github.com/dukerupert/freyja/internal/config"
-	"github.com/dukerupert/freyja/internal/interfaces"
+	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/dukerupert/freyja/web/admin/views"
 
 	"github.com/labstack/echo/v4"
@@ -95,7 +95,7 @@ func (s *AdminServer) createProduct(c echo.Context) error {
 	priceStr := c.FormValue("price")
 	stockStr := c.FormValue("stock")
 	active := c.FormValue("active") == "on"
-	
+
 	// Convert price from dollars to cents
 	var price int32
 	if priceStr != "" {
@@ -105,7 +105,7 @@ func (s *AdminServer) createProduct(c echo.Context) error {
 		}
 		price = int32(priceFloat * 100) // Convert to cents
 	}
-	
+
 	// Convert stock
 	var stock int32
 	if stockStr != "" {
@@ -115,7 +115,7 @@ func (s *AdminServer) createProduct(c echo.Context) error {
 		}
 		stock = int32(stockInt)
 	}
-	
+
 	// Create product request
 	req := interfaces.CreateProductRequest{
 		Name:        name,
@@ -124,13 +124,13 @@ func (s *AdminServer) createProduct(c echo.Context) error {
 		Stock:       stock,
 		Active:      active,
 	}
-	
+
 	// Send request to Freyja API
 	reqBody, err := json.Marshal(req)
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "Failed to marshal request")
 	}
-	
+
 	resp, err := s.httpClient.Post(
 		s.freyjaAPIURL+"/products",
 		"application/json",
@@ -141,13 +141,13 @@ func (s *AdminServer) createProduct(c echo.Context) error {
 		return c.String(http.StatusInternalServerError, "Error creating product")
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body)
 		log.Printf("API error: %s", string(body))
 		return c.String(http.StatusInternalServerError, "Failed to create product")
 	}
-	
+
 	// Return success response that closes modal and refreshes table
 	c.Response().Header().Set("HX-Trigger", "productCreated")
 	return c.String(http.StatusOK, "")

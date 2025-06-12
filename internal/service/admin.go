@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dukerupert/freyja/internal/interfaces"
+	"github.com/dukerupert/freyja/internal/shared/interfaces"
 )
 
 type AdminService struct {

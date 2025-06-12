@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/dukerupert/freyja/internal/interfaces"
+	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -515,48 +515,48 @@ func (s *ProductService) GetTotalValue(ctx context.Context) (int64, error) {
 
 // HandleInventoryReductionEvent processes inventory.reduce_stock events
 func (s *ProductService) HandleInventoryReductionEvent(ctx context.Context, data map[string]interface{}) error {
-    orderID, ok := data["order_id"].(float64) // JSON numbers come as float64
-    if !ok {
-        return fmt.Errorf("invalid order_id in inventory reduction event")
-    }
+	orderID, ok := data["order_id"].(float64) // JSON numbers come as float64
+	if !ok {
+		return fmt.Errorf("invalid order_id in inventory reduction event")
+	}
 
-    items, ok := data["items"].([]interface{})
-    if !ok {
-        return fmt.Errorf("invalid items in inventory reduction event")
-    }
+	items, ok := data["items"].([]interface{})
+	if !ok {
+		return fmt.Errorf("invalid items in inventory reduction event")
+	}
 
-    log.Printf("Processing inventory reduction for order %d", int32(orderID))
+	log.Printf("Processing inventory reduction for order %d", int32(orderID))
 
-    // Process each item
-    for _, itemData := range items {
-        item, ok := itemData.(map[string]interface{})
-        if !ok {
-            log.Printf("⚠️ Invalid item data in inventory reduction event for order %d", int32(orderID))
-            continue
-        }
+	// Process each item
+	for _, itemData := range items {
+		item, ok := itemData.(map[string]interface{})
+		if !ok {
+			log.Printf("⚠️ Invalid item data in inventory reduction event for order %d", int32(orderID))
+			continue
+		}
 
-        productID, ok := item["product_id"].(float64)
-        if !ok {
-            log.Printf("⚠️ Invalid product_id in inventory reduction event for order %d", int32(orderID))
-            continue
-        }
+		productID, ok := item["product_id"].(float64)
+		if !ok {
+			log.Printf("⚠️ Invalid product_id in inventory reduction event for order %d", int32(orderID))
+			continue
+		}
 
-        quantity, ok := item["quantity"].(float64)
-        if !ok {
-            log.Printf("⚠️ Invalid quantity in inventory reduction event for order %d", int32(orderID))
-            continue
-        }
+		quantity, ok := item["quantity"].(float64)
+		if !ok {
+			log.Printf("⚠️ Invalid quantity in inventory reduction event for order %d", int32(orderID))
+			continue
+		}
 
-        // Reduce stock for this item
-        if err := s.ReduceStock(ctx, int32(productID), int32(quantity)); err != nil {
-            log.Printf("⚠️ Failed to reduce stock for product %d (order %d): %v", int32(productID), int32(orderID), err)
-            // Continue processing other items even if one fails
-        } else {
-            log.Printf("✅ Reduced stock for product %d by %d units (order %d)", int32(productID), int32(quantity), int32(orderID))
-        }
-    }
+		// Reduce stock for this item
+		if err := s.ReduceStock(ctx, int32(productID), int32(quantity)); err != nil {
+			log.Printf("⚠️ Failed to reduce stock for product %d (order %d): %v", int32(productID), int32(orderID), err)
+			// Continue processing other items even if one fails
+		} else {
+			log.Printf("✅ Reduced stock for product %d by %d units (order %d)", int32(productID), int32(quantity), int32(orderID))
+		}
+	}
 
-    return nil
+	return nil
 }
 
 // =============================================================================

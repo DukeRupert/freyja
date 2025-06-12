@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/dukerupert/freyja/internal/interfaces"
+	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/labstack/echo/v4"
 )
 
@@ -93,7 +93,7 @@ func (h *CheckoutHandler) CreateCheckoutSession(c echo.Context) error {
 					"error": "Cart validation failed: " + err.Error(),
 				})
 			}
-			
+
 			// Log the error for debugging but return generic message
 			c.Logger().Errorf("Failed to create checkout session: %v", err)
 			return c.JSON(http.StatusInternalServerError, map[string]string{
