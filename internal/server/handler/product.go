@@ -3,12 +3,13 @@ package handler
 
 import (
 	"fmt"
+	"strings"
 
 	"net/http"
 	"strconv"
 
-	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/dukerupert/freyja/internal/backend/templates"
+	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/labstack/echo/v4"
 )
 
@@ -196,44 +197,102 @@ func (h *ProductHandler) GetProductStats(c echo.Context) error {
 func (h *ProductHandler) CreateProduct(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	var formReq interfaces.CreateProductFormRequest
-	if err := c.Bind(&formReq); err != nil {
-		c.Logger().Errorf("CreateProduct - Binding error: %v", err)
+	// Determine if this is form data or JSON
+	contentType := c.Request().Header.Get("Content-Type")
+	
+	var req interfaces.CreateProductRequest
+	var err error
 
-		if c.Request().Header.Get("HX-Request") == "true" {
-			return c.HTML(http.StatusBadRequest, fmt.Sprintf(`<div class="text-red-600">Invalid request format: %v</div>`, err))
+	if strings.Contains(contentType, "application/x-www-form-urlencoded") {
+		// Handle form data (from backend panel)
+		req, err = h.parseProductForm(c)
+		if err != nil {
+			c.Logger().Errorf("CreateProduct - Form parsing error: %v", err)
+			return h.handleCreateProductError(c, "Invalid form data")
 		}
-		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error": "Invalid request format",
-			"code":  "INVALID_REQUEST",
-		})
+	} else {
+		// Handle JSON data (from API clients)
+		var formReq interfaces.CreateProductFormRequest
+		if err := c.Bind(&formReq); err != nil {
+			c.Logger().Errorf("CreateProduct - JSON binding error: %v", err)
+			return h.handleCreateProductError(c, "Invalid request format")
+		}
+		req = formReq.ToCreateProductRequest()
 	}
-
-	// Convert form request to service request
-	req := formReq.ToCreateProductRequest()
 
 	product, err := h.productService.CreateProduct(ctx, req)
 	if err != nil {
 		c.Logger().Errorf("Failed to create product: %v", err)
-
-		// Check if this is an HTMX request
-		if c.Request().Header.Get("HX-Request") == "true" {
-			return c.HTML(http.StatusInternalServerError, `<div class="text-red-600">Failed to create product</div>`)
-		}
-		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-			"error": "Failed to create product",
-			"code":  "CREATION_FAILED",
-		})
+		return h.handleCreateProductError(c, "Failed to create product")
 	}
 
+	return h.handleCreateProductSuccess(c, product)
+}
+
+// Helper method to parse form data
+func (h *ProductHandler) parseProductForm(c echo.Context) (interfaces.CreateProductRequest, error) {
+	name := c.FormValue("name")
+	description := c.FormValue("description")
+	priceStr := c.FormValue("price")
+	stockStr := c.FormValue("stock")
+	active := c.FormValue("active") == "on"
+
+	// Validate required fields
+	if name == "" {
+		return interfaces.CreateProductRequest{}, fmt.Errorf("product name is required")
+	}
+
+	// Convert price from dollars to cents
+	var price int32
+	if priceStr != "" {
+		priceFloat := 0.0
+		if _, err := fmt.Sscanf(priceStr, "%f", &priceFloat); err != nil {
+			return interfaces.CreateProductRequest{}, fmt.Errorf("invalid price format")
+		}
+		price = int32(priceFloat * 100) // Convert to cents
+	}
+
+	// Convert stock
+	var stock int32
+	if stockStr != "" {
+		stockInt := 0
+		if _, err := fmt.Sscanf(stockStr, "%d", &stockInt); err != nil {
+			return interfaces.CreateProductRequest{}, fmt.Errorf("invalid stock format")
+		}
+		stock = int32(stockInt)
+	}
+
+	return interfaces.CreateProductRequest{
+		Name:        name,
+		Description: description,
+		Price:       price,
+		Stock:       stock,
+		Active:      active,
+	}, nil
+}
+
+// Helper method to handle errors consistently
+func (h *ProductHandler) handleCreateProductError(c echo.Context, message string) error {
+	if c.Request().Header.Get("HX-Request") == "true" {
+		return c.HTML(http.StatusBadRequest, fmt.Sprintf(`<div class="text-red-600">%s</div>`, message))
+	}
+	return c.JSON(http.StatusBadRequest, map[string]interface{}{
+		"error": message,
+		"code":  "CREATION_FAILED",
+	})
+}
+
+// Helper method to handle success consistently  
+func (h *ProductHandler) handleCreateProductSuccess(c echo.Context, product *interfaces.Product) error {
 	// Check if this is an HTMX request
 	if c.Request().Header.Get("HX-Request") == "true" {
 		c.Response().Header().Set("HX-Trigger", "productCreated")
 		c.Response().Header().Set("HX-Reswap", "afterbegin")
 		c.Response().Header().Set("HX-Retarget", "#products-table tbody")
 
+		// Render the ProductRow component
 		component := views.ProductRow(*product)
-		if err := component.Render(ctx, c.Response().Writer); err != nil {
+		if err := component.Render(c.Request().Context(), c.Response().Writer); err != nil {
 			c.Logger().Errorf("Failed to render product row: %v", err)
 			return c.HTML(http.StatusInternalServerError, `<div class="text-red-600">Failed to render product</div>`)
 		}

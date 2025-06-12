@@ -226,12 +226,12 @@ templ AddProductModal() {
 			<!-- Modal Body -->
 			<div class="mt-4">
 				<form
-					hx-post="http://localhost:8080/api/v1/admin/products"
-					hx-trigger="submit"
-					hx-target="#products-tbody"
-					hx-swap="beforeend"
-					hx-on::after-request="if(event.detail.successful) { document.getElementById('modal-container').innerHTML = ''; document.getElementById('empty-state')?.remove(); }"
-				>
+	hx-post="/products"  
+	hx-trigger="submit"
+	hx-target="#products-tbody"
+	hx-swap="beforeend"
+	hx-on::after-request="if(event.detail.successful) { document.getElementById('modal-container').innerHTML = ''; document.getElementById('empty-state')?.remove(); }"
+>
 					<div class="space-y-4">
 						<!-- Name Field -->
 						<div>

@@ -7,7 +7,7 @@ tmp_dir = "tmp"
 [build]
   args_bin = []
   bin = "./tmp/backend"
-  cmd = "templ generate && go build -o ./tmp/backend ."
+  cmd = "cd ../../internal/backend/templates && templ generate && cd ../../../cmd/backend && go build -o ./tmp/backend ."
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "testdata"]
   exclude_file = []

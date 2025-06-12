@@ -2,13 +2,14 @@
 package client
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
+	"encoding/json"
 
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
 )
@@ -50,7 +51,6 @@ func (c *FreyjaClient) GetProducts(ctx context.Context) ([]interfaces.Product, e
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	// The API returns a wrapper object with a "products" field
 	var response struct {
 		Products []interfaces.Product `json:"products"`
 	}
@@ -61,103 +61,112 @@ func (c *FreyjaClient) GetProducts(ctx context.Context) ([]interfaces.Product, e
 	return response.Products, nil
 }
 
-// CreateProduct creates a new product via the Freyja API
-func (c *FreyjaClient) CreateProduct(ctx context.Context, req interfaces.CreateProductRequest) (*interfaces.Product, error) {
-	reqBody, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+// CreateProductFromForm forwards the form data directly to the server
+func (c *FreyjaClient) CreateProductFromForm(ctx context.Context, originalReq *http.Request) error {
+	// Parse the original form
+	if err := originalReq.ParseForm(); err != nil {
+		return fmt.Errorf("failed to parse form: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(
+	// Create a new form with the same data
+	formData := url.Values{}
+	for key, values := range originalReq.Form {
+		for _, value := range values {
+			formData.Add(key, value)
+		}
+	}
+
+	// Create request to server's admin endpoint
+	req, err := http.NewRequestWithContext(
 		ctx,
 		"POST",
 		c.baseURL+"/api/v1/admin/products",
-		bytes.NewBuffer(reqBody),
+		strings.NewReader(formData.Encode()),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	httpReq.Header.Set("Content-Type", "application/json")
+	// Set appropriate headers
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("HX-Request", "true") // Forward HTMX header if present
+	if originalReq.Header.Get("HX-Request") != "" {
+		req.Header.Set("HX-Request", originalReq.Header.Get("HX-Request"))
+	}
 
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create product: %w", err)
+		return fmt.Errorf("failed to create product: %w", err)
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
 	}
 
-	if resp.StatusCode != http.StatusCreated {
-		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var product interfaces.Product
-	if err := json.Unmarshal(body, &product); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal product: %w", err)
-	}
-
-	return &product, nil
+	return nil
 }
 
-// UpdateProduct updates an existing product via the Freyja API
-func (c *FreyjaClient) UpdateProduct(ctx context.Context, id int32, req interfaces.UpdateProductRequest) (*interfaces.Product, error) {
-	reqBody, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+// UpdateProductFromForm forwards form data to update an existing product
+func (c *FreyjaClient) UpdateProductFromForm(ctx context.Context, productID string, originalReq *http.Request) error {
+	// Parse the original form
+	if err := originalReq.ParseForm(); err != nil {
+		return fmt.Errorf("failed to parse form: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(
+	// Create a new form with the same data
+	formData := url.Values{}
+	for key, values := range originalReq.Form {
+		for _, value := range values {
+			formData.Add(key, value)
+		}
+	}
+
+	// Create request to server's admin endpoint
+	req, err := http.NewRequestWithContext(
 		ctx,
 		"PUT",
-		fmt.Sprintf("%s/api/v1/admin/products/%d", c.baseURL, id),
-		bytes.NewBuffer(reqBody),
+		fmt.Sprintf("%s/api/v1/admin/products/%s", c.baseURL, productID),
+		strings.NewReader(formData.Encode()),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	httpReq.Header.Set("Content-Type", "application/json")
+	// Set appropriate headers
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if originalReq.Header.Get("HX-Request") != "" {
+		req.Header.Set("HX-Request", originalReq.Header.Get("HX-Request"))
+	}
 
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update product: %w", err)
+		return fmt.Errorf("failed to update product: %w", err)
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var product interfaces.Product
-	if err := json.Unmarshal(body, &product); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal product: %w", err)
-	}
-
-	return &product, nil
+	return nil
 }
 
 // DeleteProduct deletes a product via the Freyja API
-func (c *FreyjaClient) DeleteProduct(ctx context.Context, id int32) error {
-	httpReq, err := http.NewRequestWithContext(
+func (c *FreyjaClient) DeleteProduct(ctx context.Context, productID string) error {
+	req, err := http.NewRequestWithContext(
 		ctx,
 		"DELETE",
-		fmt.Sprintf("%s/api/v1/admin/products/%d", c.baseURL, id),
+		fmt.Sprintf("%s/api/v1/admin/products/%s", c.baseURL, productID),
 		nil,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to delete product: %w", err)
 	}

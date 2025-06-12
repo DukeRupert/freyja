@@ -64,7 +64,7 @@ func Layout(title string) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/admin/views/products.templ`, Line: 37, Col: 17}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `products.templ`, Line: 37, Col: 17}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -214,7 +214,7 @@ func ProductRow(product interfaces.Product) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(product.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/admin/views/products.templ`, Line: 165, Col: 20}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `products.templ`, Line: 165, Col: 20}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -232,7 +232,7 @@ func ProductRow(product interfaces.Product) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(product.Description.String)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/admin/views/products.templ`, Line: 169, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `products.templ`, Line: 169, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -250,7 +250,7 @@ func ProductRow(product interfaces.Product) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(formatPrice(product.Price))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/admin/views/products.templ`, Line: 177, Col: 32}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `products.templ`, Line: 177, Col: 32}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -263,7 +263,7 @@ func ProductRow(product interfaces.Product) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(int(product.Stock)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/admin/views/products.templ`, Line: 182, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `products.templ`, Line: 182, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -295,7 +295,7 @@ func ProductRow(product interfaces.Product) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var11).String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/admin/views/products.templ`, Line: 1, Col: 0}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `products.templ`, Line: 1, Col: 0}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -308,7 +308,7 @@ func ProductRow(product interfaces.Product) templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(formatStatusText(product.Active))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/admin/views/products.templ`, Line: 190, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `products.templ`, Line: 190, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -321,7 +321,7 @@ func ProductRow(product interfaces.Product) templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(product.CreatedAt.Format("Jan 2, 2006"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/admin/views/products.templ`, Line: 194, Col: 44}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `products.templ`, Line: 194, Col: 44}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {
@@ -356,7 +356,7 @@ func AddProductModal() templ.Component {
 			templ_7745c5c3_Var15 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<!-- Modal Background --><div class=\"fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50\" id=\"add-product-modal\"><div class=\"relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white\"><!-- Modal Header --><div class=\"flex items-center justify-between pb-4 border-b\"><h3 class=\"text-lg font-semibold text-gray-900\">Add New Product</h3><button type=\"button\" onclick=\"document.getElementById('modal-container').innerHTML = ''\" class=\"text-gray-400 hover:text-gray-600\"><svg class=\"h-6 w-6\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M6 18L18 6M6 6l12 12\"></path></svg></button></div><!-- Modal Body --><div class=\"mt-4\"><form hx-post=\"https://refactored-umbrella-rp9xx597vq535wg6-8080.app.github.dev/api/v1/admin/products\" hx-trigger=\"submit\" hx-target=\"#products-tbody\" hx-swap=\"beforeend\" hx-on::after-request=\"if(event.detail.successful) { document.getElementById('modal-container').innerHTML = ''; document.getElementById('empty-state')?.remove(); }\"><div class=\"space-y-4\"><!-- Name Field --><div><label for=\"name\" class=\"block text-sm font-medium text-gray-700\">Product Name</label> <input type=\"text\" id=\"name\" name=\"name\" required class=\"mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm\" placeholder=\"Enter product name\"></div><!-- Description Field --><div><label for=\"description\" class=\"block text-sm font-medium text-gray-700\">Description</label> <textarea id=\"description\" name=\"description\" rows=\"3\" class=\"mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm\" placeholder=\"Enter product description\"></textarea></div><!-- Price Field --><div><label for=\"price\" class=\"block text-sm font-medium text-gray-700\">Price ($)</label> <input type=\"number\" id=\"price\" name=\"price\" step=\"0.01\" min=\"0\" required class=\"mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm\" placeholder=\"0.00\"></div><!-- Stock Field --><div><label for=\"stock\" class=\"block text-sm font-medium text-gray-700\">Stock Quantity</label> <input type=\"number\" id=\"stock\" name=\"stock\" min=\"0\" required class=\"mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm\" placeholder=\"0\"></div><!-- Active Checkbox --><div class=\"flex items-center\"><input type=\"checkbox\" id=\"active\" name=\"active\" checked class=\"h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded\"> <label for=\"active\" class=\"ml-2 block text-sm text-gray-900\">Product is active</label></div></div><!-- Modal Footer --><div class=\"flex items-center justify-end pt-6 border-t mt-6 space-x-2\"><button type=\"button\" onclick=\"document.getElementById('modal-container').innerHTML = ''\" class=\"px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500\">Cancel</button> <button type=\"submit\" class=\"px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500\">Create Product</button></div></form></div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<!-- Modal Background --><div class=\"fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50\" id=\"add-product-modal\"><div class=\"relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white\"><!-- Modal Header --><div class=\"flex items-center justify-between pb-4 border-b\"><h3 class=\"text-lg font-semibold text-gray-900\">Add New Product</h3><button type=\"button\" onclick=\"document.getElementById('modal-container').innerHTML = ''\" class=\"text-gray-400 hover:text-gray-600\"><svg class=\"h-6 w-6\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M6 18L18 6M6 6l12 12\"></path></svg></button></div><!-- Modal Body --><div class=\"mt-4\"><form hx-post=\"/products\" hx-trigger=\"submit\" hx-target=\"#products-tbody\" hx-swap=\"beforeend\" hx-on::after-request=\"if(event.detail.successful) { document.getElementById('modal-container').innerHTML = ''; document.getElementById('empty-state')?.remove(); }\"><div class=\"space-y-4\"><!-- Name Field --><div><label for=\"name\" class=\"block text-sm font-medium text-gray-700\">Product Name</label> <input type=\"text\" id=\"name\" name=\"name\" required class=\"mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm\" placeholder=\"Enter product name\"></div><!-- Description Field --><div><label for=\"description\" class=\"block text-sm font-medium text-gray-700\">Description</label> <textarea id=\"description\" name=\"description\" rows=\"3\" class=\"mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm\" placeholder=\"Enter product description\"></textarea></div><!-- Price Field --><div><label for=\"price\" class=\"block text-sm font-medium text-gray-700\">Price ($)</label> <input type=\"number\" id=\"price\" name=\"price\" step=\"0.01\" min=\"0\" required class=\"mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm\" placeholder=\"0.00\"></div><!-- Stock Field --><div><label for=\"stock\" class=\"block text-sm font-medium text-gray-700\">Stock Quantity</label> <input type=\"number\" id=\"stock\" name=\"stock\" min=\"0\" required class=\"mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm\" placeholder=\"0\"></div><!-- Active Checkbox --><div class=\"flex items-center\"><input type=\"checkbox\" id=\"active\" name=\"active\" checked class=\"h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded\"> <label for=\"active\" class=\"ml-2 block text-sm text-gray-900\">Product is active</label></div></div><!-- Modal Footer --><div class=\"flex items-center justify-end pt-6 border-t mt-6 space-x-2\"><button type=\"button\" onclick=\"document.getElementById('modal-container').innerHTML = ''\" class=\"px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500\">Cancel</button> <button type=\"submit\" class=\"px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500\">Create Product</button></div></form></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

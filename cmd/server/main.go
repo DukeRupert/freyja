@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/dukerupert/freyja/internal/shared/config"
 	"github.com/dukerupert/freyja/internal/database"
 	"github.com/dukerupert/freyja/internal/server/handler"
 	customMiddleware "github.com/dukerupert/freyja/internal/server/middleware"
@@ -14,6 +13,7 @@ import (
 	"github.com/dukerupert/freyja/internal/server/repository"
 	"github.com/dukerupert/freyja/internal/server/service"
 	"github.com/dukerupert/freyja/internal/server/subscriber"
+	"github.com/dukerupert/freyja/internal/shared/config"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
@@ -126,9 +126,10 @@ func main() {
 	e.Use(middleware.Recover())
 	// Permissive settings, DO NOT DEPLOY!
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"*"}, // Allow all origins (development only!)
-		AllowMethods: []string{echo.GET, echo.HEAD, echo.PUT, echo.PATCH, echo.POST, echo.DELETE},
-		AllowHeaders: []string{"*"},
+		AllowOrigins:     []string{"https://refactored-umbrella-rp9xx597vq535wg6-8081.app.github.dev", "http://localhost:8081"},
+		AllowMethods:     []string{""},
+		AllowHeaders:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions, http.MethodHead},
+		AllowCredentials: false, // Must be false when using "*" for origins
 	}))
 
 	// Add request ID for tracing
