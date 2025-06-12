@@ -14,16 +14,16 @@ import (
 
 func main() {
 	// Load configuration
-	cfg, err := config.Load()
+	_, err := config.Load()
 	if err != nil {
 		log.Fatal("Config validation failed:", err)
 	}
 
 	// Default Freyja API URL (can be overridden with env var)
 	freyjaAPIURL := "http://localhost:8080"
-	if apiURL := cfg.ApiURL; apiURL != "" {
-		freyjaAPIURL = apiURL
-	}
+	// if apiURL := cfg.ApiURL; apiURL != "" {
+	// 	freyjaAPIURL = apiURL
+	// }
 
 	log.Printf("✅ Admin panel connecting to Freyja API at: %s", freyjaAPIURL)
 
