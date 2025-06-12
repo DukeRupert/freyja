@@ -7,7 +7,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/dukerupert/freyja/internal/metrics"
+	"github.com/dukerupert/freyja/internal/shared/metrics"
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stripe/stripe-go/v82"

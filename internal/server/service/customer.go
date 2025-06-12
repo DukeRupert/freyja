@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/dukerupert/freyja/internal/provider"
+	"github.com/dukerupert/freyja/internal/server/provider"
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stripe/stripe-go/v82"

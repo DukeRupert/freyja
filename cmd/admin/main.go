@@ -9,7 +9,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/dukerupert/freyja/internal/config"
+	"github.com/dukerupert/freyja/internal/shared/config"
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/dukerupert/freyja/web/admin/views"
 

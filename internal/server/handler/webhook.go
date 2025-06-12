@@ -8,7 +8,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/dukerupert/freyja/internal/provider"
+	"github.com/dukerupert/freyja/internal/server/provider"
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/labstack/echo/v4"
 )

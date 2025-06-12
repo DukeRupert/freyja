@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/dukerupert/freyja/internal/config"
+	"github.com/dukerupert/freyja/internal/shared/config"
 	"github.com/dukerupert/freyja/internal/database"
 	"github.com/jackc/pgx/v5/pgtype"
 )
