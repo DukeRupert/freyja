@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
-	"github.com/dukerupert/freyja/web/admin/views"
+	"github.com/dukerupert/freyja/internal/backend/templates"
 	"github.com/labstack/echo/v4"
 )
 
