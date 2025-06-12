@@ -25,7 +25,7 @@ type ProductRepository interface {
 	GetInStock(ctx context.Context) ([]Product, error)
 	GetLowStock(ctx context.Context, threshold int32) ([]Product, error)
 	GetProductsWithoutStripeSync(ctx context.Context, limit, offset int) ([]Product, error)
-	Create(ctx context.Context, product *Product) error
+	Create(ctx context.Context, req CreateProductRequest) (*Product, error)
 	Update(ctx context.Context, product *Product) error
 	UpdateStock(ctx context.Context, id int32, stock int32) error
 	UpdateStripeProductID(ctx context.Context, id int32, stripeProductID string) error

@@ -148,21 +148,20 @@ func (r *PostgresProductRepository) GetLowStock(ctx context.Context, threshold i
 	return dbProducts, nil
 }
 
-func (r *PostgresProductRepository) Create(ctx context.Context, product *interfaces.Product) error {
+func (r *PostgresProductRepository) Create(ctx context.Context, req interfaces.CreateProductRequest) (*interfaces.Product, error) {
 	created, err := r.db.Queries.CreateProduct(ctx, database.CreateProductParams{
-		Name:        product.Name,
-		Description: product.Description,
-		Price:       product.Price,
-		Stock:       product.Stock,
-		Active:      product.Active,
+		Name:        req.Name,
+		Description: pgtype.Text{String: req.Description, Valid: req.Description != ""},
+		Price:       req.Price,
+		Stock:       req.Stock,
+		Active:      req.Active,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create product: %w", err)
+		return nil, fmt.Errorf("failed to create product: %w", err)
 	}
 
 	// Update the product with the generated ID
-	product.ID = created.ID
-	return nil
+	return &created, nil
 }
 
 func (r *PostgresProductRepository) Update(ctx context.Context, product *interfaces.Product) error {

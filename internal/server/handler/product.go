@@ -3,6 +3,7 @@ package handler
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"net/http"
@@ -284,6 +285,15 @@ func (h *ProductHandler) handleCreateProductError(c echo.Context, message string
 
 // Helper method to handle success consistently  
 func (h *ProductHandler) handleCreateProductSuccess(c echo.Context, product *interfaces.Product) error {
+	log.Printf("🎉 handleCreateProductSuccess called")
+	log.Printf("🎉 Product data received: %+v", product)
+	log.Printf("🎉 Product ID: %d", product.ID)
+	log.Printf("🎉 Product Name: %s", product.Name)
+	log.Printf("🎉 Product Price: %d cents", product.Price)
+	log.Printf("🎉 Product CreatedAt: %v", product.CreatedAt)
+	log.Printf("🎉 Product CreatedAt IsZero: %v", product.CreatedAt.IsZero())
+	log.Printf("🎉 Product CreatedAt Formatted: %s", product.CreatedAt.Format("Jan 2, 2006"))
+	
 	// Check if this is an HTMX request
 	if c.Request().Header.Get("HX-Request") == "true" {
 		c.Response().Header().Set("HX-Trigger", "productCreated")

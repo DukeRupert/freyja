@@ -168,15 +168,7 @@ func (s *ProductService) CreateProduct(ctx context.Context, req interfaces.Creat
 	}
 
 	// Create product
-	product := &interfaces.Product{
-		Name:        req.Name,
-		Description: pgtype.Text{String: req.Description, Valid: req.Description != ""},
-		Price:       req.Price,
-		Stock:       req.Stock,
-		Active:      req.Active,
-	}
-
-	if err := s.repo.Create(ctx, product); err != nil {
+	product, err := s.repo.Create(ctx, req); if err != nil {
 		return nil, fmt.Errorf("failed to create product: %w", err)
 	}
 
