@@ -24,8 +24,8 @@ CREATE INDEX idx_carts_customer ON carts (customer_id);
 
 -- Index for session cart lookups (guest users)
 CREATE INDEX idx_carts_session ON carts (session_id);
-
 -- +goose StatementEnd
+
 -- +goose Down
 -- +goose StatementBegin
 DROP INDEX IF EXISTS idx_carts_session;
@@ -33,5 +33,4 @@ DROP INDEX IF EXISTS idx_carts_session;
 DROP INDEX IF EXISTS idx_carts_customer;
 
 DROP TABLE IF EXISTS carts;
-
 -- +goose StatementEnd

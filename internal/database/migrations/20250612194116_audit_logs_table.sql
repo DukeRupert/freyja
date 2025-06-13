@@ -39,15 +39,9 @@ CREATE INDEX idx_audit_logs_created_at ON audit_logs (created_at);
 -- +goose Down
 -- +goose StatementBegin
 DROP INDEX IF EXISTS idx_audit_logs_created_at;
-
 DROP INDEX IF EXISTS idx_audit_logs_resource;
-
 DROP INDEX IF EXISTS idx_audit_logs_action;
-
 DROP INDEX IF EXISTS idx_audit_logs_session;
-
 DROP INDEX IF EXISTS idx_audit_logs_user;
-
 DROP TABLE IF EXISTS audit_logs;
-
 -- +goose StatementEnd

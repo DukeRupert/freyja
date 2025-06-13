@@ -12,7 +12,7 @@ ALTER TABLE order_items
 ADD COLUMN subscription_interval VARCHAR(20) NULL;
 
 ALTER TABLE order_items
-ADD COLUMN stripe_price_id VARCHAR(255) NOT NULL DEFAULT '';
+ADD COLUMN stripe_price_id VARCHAR(255) NOT NULL;
 
 -- Add constraints for purchase_type
 ALTER TABLE order_items ADD CONSTRAINT check_purchase_type CHECK (purchase_type IN ('one_time', 'subscription'));

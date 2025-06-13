@@ -27,13 +27,9 @@ CREATE UNIQUE INDEX idx_events_event_id ON events (event_id);
 -- +goose Down
 -- +goose StatementBegin
 DROP INDEX IF EXISTS idx_events_event_id;
-
 DROP INDEX IF EXISTS idx_events_created_at;
-
 DROP INDEX IF EXISTS idx_events_aggregate;
-
 DROP INDEX IF EXISTS idx_events_type;
-
 DROP TABLE IF EXISTS events;
 
 -- +goose StatementEnd
