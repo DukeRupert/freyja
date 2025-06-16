@@ -12,18 +12,63 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const checkVariantAvailability = `-- name: CheckVariantAvailability :one
+SELECT 
+    pv.id,
+    pv.stock,
+    pv.active,
+    p.active as product_active,
+    CASE 
+        WHEN NOT p.active THEN false
+        WHEN NOT pv.active THEN false
+        WHEN pv.archived_at IS NOT NULL THEN false
+        WHEN pv.stock < $2 THEN false
+        ELSE true
+    END as is_available
+FROM product_variants pv
+JOIN products p ON pv.product_id = p.id
+WHERE pv.id = $1
+`
+
+type CheckVariantAvailabilityParams struct {
+	ID    int32 `db:"id" json:"id"`
+	Stock int32 `db:"stock" json:"stock"`
+}
+
+type CheckVariantAvailabilityRow struct {
+	ID            int32 `db:"id" json:"id"`
+	Stock         int32 `db:"stock" json:"stock"`
+	Active        bool  `db:"active" json:"active"`
+	ProductActive bool  `db:"product_active" json:"product_active"`
+	IsAvailable   bool  `db:"is_available" json:"is_available"`
+}
+
+func (q *Queries) CheckVariantAvailability(ctx context.Context, arg CheckVariantAvailabilityParams) (CheckVariantAvailabilityRow, error) {
+	row := q.db.QueryRow(ctx, checkVariantAvailability, arg.ID, arg.Stock)
+	var i CheckVariantAvailabilityRow
+	err := row.Scan(
+		&i.ID,
+		&i.Stock,
+		&i.Active,
+		&i.ProductActive,
+		&i.IsAvailable,
+	)
+	return i, err
+}
+
 const createCartItem = `-- name: CreateCartItem :one
+
 INSERT INTO cart_items (
-  cart_id, product_id, quantity, price, purchase_type, subscription_interval, stripe_price_id
+  cart_id, product_variant_id, quantity, price, purchase_type, subscription_interval, stripe_price_id
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7
 )
-RETURNING id, cart_id, product_id, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
+RETURNING id, cart_id, product_variant_id, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
 `
 
 type CreateCartItemParams struct {
 	CartID               int32       `db:"cart_id" json:"cart_id"`
-	ProductID            int32       `db:"product_id" json:"product_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
 	Quantity             int32       `db:"quantity" json:"quantity"`
 	Price                int32       `db:"price" json:"price"`
 	PurchaseType         string      `db:"purchase_type" json:"purchase_type"`
@@ -31,10 +76,11 @@ type CreateCartItemParams struct {
 	StripePriceID        string      `db:"stripe_price_id" json:"stripe_price_id"`
 }
 
+// Cart item management
 func (q *Queries) CreateCartItem(ctx context.Context, arg CreateCartItemParams) (CartItems, error) {
 	row := q.db.QueryRow(ctx, createCartItem,
 		arg.CartID,
-		arg.ProductID,
+		arg.ProductVariantID,
 		arg.Quantity,
 		arg.Price,
 		arg.PurchaseType,
@@ -45,7 +91,7 @@ func (q *Queries) CreateCartItem(ctx context.Context, arg CreateCartItemParams) 
 	err := row.Scan(
 		&i.ID,
 		&i.CartID,
-		&i.ProductID,
+		&i.ProductVariantID,
 		&i.Quantity,
 		&i.Price,
 		&i.PurchaseType,
@@ -66,58 +112,125 @@ func (q *Queries) DeleteCartItem(ctx context.Context, id int32) error {
 	return err
 }
 
-const deleteCartItemByProductAndType = `-- name: DeleteCartItemByProductAndType :exec
+const deleteCartItemByVariantAndType = `-- name: DeleteCartItemByVariantAndType :exec
 DELETE FROM cart_items
-WHERE cart_id = $1 AND product_id = $2 AND purchase_type = $3 AND (subscription_interval = $4 OR ($4 IS NULL AND subscription_interval IS NULL))
+WHERE cart_id = $1 
+  AND product_variant_id = $2 
+  AND purchase_type = $3 
+  AND (subscription_interval = $4 OR ($4 IS NULL AND subscription_interval IS NULL))
 `
 
-type DeleteCartItemByProductAndTypeParams struct {
+type DeleteCartItemByVariantAndTypeParams struct {
 	CartID               int32       `db:"cart_id" json:"cart_id"`
-	ProductID            int32       `db:"product_id" json:"product_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
 	PurchaseType         string      `db:"purchase_type" json:"purchase_type"`
 	SubscriptionInterval pgtype.Text `db:"subscription_interval" json:"subscription_interval"`
 }
 
-func (q *Queries) DeleteCartItemByProductAndType(ctx context.Context, arg DeleteCartItemByProductAndTypeParams) error {
-	_, err := q.db.Exec(ctx, deleteCartItemByProductAndType,
+func (q *Queries) DeleteCartItemByVariantAndType(ctx context.Context, arg DeleteCartItemByVariantAndTypeParams) error {
+	_, err := q.db.Exec(ctx, deleteCartItemByVariantAndType,
 		arg.CartID,
-		arg.ProductID,
+		arg.ProductVariantID,
 		arg.PurchaseType,
 		arg.SubscriptionInterval,
 	)
 	return err
 }
 
-const deleteCartItemByProductID = `-- name: DeleteCartItemByProductID :exec
+const deleteCartItemByVariantID = `-- name: DeleteCartItemByVariantID :exec
 DELETE FROM cart_items
-WHERE cart_id = $1 AND product_id = $2
+WHERE cart_id = $1 AND product_variant_id = $2
 `
 
-type DeleteCartItemByProductIDParams struct {
-	CartID    int32 `db:"cart_id" json:"cart_id"`
-	ProductID int32 `db:"product_id" json:"product_id"`
+type DeleteCartItemByVariantIDParams struct {
+	CartID           int32 `db:"cart_id" json:"cart_id"`
+	ProductVariantID int32 `db:"product_variant_id" json:"product_variant_id"`
 }
 
-func (q *Queries) DeleteCartItemByProductID(ctx context.Context, arg DeleteCartItemByProductIDParams) error {
-	_, err := q.db.Exec(ctx, deleteCartItemByProductID, arg.CartID, arg.ProductID)
+func (q *Queries) DeleteCartItemByVariantID(ctx context.Context, arg DeleteCartItemByVariantIDParams) error {
+	_, err := q.db.Exec(ctx, deleteCartItemByVariantID, arg.CartID, arg.ProductVariantID)
 	return err
+}
+
+const getCartAbandonmentData = `-- name: GetCartAbandonmentData :many
+
+SELECT 
+    c.id as cart_id,
+    c.created_at as cart_created,
+    c.updated_at as cart_updated,
+    COUNT(ci.id) as item_count,
+    SUM(ci.quantity * ci.price) as cart_value,
+    EXTRACT(EPOCH FROM (NOW() - c.updated_at))/3600 as hours_since_update
+FROM carts c
+LEFT JOIN cart_items ci ON c.id = ci.cart_id
+WHERE c.updated_at < NOW() - INTERVAL '1 hour'
+  AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.cart_id = c.id)
+GROUP BY c.id, c.created_at, c.updated_at
+HAVING COUNT(ci.id) > 0
+ORDER BY cart_value DESC
+LIMIT $1 OFFSET $2
+`
+
+type GetCartAbandonmentDataParams struct {
+	Limit  int32 `db:"limit" json:"limit"`
+	Offset int32 `db:"offset" json:"offset"`
+}
+
+type GetCartAbandonmentDataRow struct {
+	CartID           int32     `db:"cart_id" json:"cart_id"`
+	CartCreated      time.Time `db:"cart_created" json:"cart_created"`
+	CartUpdated      time.Time `db:"cart_updated" json:"cart_updated"`
+	ItemCount        int64     `db:"item_count" json:"item_count"`
+	CartValue        int64     `db:"cart_value" json:"cart_value"`
+	HoursSinceUpdate int32     `db:"hours_since_update" json:"hours_since_update"`
+}
+
+// Analytics queries
+func (q *Queries) GetCartAbandonmentData(ctx context.Context, arg GetCartAbandonmentDataParams) ([]GetCartAbandonmentDataRow, error) {
+	rows, err := q.db.Query(ctx, getCartAbandonmentData, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetCartAbandonmentDataRow{}
+	for rows.Next() {
+		var i GetCartAbandonmentDataRow
+		if err := rows.Scan(
+			&i.CartID,
+			&i.CartCreated,
+			&i.CartUpdated,
+			&i.ItemCount,
+			&i.CartValue,
+			&i.HoursSinceUpdate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getCartItem = `-- name: GetCartItem :one
 
-SELECT id, cart_id, product_id, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
+
+SELECT id, cart_id, product_variant_id, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
 FROM cart_items
 WHERE id = $1
 `
 
 // internal/database/queries/cart_items.sql
+// Updated for product variants system
+// Basic cart item queries
 func (q *Queries) GetCartItem(ctx context.Context, id int32) (CartItems, error) {
 	row := q.db.QueryRow(ctx, getCartItem, id)
 	var i CartItems
 	err := row.Scan(
 		&i.ID,
 		&i.CartID,
-		&i.ProductID,
+		&i.ProductVariantID,
 		&i.Quantity,
 		&i.Price,
 		&i.PurchaseType,
@@ -128,23 +241,26 @@ func (q *Queries) GetCartItem(ctx context.Context, id int32) (CartItems, error) 
 	return i, err
 }
 
-const getCartItemByProductAndType = `-- name: GetCartItemByProductAndType :one
-SELECT id, cart_id, product_id, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
+const getCartItemByVariantAndType = `-- name: GetCartItemByVariantAndType :one
+SELECT id, cart_id, product_variant_id, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
 FROM cart_items
-WHERE cart_id = $1 AND product_id = $2 AND purchase_type = $3 AND (subscription_interval = $4 OR ($4 IS NULL AND subscription_interval IS NULL))
+WHERE cart_id = $1 
+  AND product_variant_id = $2 
+  AND purchase_type = $3 
+  AND (subscription_interval = $4 OR ($4 IS NULL AND subscription_interval IS NULL))
 `
 
-type GetCartItemByProductAndTypeParams struct {
+type GetCartItemByVariantAndTypeParams struct {
 	CartID               int32       `db:"cart_id" json:"cart_id"`
-	ProductID            int32       `db:"product_id" json:"product_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
 	PurchaseType         string      `db:"purchase_type" json:"purchase_type"`
 	SubscriptionInterval pgtype.Text `db:"subscription_interval" json:"subscription_interval"`
 }
 
-func (q *Queries) GetCartItemByProductAndType(ctx context.Context, arg GetCartItemByProductAndTypeParams) (CartItems, error) {
-	row := q.db.QueryRow(ctx, getCartItemByProductAndType,
+func (q *Queries) GetCartItemByVariantAndType(ctx context.Context, arg GetCartItemByVariantAndTypeParams) (CartItems, error) {
+	row := q.db.QueryRow(ctx, getCartItemByVariantAndType,
 		arg.CartID,
-		arg.ProductID,
+		arg.ProductVariantID,
 		arg.PurchaseType,
 		arg.SubscriptionInterval,
 	)
@@ -152,7 +268,7 @@ func (q *Queries) GetCartItemByProductAndType(ctx context.Context, arg GetCartIt
 	err := row.Scan(
 		&i.ID,
 		&i.CartID,
-		&i.ProductID,
+		&i.ProductVariantID,
 		&i.Quantity,
 		&i.Price,
 		&i.PurchaseType,
@@ -163,25 +279,25 @@ func (q *Queries) GetCartItemByProductAndType(ctx context.Context, arg GetCartIt
 	return i, err
 }
 
-const getCartItemByProductID = `-- name: GetCartItemByProductID :one
-SELECT id, cart_id, product_id, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
+const getCartItemByVariantID = `-- name: GetCartItemByVariantID :one
+SELECT id, cart_id, product_variant_id, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
 FROM cart_items
-WHERE cart_id = $1 AND product_id = $2
+WHERE cart_id = $1 AND product_variant_id = $2
 LIMIT 1
 `
 
-type GetCartItemByProductIDParams struct {
-	CartID    int32 `db:"cart_id" json:"cart_id"`
-	ProductID int32 `db:"product_id" json:"product_id"`
+type GetCartItemByVariantIDParams struct {
+	CartID           int32 `db:"cart_id" json:"cart_id"`
+	ProductVariantID int32 `db:"product_variant_id" json:"product_variant_id"`
 }
 
-func (q *Queries) GetCartItemByProductID(ctx context.Context, arg GetCartItemByProductIDParams) (CartItems, error) {
-	row := q.db.QueryRow(ctx, getCartItemByProductID, arg.CartID, arg.ProductID)
+func (q *Queries) GetCartItemByVariantID(ctx context.Context, arg GetCartItemByVariantIDParams) (CartItems, error) {
+	row := q.db.QueryRow(ctx, getCartItemByVariantID, arg.CartID, arg.ProductVariantID)
 	var i CartItems
 	err := row.Scan(
 		&i.ID,
 		&i.CartID,
-		&i.ProductID,
+		&i.ProductVariantID,
 		&i.Quantity,
 		&i.Price,
 		&i.PurchaseType,
@@ -206,10 +322,20 @@ func (q *Queries) GetCartItemCount(ctx context.Context, cartID int32) (int32, er
 }
 
 const getCartItems = `-- name: GetCartItems :many
-SELECT ci.id, ci.cart_id, ci.product_id, ci.quantity, ci.price, ci.purchase_type, ci.subscription_interval, ci.stripe_price_id, ci.created_at,
-       p.name as product_name, p.description as product_description, p.stock as product_stock
+SELECT 
+    ci.id, ci.cart_id, ci.product_variant_id, ci.quantity, ci.price, 
+    ci.purchase_type, ci.subscription_interval, ci.stripe_price_id, ci.created_at,
+    pv.name as variant_name,
+    pv.stock as variant_stock,
+    pv.active as variant_active,
+    pv.options_display,
+    p.id as product_id,
+    p.name as product_name, 
+    p.description as product_description,
+    p.active as product_active
 FROM cart_items ci
-JOIN products p ON ci.product_id = p.id
+JOIN product_variants pv ON ci.product_variant_id = pv.id AND pv.archived_at IS NULL
+JOIN products p ON pv.product_id = p.id
 WHERE ci.cart_id = $1
 ORDER BY ci.created_at ASC
 `
@@ -217,16 +343,21 @@ ORDER BY ci.created_at ASC
 type GetCartItemsRow struct {
 	ID                   int32       `db:"id" json:"id"`
 	CartID               int32       `db:"cart_id" json:"cart_id"`
-	ProductID            int32       `db:"product_id" json:"product_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
 	Quantity             int32       `db:"quantity" json:"quantity"`
 	Price                int32       `db:"price" json:"price"`
 	PurchaseType         string      `db:"purchase_type" json:"purchase_type"`
 	SubscriptionInterval pgtype.Text `db:"subscription_interval" json:"subscription_interval"`
 	StripePriceID        string      `db:"stripe_price_id" json:"stripe_price_id"`
 	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
+	VariantName          string      `db:"variant_name" json:"variant_name"`
+	VariantStock         int32       `db:"variant_stock" json:"variant_stock"`
+	VariantActive        bool        `db:"variant_active" json:"variant_active"`
+	OptionsDisplay       pgtype.Text `db:"options_display" json:"options_display"`
+	ProductID            int32       `db:"product_id" json:"product_id"`
 	ProductName          string      `db:"product_name" json:"product_name"`
 	ProductDescription   pgtype.Text `db:"product_description" json:"product_description"`
-	ProductStock         int32       `db:"product_stock" json:"product_stock"`
+	ProductActive        bool        `db:"product_active" json:"product_active"`
 }
 
 func (q *Queries) GetCartItems(ctx context.Context, cartID int32) ([]GetCartItemsRow, error) {
@@ -241,57 +372,21 @@ func (q *Queries) GetCartItems(ctx context.Context, cartID int32) ([]GetCartItem
 		if err := rows.Scan(
 			&i.ID,
 			&i.CartID,
-			&i.ProductID,
+			&i.ProductVariantID,
 			&i.Quantity,
 			&i.Price,
 			&i.PurchaseType,
 			&i.SubscriptionInterval,
 			&i.StripePriceID,
 			&i.CreatedAt,
+			&i.VariantName,
+			&i.VariantStock,
+			&i.VariantActive,
+			&i.OptionsDisplay,
+			&i.ProductID,
 			&i.ProductName,
 			&i.ProductDescription,
-			&i.ProductStock,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getCartItemsByProduct = `-- name: GetCartItemsByProduct :many
-SELECT id, cart_id, product_id, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
-FROM cart_items
-WHERE cart_id = $1 AND product_id = $2
-`
-
-type GetCartItemsByProductParams struct {
-	CartID    int32 `db:"cart_id" json:"cart_id"`
-	ProductID int32 `db:"product_id" json:"product_id"`
-}
-
-func (q *Queries) GetCartItemsByProduct(ctx context.Context, arg GetCartItemsByProductParams) ([]CartItems, error) {
-	rows, err := q.db.Query(ctx, getCartItemsByProduct, arg.CartID, arg.ProductID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []CartItems{}
-	for rows.Next() {
-		var i CartItems
-		if err := rows.Scan(
-			&i.ID,
-			&i.CartID,
-			&i.ProductID,
-			&i.Quantity,
-			&i.Price,
-			&i.PurchaseType,
-			&i.SubscriptionInterval,
-			&i.StripePriceID,
-			&i.CreatedAt,
+			&i.ProductActive,
 		); err != nil {
 			return nil, err
 		}
@@ -304,10 +399,20 @@ func (q *Queries) GetCartItemsByProduct(ctx context.Context, arg GetCartItemsByP
 }
 
 const getCartItemsByPurchaseType = `-- name: GetCartItemsByPurchaseType :many
-SELECT ci.id, ci.cart_id, ci.product_id, ci.quantity, ci.price, ci.purchase_type, ci.subscription_interval, ci.stripe_price_id, ci.created_at,
-       p.name as product_name, p.description as product_description, p.stock as product_stock
+SELECT 
+    ci.id, ci.cart_id, ci.product_variant_id, ci.quantity, ci.price, 
+    ci.purchase_type, ci.subscription_interval, ci.stripe_price_id, ci.created_at,
+    pv.name as variant_name,
+    pv.stock as variant_stock,
+    pv.active as variant_active,
+    pv.options_display,
+    p.id as product_id,
+    p.name as product_name, 
+    p.description as product_description,
+    p.active as product_active
 FROM cart_items ci
-JOIN products p ON ci.product_id = p.id
+JOIN product_variants pv ON ci.product_variant_id = pv.id AND pv.archived_at IS NULL
+JOIN products p ON pv.product_id = p.id
 WHERE ci.cart_id = $1 AND ci.purchase_type = $2
 ORDER BY ci.created_at ASC
 `
@@ -320,16 +425,21 @@ type GetCartItemsByPurchaseTypeParams struct {
 type GetCartItemsByPurchaseTypeRow struct {
 	ID                   int32       `db:"id" json:"id"`
 	CartID               int32       `db:"cart_id" json:"cart_id"`
-	ProductID            int32       `db:"product_id" json:"product_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
 	Quantity             int32       `db:"quantity" json:"quantity"`
 	Price                int32       `db:"price" json:"price"`
 	PurchaseType         string      `db:"purchase_type" json:"purchase_type"`
 	SubscriptionInterval pgtype.Text `db:"subscription_interval" json:"subscription_interval"`
 	StripePriceID        string      `db:"stripe_price_id" json:"stripe_price_id"`
 	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
+	VariantName          string      `db:"variant_name" json:"variant_name"`
+	VariantStock         int32       `db:"variant_stock" json:"variant_stock"`
+	VariantActive        bool        `db:"variant_active" json:"variant_active"`
+	OptionsDisplay       pgtype.Text `db:"options_display" json:"options_display"`
+	ProductID            int32       `db:"product_id" json:"product_id"`
 	ProductName          string      `db:"product_name" json:"product_name"`
 	ProductDescription   pgtype.Text `db:"product_description" json:"product_description"`
-	ProductStock         int32       `db:"product_stock" json:"product_stock"`
+	ProductActive        bool        `db:"product_active" json:"product_active"`
 }
 
 func (q *Queries) GetCartItemsByPurchaseType(ctx context.Context, arg GetCartItemsByPurchaseTypeParams) ([]GetCartItemsByPurchaseTypeRow, error) {
@@ -344,16 +454,201 @@ func (q *Queries) GetCartItemsByPurchaseType(ctx context.Context, arg GetCartIte
 		if err := rows.Scan(
 			&i.ID,
 			&i.CartID,
-			&i.ProductID,
+			&i.ProductVariantID,
 			&i.Quantity,
 			&i.Price,
 			&i.PurchaseType,
 			&i.SubscriptionInterval,
 			&i.StripePriceID,
 			&i.CreatedAt,
+			&i.VariantName,
+			&i.VariantStock,
+			&i.VariantActive,
+			&i.OptionsDisplay,
+			&i.ProductID,
 			&i.ProductName,
 			&i.ProductDescription,
-			&i.ProductStock,
+			&i.ProductActive,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCartItemsByVariant = `-- name: GetCartItemsByVariant :many
+SELECT id, cart_id, product_variant_id, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
+FROM cart_items
+WHERE cart_id = $1 AND product_variant_id = $2
+`
+
+type GetCartItemsByVariantParams struct {
+	CartID           int32 `db:"cart_id" json:"cart_id"`
+	ProductVariantID int32 `db:"product_variant_id" json:"product_variant_id"`
+}
+
+func (q *Queries) GetCartItemsByVariant(ctx context.Context, arg GetCartItemsByVariantParams) ([]CartItems, error) {
+	rows, err := q.db.Query(ctx, getCartItemsByVariant, arg.CartID, arg.ProductVariantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CartItems{}
+	for rows.Next() {
+		var i CartItems
+		if err := rows.Scan(
+			&i.ID,
+			&i.CartID,
+			&i.ProductVariantID,
+			&i.Quantity,
+			&i.Price,
+			&i.PurchaseType,
+			&i.SubscriptionInterval,
+			&i.StripePriceID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCartItemsWithOptions = `-- name: GetCartItemsWithOptions :many
+SELECT 
+    ci.id, ci.cart_id, ci.product_variant_id, ci.quantity, ci.price, 
+    ci.purchase_type, ci.subscription_interval, ci.stripe_price_id, ci.created_at,
+    pv.name as variant_name,
+    pv.stock as variant_stock,
+    pv.active as variant_active,
+    pv.options_display,
+    p.id as product_id,
+    p.name as product_name, 
+    p.description as product_description,
+    p.active as product_active,
+    COALESCE(
+        json_agg(
+            json_build_object(
+                'option_key', po.option_key,
+                'value', pov.value
+            ) ORDER BY po.option_key
+        ) FILTER (WHERE po.id IS NOT NULL), 
+        '[]'::json
+    ) as variant_options
+FROM cart_items ci
+JOIN product_variants pv ON ci.product_variant_id = pv.id AND pv.archived_at IS NULL
+JOIN products p ON pv.product_id = p.id
+LEFT JOIN product_variant_options pvo ON pv.id = pvo.product_variant_id
+LEFT JOIN product_options po ON pvo.product_option_id = po.id
+LEFT JOIN product_option_values pov ON pvo.product_option_value_id = pov.id
+WHERE ci.cart_id = $1
+GROUP BY ci.id, ci.cart_id, ci.product_variant_id, ci.quantity, ci.price, 
+         ci.purchase_type, ci.subscription_interval, ci.stripe_price_id, ci.created_at,
+         pv.name, pv.stock, pv.active, pv.options_display,
+         p.id, p.name, p.description, p.active
+ORDER BY ci.created_at ASC
+`
+
+type GetCartItemsWithOptionsRow struct {
+	ID                   int32       `db:"id" json:"id"`
+	CartID               int32       `db:"cart_id" json:"cart_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
+	Quantity             int32       `db:"quantity" json:"quantity"`
+	Price                int32       `db:"price" json:"price"`
+	PurchaseType         string      `db:"purchase_type" json:"purchase_type"`
+	SubscriptionInterval pgtype.Text `db:"subscription_interval" json:"subscription_interval"`
+	StripePriceID        string      `db:"stripe_price_id" json:"stripe_price_id"`
+	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
+	VariantName          string      `db:"variant_name" json:"variant_name"`
+	VariantStock         int32       `db:"variant_stock" json:"variant_stock"`
+	VariantActive        bool        `db:"variant_active" json:"variant_active"`
+	OptionsDisplay       pgtype.Text `db:"options_display" json:"options_display"`
+	ProductID            int32       `db:"product_id" json:"product_id"`
+	ProductName          string      `db:"product_name" json:"product_name"`
+	ProductDescription   pgtype.Text `db:"product_description" json:"product_description"`
+	ProductActive        bool        `db:"product_active" json:"product_active"`
+	VariantOptions       interface{} `db:"variant_options" json:"variant_options"`
+}
+
+func (q *Queries) GetCartItemsWithOptions(ctx context.Context, cartID int32) ([]GetCartItemsWithOptionsRow, error) {
+	rows, err := q.db.Query(ctx, getCartItemsWithOptions, cartID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetCartItemsWithOptionsRow{}
+	for rows.Next() {
+		var i GetCartItemsWithOptionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CartID,
+			&i.ProductVariantID,
+			&i.Quantity,
+			&i.Price,
+			&i.PurchaseType,
+			&i.SubscriptionInterval,
+			&i.StripePriceID,
+			&i.CreatedAt,
+			&i.VariantName,
+			&i.VariantStock,
+			&i.VariantActive,
+			&i.OptionsDisplay,
+			&i.ProductID,
+			&i.ProductName,
+			&i.ProductDescription,
+			&i.ProductActive,
+			&i.VariantOptions,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCartSubscriptionSummary = `-- name: GetCartSubscriptionSummary :many
+SELECT 
+    ci.subscription_interval,
+    COUNT(*) as item_count,
+    SUM(ci.quantity) as total_quantity,
+    SUM(ci.quantity * ci.price) as total_amount
+FROM cart_items ci
+WHERE ci.cart_id = $1 AND ci.purchase_type = 'subscription'
+GROUP BY ci.subscription_interval
+ORDER BY ci.subscription_interval
+`
+
+type GetCartSubscriptionSummaryRow struct {
+	SubscriptionInterval pgtype.Text `db:"subscription_interval" json:"subscription_interval"`
+	ItemCount            int64       `db:"item_count" json:"item_count"`
+	TotalQuantity        int64       `db:"total_quantity" json:"total_quantity"`
+	TotalAmount          int64       `db:"total_amount" json:"total_amount"`
+}
+
+func (q *Queries) GetCartSubscriptionSummary(ctx context.Context, cartID int32) ([]GetCartSubscriptionSummaryRow, error) {
+	rows, err := q.db.Query(ctx, getCartSubscriptionSummary, cartID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetCartSubscriptionSummaryRow{}
+	for rows.Next() {
+		var i GetCartSubscriptionSummaryRow
+		if err := rows.Scan(
+			&i.SubscriptionInterval,
+			&i.ItemCount,
+			&i.TotalQuantity,
+			&i.TotalAmount,
 		); err != nil {
 			return nil, err
 		}
@@ -366,16 +661,162 @@ func (q *Queries) GetCartItemsByPurchaseType(ctx context.Context, arg GetCartIte
 }
 
 const getCartTotal = `-- name: GetCartTotal :one
+
 SELECT COALESCE(SUM(quantity * price), 0)::integer as total
 FROM cart_items
 WHERE cart_id = $1
 `
 
+// Cart summary and analytics
 func (q *Queries) GetCartTotal(ctx context.Context, cartID int32) (int32, error) {
 	row := q.db.QueryRow(ctx, getCartTotal, cartID)
 	var total int32
 	err := row.Scan(&total)
 	return total, err
+}
+
+const getCartTotalByPurchaseType = `-- name: GetCartTotalByPurchaseType :one
+SELECT COALESCE(SUM(quantity * price), 0)::integer as total
+FROM cart_items
+WHERE cart_id = $1 AND purchase_type = $2
+`
+
+type GetCartTotalByPurchaseTypeParams struct {
+	CartID       int32  `db:"cart_id" json:"cart_id"`
+	PurchaseType string `db:"purchase_type" json:"purchase_type"`
+}
+
+func (q *Queries) GetCartTotalByPurchaseType(ctx context.Context, arg GetCartTotalByPurchaseTypeParams) (int32, error) {
+	row := q.db.QueryRow(ctx, getCartTotalByPurchaseType, arg.CartID, arg.PurchaseType)
+	var total int32
+	err := row.Scan(&total)
+	return total, err
+}
+
+const getInvalidCartItems = `-- name: GetInvalidCartItems :many
+SELECT 
+    ci.id, ci.cart_id, ci.product_variant_id, ci.quantity, ci.price, 
+    ci.purchase_type, ci.subscription_interval, ci.stripe_price_id, ci.created_at,
+    pv.name as variant_name,
+    pv.stock as variant_stock,
+    pv.active as variant_active,
+    p.name as product_name,
+    CASE 
+        WHEN NOT p.active THEN 'product_inactive'
+        WHEN NOT pv.active THEN 'variant_inactive'
+        WHEN pv.archived_at IS NOT NULL THEN 'variant_archived'
+        WHEN ci.quantity > pv.stock THEN 'insufficient_stock'
+        ELSE 'valid'
+    END as issue_type
+FROM cart_items ci
+JOIN product_variants pv ON ci.product_variant_id = pv.id
+JOIN products p ON pv.product_id = p.id
+WHERE ci.cart_id = $1
+  AND (NOT p.active 
+       OR NOT pv.active 
+       OR pv.archived_at IS NOT NULL 
+       OR ci.quantity > pv.stock)
+`
+
+type GetInvalidCartItemsRow struct {
+	ID                   int32       `db:"id" json:"id"`
+	CartID               int32       `db:"cart_id" json:"cart_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
+	Quantity             int32       `db:"quantity" json:"quantity"`
+	Price                int32       `db:"price" json:"price"`
+	PurchaseType         string      `db:"purchase_type" json:"purchase_type"`
+	SubscriptionInterval pgtype.Text `db:"subscription_interval" json:"subscription_interval"`
+	StripePriceID        string      `db:"stripe_price_id" json:"stripe_price_id"`
+	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
+	VariantName          string      `db:"variant_name" json:"variant_name"`
+	VariantStock         int32       `db:"variant_stock" json:"variant_stock"`
+	VariantActive        bool        `db:"variant_active" json:"variant_active"`
+	ProductName          string      `db:"product_name" json:"product_name"`
+	IssueType            string      `db:"issue_type" json:"issue_type"`
+}
+
+func (q *Queries) GetInvalidCartItems(ctx context.Context, cartID int32) ([]GetInvalidCartItemsRow, error) {
+	rows, err := q.db.Query(ctx, getInvalidCartItems, cartID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetInvalidCartItemsRow{}
+	for rows.Next() {
+		var i GetInvalidCartItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CartID,
+			&i.ProductVariantID,
+			&i.Quantity,
+			&i.Price,
+			&i.PurchaseType,
+			&i.SubscriptionInterval,
+			&i.StripePriceID,
+			&i.CreatedAt,
+			&i.VariantName,
+			&i.VariantStock,
+			&i.VariantActive,
+			&i.ProductName,
+			&i.IssueType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const incrementCartItemQuantity = `-- name: IncrementCartItemQuantity :one
+UPDATE cart_items
+SET quantity = quantity + $2
+WHERE id = $1
+RETURNING id, cart_id, product_variant_id, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
+`
+
+type IncrementCartItemQuantityParams struct {
+	ID       int32 `db:"id" json:"id"`
+	Quantity int32 `db:"quantity" json:"quantity"`
+}
+
+func (q *Queries) IncrementCartItemQuantity(ctx context.Context, arg IncrementCartItemQuantityParams) (CartItems, error) {
+	row := q.db.QueryRow(ctx, incrementCartItemQuantity, arg.ID, arg.Quantity)
+	var i CartItems
+	err := row.Scan(
+		&i.ID,
+		&i.CartID,
+		&i.ProductVariantID,
+		&i.Quantity,
+		&i.Price,
+		&i.PurchaseType,
+		&i.SubscriptionInterval,
+		&i.StripePriceID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const removeUnavailableCartItems = `-- name: RemoveUnavailableCartItems :exec
+
+DELETE FROM cart_items 
+WHERE cart_id = $1 
+  AND product_variant_id IN (
+    SELECT pv.id 
+    FROM product_variants pv 
+    JOIN products p ON pv.product_id = p.id 
+    WHERE NOT p.active 
+       OR NOT pv.active 
+       OR pv.archived_at IS NOT NULL
+  )
+`
+
+// Cart cleanup and maintenance
+func (q *Queries) RemoveUnavailableCartItems(ctx context.Context, cartID int32) error {
+	_, err := q.db.Exec(ctx, removeUnavailableCartItems, cartID)
+	return err
 }
 
 const updateCartItem = `-- name: UpdateCartItem :one
@@ -385,7 +826,7 @@ SET
   price = $3,
   stripe_price_id = $4
 WHERE id = $1
-RETURNING id, cart_id, product_id, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
+RETURNING id, cart_id, product_variant_id, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
 `
 
 type UpdateCartItemParams struct {
@@ -406,7 +847,7 @@ func (q *Queries) UpdateCartItem(ctx context.Context, arg UpdateCartItemParams) 
 	err := row.Scan(
 		&i.ID,
 		&i.CartID,
-		&i.ProductID,
+		&i.ProductVariantID,
 		&i.Quantity,
 		&i.Price,
 		&i.PurchaseType,
@@ -417,11 +858,25 @@ func (q *Queries) UpdateCartItem(ctx context.Context, arg UpdateCartItemParams) 
 	return i, err
 }
 
+const updateCartItemPrices = `-- name: UpdateCartItemPrices :exec
+UPDATE cart_items 
+SET price = pv.price
+FROM product_variants pv
+WHERE cart_items.product_variant_id = pv.id 
+  AND cart_items.cart_id = $1
+  AND pv.archived_at IS NULL
+`
+
+func (q *Queries) UpdateCartItemPrices(ctx context.Context, cartID int32) error {
+	_, err := q.db.Exec(ctx, updateCartItemPrices, cartID)
+	return err
+}
+
 const updateCartItemQuantity = `-- name: UpdateCartItemQuantity :one
 UPDATE cart_items
 SET quantity = $2
 WHERE id = $1
-RETURNING id, cart_id, product_id, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
+RETURNING id, cart_id, product_variant_id, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
 `
 
 type UpdateCartItemQuantityParams struct {
@@ -435,7 +890,7 @@ func (q *Queries) UpdateCartItemQuantity(ctx context.Context, arg UpdateCartItem
 	err := row.Scan(
 		&i.ID,
 		&i.CartID,
-		&i.ProductID,
+		&i.ProductVariantID,
 		&i.Quantity,
 		&i.Price,
 		&i.PurchaseType,
@@ -444,4 +899,65 @@ func (q *Queries) UpdateCartItemQuantity(ctx context.Context, arg UpdateCartItem
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const validateCartItems = `-- name: ValidateCartItems :many
+
+SELECT 
+    ci.id as cart_item_id,
+    ci.product_variant_id,
+    ci.quantity as requested_quantity,
+    pv.stock as available_stock,
+    pv.active as variant_active,
+    p.active as product_active,
+    CASE 
+        WHEN NOT p.active THEN 'product_inactive'
+        WHEN NOT pv.active THEN 'variant_inactive'
+        WHEN pv.archived_at IS NOT NULL THEN 'variant_archived'
+        WHEN ci.quantity > pv.stock THEN 'insufficient_stock'
+        ELSE 'valid'
+    END as validation_status
+FROM cart_items ci
+JOIN product_variants pv ON ci.product_variant_id = pv.id
+JOIN products p ON pv.product_id = p.id
+WHERE ci.cart_id = $1
+`
+
+type ValidateCartItemsRow struct {
+	CartItemID        int32  `db:"cart_item_id" json:"cart_item_id"`
+	ProductVariantID  int32  `db:"product_variant_id" json:"product_variant_id"`
+	RequestedQuantity int32  `db:"requested_quantity" json:"requested_quantity"`
+	AvailableStock    int32  `db:"available_stock" json:"available_stock"`
+	VariantActive     bool   `db:"variant_active" json:"variant_active"`
+	ProductActive     bool   `db:"product_active" json:"product_active"`
+	ValidationStatus  string `db:"validation_status" json:"validation_status"`
+}
+
+// Cart validation queries
+func (q *Queries) ValidateCartItems(ctx context.Context, cartID int32) ([]ValidateCartItemsRow, error) {
+	rows, err := q.db.Query(ctx, validateCartItems, cartID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ValidateCartItemsRow{}
+	for rows.Next() {
+		var i ValidateCartItemsRow
+		if err := rows.Scan(
+			&i.CartItemID,
+			&i.ProductVariantID,
+			&i.RequestedQuantity,
+			&i.AvailableStock,
+			&i.VariantActive,
+			&i.ProductActive,
+			&i.ValidationStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

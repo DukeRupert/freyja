@@ -14,16 +14,16 @@ import (
 
 const createOrderItem = `-- name: CreateOrderItem :one
 INSERT INTO order_items (
-  order_id, product_id, name, quantity, price, purchase_type, subscription_interval, stripe_price_id
+  order_id, product_variant_id, name, quantity, price, purchase_type, subscription_interval, stripe_price_id
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8
 )
-RETURNING id, order_id, product_id, name, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
+RETURNING id, order_id, product_variant_id, name, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
 `
 
 type CreateOrderItemParams struct {
 	OrderID              int32       `db:"order_id" json:"order_id"`
-	ProductID            int32       `db:"product_id" json:"product_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
 	Name                 string      `db:"name" json:"name"`
 	Quantity             int32       `db:"quantity" json:"quantity"`
 	Price                int32       `db:"price" json:"price"`
@@ -35,7 +35,7 @@ type CreateOrderItemParams struct {
 type CreateOrderItemRow struct {
 	ID                   int32       `db:"id" json:"id"`
 	OrderID              int32       `db:"order_id" json:"order_id"`
-	ProductID            int32       `db:"product_id" json:"product_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
 	Name                 string      `db:"name" json:"name"`
 	Quantity             int32       `db:"quantity" json:"quantity"`
 	Price                int32       `db:"price" json:"price"`
@@ -48,7 +48,7 @@ type CreateOrderItemRow struct {
 func (q *Queries) CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (CreateOrderItemRow, error) {
 	row := q.db.QueryRow(ctx, createOrderItem,
 		arg.OrderID,
-		arg.ProductID,
+		arg.ProductVariantID,
 		arg.Name,
 		arg.Quantity,
 		arg.Price,
@@ -60,7 +60,7 @@ func (q *Queries) CreateOrderItem(ctx context.Context, arg CreateOrderItemParams
 	err := row.Scan(
 		&i.ID,
 		&i.OrderID,
-		&i.ProductID,
+		&i.ProductVariantID,
 		&i.Name,
 		&i.Quantity,
 		&i.Price,
@@ -72,17 +72,247 @@ func (q *Queries) CreateOrderItem(ctx context.Context, arg CreateOrderItemParams
 	return i, err
 }
 
-const getOrderItem = `-- name: GetOrderItem :one
+const getActiveSubscriptionItems = `-- name: GetActiveSubscriptionItems :many
 
-SELECT id, order_id, product_id, name, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
-FROM order_items
-WHERE id = $1
+SELECT 
+    oi.id, oi.order_id, oi.product_variant_id, oi.name, oi.quantity, oi.price, 
+    oi.purchase_type, oi.subscription_interval, oi.stripe_price_id, oi.created_at,
+    o.customer_id, o.status as order_status,
+    pv.name as variant_name,
+    pv.options_display,
+    p.name as product_name
+FROM order_items oi
+JOIN orders o ON oi.order_id = o.id
+JOIN product_variants pv ON oi.product_variant_id = pv.id
+JOIN products p ON pv.product_id = p.id
+WHERE oi.purchase_type = 'subscription'
+  AND o.status IN ('confirmed', 'processing', 'shipped', 'delivered')
+  AND ($1::int4 IS NULL OR o.customer_id = $1)
+ORDER BY oi.created_at DESC
+LIMIT $2 OFFSET $3
 `
 
-type GetOrderItemRow struct {
+type GetActiveSubscriptionItemsParams struct {
+	Column1 int32 `db:"column_1" json:"column_1"`
+	Limit   int32 `db:"limit" json:"limit"`
+	Offset  int32 `db:"offset" json:"offset"`
+}
+
+type GetActiveSubscriptionItemsRow struct {
 	ID                   int32       `db:"id" json:"id"`
 	OrderID              int32       `db:"order_id" json:"order_id"`
-	ProductID            int32       `db:"product_id" json:"product_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
+	Name                 string      `db:"name" json:"name"`
+	Quantity             int32       `db:"quantity" json:"quantity"`
+	Price                int32       `db:"price" json:"price"`
+	PurchaseType         string      `db:"purchase_type" json:"purchase_type"`
+	SubscriptionInterval pgtype.Text `db:"subscription_interval" json:"subscription_interval"`
+	StripePriceID        string      `db:"stripe_price_id" json:"stripe_price_id"`
+	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
+	CustomerID           int32       `db:"customer_id" json:"customer_id"`
+	OrderStatus          OrderStatus `db:"order_status" json:"order_status"`
+	VariantName          string      `db:"variant_name" json:"variant_name"`
+	OptionsDisplay       pgtype.Text `db:"options_display" json:"options_display"`
+	ProductName          string      `db:"product_name" json:"product_name"`
+}
+
+// Subscription management
+func (q *Queries) GetActiveSubscriptionItems(ctx context.Context, arg GetActiveSubscriptionItemsParams) ([]GetActiveSubscriptionItemsRow, error) {
+	rows, err := q.db.Query(ctx, getActiveSubscriptionItems, arg.Column1, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetActiveSubscriptionItemsRow{}
+	for rows.Next() {
+		var i GetActiveSubscriptionItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrderID,
+			&i.ProductVariantID,
+			&i.Name,
+			&i.Quantity,
+			&i.Price,
+			&i.PurchaseType,
+			&i.SubscriptionInterval,
+			&i.StripePriceID,
+			&i.CreatedAt,
+			&i.CustomerID,
+			&i.OrderStatus,
+			&i.VariantName,
+			&i.OptionsDisplay,
+			&i.ProductName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCustomerFavoriteVariants = `-- name: GetCustomerFavoriteVariants :many
+SELECT 
+    pv.id as variant_id,
+    pv.name as variant_name,
+    pv.options_display,
+    p.name as product_name,
+    COUNT(oi.id) as purchase_count,
+    SUM(oi.quantity) as total_quantity,
+    MAX(o.created_at) as last_purchased
+FROM order_items oi
+JOIN orders o ON oi.order_id = o.id
+JOIN product_variants pv ON oi.product_variant_id = pv.id
+JOIN products p ON pv.product_id = p.id
+WHERE o.customer_id = $1
+  AND o.status IN ('confirmed', 'processing', 'shipped', 'delivered')
+GROUP BY pv.id, pv.name, pv.options_display, p.name
+ORDER BY purchase_count DESC, total_quantity DESC
+LIMIT $2 OFFSET $3
+`
+
+type GetCustomerFavoriteVariantsParams struct {
+	CustomerID int32 `db:"customer_id" json:"customer_id"`
+	Limit      int32 `db:"limit" json:"limit"`
+	Offset     int32 `db:"offset" json:"offset"`
+}
+
+type GetCustomerFavoriteVariantsRow struct {
+	VariantID      int32       `db:"variant_id" json:"variant_id"`
+	VariantName    string      `db:"variant_name" json:"variant_name"`
+	OptionsDisplay pgtype.Text `db:"options_display" json:"options_display"`
+	ProductName    string      `db:"product_name" json:"product_name"`
+	PurchaseCount  int64       `db:"purchase_count" json:"purchase_count"`
+	TotalQuantity  int64       `db:"total_quantity" json:"total_quantity"`
+	LastPurchased  interface{} `db:"last_purchased" json:"last_purchased"`
+}
+
+func (q *Queries) GetCustomerFavoriteVariants(ctx context.Context, arg GetCustomerFavoriteVariantsParams) ([]GetCustomerFavoriteVariantsRow, error) {
+	rows, err := q.db.Query(ctx, getCustomerFavoriteVariants, arg.CustomerID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetCustomerFavoriteVariantsRow{}
+	for rows.Next() {
+		var i GetCustomerFavoriteVariantsRow
+		if err := rows.Scan(
+			&i.VariantID,
+			&i.VariantName,
+			&i.OptionsDisplay,
+			&i.ProductName,
+			&i.PurchaseCount,
+			&i.TotalQuantity,
+			&i.LastPurchased,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCustomerVariantPurchaseHistory = `-- name: GetCustomerVariantPurchaseHistory :many
+
+SELECT 
+    oi.id, oi.order_id, oi.product_variant_id, oi.name, oi.quantity, oi.price, 
+    oi.purchase_type, oi.subscription_interval, oi.created_at,
+    o.status as order_status,
+    pv.name as variant_name,
+    pv.options_display,
+    p.name as product_name
+FROM order_items oi
+JOIN orders o ON oi.order_id = o.id
+JOIN product_variants pv ON oi.product_variant_id = pv.id
+JOIN products p ON pv.product_id = p.id
+WHERE o.customer_id = $1
+  AND ($2::timestamp IS NULL OR o.created_at >= $2)
+  AND ($3::timestamp IS NULL OR o.created_at <= $3)
+ORDER BY oi.created_at DESC
+LIMIT $4 OFFSET $5
+`
+
+type GetCustomerVariantPurchaseHistoryParams struct {
+	CustomerID int32            `db:"customer_id" json:"customer_id"`
+	Column2    pgtype.Timestamp `db:"column_2" json:"column_2"`
+	Column3    pgtype.Timestamp `db:"column_3" json:"column_3"`
+	Limit      int32            `db:"limit" json:"limit"`
+	Offset     int32            `db:"offset" json:"offset"`
+}
+
+type GetCustomerVariantPurchaseHistoryRow struct {
+	ID                   int32       `db:"id" json:"id"`
+	OrderID              int32       `db:"order_id" json:"order_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
+	Name                 string      `db:"name" json:"name"`
+	Quantity             int32       `db:"quantity" json:"quantity"`
+	Price                int32       `db:"price" json:"price"`
+	PurchaseType         string      `db:"purchase_type" json:"purchase_type"`
+	SubscriptionInterval pgtype.Text `db:"subscription_interval" json:"subscription_interval"`
+	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
+	OrderStatus          OrderStatus `db:"order_status" json:"order_status"`
+	VariantName          string      `db:"variant_name" json:"variant_name"`
+	OptionsDisplay       pgtype.Text `db:"options_display" json:"options_display"`
+	ProductName          string      `db:"product_name" json:"product_name"`
+}
+
+// Customer purchase behavior
+func (q *Queries) GetCustomerVariantPurchaseHistory(ctx context.Context, arg GetCustomerVariantPurchaseHistoryParams) ([]GetCustomerVariantPurchaseHistoryRow, error) {
+	rows, err := q.db.Query(ctx, getCustomerVariantPurchaseHistory,
+		arg.CustomerID,
+		arg.Column2,
+		arg.Column3,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetCustomerVariantPurchaseHistoryRow{}
+	for rows.Next() {
+		var i GetCustomerVariantPurchaseHistoryRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrderID,
+			&i.ProductVariantID,
+			&i.Name,
+			&i.Quantity,
+			&i.Price,
+			&i.PurchaseType,
+			&i.SubscriptionInterval,
+			&i.CreatedAt,
+			&i.OrderStatus,
+			&i.VariantName,
+			&i.OptionsDisplay,
+			&i.ProductName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOneTimeOrderItems = `-- name: GetOneTimeOrderItems :many
+SELECT id, order_id, product_variant_id, name, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
+FROM order_items
+WHERE order_id = $1 AND purchase_type = 'one_time'
+ORDER BY created_at ASC
+`
+
+type GetOneTimeOrderItemsRow struct {
+	ID                   int32       `db:"id" json:"id"`
+	OrderID              int32       `db:"order_id" json:"order_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
 	Name                 string      `db:"name" json:"name"`
 	Quantity             int32       `db:"quantity" json:"quantity"`
 	Price                int32       `db:"price" json:"price"`
@@ -92,14 +322,68 @@ type GetOrderItemRow struct {
 	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
 }
 
-// internal/database/queries/order_items.sql - Updated queries
+func (q *Queries) GetOneTimeOrderItems(ctx context.Context, orderID int32) ([]GetOneTimeOrderItemsRow, error) {
+	rows, err := q.db.Query(ctx, getOneTimeOrderItems, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetOneTimeOrderItemsRow{}
+	for rows.Next() {
+		var i GetOneTimeOrderItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrderID,
+			&i.ProductVariantID,
+			&i.Name,
+			&i.Quantity,
+			&i.Price,
+			&i.PurchaseType,
+			&i.SubscriptionInterval,
+			&i.StripePriceID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOrderItem = `-- name: GetOrderItem :one
+
+
+SELECT id, order_id, product_variant_id, name, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
+FROM order_items
+WHERE id = $1
+`
+
+type GetOrderItemRow struct {
+	ID                   int32       `db:"id" json:"id"`
+	OrderID              int32       `db:"order_id" json:"order_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
+	Name                 string      `db:"name" json:"name"`
+	Quantity             int32       `db:"quantity" json:"quantity"`
+	Price                int32       `db:"price" json:"price"`
+	PurchaseType         string      `db:"purchase_type" json:"purchase_type"`
+	SubscriptionInterval pgtype.Text `db:"subscription_interval" json:"subscription_interval"`
+	StripePriceID        string      `db:"stripe_price_id" json:"stripe_price_id"`
+	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
+}
+
+// internal/database/queries/order_items.sql
+// Updated for product variants system
+// Basic order item queries
 func (q *Queries) GetOrderItem(ctx context.Context, id int32) (GetOrderItemRow, error) {
 	row := q.db.QueryRow(ctx, getOrderItem, id)
 	var i GetOrderItemRow
 	err := row.Scan(
 		&i.ID,
 		&i.OrderID,
-		&i.ProductID,
+		&i.ProductVariantID,
 		&i.Name,
 		&i.Quantity,
 		&i.Price,
@@ -144,11 +428,18 @@ func (q *Queries) GetOrderItemStats(ctx context.Context, orderID int32) (GetOrde
 }
 
 const getOrderItems = `-- name: GetOrderItems :many
-SELECT oi.id, oi.order_id, oi.product_id, oi.name, oi.quantity, oi.price, 
-       oi.purchase_type, oi.subscription_interval, oi.stripe_price_id, oi.created_at,
-       p.stock as product_stock, p.active as product_active
+SELECT 
+    oi.id, oi.order_id, oi.product_variant_id, oi.name, oi.quantity, oi.price, 
+    oi.purchase_type, oi.subscription_interval, oi.stripe_price_id, oi.created_at,
+    pv.stock as variant_stock, 
+    pv.active as variant_active,
+    pv.options_display,
+    p.id as product_id,
+    p.name as product_name,
+    p.active as product_active
 FROM order_items oi
-LEFT JOIN products p ON oi.product_id = p.id
+LEFT JOIN product_variants pv ON oi.product_variant_id = pv.id
+LEFT JOIN products p ON pv.product_id = p.id
 WHERE oi.order_id = $1
 ORDER BY oi.created_at ASC
 `
@@ -156,7 +447,7 @@ ORDER BY oi.created_at ASC
 type GetOrderItemsRow struct {
 	ID                   int32       `db:"id" json:"id"`
 	OrderID              int32       `db:"order_id" json:"order_id"`
-	ProductID            int32       `db:"product_id" json:"product_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
 	Name                 string      `db:"name" json:"name"`
 	Quantity             int32       `db:"quantity" json:"quantity"`
 	Price                int32       `db:"price" json:"price"`
@@ -164,7 +455,11 @@ type GetOrderItemsRow struct {
 	SubscriptionInterval pgtype.Text `db:"subscription_interval" json:"subscription_interval"`
 	StripePriceID        string      `db:"stripe_price_id" json:"stripe_price_id"`
 	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
-	ProductStock         int32       `db:"product_stock" json:"product_stock"`
+	VariantStock         pgtype.Int4 `db:"variant_stock" json:"variant_stock"`
+	VariantActive        pgtype.Bool `db:"variant_active" json:"variant_active"`
+	OptionsDisplay       pgtype.Text `db:"options_display" json:"options_display"`
+	ProductID            pgtype.Int4 `db:"product_id" json:"product_id"`
+	ProductName          pgtype.Text `db:"product_name" json:"product_name"`
 	ProductActive        pgtype.Bool `db:"product_active" json:"product_active"`
 }
 
@@ -180,7 +475,7 @@ func (q *Queries) GetOrderItems(ctx context.Context, orderID int32) ([]GetOrderI
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrderID,
-			&i.ProductID,
+			&i.ProductVariantID,
 			&i.Name,
 			&i.Quantity,
 			&i.Price,
@@ -188,7 +483,11 @@ func (q *Queries) GetOrderItems(ctx context.Context, orderID int32) ([]GetOrderI
 			&i.SubscriptionInterval,
 			&i.StripePriceID,
 			&i.CreatedAt,
-			&i.ProductStock,
+			&i.VariantStock,
+			&i.VariantActive,
+			&i.OptionsDisplay,
+			&i.ProductID,
+			&i.ProductName,
 			&i.ProductActive,
 		); err != nil {
 			return nil, err
@@ -202,12 +501,15 @@ func (q *Queries) GetOrderItems(ctx context.Context, orderID int32) ([]GetOrderI
 }
 
 const getOrderItemsByProduct = `-- name: GetOrderItemsByProduct :many
-SELECT oi.id, oi.order_id, oi.product_id, oi.name, oi.quantity, oi.price, 
-       oi.purchase_type, oi.subscription_interval, oi.stripe_price_id, oi.created_at,
-       o.customer_id, o.status as order_status
+SELECT 
+    oi.id, oi.order_id, oi.product_variant_id, oi.name, oi.quantity, oi.price, 
+    oi.purchase_type, oi.subscription_interval, oi.stripe_price_id, oi.created_at,
+    o.customer_id, o.status as order_status, o.created_at as order_date,
+    pv.name as variant_name, pv.options_display
 FROM order_items oi
 JOIN orders o ON oi.order_id = o.id
-WHERE oi.product_id = $1
+JOIN product_variants pv ON oi.product_variant_id = pv.id
+WHERE pv.product_id = $1
 ORDER BY oi.created_at DESC
 LIMIT $2 OFFSET $3
 `
@@ -221,7 +523,7 @@ type GetOrderItemsByProductParams struct {
 type GetOrderItemsByProductRow struct {
 	ID                   int32       `db:"id" json:"id"`
 	OrderID              int32       `db:"order_id" json:"order_id"`
-	ProductID            int32       `db:"product_id" json:"product_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
 	Name                 string      `db:"name" json:"name"`
 	Quantity             int32       `db:"quantity" json:"quantity"`
 	Price                int32       `db:"price" json:"price"`
@@ -231,6 +533,9 @@ type GetOrderItemsByProductRow struct {
 	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
 	CustomerID           int32       `db:"customer_id" json:"customer_id"`
 	OrderStatus          OrderStatus `db:"order_status" json:"order_status"`
+	OrderDate            time.Time   `db:"order_date" json:"order_date"`
+	VariantName          string      `db:"variant_name" json:"variant_name"`
+	OptionsDisplay       pgtype.Text `db:"options_display" json:"options_display"`
 }
 
 func (q *Queries) GetOrderItemsByProduct(ctx context.Context, arg GetOrderItemsByProductParams) ([]GetOrderItemsByProductRow, error) {
@@ -245,7 +550,7 @@ func (q *Queries) GetOrderItemsByProduct(ctx context.Context, arg GetOrderItemsB
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrderID,
-			&i.ProductID,
+			&i.ProductVariantID,
 			&i.Name,
 			&i.Quantity,
 			&i.Price,
@@ -255,6 +560,9 @@ func (q *Queries) GetOrderItemsByProduct(ctx context.Context, arg GetOrderItemsB
 			&i.CreatedAt,
 			&i.CustomerID,
 			&i.OrderStatus,
+			&i.OrderDate,
+			&i.VariantName,
+			&i.OptionsDisplay,
 		); err != nil {
 			return nil, err
 		}
@@ -267,7 +575,8 @@ func (q *Queries) GetOrderItemsByProduct(ctx context.Context, arg GetOrderItemsB
 }
 
 const getOrderItemsByPurchaseType = `-- name: GetOrderItemsByPurchaseType :many
-SELECT id, order_id, product_id, name, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
+
+SELECT id, order_id, product_variant_id, name, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
 FROM order_items
 WHERE order_id = $1 AND purchase_type = $2
 ORDER BY created_at ASC
@@ -281,7 +590,7 @@ type GetOrderItemsByPurchaseTypeParams struct {
 type GetOrderItemsByPurchaseTypeRow struct {
 	ID                   int32       `db:"id" json:"id"`
 	OrderID              int32       `db:"order_id" json:"order_id"`
-	ProductID            int32       `db:"product_id" json:"product_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
 	Name                 string      `db:"name" json:"name"`
 	Quantity             int32       `db:"quantity" json:"quantity"`
 	Price                int32       `db:"price" json:"price"`
@@ -291,6 +600,7 @@ type GetOrderItemsByPurchaseTypeRow struct {
 	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
 }
 
+// Order item filtering and grouping
 func (q *Queries) GetOrderItemsByPurchaseType(ctx context.Context, arg GetOrderItemsByPurchaseTypeParams) ([]GetOrderItemsByPurchaseTypeRow, error) {
 	rows, err := q.db.Query(ctx, getOrderItemsByPurchaseType, arg.OrderID, arg.PurchaseType)
 	if err != nil {
@@ -303,7 +613,7 @@ func (q *Queries) GetOrderItemsByPurchaseType(ctx context.Context, arg GetOrderI
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrderID,
-			&i.ProductID,
+			&i.ProductVariantID,
 			&i.Name,
 			&i.Quantity,
 			&i.Price,
@@ -322,8 +632,365 @@ func (q *Queries) GetOrderItemsByPurchaseType(ctx context.Context, arg GetOrderI
 	return items, nil
 }
 
+const getOrderItemsByVariant = `-- name: GetOrderItemsByVariant :many
+
+SELECT 
+    oi.id, oi.order_id, oi.product_variant_id, oi.name, oi.quantity, oi.price, 
+    oi.purchase_type, oi.subscription_interval, oi.stripe_price_id, oi.created_at,
+    o.customer_id, o.status as order_status, o.created_at as order_date
+FROM order_items oi
+JOIN orders o ON oi.order_id = o.id
+WHERE oi.product_variant_id = $1
+ORDER BY oi.created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type GetOrderItemsByVariantParams struct {
+	ProductVariantID int32 `db:"product_variant_id" json:"product_variant_id"`
+	Limit            int32 `db:"limit" json:"limit"`
+	Offset           int32 `db:"offset" json:"offset"`
+}
+
+type GetOrderItemsByVariantRow struct {
+	ID                   int32       `db:"id" json:"id"`
+	OrderID              int32       `db:"order_id" json:"order_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
+	Name                 string      `db:"name" json:"name"`
+	Quantity             int32       `db:"quantity" json:"quantity"`
+	Price                int32       `db:"price" json:"price"`
+	PurchaseType         string      `db:"purchase_type" json:"purchase_type"`
+	SubscriptionInterval pgtype.Text `db:"subscription_interval" json:"subscription_interval"`
+	StripePriceID        string      `db:"stripe_price_id" json:"stripe_price_id"`
+	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
+	CustomerID           int32       `db:"customer_id" json:"customer_id"`
+	OrderStatus          OrderStatus `db:"order_status" json:"order_status"`
+	OrderDate            time.Time   `db:"order_date" json:"order_date"`
+}
+
+// Order item analytics
+func (q *Queries) GetOrderItemsByVariant(ctx context.Context, arg GetOrderItemsByVariantParams) ([]GetOrderItemsByVariantRow, error) {
+	rows, err := q.db.Query(ctx, getOrderItemsByVariant, arg.ProductVariantID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetOrderItemsByVariantRow{}
+	for rows.Next() {
+		var i GetOrderItemsByVariantRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrderID,
+			&i.ProductVariantID,
+			&i.Name,
+			&i.Quantity,
+			&i.Price,
+			&i.PurchaseType,
+			&i.SubscriptionInterval,
+			&i.StripePriceID,
+			&i.CreatedAt,
+			&i.CustomerID,
+			&i.OrderStatus,
+			&i.OrderDate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOrderItemsWithArchivedVariants = `-- name: GetOrderItemsWithArchivedVariants :many
+SELECT 
+    oi.id, oi.order_id, oi.product_variant_id, oi.name, oi.quantity, oi.price, 
+    oi.purchase_type, oi.subscription_interval, oi.stripe_price_id, oi.created_at,
+    pv.archived_at
+FROM order_items oi
+JOIN product_variants pv ON oi.product_variant_id = pv.id
+WHERE pv.archived_at IS NOT NULL
+ORDER BY oi.created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type GetOrderItemsWithArchivedVariantsParams struct {
+	Limit  int32 `db:"limit" json:"limit"`
+	Offset int32 `db:"offset" json:"offset"`
+}
+
+type GetOrderItemsWithArchivedVariantsRow struct {
+	ID                   int32            `db:"id" json:"id"`
+	OrderID              int32            `db:"order_id" json:"order_id"`
+	ProductVariantID     int32            `db:"product_variant_id" json:"product_variant_id"`
+	Name                 string           `db:"name" json:"name"`
+	Quantity             int32            `db:"quantity" json:"quantity"`
+	Price                int32            `db:"price" json:"price"`
+	PurchaseType         string           `db:"purchase_type" json:"purchase_type"`
+	SubscriptionInterval pgtype.Text      `db:"subscription_interval" json:"subscription_interval"`
+	StripePriceID        string           `db:"stripe_price_id" json:"stripe_price_id"`
+	CreatedAt            time.Time        `db:"created_at" json:"created_at"`
+	ArchivedAt           pgtype.Timestamp `db:"archived_at" json:"archived_at"`
+}
+
+func (q *Queries) GetOrderItemsWithArchivedVariants(ctx context.Context, arg GetOrderItemsWithArchivedVariantsParams) ([]GetOrderItemsWithArchivedVariantsRow, error) {
+	rows, err := q.db.Query(ctx, getOrderItemsWithArchivedVariants, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetOrderItemsWithArchivedVariantsRow{}
+	for rows.Next() {
+		var i GetOrderItemsWithArchivedVariantsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrderID,
+			&i.ProductVariantID,
+			&i.Name,
+			&i.Quantity,
+			&i.Price,
+			&i.PurchaseType,
+			&i.SubscriptionInterval,
+			&i.StripePriceID,
+			&i.CreatedAt,
+			&i.ArchivedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOrderItemsWithMissingVariants = `-- name: GetOrderItemsWithMissingVariants :many
+
+SELECT 
+    oi.id, oi.order_id, oi.product_variant_id, oi.name, oi.quantity, oi.price, 
+    oi.purchase_type, oi.subscription_interval, oi.stripe_price_id, oi.created_at
+FROM order_items oi
+LEFT JOIN product_variants pv ON oi.product_variant_id = pv.id
+WHERE pv.id IS NULL
+ORDER BY oi.created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type GetOrderItemsWithMissingVariantsParams struct {
+	Limit  int32 `db:"limit" json:"limit"`
+	Offset int32 `db:"offset" json:"offset"`
+}
+
+type GetOrderItemsWithMissingVariantsRow struct {
+	ID                   int32       `db:"id" json:"id"`
+	OrderID              int32       `db:"order_id" json:"order_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
+	Name                 string      `db:"name" json:"name"`
+	Quantity             int32       `db:"quantity" json:"quantity"`
+	Price                int32       `db:"price" json:"price"`
+	PurchaseType         string      `db:"purchase_type" json:"purchase_type"`
+	SubscriptionInterval pgtype.Text `db:"subscription_interval" json:"subscription_interval"`
+	StripePriceID        string      `db:"stripe_price_id" json:"stripe_price_id"`
+	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
+}
+
+// Data integrity and validation
+func (q *Queries) GetOrderItemsWithMissingVariants(ctx context.Context, arg GetOrderItemsWithMissingVariantsParams) ([]GetOrderItemsWithMissingVariantsRow, error) {
+	rows, err := q.db.Query(ctx, getOrderItemsWithMissingVariants, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetOrderItemsWithMissingVariantsRow{}
+	for rows.Next() {
+		var i GetOrderItemsWithMissingVariantsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrderID,
+			&i.ProductVariantID,
+			&i.Name,
+			&i.Quantity,
+			&i.Price,
+			&i.PurchaseType,
+			&i.SubscriptionInterval,
+			&i.StripePriceID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOrderItemsWithOptions = `-- name: GetOrderItemsWithOptions :many
+SELECT 
+    oi.id, oi.order_id, oi.product_variant_id, oi.name, oi.quantity, oi.price, 
+    oi.purchase_type, oi.subscription_interval, oi.stripe_price_id, oi.created_at,
+    pv.stock as variant_stock, 
+    pv.active as variant_active,
+    pv.options_display,
+    p.id as product_id,
+    p.name as product_name,
+    p.active as product_active,
+    COALESCE(
+        json_agg(
+            json_build_object(
+                'option_key', po.option_key,
+                'value', pov.value
+            ) ORDER BY po.option_key
+        ) FILTER (WHERE po.id IS NOT NULL), 
+        '[]'::json
+    ) as variant_options
+FROM order_items oi
+LEFT JOIN product_variants pv ON oi.product_variant_id = pv.id
+LEFT JOIN products p ON pv.product_id = p.id
+LEFT JOIN product_variant_options pvo ON pv.id = pvo.product_variant_id
+LEFT JOIN product_options po ON pvo.product_option_id = po.id
+LEFT JOIN product_option_values pov ON pvo.product_option_value_id = pov.id
+WHERE oi.order_id = $1
+GROUP BY oi.id, oi.order_id, oi.product_variant_id, oi.name, oi.quantity, oi.price, 
+         oi.purchase_type, oi.subscription_interval, oi.stripe_price_id, oi.created_at,
+         pv.stock, pv.active, pv.options_display,
+         p.id, p.name, p.active
+ORDER BY oi.created_at ASC
+`
+
+type GetOrderItemsWithOptionsRow struct {
+	ID                   int32       `db:"id" json:"id"`
+	OrderID              int32       `db:"order_id" json:"order_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
+	Name                 string      `db:"name" json:"name"`
+	Quantity             int32       `db:"quantity" json:"quantity"`
+	Price                int32       `db:"price" json:"price"`
+	PurchaseType         string      `db:"purchase_type" json:"purchase_type"`
+	SubscriptionInterval pgtype.Text `db:"subscription_interval" json:"subscription_interval"`
+	StripePriceID        string      `db:"stripe_price_id" json:"stripe_price_id"`
+	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
+	VariantStock         pgtype.Int4 `db:"variant_stock" json:"variant_stock"`
+	VariantActive        pgtype.Bool `db:"variant_active" json:"variant_active"`
+	OptionsDisplay       pgtype.Text `db:"options_display" json:"options_display"`
+	ProductID            pgtype.Int4 `db:"product_id" json:"product_id"`
+	ProductName          pgtype.Text `db:"product_name" json:"product_name"`
+	ProductActive        pgtype.Bool `db:"product_active" json:"product_active"`
+	VariantOptions       interface{} `db:"variant_options" json:"variant_options"`
+}
+
+func (q *Queries) GetOrderItemsWithOptions(ctx context.Context, orderID int32) ([]GetOrderItemsWithOptionsRow, error) {
+	rows, err := q.db.Query(ctx, getOrderItemsWithOptions, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetOrderItemsWithOptionsRow{}
+	for rows.Next() {
+		var i GetOrderItemsWithOptionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrderID,
+			&i.ProductVariantID,
+			&i.Name,
+			&i.Quantity,
+			&i.Price,
+			&i.PurchaseType,
+			&i.SubscriptionInterval,
+			&i.StripePriceID,
+			&i.CreatedAt,
+			&i.VariantStock,
+			&i.VariantActive,
+			&i.OptionsDisplay,
+			&i.ProductID,
+			&i.ProductName,
+			&i.ProductActive,
+			&i.VariantOptions,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getProductSalesStats = `-- name: GetProductSalesStats :many
+SELECT 
+    p.id as product_id,
+    p.name as product_name,
+    COUNT(DISTINCT pv.id) as variant_count,
+    COUNT(oi.id) as order_count,
+    SUM(oi.quantity) as total_sold,
+    SUM(oi.quantity * oi.price) as total_revenue,
+    AVG(oi.price) as avg_price
+FROM order_items oi
+JOIN product_variants pv ON oi.product_variant_id = pv.id
+JOIN products p ON pv.product_id = p.id
+JOIN orders o ON oi.order_id = o.id
+WHERE o.status IN ('confirmed', 'processing', 'shipped', 'delivered')
+  AND ($1::timestamp IS NULL OR o.created_at >= $1)
+  AND ($2::timestamp IS NULL OR o.created_at <= $2)
+GROUP BY p.id, p.name
+ORDER BY total_sold DESC
+LIMIT $3 OFFSET $4
+`
+
+type GetProductSalesStatsParams struct {
+	Column1 pgtype.Timestamp `db:"column_1" json:"column_1"`
+	Column2 pgtype.Timestamp `db:"column_2" json:"column_2"`
+	Limit   int32            `db:"limit" json:"limit"`
+	Offset  int32            `db:"offset" json:"offset"`
+}
+
+type GetProductSalesStatsRow struct {
+	ProductID    int32   `db:"product_id" json:"product_id"`
+	ProductName  string  `db:"product_name" json:"product_name"`
+	VariantCount int64   `db:"variant_count" json:"variant_count"`
+	OrderCount   int64   `db:"order_count" json:"order_count"`
+	TotalSold    int64   `db:"total_sold" json:"total_sold"`
+	TotalRevenue int64   `db:"total_revenue" json:"total_revenue"`
+	AvgPrice     float64 `db:"avg_price" json:"avg_price"`
+}
+
+func (q *Queries) GetProductSalesStats(ctx context.Context, arg GetProductSalesStatsParams) ([]GetProductSalesStatsRow, error) {
+	rows, err := q.db.Query(ctx, getProductSalesStats,
+		arg.Column1,
+		arg.Column2,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetProductSalesStatsRow{}
+	for rows.Next() {
+		var i GetProductSalesStatsRow
+		if err := rows.Scan(
+			&i.ProductID,
+			&i.ProductName,
+			&i.VariantCount,
+			&i.OrderCount,
+			&i.TotalSold,
+			&i.TotalRevenue,
+			&i.AvgPrice,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getSubscriptionOrderItems = `-- name: GetSubscriptionOrderItems :many
-SELECT id, order_id, product_id, name, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
+SELECT id, order_id, product_variant_id, name, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
 FROM order_items
 WHERE order_id = $1 AND purchase_type = 'subscription'
 ORDER BY created_at ASC
@@ -332,7 +999,7 @@ ORDER BY created_at ASC
 type GetSubscriptionOrderItemsRow struct {
 	ID                   int32       `db:"id" json:"id"`
 	OrderID              int32       `db:"order_id" json:"order_id"`
-	ProductID            int32       `db:"product_id" json:"product_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
 	Name                 string      `db:"name" json:"name"`
 	Quantity             int32       `db:"quantity" json:"quantity"`
 	Price                int32       `db:"price" json:"price"`
@@ -354,7 +1021,7 @@ func (q *Queries) GetSubscriptionOrderItems(ctx context.Context, orderID int32) 
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrderID,
-			&i.ProductID,
+			&i.ProductVariantID,
 			&i.Name,
 			&i.Quantity,
 			&i.Price,
@@ -362,6 +1029,247 @@ func (q *Queries) GetSubscriptionOrderItems(ctx context.Context, orderID int32) 
 			&i.SubscriptionInterval,
 			&i.StripePriceID,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getSubscriptionSummaryByOrder = `-- name: GetSubscriptionSummaryByOrder :many
+SELECT 
+    subscription_interval,
+    COUNT(*) as item_count,
+    SUM(quantity) as total_quantity,
+    SUM(quantity * price) as total_amount
+FROM order_items
+WHERE order_id = $1 AND purchase_type = 'subscription'
+GROUP BY subscription_interval
+ORDER BY subscription_interval
+`
+
+type GetSubscriptionSummaryByOrderRow struct {
+	SubscriptionInterval pgtype.Text `db:"subscription_interval" json:"subscription_interval"`
+	ItemCount            int64       `db:"item_count" json:"item_count"`
+	TotalQuantity        int64       `db:"total_quantity" json:"total_quantity"`
+	TotalAmount          int64       `db:"total_amount" json:"total_amount"`
+}
+
+func (q *Queries) GetSubscriptionSummaryByOrder(ctx context.Context, orderID int32) ([]GetSubscriptionSummaryByOrderRow, error) {
+	rows, err := q.db.Query(ctx, getSubscriptionSummaryByOrder, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetSubscriptionSummaryByOrderRow{}
+	for rows.Next() {
+		var i GetSubscriptionSummaryByOrderRow
+		if err := rows.Scan(
+			&i.SubscriptionInterval,
+			&i.ItemCount,
+			&i.TotalQuantity,
+			&i.TotalAmount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getSubscriptionsByInterval = `-- name: GetSubscriptionsByInterval :many
+SELECT 
+    subscription_interval,
+    COUNT(*) as subscription_count,
+    SUM(quantity) as total_quantity,
+    SUM(quantity * price) as total_monthly_revenue
+FROM order_items oi
+JOIN orders o ON oi.order_id = o.id
+WHERE oi.purchase_type = 'subscription'
+  AND o.status IN ('confirmed', 'processing', 'shipped', 'delivered')
+  AND ($1::timestamp IS NULL OR o.created_at >= $1)
+  AND ($2::timestamp IS NULL OR o.created_at <= $2)
+GROUP BY subscription_interval
+ORDER BY total_monthly_revenue DESC
+`
+
+type GetSubscriptionsByIntervalParams struct {
+	Column1 pgtype.Timestamp `db:"column_1" json:"column_1"`
+	Column2 pgtype.Timestamp `db:"column_2" json:"column_2"`
+}
+
+type GetSubscriptionsByIntervalRow struct {
+	SubscriptionInterval pgtype.Text `db:"subscription_interval" json:"subscription_interval"`
+	SubscriptionCount    int64       `db:"subscription_count" json:"subscription_count"`
+	TotalQuantity        int64       `db:"total_quantity" json:"total_quantity"`
+	TotalMonthlyRevenue  int64       `db:"total_monthly_revenue" json:"total_monthly_revenue"`
+}
+
+func (q *Queries) GetSubscriptionsByInterval(ctx context.Context, arg GetSubscriptionsByIntervalParams) ([]GetSubscriptionsByIntervalRow, error) {
+	rows, err := q.db.Query(ctx, getSubscriptionsByInterval, arg.Column1, arg.Column2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetSubscriptionsByIntervalRow{}
+	for rows.Next() {
+		var i GetSubscriptionsByIntervalRow
+		if err := rows.Scan(
+			&i.SubscriptionInterval,
+			&i.SubscriptionCount,
+			&i.TotalQuantity,
+			&i.TotalMonthlyRevenue,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTopSellingVariants = `-- name: GetTopSellingVariants :many
+SELECT 
+    pv.id as variant_id,
+    pv.name as variant_name,
+    pv.options_display,
+    p.name as product_name,
+    SUM(oi.quantity) as total_sold,
+    SUM(oi.quantity * oi.price) as total_revenue
+FROM order_items oi
+JOIN product_variants pv ON oi.product_variant_id = pv.id
+JOIN products p ON pv.product_id = p.id
+JOIN orders o ON oi.order_id = o.id
+WHERE o.status IN ('confirmed', 'processing', 'shipped', 'delivered')
+  AND ($1::timestamp IS NULL OR o.created_at >= $1)
+  AND ($2::timestamp IS NULL OR o.created_at <= $2)
+GROUP BY pv.id, pv.name, pv.options_display, p.name
+ORDER BY total_sold DESC
+LIMIT $3 OFFSET $4
+`
+
+type GetTopSellingVariantsParams struct {
+	Column1 pgtype.Timestamp `db:"column_1" json:"column_1"`
+	Column2 pgtype.Timestamp `db:"column_2" json:"column_2"`
+	Limit   int32            `db:"limit" json:"limit"`
+	Offset  int32            `db:"offset" json:"offset"`
+}
+
+type GetTopSellingVariantsRow struct {
+	VariantID      int32       `db:"variant_id" json:"variant_id"`
+	VariantName    string      `db:"variant_name" json:"variant_name"`
+	OptionsDisplay pgtype.Text `db:"options_display" json:"options_display"`
+	ProductName    string      `db:"product_name" json:"product_name"`
+	TotalSold      int64       `db:"total_sold" json:"total_sold"`
+	TotalRevenue   int64       `db:"total_revenue" json:"total_revenue"`
+}
+
+func (q *Queries) GetTopSellingVariants(ctx context.Context, arg GetTopSellingVariantsParams) ([]GetTopSellingVariantsRow, error) {
+	rows, err := q.db.Query(ctx, getTopSellingVariants,
+		arg.Column1,
+		arg.Column2,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetTopSellingVariantsRow{}
+	for rows.Next() {
+		var i GetTopSellingVariantsRow
+		if err := rows.Scan(
+			&i.VariantID,
+			&i.VariantName,
+			&i.OptionsDisplay,
+			&i.ProductName,
+			&i.TotalSold,
+			&i.TotalRevenue,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getVariantSalesStats = `-- name: GetVariantSalesStats :many
+
+SELECT 
+    pv.id as variant_id,
+    pv.name as variant_name,
+    pv.options_display,
+    p.name as product_name,
+    COUNT(oi.id) as order_count,
+    SUM(oi.quantity) as total_sold,
+    SUM(oi.quantity * oi.price) as total_revenue,
+    AVG(oi.price) as avg_price
+FROM order_items oi
+JOIN product_variants pv ON oi.product_variant_id = pv.id
+JOIN products p ON pv.product_id = p.id
+JOIN orders o ON oi.order_id = o.id
+WHERE o.status IN ('confirmed', 'processing', 'shipped', 'delivered')
+  AND ($1::timestamp IS NULL OR o.created_at >= $1)
+  AND ($2::timestamp IS NULL OR o.created_at <= $2)
+GROUP BY pv.id, pv.name, pv.options_display, p.name
+ORDER BY total_sold DESC
+LIMIT $3 OFFSET $4
+`
+
+type GetVariantSalesStatsParams struct {
+	Column1 pgtype.Timestamp `db:"column_1" json:"column_1"`
+	Column2 pgtype.Timestamp `db:"column_2" json:"column_2"`
+	Limit   int32            `db:"limit" json:"limit"`
+	Offset  int32            `db:"offset" json:"offset"`
+}
+
+type GetVariantSalesStatsRow struct {
+	VariantID      int32       `db:"variant_id" json:"variant_id"`
+	VariantName    string      `db:"variant_name" json:"variant_name"`
+	OptionsDisplay pgtype.Text `db:"options_display" json:"options_display"`
+	ProductName    string      `db:"product_name" json:"product_name"`
+	OrderCount     int64       `db:"order_count" json:"order_count"`
+	TotalSold      int64       `db:"total_sold" json:"total_sold"`
+	TotalRevenue   int64       `db:"total_revenue" json:"total_revenue"`
+	AvgPrice       float64     `db:"avg_price" json:"avg_price"`
+}
+
+// Sales analytics queries
+func (q *Queries) GetVariantSalesStats(ctx context.Context, arg GetVariantSalesStatsParams) ([]GetVariantSalesStatsRow, error) {
+	rows, err := q.db.Query(ctx, getVariantSalesStats,
+		arg.Column1,
+		arg.Column2,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetVariantSalesStatsRow{}
+	for rows.Next() {
+		var i GetVariantSalesStatsRow
+		if err := rows.Scan(
+			&i.VariantID,
+			&i.VariantName,
+			&i.OptionsDisplay,
+			&i.ProductName,
+			&i.OrderCount,
+			&i.TotalSold,
+			&i.TotalRevenue,
+			&i.AvgPrice,
 		); err != nil {
 			return nil, err
 		}

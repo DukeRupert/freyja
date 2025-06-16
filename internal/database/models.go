@@ -80,7 +80,7 @@ type AuditLogs struct {
 type CartItems struct {
 	ID                   int32       `db:"id" json:"id"`
 	CartID               int32       `db:"cart_id" json:"cart_id"`
-	ProductID            int32       `db:"product_id" json:"product_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
 	Quantity             int32       `db:"quantity" json:"quantity"`
 	Price                int32       `db:"price" json:"price"`
 	PurchaseType         string      `db:"purchase_type" json:"purchase_type"`
@@ -123,8 +123,9 @@ type Events struct {
 type OrderItems struct {
 	ID                   int32       `db:"id" json:"id"`
 	OrderID              int32       `db:"order_id" json:"order_id"`
-	ProductID            int32       `db:"product_id" json:"product_id"`
+	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
 	Name                 string      `db:"name" json:"name"`
+	VariantName          string      `db:"variant_name" json:"variant_name"`
 	Quantity             int32       `db:"quantity" json:"quantity"`
 	Price                int32       `db:"price" json:"price"`
 	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
@@ -145,21 +146,70 @@ type Orders struct {
 	StripeChargeID        pgtype.Text `db:"stripe_charge_id" json:"stripe_charge_id"`
 }
 
+type ProductOptionValues struct {
+	ID              int32     `db:"id" json:"id"`
+	ProductOptionID int32     `db:"product_option_id" json:"product_option_id"`
+	Value           string    `db:"value" json:"value"`
+	CreatedAt       time.Time `db:"created_at" json:"created_at"`
+}
+
+type ProductOptions struct {
+	ID        int32     `db:"id" json:"id"`
+	ProductID int32     `db:"product_id" json:"product_id"`
+	OptionKey string    `db:"option_key" json:"option_key"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
+type ProductStockSummary struct {
+	ProductID        int32       `db:"product_id" json:"product_id"`
+	Name             string      `db:"name" json:"name"`
+	Description      pgtype.Text `db:"description" json:"description"`
+	ProductActive    bool        `db:"product_active" json:"product_active"`
+	TotalStock       interface{} `db:"total_stock" json:"total_stock"`
+	VariantsInStock  interface{} `db:"variants_in_stock" json:"variants_in_stock"`
+	TotalVariants    interface{} `db:"total_variants" json:"total_variants"`
+	MinPrice         interface{} `db:"min_price" json:"min_price"`
+	MaxPrice         interface{} `db:"max_price" json:"max_price"`
+	HasStock         bool        `db:"has_stock" json:"has_stock"`
+	StockStatus      string      `db:"stock_status" json:"stock_status"`
+	AvailableOptions []byte      `db:"available_options" json:"available_options"`
+	LastStockUpdate  interface{} `db:"last_stock_update" json:"last_stock_update"`
+}
+
+type ProductVariantOptions struct {
+	ID                   int32 `db:"id" json:"id"`
+	ProductVariantID     int32 `db:"product_variant_id" json:"product_variant_id"`
+	ProductOptionID      int32 `db:"product_option_id" json:"product_option_id"`
+	ProductOptionValueID int32 `db:"product_option_value_id" json:"product_option_value_id"`
+}
+
+type ProductVariants struct {
+	ID                   int32            `db:"id" json:"id"`
+	ProductID            int32            `db:"product_id" json:"product_id"`
+	Name                 string           `db:"name" json:"name"`
+	Price                int32            `db:"price" json:"price"`
+	Stock                int32            `db:"stock" json:"stock"`
+	Active               bool             `db:"active" json:"active"`
+	IsSubscription       bool             `db:"is_subscription" json:"is_subscription"`
+	ArchivedAt           pgtype.Timestamp `db:"archived_at" json:"archived_at"`
+	CreatedAt            time.Time        `db:"created_at" json:"created_at"`
+	UpdatedAt            time.Time        `db:"updated_at" json:"updated_at"`
+	StripeProductID      pgtype.Text      `db:"stripe_product_id" json:"stripe_product_id"`
+	StripePriceOnetimeID pgtype.Text      `db:"stripe_price_onetime_id" json:"stripe_price_onetime_id"`
+	StripePrice14dayID   pgtype.Text      `db:"stripe_price_14day_id" json:"stripe_price_14day_id"`
+	StripePrice21dayID   pgtype.Text      `db:"stripe_price_21day_id" json:"stripe_price_21day_id"`
+	StripePrice30dayID   pgtype.Text      `db:"stripe_price_30day_id" json:"stripe_price_30day_id"`
+	StripePrice60dayID   pgtype.Text      `db:"stripe_price_60day_id" json:"stripe_price_60day_id"`
+	OptionsDisplay       pgtype.Text      `db:"options_display" json:"options_display"`
+}
+
 type Products struct {
-	ID                   int32       `db:"id" json:"id"`
-	Name                 string      `db:"name" json:"name"`
-	Description          pgtype.Text `db:"description" json:"description"`
-	Price                int32       `db:"price" json:"price"`
-	Stock                int32       `db:"stock" json:"stock"`
-	Active               bool        `db:"active" json:"active"`
-	CreatedAt            time.Time   `db:"created_at" json:"created_at"`
-	UpdatedAt            time.Time   `db:"updated_at" json:"updated_at"`
-	StripeProductID      pgtype.Text `db:"stripe_product_id" json:"stripe_product_id"`
-	StripePriceOnetimeID pgtype.Text `db:"stripe_price_onetime_id" json:"stripe_price_onetime_id"`
-	StripePrice14dayID   pgtype.Text `db:"stripe_price_14day_id" json:"stripe_price_14day_id"`
-	StripePrice21dayID   pgtype.Text `db:"stripe_price_21day_id" json:"stripe_price_21day_id"`
-	StripePrice30dayID   pgtype.Text `db:"stripe_price_30day_id" json:"stripe_price_30day_id"`
-	StripePrice60dayID   pgtype.Text `db:"stripe_price_60day_id" json:"stripe_price_60day_id"`
+	ID          int32       `db:"id" json:"id"`
+	Name        string      `db:"name" json:"name"`
+	Description pgtype.Text `db:"description" json:"description"`
+	Active      bool        `db:"active" json:"active"`
+	CreatedAt   time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time   `db:"updated_at" json:"updated_at"`
 }
 
 type Settings struct {

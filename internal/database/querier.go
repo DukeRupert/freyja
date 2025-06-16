@@ -13,85 +13,161 @@ import (
 type Querier interface {
 	ActivateProduct(ctx context.Context, id int32) (Products, error)
 	ArchiveCustomer(ctx context.Context, id int32) (ArchiveCustomerRow, error)
+	CheckOptionUsage(ctx context.Context, productOptionID int32) (int64, error)
+	// Validation and integrity queries
+	CheckOptionValueUsage(ctx context.Context, productOptionValueID int32) (int64, error)
+	CheckVariantAvailability(ctx context.Context, arg CheckVariantAvailabilityParams) (CheckVariantAvailabilityRow, error)
 	ClearCartItems(ctx context.Context, cartID int32) error
 	CreateCart(ctx context.Context, arg CreateCartParams) (Carts, error)
+	// Cart item management
 	CreateCartItem(ctx context.Context, arg CreateCartItemParams) (CartItems, error)
 	// internal/database/queries/customers.sql
 	CreateCustomer(ctx context.Context, arg CreateCustomerParams) (CreateCustomerRow, error)
 	CreateOrder(ctx context.Context, arg CreateOrderParams) (CreateOrderRow, error)
 	CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (CreateOrderItemRow, error)
+	// Product management queries (admin operations)
 	CreateProduct(ctx context.Context, arg CreateProductParams) (Products, error)
+	CreateProductOption(ctx context.Context, arg CreateProductOptionParams) (ProductOptions, error)
+	CreateProductOptionValue(ctx context.Context, arg CreateProductOptionValueParams) (ProductOptionValues, error)
+	CreateVariantOption(ctx context.Context, arg CreateVariantOptionParams) (ProductVariantOptions, error)
 	DeactivateProduct(ctx context.Context, id int32) (Products, error)
-	DecrementProductStock(ctx context.Context, arg DecrementProductStockParams) (Products, error)
 	DeleteCart(ctx context.Context, id int32) error
 	DeleteCartItem(ctx context.Context, id int32) error
-	DeleteCartItemByProductAndType(ctx context.Context, arg DeleteCartItemByProductAndTypeParams) error
-	DeleteCartItemByProductID(ctx context.Context, arg DeleteCartItemByProductIDParams) error
+	DeleteCartItemByVariantAndType(ctx context.Context, arg DeleteCartItemByVariantAndTypeParams) error
+	DeleteCartItemByVariantID(ctx context.Context, arg DeleteCartItemByVariantIDParams) error
 	DeleteCustomer(ctx context.Context, id int32) error
 	DeleteProduct(ctx context.Context, id int32) error
+	DeleteProductOption(ctx context.Context, id int32) error
+	DeleteProductOptionValue(ctx context.Context, id int32) error
+	DeleteVariantOption(ctx context.Context, id int32) error
+	DeleteVariantOptionsByOption(ctx context.Context, productOptionID int32) error
+	DeleteVariantOptionsByOptionValue(ctx context.Context, productOptionValueID int32) error
+	DeleteVariantOptionsByVariant(ctx context.Context, productVariantID int32) error
+	// Subscription management
+	GetActiveSubscriptionItems(ctx context.Context, arg GetActiveSubscriptionItemsParams) ([]GetActiveSubscriptionItemsRow, error)
 	GetAllOrders(ctx context.Context, arg GetAllOrdersParams) ([]GetAllOrdersRow, error)
 	GetAllOrdersWithFilters(ctx context.Context, arg GetAllOrdersWithFiltersParams) ([]Orders, error)
 	GetArchivedCustomers(ctx context.Context, arg GetArchivedCustomersParams) ([]Customers, error)
+	GetAvailableOptionValues(ctx context.Context, productID int32) ([]GetAvailableOptionValuesRow, error)
 	// internal/database/queries/carts.sql
 	GetCart(ctx context.Context, id int32) (Carts, error)
+	// Analytics queries
+	GetCartAbandonmentData(ctx context.Context, arg GetCartAbandonmentDataParams) ([]GetCartAbandonmentDataRow, error)
 	GetCartByCustomerID(ctx context.Context, customerID pgtype.Int4) (Carts, error)
 	GetCartBySessionID(ctx context.Context, sessionID pgtype.Text) (Carts, error)
 	// internal/database/queries/cart_items.sql
+	// Updated for product variants system
+	// Basic cart item queries
 	GetCartItem(ctx context.Context, id int32) (CartItems, error)
-	GetCartItemByProductAndType(ctx context.Context, arg GetCartItemByProductAndTypeParams) (CartItems, error)
-	GetCartItemByProductID(ctx context.Context, arg GetCartItemByProductIDParams) (CartItems, error)
+	GetCartItemByVariantAndType(ctx context.Context, arg GetCartItemByVariantAndTypeParams) (CartItems, error)
+	GetCartItemByVariantID(ctx context.Context, arg GetCartItemByVariantIDParams) (CartItems, error)
 	GetCartItemCount(ctx context.Context, cartID int32) (int32, error)
 	GetCartItems(ctx context.Context, cartID int32) ([]GetCartItemsRow, error)
-	GetCartItemsByProduct(ctx context.Context, arg GetCartItemsByProductParams) ([]CartItems, error)
 	GetCartItemsByPurchaseType(ctx context.Context, arg GetCartItemsByPurchaseTypeParams) ([]GetCartItemsByPurchaseTypeRow, error)
+	GetCartItemsByVariant(ctx context.Context, arg GetCartItemsByVariantParams) ([]CartItems, error)
+	GetCartItemsWithOptions(ctx context.Context, cartID int32) ([]GetCartItemsWithOptionsRow, error)
+	GetCartSubscriptionSummary(ctx context.Context, cartID int32) ([]GetCartSubscriptionSummaryRow, error)
+	// Cart summary and analytics
 	GetCartTotal(ctx context.Context, cartID int32) (int32, error)
+	GetCartTotalByPurchaseType(ctx context.Context, arg GetCartTotalByPurchaseTypeParams) (int32, error)
 	GetCustomer(ctx context.Context, id int32) (Customers, error)
 	GetCustomerByEmail(ctx context.Context, lower string) (Customers, error)
 	GetCustomerByStripeID(ctx context.Context, stripeCustomerID pgtype.Text) (Customers, error)
 	GetCustomerCount(ctx context.Context) (int64, error)
 	GetCustomerCountWithStripeID(ctx context.Context) (int64, error)
+	GetCustomerFavoriteVariants(ctx context.Context, arg GetCustomerFavoriteVariantsParams) ([]GetCustomerFavoriteVariantsRow, error)
 	GetCustomerOrderStats(ctx context.Context, customerID int32) (GetCustomerOrderStatsRow, error)
+	// Customer purchase behavior
+	GetCustomerVariantPurchaseHistory(ctx context.Context, arg GetCustomerVariantPurchaseHistoryParams) ([]GetCustomerVariantPurchaseHistoryRow, error)
 	GetCustomersWithOrderStats(ctx context.Context, limit int32) ([]GetCustomersWithOrderStatsRow, error)
 	GetCustomersWithoutStripeID(ctx context.Context, arg GetCustomersWithoutStripeIDParams) ([]Customers, error)
-	GetLowStockProducts(ctx context.Context, stock int32) ([]Products, error)
+	GetInvalidCartItems(ctx context.Context, cartID int32) ([]GetInvalidCartItemsRow, error)
+	GetLowStockProducts(ctx context.Context, totalStock interface{}) ([]ProductStockSummary, error)
+	GetOneTimeOrderItems(ctx context.Context, orderID int32) ([]GetOneTimeOrderItemsRow, error)
+	GetOptionCombinationsInStock(ctx context.Context, productID int32) ([]GetOptionCombinationsInStockRow, error)
+	// Option analytics
+	GetOptionPopularity(ctx context.Context, arg GetOptionPopularityParams) ([]GetOptionPopularityRow, error)
 	// internal/database/queries/orders.sql - Updated queries
 	GetOrder(ctx context.Context, id int32) (Orders, error)
 	GetOrderByStripeChargeID(ctx context.Context, stripeChargeID pgtype.Text) (Orders, error)
 	GetOrderByStripePaymentIntentID(ctx context.Context, stripePaymentIntentID pgtype.Text) (Orders, error)
 	GetOrderCountByStatus(ctx context.Context) ([]GetOrderCountByStatusRow, error)
-	// internal/database/queries/order_items.sql - Updated queries
+	// internal/database/queries/order_items.sql
+	// Updated for product variants system
+	// Basic order item queries
 	GetOrderItem(ctx context.Context, id int32) (GetOrderItemRow, error)
 	GetOrderItemStats(ctx context.Context, orderID int32) (GetOrderItemStatsRow, error)
 	GetOrderItems(ctx context.Context, orderID int32) ([]GetOrderItemsRow, error)
 	GetOrderItemsByProduct(ctx context.Context, arg GetOrderItemsByProductParams) ([]GetOrderItemsByProductRow, error)
+	// Order item filtering and grouping
 	GetOrderItemsByPurchaseType(ctx context.Context, arg GetOrderItemsByPurchaseTypeParams) ([]GetOrderItemsByPurchaseTypeRow, error)
+	// Order item analytics
+	GetOrderItemsByVariant(ctx context.Context, arg GetOrderItemsByVariantParams) ([]GetOrderItemsByVariantRow, error)
+	GetOrderItemsWithArchivedVariants(ctx context.Context, arg GetOrderItemsWithArchivedVariantsParams) ([]GetOrderItemsWithArchivedVariantsRow, error)
+	// Data integrity and validation
+	GetOrderItemsWithMissingVariants(ctx context.Context, arg GetOrderItemsWithMissingVariantsParams) ([]GetOrderItemsWithMissingVariantsRow, error)
+	GetOrderItemsWithOptions(ctx context.Context, orderID int32) ([]GetOrderItemsWithOptionsRow, error)
 	GetOrderStats(ctx context.Context) (GetOrderStatsRow, error)
 	GetOrdersByCustomerID(ctx context.Context, arg GetOrdersByCustomerIDParams) ([]Orders, error)
 	GetOrdersByCustomerIDAndDateRange(ctx context.Context, arg GetOrdersByCustomerIDAndDateRangeParams) ([]Orders, error)
 	GetOrdersByCustomerIDAndStatus(ctx context.Context, arg GetOrdersByCustomerIDAndStatusParams) ([]Orders, error)
 	GetOrdersByCustomerIDWithStatusAndDateRange(ctx context.Context, arg GetOrdersByCustomerIDWithStatusAndDateRangeParams) ([]Orders, error)
 	GetOrdersByStatus(ctx context.Context, arg GetOrdersByStatusParams) ([]Orders, error)
+	GetOrphanedOptionValues(ctx context.Context) ([]ProductOptionValues, error)
+	GetOrphanedOptions(ctx context.Context) ([]ProductOptions, error)
 	// internal/database/queries/products.sql
+	// Updated for product variants system
 	GetProduct(ctx context.Context, id int32) (Products, error)
 	GetProductByName(ctx context.Context, name string) (Products, error)
-	GetProductByStripeProductID(ctx context.Context, stripeProductID pgtype.Text) (Products, error)
-	GetProductCount(ctx context.Context, active bool) (int64, error)
-	GetProductsInStock(ctx context.Context) ([]Products, error)
-	GetProductsWithoutStripeSync(ctx context.Context, arg GetProductsWithoutStripeSyncParams) ([]Products, error)
+	// internal/database/queries/options.sql
+	// Product options and option values queries
+	// Product Options CRUD
+	GetProductOption(ctx context.Context, id int32) (ProductOptions, error)
+	GetProductOptionByKey(ctx context.Context, arg GetProductOptionByKeyParams) (ProductOptions, error)
+	// Product Option Values CRUD
+	GetProductOptionValue(ctx context.Context, id int32) (ProductOptionValues, error)
+	GetProductOptionValueByValue(ctx context.Context, arg GetProductOptionValueByValueParams) (ProductOptionValues, error)
+	GetProductOptionValuesByOption(ctx context.Context, productOptionID int32) ([]ProductOptionValues, error)
+	GetProductOptionValuesByProduct(ctx context.Context, productID int32) ([]GetProductOptionValuesByProductRow, error)
+	GetProductOptionsByProduct(ctx context.Context, productID int32) ([]ProductOptions, error)
+	// Product analytics and reporting queries
+	GetProductPerformanceStats(ctx context.Context, arg GetProductPerformanceStatsParams) ([]GetProductPerformanceStatsRow, error)
+	GetProductSalesStats(ctx context.Context, arg GetProductSalesStatsParams) ([]GetProductSalesStatsRow, error)
+	GetProductWithSummary(ctx context.Context, productID int32) (ProductStockSummary, error)
+	GetProductsInStock(ctx context.Context) ([]ProductStockSummary, error)
+	GetProductsWithoutVariants(ctx context.Context, arg GetProductsWithoutVariantsParams) ([]Products, error)
 	GetRecentCustomers(ctx context.Context, limit int32) ([]GetRecentCustomersRow, error)
 	GetSubscriptionOrderItems(ctx context.Context, orderID int32) ([]GetSubscriptionOrderItemsRow, error)
-	GetTotalProductValue(ctx context.Context) (int32, error)
-	IncrementProductStock(ctx context.Context, arg IncrementProductStockParams) (Products, error)
+	GetSubscriptionSummaryByOrder(ctx context.Context, orderID int32) ([]GetSubscriptionSummaryByOrderRow, error)
+	GetSubscriptionsByInterval(ctx context.Context, arg GetSubscriptionsByIntervalParams) ([]GetSubscriptionsByIntervalRow, error)
+	GetTopSellingProducts(ctx context.Context, arg GetTopSellingProductsParams) ([]GetTopSellingProductsRow, error)
+	GetTopSellingVariants(ctx context.Context, arg GetTopSellingVariantsParams) ([]GetTopSellingVariantsRow, error)
+	// Complex option queries for variant management
+	GetVariantByOptionCombination(ctx context.Context, arg GetVariantByOptionCombinationParams) (ProductVariants, error)
+	// Product Variant Options (Junction Table) CRUD
+	GetVariantOption(ctx context.Context, id int32) (ProductVariantOptions, error)
+	GetVariantOptionsByProduct(ctx context.Context, productID int32) ([]GetVariantOptionsByProductRow, error)
+	GetVariantOptionsByVariant(ctx context.Context, productVariantID int32) ([]GetVariantOptionsByVariantRow, error)
+	// Sales analytics queries
+	GetVariantSalesStats(ctx context.Context, arg GetVariantSalesStatsParams) ([]GetVariantSalesStatsRow, error)
+	GetVariantsWithOptionValues(ctx context.Context, productID int32) ([]GetVariantsWithOptionValuesRow, error)
+	IncrementCartItemQuantity(ctx context.Context, arg IncrementCartItemQuantityParams) (CartItems, error)
 	ListActiveCustomers(ctx context.Context, arg ListActiveCustomersParams) ([]ListActiveCustomersRow, error)
-	ListAllProducts(ctx context.Context, arg ListAllProductsParams) ([]Products, error)
+	ListAllProducts(ctx context.Context, arg ListAllProductsParams) ([]ProductStockSummary, error)
 	ListCustomers(ctx context.Context, arg ListCustomersParams) ([]ListCustomersRow, error)
-	ListProducts(ctx context.Context) ([]Products, error)
-	ListProductsByStatus(ctx context.Context, arg ListProductsByStatusParams) ([]Products, error)
+	ListProducts(ctx context.Context) ([]ProductStockSummary, error)
+	ListProductsByStatus(ctx context.Context, arg ListProductsByStatusParams) ([]ProductStockSummary, error)
+	// Utility queries
+	RefreshProductStockSummary(ctx context.Context) error
+	// Cart cleanup and maintenance
+	RemoveUnavailableCartItems(ctx context.Context, cartID int32) error
 	RestoreCustomer(ctx context.Context, id int32) (RestoreCustomerRow, error)
 	SearchCustomers(ctx context.Context, arg SearchCustomersParams) ([]SearchCustomersRow, error)
 	SearchCustomersByEmail(ctx context.Context, arg SearchCustomersByEmailParams) ([]SearchCustomersByEmailRow, error)
-	SearchProducts(ctx context.Context, name string) ([]Products, error)
+	SearchProducts(ctx context.Context, name string) ([]ProductStockSummary, error)
+	SearchProductsWithOptions(ctx context.Context, name string) ([]ProductStockSummary, error)
 	UpdateCartItem(ctx context.Context, arg UpdateCartItemParams) (CartItems, error)
+	UpdateCartItemPrices(ctx context.Context, cartID int32) error
 	UpdateCartItemQuantity(ctx context.Context, arg UpdateCartItemQuantityParams) (CartItems, error)
 	UpdateCartTimestamp(ctx context.Context, id int32) (Carts, error)
 	UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (UpdateCustomerRow, error)
@@ -99,11 +175,11 @@ type Querier interface {
 	UpdateCustomerStripeID(ctx context.Context, arg UpdateCustomerStripeIDParams) (Customers, error)
 	UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) (UpdateOrderStatusRow, error)
 	UpdateProduct(ctx context.Context, arg UpdateProductParams) (Products, error)
-	UpdateProductPrice(ctx context.Context, arg UpdateProductPriceParams) (Products, error)
-	UpdateProductStock(ctx context.Context, arg UpdateProductStockParams) (Products, error)
-	UpdateProductStripePrices(ctx context.Context, arg UpdateProductStripePricesParams) (Products, error)
-	UpdateProductStripeProductID(ctx context.Context, arg UpdateProductStripeProductIDParams) (Products, error)
+	UpdateProductOption(ctx context.Context, arg UpdateProductOptionParams) (ProductOptions, error)
+	UpdateProductOptionValue(ctx context.Context, arg UpdateProductOptionValueParams) (ProductOptionValues, error)
 	UpdateStripeChargeID(ctx context.Context, arg UpdateStripeChargeIDParams) (UpdateStripeChargeIDRow, error)
+	// Cart validation queries
+	ValidateCartItems(ctx context.Context, cartID int32) ([]ValidateCartItemsRow, error)
 }
 
 var _ Querier = (*Queries)(nil)
