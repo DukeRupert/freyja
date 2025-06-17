@@ -4,10 +4,12 @@ package repository
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/dukerupert/freyja/internal/database"
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -50,7 +52,9 @@ func (r *OrderRepository) GetByID(ctx context.Context, id int32) (*interfaces.Or
 		return nil, fmt.Errorf("failed to get order: %w", err)
 	}
 
-	return r.convertToOrder(dbOrder), nil
+	order := r.convertToOrder(dbOrder)
+
+	return &order, nil
 }
 
 // GetByCustomerID retrieves orders for a customer with filters
@@ -74,10 +78,64 @@ func (r *OrderRepository) GetByCustomerID(ctx context.Context, customerID int32,
 	// Convert results
 	orders := make([]interfaces.Order, len(dbOrders))
 	for i, dbOrder := range dbOrders {
-		orders[i] = *r.convertToOrder(dbOrder)
+		orders[i] = r.convertToOrder(dbOrder)
 	}
 
 	return orders, nil
+}
+
+func (r *OrderRepository) GetByStripeChargeID(ctx context.Context, chargeID string) (*interfaces.Order, error) {
+	dbOrder, err := r.db.Queries.GetOrderByStripeChargeID(ctx, pgtype.Text{
+		String: chargeID,
+		Valid:  true,
+	})
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("order not found")
+		}
+		return nil, fmt.Errorf("failed to get order by Stripe charge ID: %w", err)
+	}
+
+	order := &interfaces.Order{
+		ID:                    dbOrder.ID,
+		CustomerID:            dbOrder.CustomerID,
+		Status:                dbOrder.Status,
+		Total:                 dbOrder.Total,
+		StripeSessionID:       dbOrder.StripeSessionID,
+		StripePaymentIntentID: dbOrder.StripePaymentIntentID,
+		StripeChargeID:        dbOrder.StripeChargeID,
+		CreatedAt:             dbOrder.CreatedAt,
+		UpdatedAt:             dbOrder.UpdatedAt,
+	}
+
+	return order, nil
+}
+
+func (r *OrderRepository) GetByStripePaymentIntentID(ctx context.Context, paymentIntentID string) (*interfaces.Order, error) {
+	dbOrder, err := r.db.Queries.GetOrderByStripePaymentIntentID(ctx, pgtype.Text{
+		String: paymentIntentID,
+		Valid:  true,
+	})
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("order not found")
+		}
+		return nil, fmt.Errorf("failed to get order by Stripe payment intent ID: %w", err)
+	}
+
+	order := &interfaces.Order{
+		ID:                    dbOrder.ID,
+		CustomerID:            dbOrder.CustomerID,
+		Status:                dbOrder.Status,
+		Total:                 dbOrder.Total,
+		StripeSessionID:       dbOrder.StripeSessionID,
+		StripePaymentIntentID: dbOrder.StripePaymentIntentID,
+		StripeChargeID:        dbOrder.StripeChargeID,
+		CreatedAt:             dbOrder.CreatedAt,
+		UpdatedAt:             dbOrder.UpdatedAt,
+	}
+
+	return order, nil
 }
 
 // GetAll retrieves all orders with comprehensive filtering using generated SQLC interface
@@ -143,7 +201,7 @@ func (r *OrderRepository) GetAll(ctx context.Context, filters interfaces.OrderFi
 	// Convert database orders to interface orders
 	orders := make([]interfaces.Order, len(dbOrders))
 	for i, dbOrder := range dbOrders {
-		orders[i] = *r.convertToOrder(dbOrder)
+		orders[i] = r.convertToOrder(dbOrder)
 	}
 
 	return orders, nil
@@ -167,6 +225,35 @@ func (r *OrderRepository) UpdateStatus(ctx context.Context, id int32, status str
 	return nil
 }
 
+func (r *OrderRepository) GetByStatus(ctx context.Context, status string, limit, offset int32) ([]interfaces.Order, error) {
+	dbOrders, err := r.db.Queries.GetOrdersByStatus(ctx, database.GetOrdersByStatusParams{
+		Status: database.OrderStatus(status),
+		Limit:  limit,
+		Offset: offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get orders by status: %w", err)
+	}
+
+	// Convert []database.Orders to []interfaces.Order
+	orders := make([]interfaces.Order, len(dbOrders))
+	for i, dbOrder := range dbOrders {
+		orders[i] = interfaces.Order{
+			ID:                    dbOrder.ID,
+			CustomerID:            dbOrder.CustomerID,
+			Status:                dbOrder.Status,
+			Total:                 dbOrder.Total,
+			StripeSessionID:       dbOrder.StripeSessionID,
+			StripePaymentIntentID: dbOrder.StripePaymentIntentID,
+			StripeChargeID:        dbOrder.StripeChargeID,
+			CreatedAt:             dbOrder.CreatedAt,
+			UpdatedAt:             dbOrder.UpdatedAt,
+		}
+	}
+
+	return orders, nil
+}
+
 // UpdateStripeChargeID updates an order's Stripe charge ID
 func (r *OrderRepository) UpdateStripeChargeID(ctx context.Context, orderID int32, chargeID string) error {
 	_, err := r.db.Queries.UpdateStripeChargeID(ctx, database.UpdateStripeChargeIDParams{
@@ -188,7 +275,7 @@ func (r *OrderRepository) CreateOrderItems(ctx context.Context, orderID int32, i
 	for _, item := range items {
 		_, err := r.db.Queries.CreateOrderItem(ctx, database.CreateOrderItemParams{
 			OrderID:              orderID,
-			ProductID:            item.ProductID,
+			ProductVariantID:     item.ProductVariantID,
 			Name:                 item.Name,
 			Quantity:             item.Quantity,
 			Price:                item.Price,
@@ -205,15 +292,94 @@ func (r *OrderRepository) CreateOrderItems(ctx context.Context, orderID int32, i
 }
 
 // GetOrderItems retrieves all items for an order
-func (r *OrderRepository) GetOrderItems(ctx context.Context, orderID int32) ([]interfaces.OrderItem, error) {
-	dbItems, err := r.db.Queries.GetOrderItems(ctx, orderID)
+func (r *OrderRepository) GetOrderItems(ctx context.Context, orderID int32) ([]interfaces.OrderItemWithVariant, error) {
+	dbItems, err := r.db.Queries.GetOrderItems(ctx, orderID) // This should use the updated query
 	if err != nil {
 		return nil, fmt.Errorf("failed to get order items: %w", err)
 	}
 
-	items := make([]interfaces.OrderItem, len(dbItems))
+	items := make([]interfaces.OrderItemWithVariant, len(dbItems))
 	for i, dbItem := range dbItems {
-		items[i] = r.convertToOrderItem(dbItem)
+		items[i] = interfaces.OrderItemWithVariant{
+			ID:                   dbItem.ID,
+			OrderID:              dbItem.OrderID,
+			ProductVariantID:     dbItem.ProductVariantID,
+			Name:                 dbItem.Name,
+			Quantity:             dbItem.Quantity,
+			Price:                dbItem.Price,
+			PurchaseType:         dbItem.PurchaseType,
+			SubscriptionInterval: dbItem.SubscriptionInterval,
+			StripePriceID:        dbItem.StripePriceID,
+			CreatedAt:            dbItem.CreatedAt,
+			// Variant information
+			VariantStock:   int32FromPgtype(dbItem.VariantStock),
+			VariantActive:  boolFromPgtype(dbItem.VariantActive),
+			OptionsDisplay: dbItem.OptionsDisplay,
+			// Product information
+			ProductID:          int32FromPgtype(dbItem.ProductID),
+			ProductName:        stringFromPgtype(dbItem.ProductName),
+			ProductDescription: dbItem.ProductDescription,
+			ProductActive:      boolFromPgtype(dbItem.ProductActive),
+		}
+	}
+
+	return items, nil
+}
+
+func (r *OrderRepository) GetOrderItemsWithOptions(ctx context.Context, orderID int32) ([]interfaces.OrderItemWithVariant, error) {
+	dbItems, err := r.db.Queries.GetOrderItemsWithOptions(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get order items with options: %w", err)
+	}
+
+	items := make([]interfaces.OrderItemWithVariant, len(dbItems))
+	for i, dbItem := range dbItems {
+		items[i] = interfaces.OrderItemWithVariant{
+			ID:                   dbItem.ID,
+			OrderID:              dbItem.OrderID,
+			ProductVariantID:     dbItem.ProductVariantID,
+			Name:                 dbItem.Name,
+			Quantity:             dbItem.Quantity,
+			Price:                dbItem.Price,
+			PurchaseType:         dbItem.PurchaseType,
+			SubscriptionInterval: dbItem.SubscriptionInterval,
+			StripePriceID:        dbItem.StripePriceID,
+			CreatedAt:            dbItem.CreatedAt,
+			// Handle nullable variant information
+			VariantStock: func() int32 {
+				if dbItem.VariantStock.Valid {
+					return dbItem.VariantStock.Int32
+				}
+				return 0
+			}(),
+			VariantActive: func() bool {
+				if dbItem.VariantActive.Valid {
+					return dbItem.VariantActive.Bool
+				}
+				return false
+			}(),
+			OptionsDisplay: dbItem.OptionsDisplay,
+			// Handle nullable product information
+			ProductID: func() int32 {
+				if dbItem.ProductID.Valid {
+					return dbItem.ProductID.Int32
+				}
+				return 0
+			}(),
+			ProductName: func() string {
+				if dbItem.ProductName.Valid {
+					return dbItem.ProductName.String
+				}
+				return ""
+			}(),
+			ProductDescription: dbItem.ProductDescription,
+			ProductActive: func() bool {
+				if dbItem.ProductActive.Valid {
+					return dbItem.ProductActive.Bool
+				}
+				return false
+			}(),
+		}
 	}
 
 	return items, nil
@@ -252,7 +418,7 @@ func (r *OrderRepository) GetWithItems(ctx context.Context, id int32) (*interfac
 	orderWithItems := &interfaces.OrderWithItems{
 		ID:                    order.ID,
 		CustomerID:            order.CustomerID,
-		Status:                string(order.Status),
+		Status:                order.Status,
 		Total:                 order.Total,
 		StripeSessionID:       stripeSessionID,
 		StripePaymentIntentID: stripePaymentIntentID,
@@ -264,6 +430,65 @@ func (r *OrderRepository) GetWithItems(ctx context.Context, id int32) (*interfac
 	return orderWithItems, nil
 }
 
+func (r *OrderRepository) GetOrdersWithItems(ctx context.Context, customerID int32, filters interfaces.OrderFilters) ([]interfaces.OrderWithItems, error) {
+    // First get the orders using existing method
+    orders, err := r.GetByCustomerID(ctx, customerID, filters)
+    if err != nil {
+        return nil, fmt.Errorf("failed to get orders for customer: %w", err)
+    }
+
+    // If no orders found, return empty slice
+    if len(orders) == 0 {
+        return []interfaces.OrderWithItems{}, nil
+    }
+
+    // Get items for each order
+    var ordersWithItems []interfaces.OrderWithItems
+    for _, order := range orders {
+        // Get order items
+        items, err := r.GetOrderItems(ctx, order.ID)
+        if err != nil {
+            // Log error but continue with other orders
+            log.Printf("Failed to get items for order %d: %v", order.ID, err)
+            continue
+        }
+
+        // Convert nullable fields to pointers
+        var stripeSessionID *string
+        if order.StripeSessionID.Valid {
+            stripeSessionID = &order.StripeSessionID.String
+        }
+
+        var stripePaymentIntentID *string
+        if order.StripePaymentIntentID.Valid {
+            stripePaymentIntentID = &order.StripePaymentIntentID.String
+        }
+
+        var stripeChargeID *string
+        if order.StripeChargeID.Valid {
+            stripeChargeID = &order.StripeChargeID.String
+        }
+
+        // Build OrderWithItems
+        orderWithItems := interfaces.OrderWithItems{
+            ID:                    order.ID,
+            CustomerID:            order.CustomerID,
+            Status:                order.Status,
+            Total:                 order.Total,
+            StripeSessionID:       stripeSessionID,
+            StripePaymentIntentID: stripePaymentIntentID,
+            StripeChargeID:        stripeChargeID,
+            Items:                 items,
+            CreatedAt:             order.CreatedAt,
+            UpdatedAt:             order.UpdatedAt,
+        }
+
+        ordersWithItems = append(ordersWithItems, orderWithItems)
+    }
+
+    return ordersWithItems, nil
+}
+
 // GetOrdersByStatus retrieves orders by status
 func (r *OrderRepository) GetOrdersByStatus(ctx context.Context, status string, limit, offset int) ([]interfaces.Order, error) {
 	s, err := parseOrderStatus(status)
@@ -271,7 +496,7 @@ func (r *OrderRepository) GetOrdersByStatus(ctx context.Context, status string, 
 		return nil, fmt.Errorf("invalid order status: %w", err)
 	}
 
-	orders, err := r.db.Queries.GetOrdersByStatus(ctx, database.GetOrdersByStatusParams{
+	dbOrders, err := r.db.Queries.GetOrdersByStatus(ctx, database.GetOrdersByStatusParams{
 		Status: s,
 		Limit:  int32(limit),
 		Offset: int32(offset),
@@ -280,18 +505,70 @@ func (r *OrderRepository) GetOrdersByStatus(ctx context.Context, status string, 
 		return nil, fmt.Errorf("failed to get orders by status: %w", err)
 	}
 
+	orders := make([]interfaces.Order, len(dbOrders))
+	for i, dbOrder := range dbOrders {
+		orders[i] = r.convertToOrder(dbOrder)
+	}
+
 	return orders, nil
 }
 
-func (r *OrderRepository) GetOrderCountByStatus(ctx context.Context) (map[string]int64, error) {
+func (r *OrderRepository) GetOrderSummary(ctx context.Context, orderID int32) (*interfaces.OrderSummary, error) {
+    // Get order items to calculate summary
+    orderItems, err := r.GetOrderItems(ctx, orderID)
+    if err != nil {
+        return nil, fmt.Errorf("failed to get order items for summary: %w", err)
+    }
+
+    // Calculate summary statistics
+    var (
+        itemCount            int32
+        total                int32
+        oneTimeTotal         int32
+        subscriptionTotal    int32
+        uniqueVariants       = make(map[int32]bool)
+        hasSubscriptionItems bool
+    )
+
+    for _, item := range orderItems {
+        itemCount++
+        lineTotal := item.Quantity * item.Price
+        total += lineTotal
+
+        // Track unique variants
+        uniqueVariants[item.ProductVariantID] = true
+
+        // Categorize by purchase type
+        if item.PurchaseType == "subscription" {
+            subscriptionTotal += lineTotal
+            hasSubscriptionItems = true
+        } else {
+            oneTimeTotal += lineTotal
+        }
+    }
+
+    summary := &interfaces.OrderSummary{
+        OrderID:              orderID,
+        ItemCount:            itemCount,
+        Total:                total,
+        OneTimeTotal:         oneTimeTotal,
+        SubscriptionTotal:    subscriptionTotal,
+        UniqueVariants:       int32(len(uniqueVariants)),
+        HasSubscriptionItems: hasSubscriptionItems,
+    }
+
+    return summary, nil
+}
+
+func (r *OrderRepository) GetOrderCountByStatus(ctx context.Context) (map[string]int, error) {
 	results, err := r.db.Queries.GetOrderCountByStatus(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get order count by status: %w", err)
 	}
 
-	statusCounts := make(map[string]int64)
+	statusCounts := make(map[string]int)
 	for _, result := range results {
-		statusCounts[string(result.Status)] = int64(result.Count)
+		statusCounts[string(result.Status)] = int(result.Count) // Convert int64 to int
 	}
 
 	return statusCounts, nil
@@ -299,8 +576,8 @@ func (r *OrderRepository) GetOrderCountByStatus(ctx context.Context) (map[string
 
 // Helper methods to convert between database and interface types
 
-func (r *OrderRepository) convertToOrder(dbOrder database.Orders) *interfaces.Order {
-	return &interfaces.Order{
+func (r *OrderRepository) convertToOrder(dbOrder database.Orders) interfaces.Order {
+	return interfaces.Order{
 		ID:                    dbOrder.ID,
 		CustomerID:            dbOrder.CustomerID,
 		Status:                dbOrder.Status,
@@ -317,7 +594,7 @@ func (r *OrderRepository) convertToOrderItem(dbItem database.GetOrderItemsRow) i
 	return interfaces.OrderItem{
 		ID:                   dbItem.ID,
 		OrderID:              dbItem.OrderID,
-		ProductID:            dbItem.ProductID,
+		ProductVariantID:     dbItem.ProductVariantID,
 		Name:                 dbItem.Name,
 		Quantity:             dbItem.Quantity,
 		Price:                dbItem.Price,
@@ -416,4 +693,26 @@ func (r *OrderRepository) getOrdersBasic(ctx context.Context, customerID int32, 
 		Limit:      limit,
 		Offset:     offset,
 	})
+}
+
+// Helper functions for type conversion
+func int32FromPgtype(val pgtype.Int4) int32 {
+	if val.Valid {
+		return val.Int32
+	}
+	return 0
+}
+
+func stringFromPgtype(val pgtype.Text) string {
+	if val.Valid {
+		return val.String
+	}
+	return ""
+}
+
+func boolFromPgtype(val pgtype.Bool) bool {
+	if val.Valid {
+		return val.Bool
+	}
+	return false
 }

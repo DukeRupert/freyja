@@ -436,6 +436,7 @@ SELECT
     pv.options_display,
     p.id as product_id,
     p.name as product_name,
+    p.description as product_description,
     p.active as product_active
 FROM order_items oi
 LEFT JOIN product_variants pv ON oi.product_variant_id = pv.id
@@ -460,6 +461,7 @@ type GetOrderItemsRow struct {
 	OptionsDisplay       pgtype.Text `db:"options_display" json:"options_display"`
 	ProductID            pgtype.Int4 `db:"product_id" json:"product_id"`
 	ProductName          pgtype.Text `db:"product_name" json:"product_name"`
+	ProductDescription   pgtype.Text `db:"product_description" json:"product_description"`
 	ProductActive        pgtype.Bool `db:"product_active" json:"product_active"`
 }
 
@@ -488,6 +490,7 @@ func (q *Queries) GetOrderItems(ctx context.Context, orderID int32) ([]GetOrderI
 			&i.OptionsDisplay,
 			&i.ProductID,
 			&i.ProductName,
+			&i.ProductDescription,
 			&i.ProductActive,
 		); err != nil {
 			return nil, err
@@ -836,6 +839,7 @@ SELECT
     pv.options_display,
     p.id as product_id,
     p.name as product_name,
+    p.description as product_description,
     p.active as product_active,
     COALESCE(
         json_agg(
@@ -876,6 +880,7 @@ type GetOrderItemsWithOptionsRow struct {
 	OptionsDisplay       pgtype.Text `db:"options_display" json:"options_display"`
 	ProductID            pgtype.Int4 `db:"product_id" json:"product_id"`
 	ProductName          pgtype.Text `db:"product_name" json:"product_name"`
+	ProductDescription   pgtype.Text `db:"product_description" json:"product_description"`
 	ProductActive        pgtype.Bool `db:"product_active" json:"product_active"`
 	VariantOptions       interface{} `db:"variant_options" json:"variant_options"`
 }
@@ -905,6 +910,7 @@ func (q *Queries) GetOrderItemsWithOptions(ctx context.Context, orderID int32) (
 			&i.OptionsDisplay,
 			&i.ProductID,
 			&i.ProductName,
+			&i.ProductDescription,
 			&i.ProductActive,
 			&i.VariantOptions,
 		); err != nil {

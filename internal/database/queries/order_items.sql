@@ -17,6 +17,7 @@ SELECT
     pv.options_display,
     p.id as product_id,
     p.name as product_name,
+    p.description as product_description,
     p.active as product_active
 FROM order_items oi
 LEFT JOIN product_variants pv ON oi.product_variant_id = pv.id
@@ -33,6 +34,7 @@ SELECT
     pv.options_display,
     p.id as product_id,
     p.name as product_name,
+    p.description as product_description,
     p.active as product_active,
     COALESCE(
         json_agg(
