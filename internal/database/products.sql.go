@@ -775,7 +775,7 @@ func (q *Queries) SearchProductsWithOptions(ctx context.Context, name string) ([
 const updateProduct = `-- name: UpdateProduct :one
 UPDATE products
 SET
-  name = COALESCE(NULLIF($2, ''), name),
+  name = COALESCE($2, name),
   description = COALESCE($3, description),
   active = COALESCE($4, active),
   updated_at = NOW()
@@ -785,7 +785,7 @@ RETURNING id, name, description, active, created_at, updated_at
 
 type UpdateProductParams struct {
 	ID          int32       `db:"id" json:"id"`
-	Column2     interface{} `db:"column_2" json:"column_2"`
+	Name        string      `db:"name" json:"name"`
 	Description pgtype.Text `db:"description" json:"description"`
 	Active      bool        `db:"active" json:"active"`
 }
@@ -793,7 +793,7 @@ type UpdateProductParams struct {
 func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) (Products, error) {
 	row := q.db.QueryRow(ctx, updateProduct,
 		arg.ID,
-		arg.Column2,
+		arg.Name,
 		arg.Description,
 		arg.Active,
 	)

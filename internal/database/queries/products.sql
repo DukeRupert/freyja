@@ -192,7 +192,7 @@ RETURNING id, name, description, active, created_at, updated_at;
 -- name: UpdateProduct :one
 UPDATE products
 SET
-  name = COALESCE(NULLIF($2, ''), name),
+  name = COALESCE($2, name),
   description = COALESCE($3, description),
   active = COALESCE($4, active),
   updated_at = NOW()
