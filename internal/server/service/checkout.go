@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
+	"github.com/dukerupert/freyja/internal/database"
 )
 
 type CheckoutService struct {
@@ -186,31 +187,51 @@ func (s *CheckoutService) handlePaymentSucceeded(ctx context.Context, eventData 
 		return fmt.Errorf("invalid amount in payment intent")
 	}
 
-	// Extract customer info
+	// Extract customer and cart info from metadata
 	metadata, _ := eventData["metadata"].(map[string]interface{})
 	var customerID *int32
+	var cartID *int32
+	
 	if metadata != nil {
+		// Extract customer ID
 		if customerIDStr, exists := metadata["customer_id"].(string); exists {
 			if id, err := strconv.Atoi(customerIDStr); err == nil {
 				customerID32 := int32(id)
 				customerID = &customerID32
 			}
 		}
+		
+		// Extract cart ID (should be included in Stripe checkout metadata)
+		if cartIDStr, exists := metadata["cart_id"].(string); exists {
+			if id, err := strconv.Atoi(cartIDStr); err == nil {
+				cartID32 := int32(id)
+				cartID = &cartID32
+			}
+		}
 	}
 
-	// Create order from successful payment
-	// This is where you'd convert the cart to an order
-	if customerID != nil {
-		order, err := s.orderService.CreateOrderFromPayment(ctx, *customerID, paymentIntentID, int32(amount))
+	// Create order from cart (validates variants and decrements stock)
+	if customerID != nil && cartID != nil {
+		order, err := s.orderService.CreateOrderFromCart(ctx, *customerID, *cartID)
 		if err != nil {
-			return fmt.Errorf("failed to create order: %w", err)
+			return fmt.Errorf("failed to create order from cart: %w", err)
 		}
 
-		// Clear the cart after successful order creation
-		if err := s.cartService.Clear(ctx, order.ID); err != nil {
+		// Update order with Stripe payment intent ID
+		if err := s.orderService.UpdateStripeChargeID(ctx, order.ID, paymentIntentID); err != nil {
 			// Log error but don't fail - order was created successfully
-			fmt.Printf("Failed to clear cart after order creation: %v\n", err)
+			fmt.Printf("Failed to update order with Stripe payment intent ID: %v\n", err)
 		}
+
+		// Update order status to confirmed since payment succeeded
+		if err := s.orderService.UpdateStatus(ctx, order.ID, database.OrderStatusConfirmed); err != nil {
+			// Log error but don't fail - order was created successfully
+			fmt.Printf("Failed to update order status to confirmed: %v\n", err)
+		}
+
+		// Note: Cart is automatically cleared by CreateOrderFromCart
+	} else {
+		return fmt.Errorf("missing required metadata: customer_id=%v, cart_id=%v", customerID, cartID)
 	}
 
 	// Publish payment confirmed event
@@ -222,6 +243,7 @@ func (s *CheckoutService) handlePaymentSucceeded(ctx context.Context, eventData 
 			"payment_intent_id": paymentIntentID,
 			"amount":            int(amount),
 			"customer_id":       customerID,
+			"cart_id":           cartID,
 		},
 		Timestamp: time.Now(),
 	}
