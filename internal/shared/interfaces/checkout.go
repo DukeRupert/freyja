@@ -53,7 +53,7 @@ type CheckoutSessionDetails struct {
 	CustomerID    *int32                `json:"customer_id,omitempty"`
 	CartID        int32                 `json:"cart_id"`
 	TotalAmount   int32                 `json:"total_amount"`
-	Items         []CartItemWithProduct `json:"items"`
+	Items         []CartItemWithVariant `json:"items"`
 	CreatedAt     time.Time             `json:"created_at"`
 	ExpiresAt     *time.Time            `json:"expires_at,omitempty"`
 	PaymentMethod *string               `json:"payment_method,omitempty"`
@@ -66,7 +66,7 @@ type CheckoutValidationResult struct {
 	Cart         *CartWithItems        `json:"cart,omitempty"`
 	TotalAmount  int32                 `json:"total_amount"`
 	ItemCount    int32                 `json:"item_count"`
-	OutOfStock   []CartItemWithProduct `json:"out_of_stock,omitempty"`
+	OutOfStock   []CartItemWithVariant `json:"out_of_stock,omitempty"`
 	PriceChanges []PriceChange         `json:"price_changes,omitempty"`
 }
 
@@ -126,7 +126,7 @@ type AbandonedCheckout struct {
 	AbandonedAt   time.Time  `json:"abandoned_at"`
 	LastActivity  time.Time  `json:"last_activity"`
 	RecoveryURL   *string    `json:"recovery_url,omitempty"`
-	Items         []CartItemWithProduct `json:"items"`
+	Items         []CartItemWithVariant `json:"items"`
 }
 
 // =============================================================================

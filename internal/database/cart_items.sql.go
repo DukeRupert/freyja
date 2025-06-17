@@ -541,7 +541,7 @@ SELECT
             ) ORDER BY po.option_key
         ) FILTER (WHERE po.id IS NOT NULL), 
         '[]'::json
-    ) as variant_options
+    )::text as variant_options
 FROM cart_items ci
 JOIN product_variants pv ON ci.product_variant_id = pv.id AND pv.archived_at IS NULL
 JOIN products p ON pv.product_id = p.id
@@ -574,7 +574,7 @@ type GetCartItemsWithOptionsRow struct {
 	ProductName          string      `db:"product_name" json:"product_name"`
 	ProductDescription   pgtype.Text `db:"product_description" json:"product_description"`
 	ProductActive        bool        `db:"product_active" json:"product_active"`
-	VariantOptions       interface{} `db:"variant_options" json:"variant_options"`
+	VariantOptions       string      `db:"variant_options" json:"variant_options"`
 }
 
 func (q *Queries) GetCartItemsWithOptions(ctx context.Context, cartID int32) ([]GetCartItemsWithOptionsRow, error) {

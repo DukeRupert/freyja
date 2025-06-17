@@ -56,7 +56,7 @@ func (s *CheckoutService) CreateCheckoutSession(ctx context.Context, customerID 
 	for _, item := range validatedCart.Items {
 		checkoutItems = append(checkoutItems, interfaces.CartItem{
 			ID:                   item.ID,
-			ProductID:            item.ProductID,
+			ProductVariantID:     item.ProductID,
 			Quantity:             item.Quantity,
 			Price:                item.Price,
 			PurchaseType:         item.PurchaseType,         // *** Include purchase type ***

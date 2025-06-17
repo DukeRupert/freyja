@@ -46,7 +46,7 @@ SELECT
             ) ORDER BY po.option_key
         ) FILTER (WHERE po.id IS NOT NULL), 
         '[]'::json
-    ) as variant_options
+    )::text as variant_options
 FROM cart_items ci
 JOIN product_variants pv ON ci.product_variant_id = pv.id AND pv.archived_at IS NULL
 JOIN products p ON pv.product_id = p.id
