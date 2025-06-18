@@ -85,6 +85,7 @@ func main() {
 
 	// Initialize handlers
 	productHandler := handler.NewProductHandler(productService)
+	variantHandler := handler.NewVariantHandler(variantService)
 	cartHandler := handler.NewCartHandler(cartService)
 	checkoutHandler := handler.NewCheckoutHandler(checkoutService)
 	orderHandler := handler.NewOrderHandler(orderService)
@@ -207,19 +208,43 @@ func main() {
 		customers.GET("/without-stripe", customerHandler.GetCustomersWithoutStripe) // GET /api/v1/customers/without-stripe
 	}
 
-	// Admin routes
+// Admin routes
 	admin := api.Group("/admin")
 	{
-		admin.GET("/orders", orderHandler.GetAllOrders) // All orders
-		// admin.PUT("/orders/:id/status", orderHandler.UpdateOrderStatus) // Update status
-		// admin.GET("/orders/stats", orderHandler.GetOrderStats)          // Analytics
+		// Existing admin routes...
+		admin.GET("/orders", orderHandler.GetAllOrders)                 // All orders
+		admin.PUT("/orders/:id/status", orderHandler.UpdateOrderStatus) // Update status
+		admin.GET("/orders/stats", orderHandler.GetOrderStats)          // Analytics
 
 		admin.POST("/products", productHandler.CreateProduct)    // Create product
 		admin.PUT("/products/:id", productHandler.UpdateProduct) // Update product
-		// admin.PUT("/products/:id/stock", productHandler.UpdateStock) // Update stock only
-		// admin.DELETE("/products/:id", productHandler.DeleteProduct)  // Delete product
 
-		// Backfill operations
+		// NEW: Variant Management Routes
+		// =============================================================================
+		// Core variant CRUD operations
+		admin.POST("/variants", variantHandler.CreateVariant)                    // POST /api/v1/admin/variants
+		admin.GET("/variants/:id", variantHandler.GetVariant)                    // GET /api/v1/admin/variants/{id}
+		admin.PUT("/variants/:id", variantHandler.UpdateVariant)                 // PUT /api/v1/admin/variants/{id}
+		admin.DELETE("/variants/:id", variantHandler.ArchiveVariant)             // DELETE /api/v1/admin/variants/{id}
+		
+		// Variant activation/deactivation
+		admin.POST("/variants/:id/activate", variantHandler.ActivateVariant)     // POST /api/v1/admin/variants/{id}/activate
+		admin.POST("/variants/:id/deactivate", variantHandler.DeactivateVariant) // POST /api/v1/admin/variants/{id}/deactivate
+		
+		// Stock management routes
+		admin.PUT("/variants/:id/stock", variantHandler.UpdateVariantStock)           // PUT /api/v1/admin/variants/{id}/stock
+		admin.POST("/variants/:id/stock/increment", variantHandler.IncrementVariantStock) // POST /api/v1/admin/variants/{id}/stock/increment
+		admin.POST("/variants/:id/stock/decrement", variantHandler.DecrementVariantStock) // POST /api/v1/admin/variants/{id}/stock/decrement
+		
+		// Product-variant relationship routes
+		admin.GET("/products/:product_id/variants", variantHandler.GetVariantsByProduct) // GET /api/v1/admin/products/{product_id}/variants
+		
+		// Variant discovery and management routes
+		admin.GET("/variants/low-stock", variantHandler.GetLowStockVariants)      // GET /api/v1/admin/variants/low-stock
+		admin.GET("/variants/search", variantHandler.SearchVariants)              // GET /api/v1/admin/variants/search
+		admin.GET("/variants/:id/availability", variantHandler.CheckVariantAvailability) // GET /api/v1/admin/variants/{id}/availability
+
+		// Existing backfill operations...
 		admin.POST("/backfill/customers", adminHandler.BackfillCustomers)     // Start customer backfill
 		admin.POST("/backfill/products", adminHandler.BackfillProducts)       // Start product backfill
 		admin.GET("/sync/status", adminHandler.GetSyncStatus)                 // Get overall sync status
