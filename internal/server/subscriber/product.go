@@ -201,6 +201,108 @@ func (s *ProductEventSubscriber) handleProductUpdated(ctx context.Context, event
 	return nil
 }
 
+// handleVariantCreated syncs newly created variants to Stripe
+func (s *ProductEventSubscriber) handleVariantCreated(ctx context.Context, event interfaces.Event) error {
+	log.Printf("Processing variant.created event: %s", event.AggregateID)
+
+	variantID, err := interfaces.ExtractAggregateID(event.AggregateID)
+	if err != nil {
+		return fmt.Errorf("invalid variant ID in event: %w", err)
+	}
+
+	// Get the variant
+	variant, err := s.variantService.GetByID(ctx, int32(variantID))
+	if err != nil {
+		return fmt.Errorf("failed to get variant %d: %w", variantID, err)
+	}
+
+	// Only sync active variants
+	if !variant.Active {
+		log.Printf("Skipping Stripe sync for inactive variant %d", variantID)
+		return nil
+	}
+
+	// Sync to Stripe
+	if err := s.syncVariantToStripe(ctx, variant); err != nil {
+		return fmt.Errorf("failed to sync variant %d to Stripe: %w", variantID, err)
+	}
+
+	log.Printf("✅ Variant %d synced to Stripe successfully", variantID)
+	return nil
+}
+
+// handleVariantUpdated handles variant updates and syncs changes to Stripe
+func (s *ProductEventSubscriber) handleVariantUpdated(ctx context.Context, event interfaces.Event) error {
+	log.Printf("Processing variant.updated event: %s", event.AggregateID)
+
+	variantID, err := interfaces.ExtractAggregateID(event.AggregateID)
+	if err != nil {
+		return fmt.Errorf("invalid variant ID in event: %w", err)
+	}
+
+	// Get the variant
+	variant, err := s.variantService.GetByID(ctx, int32(variantID))
+	if err != nil {
+		return fmt.Errorf("failed to get variant %d: %w", variantID, err)
+	}
+
+	// Check if price changed (requires new Stripe prices since they're immutable)
+	if priceChanged, exists := event.Data["price_changed"].(bool); exists && priceChanged {
+		log.Printf("Price changed for variant %d, creating new Stripe prices", variantID)
+		
+		// Create new prices (Stripe prices are immutable)
+		if err := s.createAllStripePricesForVariant(ctx, variant); err != nil {
+			return fmt.Errorf("failed to create new Stripe prices for variant %d: %w", variantID, err)
+		}
+	} else {
+		// Update Stripe Product metadata (name, description, active status, etc.)
+		if variant.StripeProductID.Valid {
+			// Get parent product for context
+			product, err := s.productService.GetBasicProductByID(ctx, int(variant.ProductID))
+			if err != nil {
+				log.Printf("Warning: failed to get parent product %d for variant %d: %v", variant.ProductID, variantID, err)
+				// Continue with just variant data
+				product = nil
+			}
+
+			if err := s.updateStripeProductForVariant(ctx, variant, product); err != nil {
+				return fmt.Errorf("failed to update Stripe product for variant %d: %w", variantID, err)
+			}
+		}
+	}
+
+	log.Printf("✅ Variant %d updated in Stripe successfully", variantID)
+	return nil
+}
+
+// handleVariantDeactivated deactivates variant in Stripe
+func (s *ProductEventSubscriber) handleVariantDeactivated(ctx context.Context, event interfaces.Event) error {
+	log.Printf("Processing variant.deactivated event: %s", event.AggregateID)
+
+	variantID, err := interfaces.ExtractAggregateID(event.AggregateID)
+	if err != nil {
+		return fmt.Errorf("invalid variant ID in event: %w", err)
+	}
+
+	// Get the variant
+	variant, err := s.variantService.GetByID(ctx, int32(variantID))
+	if err != nil {
+		return fmt.Errorf("failed to get variant %d: %w", variantID, err)
+	}
+
+	// Deactivate in Stripe if it exists
+	if variant.StripeProductID.Valid {
+		if err := s.deactivateStripeProduct(ctx, variant.StripeProductID.String); err != nil {
+			return fmt.Errorf("failed to deactivate Stripe product for variant %d: %w", variantID, err)
+		}
+	} else {
+		log.Printf("Variant %d has no Stripe product to deactivate", variantID)
+	}
+
+	log.Printf("✅ Variant %d deactivated in Stripe successfully", variantID)
+	return nil
+}
+
 // Activate a Stripe product
 func (s *ProductEventSubscriber) activateStripeProduct(ctx context.Context, stripeProductID string) error {
 	params := &stripe.ProductParams{
