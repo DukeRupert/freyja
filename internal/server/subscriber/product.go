@@ -181,65 +181,89 @@ func (s *ProductEventSubscriber) syncProductToStripe(ctx context.Context, produc
 	return s.createAllStripePrices(ctx, product)
 }
 
-func (s *ProductEventSubscriber) createStripeProduct(product *interfaces.Product) (*stripe.Product, error) {
+func (s *ProductEventSubscriber) createStripeProduct(variant *interfaces.ProductVariant) (*stripe.Product, error) {
+	// Create a descriptive name that includes variant information
+	productName := variant.Name
+	if variant.OptionsDisplay.Valid && variant.OptionsDisplay.String != "" {
+		productName = fmt.Sprintf("%s (%s)", variant.Name, variant.OptionsDisplay.String)
+	}
+
 	params := &stripe.ProductParams{
-		Name:        stripe.String(product.Name),
-		Description: stripe.String(product.Description.String),
-		Active:      stripe.Bool(product.Active),
+		Name:   stripe.String(productName),
+		Active: stripe.Bool(variant.Active),
 		Metadata: map[string]string{
-			"internal_product_id": fmt.Sprintf("%d", product.ID),
+			"internal_variant_id": fmt.Sprintf("%d", variant.ID),
+			"internal_product_id": fmt.Sprintf("%d", variant.ProductID),
 		},
+	}
+
+	// Add description if available (you might need to fetch the parent product description)
+	if description := s.getVariantDescription(variant); description != "" {
+		params.Description = stripe.String(description)
 	}
 
 	return stripeProduct.New(params)
 }
 
-func (s *ProductEventSubscriber) createAllStripePrices(ctx context.Context, product *interfaces.Product) error {
+func (s *ProductEventSubscriber) getVariantDescription(variant *interfaces.ProductVariant) string {
+	// You might want to fetch the parent product description
+	// or create a variant-specific description
+	// This depends on your business requirements
+	
+	if variant.IsSubscription {
+		return fmt.Sprintf("Subscription variant of %s", variant.Name)
+	}
+	return fmt.Sprintf("One-time purchase variant of %s", variant.Name)
+}
+
+func (s *ProductEventSubscriber) createAllStripePricesForVariant(ctx context.Context, variant *interfaces.ProductVariant) error {
 	priceUpdates := make(map[string]string)
 
 	// One-time purchase price
-	if !product.StripePriceOnetimeID.Valid {
-		price, err := s.createSingleStripePrice(product, nil)
+	if !variant.StripePriceOnetimeID.Valid {
+		price, err := s.createSingleStripePrice(variant, nil)
 		if err != nil {
 			return err
 		}
 		priceUpdates["onetime"] = price.ID
 	}
 
-	// Subscription prices
-	intervals := map[string]int{"14day": 14, "21day": 21, "30day": 30, "60day": 60}
-	currentPrices := map[string]bool{
-		"14day": product.StripePrice14dayID.Valid,
-		"21day": product.StripePrice21dayID.Valid,
-		"30day": product.StripePrice30dayID.Valid,
-		"60day": product.StripePrice60dayID.Valid,
-	}
+	// Subscription prices (only create if variant supports subscriptions)
+	if variant.IsSubscription {
+		intervals := map[string]int{"14day": 14, "21day": 21, "30day": 30, "60day": 60}
+		currentPrices := map[string]bool{
+			"14day": variant.StripePrice14dayID.Valid,
+			"21day": variant.StripePrice21dayID.Valid,
+			"30day": variant.StripePrice30dayID.Valid,
+			"60day": variant.StripePrice60dayID.Valid,
+		}
 
-	for interval, days := range intervals {
-		if !currentPrices[interval] {
-			price, err := s.createSingleStripePrice(product, &days)
-			if err != nil {
-				return err
+		for interval, days := range intervals {
+			if !currentPrices[interval] {
+				price, err := s.createSingleStripePrice(variant, &days)
+				if err != nil {
+					return err
+				}
+				priceUpdates[interval] = price.ID
 			}
-			priceUpdates[interval] = price.ID
 		}
 	}
 
-	// Update all price IDs in database
+	// Update all price IDs in database using variant repository
 	if len(priceUpdates) > 0 {
-		return s.productService.UpdateStripePriceIDs(ctx, product.ID, priceUpdates)
+		return s.variantService.UpdateStripeIDs(ctx, variant.ID, variant.StripeProductID.String, priceUpdates)
 	}
 
 	return nil
 }
-
-func (s *ProductEventSubscriber) createSingleStripePrice(product *interfaces.Product, recurringDays *int) (*stripe.Price, error) {
+func (s *ProductEventSubscriber) createSingleStripePrice(variant *interfaces.ProductVariant, recurringDays *int) (*stripe.Price, error) {
 	params := &stripe.PriceParams{
-		Product:    stripe.String(product.StripeProductID.String),
-		UnitAmount: stripe.Int64(int64(product.Price)),
+		Product:    stripe.String(variant.StripeProductID.String),
+		UnitAmount: stripe.Int64(int64(variant.Price)),
 		Currency:   stripe.String("usd"),
 		Metadata: map[string]string{
-			"internal_product_id": fmt.Sprintf("%d", product.ID),
+			"internal_variant_id": fmt.Sprintf("%d", variant.ID),
+			"internal_product_id": fmt.Sprintf("%d", variant.ProductID),
 		},
 	}
 
@@ -249,8 +273,26 @@ func (s *ProductEventSubscriber) createSingleStripePrice(product *interfaces.Pro
 			IntervalCount: stripe.Int64(int64(*recurringDays)),
 		}
 		params.Metadata["subscription_days"] = fmt.Sprintf("%d", *recurringDays)
+		params.Metadata["type"] = "subscription"
+		
+		// Add variant options to subscription metadata for clarity
+		if variant.OptionsDisplay.Valid && variant.OptionsDisplay.String != "" {
+			params.Metadata["variant_options"] = variant.OptionsDisplay.String
+		}
 	} else {
 		params.Metadata["type"] = "onetime"
+		
+		// Add variant options to one-time purchase metadata
+		if variant.OptionsDisplay.Valid && variant.OptionsDisplay.String != "" {
+			params.Metadata["variant_options"] = variant.OptionsDisplay.String
+		}
+	}
+
+	// Add subscription capability flag
+	if variant.IsSubscription {
+		params.Metadata["supports_subscription"] = "true"
+	} else {
+		params.Metadata["supports_subscription"] = "false"
 	}
 
 	return stripePrice.New(params)

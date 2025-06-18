@@ -88,6 +88,16 @@ const (
 	EventProductDeactivated = "product.deactivated"
 	EventProductStockLow    = "product.stock_low"
 	EventProductStripeSync  = "product.stripe_sync_requested"
+
+	// Variant events
+	EventVariantCreated             = "variant.created"
+	EventVariantUpdated             = "variant.updated"
+	EventVariantArchived            = "variant.archived"
+	EventVariantActivated           = "variant.activated"
+	EventVariantDeactivated         = "variant.deactivated"
+	EventVariantStockUpdated        = "variant.stock_updated"
+	EventVariantStockIncremented    = "variant.stock_incremented"
+	EventVariantStockDecremented    = "variant.stock_decremented"
 )
 
 // =============================================================================
