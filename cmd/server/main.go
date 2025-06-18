@@ -83,7 +83,7 @@ func main() {
 	orderService := service.NewOrderService(orderRepo, cartService, variantRepo, eventPublisher)
 	customerService := service.NewCustomerService(customerRepo, stripeProvider, eventPublisher)
 	checkoutService := service.NewCheckoutService(customerService, cartService, orderService, stripeProvider, eventPublisher)
-	adminService := service.NewAdminService(customerService, productService, eventPublisher)
+	adminService := service.NewAdminService(customerService, productService, variantService, eventPublisher)
 
 	// Initialize handlers
 	variantHandler := handler.NewVariantHandler(variantService)

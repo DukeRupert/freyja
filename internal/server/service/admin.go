@@ -14,6 +14,7 @@ import (
 type AdminService struct {
 	customerService interfaces.CustomerService
 	productService  interfaces.ProductService
+	variantService  interfaces.VariantService
 	events          interfaces.EventPublisher
 
 	// Job tracking
@@ -24,11 +25,13 @@ type AdminService struct {
 func NewAdminService(
 	customerService interfaces.CustomerService,
 	productService interfaces.ProductService,
+	variantService interfaces.VariantService,
 	events interfaces.EventPublisher,
 ) interfaces.AdminService {
 	return &AdminService{
 		customerService: customerService,
 		productService:  productService,
+		variantService:  variantService,
 		events:          events,
 		jobs:            make(map[string]*interfaces.BackfillJobStatus),
 	}
@@ -104,7 +107,7 @@ func (s *AdminService) BackfillProductStripeSync(ctx context.Context, req interf
 	}, nil
 }
 
-// GetSyncStatus returns current sync status for customers and products
+// GetSyncStatus returns current sync status for customers and products/variants
 func (s *AdminService) GetSyncStatus(ctx context.Context) (*interfaces.SyncStatusReport, error) {
 	report := &interfaces.SyncStatusReport{}
 
@@ -126,22 +129,45 @@ func (s *AdminService) GetSyncStatus(ctx context.Context) (*interfaces.SyncStatu
 		report.Customers.SyncPercentage = float64(customersWithStripe) / float64(totalCustomers) * 100
 	}
 
-	// Get product sync status - this will now work
-	totalProducts, err := s.productService.GetCount(ctx, true) // Active products only
+	// Get product readiness status - use GetAll to count active products
+	activeProducts, err := s.productService.GetAll(ctx, interfaces.ProductFilters{
+		Active: &[]bool{true}[0], // Active products only
+		Limit:  10000,            // Large limit to get all
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get product count: %w", err)
+		return nil, fmt.Errorf("failed to get active products: %w", err)
 	}
 
-	unsyncedProducts, err := s.productService.GetProductsWithoutStripeSync(ctx, 1000, 0)
+	// Products without variants need attention
+	productsWithoutVariants, err := s.productService.GetProductsWithoutVariants(ctx, 1000, 0)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get unsynced products: %w", err)
+		return nil, fmt.Errorf("failed to get products without variants: %w", err)
 	}
 
+	totalProducts := int64(len(activeProducts))
 	report.Products.Total = totalProducts
-	report.Products.WithoutStripeSync = int64(len(unsyncedProducts))
-	report.Products.WithStripeSync = totalProducts - report.Products.WithoutStripeSync
+	report.Products.WithoutVariants = int64(len(productsWithoutVariants))
+	report.Products.WithVariants = totalProducts - report.Products.WithoutVariants
 	if totalProducts > 0 {
-		report.Products.SyncPercentage = float64(report.Products.WithStripeSync) / float64(totalProducts) * 100
+		report.Products.SyncPercentage = float64(report.Products.WithVariants) / float64(totalProducts) * 100
+	}
+
+	// Get variant sync status using the new methods
+	totalVariants, err := s.variantService.GetVariantCount(ctx, true) // Active variants only
+	if err != nil {
+		return nil, fmt.Errorf("failed to get variant count: %w", err)
+	}
+
+	variantsWithStripe, err := s.variantService.GetVariantsWithStripeCount(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get variants with Stripe count: %w", err)
+	}
+
+	report.Variants.Total = totalVariants
+	report.Variants.WithStripeSync = variantsWithStripe
+	report.Variants.WithoutStripeSync = totalVariants - variantsWithStripe
+	if totalVariants > 0 {
+		report.Variants.SyncPercentage = float64(variantsWithStripe) / float64(totalVariants) * 100
 	}
 
 	return report, nil

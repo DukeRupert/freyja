@@ -175,4 +175,8 @@ type VariantService interface {
 	// Utilities
 	GetLowStockVariants(ctx context.Context, threshold int32) ([]ProductVariant, error)
 	CheckAvailability(ctx context.Context, id int32, requestedQuantity int32) (bool, error)
+
+	// Analytics and counting methods
+	GetVariantCount(ctx context.Context, activeOnly bool) (int64, error)
+	GetVariantsWithStripeCount(ctx context.Context) (int64, error)
 }

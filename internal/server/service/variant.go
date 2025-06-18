@@ -372,3 +372,90 @@ func (s *VariantService) UpdateStripeIDs(ctx context.Context, variantID int32, s
 	_, err := s.variantRepo.UpdateStripeIDs(ctx, variantID, stripeProductID, priceIDs)
 	return err
 }
+
+// =============================================================================
+// Analytics and counting methods
+// =============================================================================
+
+func (s *VariantService) GetVariantCount(ctx context.Context, activeOnly bool) (int64, error) {
+	// For now, we'll count by getting all active products and their variants
+	// This is not the most efficient but works with existing repository methods
+	
+	// Get all active products
+	activeFilter := true
+	allProducts, err := s.productRepo.GetAllWithSummary(ctx, interfaces.ProductFilters{
+		Active: &activeFilter,
+		Limit:  10000, // Large limit to get all products
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to get products for variant counting: %w", err)
+	}
+	
+	totalCount := int64(0)
+	
+	// For each product, get its variants and count them
+	for _, product := range allProducts {
+		var variants []interfaces.ProductVariant
+		
+		if activeOnly {
+			variants, err = s.variantRepo.GetActiveVariantsByProduct(ctx, product.ProductID)
+		} else {
+			variants, err = s.variantRepo.GetVariantsByProduct(ctx, product.ProductID)
+		}
+		
+		if err != nil {
+			// Log error but continue counting other products
+			log.Printf("Failed to get variants for product %d: %v", product.ProductID, err)
+			continue
+		}
+		
+		if activeOnly {
+			// Additional filtering for active, non-archived variants
+			for _, variant := range variants {
+				if variant.Active && !variant.ArchivedAt.Valid {
+					totalCount++
+				}
+			}
+		} else {
+			totalCount += int64(len(variants))
+		}
+	}
+	
+	return totalCount, nil
+}
+
+func (s *VariantService) GetVariantsWithStripeCount(ctx context.Context) (int64, error) {
+	// Get all active products and count variants with Stripe IDs
+	activeFilter := true
+	allProducts, err := s.productRepo.GetAllWithSummary(ctx, interfaces.ProductFilters{
+		Active: &activeFilter,
+		Limit:  10000, // Large limit to get all products
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to get products for Stripe variant counting: %w", err)
+	}
+	
+	stripeCount := int64(0)
+	
+	// For each product, get its active variants and count those with Stripe IDs
+	for _, product := range allProducts {
+		variants, err := s.variantRepo.GetActiveVariantsByProduct(ctx, product.ProductID)
+		if err != nil {
+			// Log error but continue counting other products
+			log.Printf("Failed to get variants for product %d: %v", product.ProductID, err)
+			continue
+		}
+		
+		for _, variant := range variants {
+			// Check if variant has a Stripe Product ID and is not archived
+			if variant.StripeProductID.Valid && 
+			   variant.StripeProductID.String != "" && 
+			   variant.Active && 
+			   !variant.ArchivedAt.Valid {
+				stripeCount++
+			}
+		}
+	}
+	
+	return stripeCount, nil
+}

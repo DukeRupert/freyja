@@ -53,11 +53,32 @@ type SyncStatusReport struct {
 	} `json:"customers"`
 
 	Products struct {
-		Total             int64   `json:"total"`
-		WithStripeSync    int64   `json:"with_stripe_sync"`
-		WithoutStripeSync int64   `json:"without_stripe_sync"`
-		SyncPercentage    float64 `json:"sync_percentage"`
+		Total            int64   `json:"total"`
+		WithVariants     int64   `json:"with_variants"`     // NEW: Products that have variants
+		WithoutVariants  int64   `json:"without_variants"`  // NEW: Products needing variants
+		SyncPercentage   float64 `json:"sync_percentage"`   // Now represents "readiness" (has variants)
 	} `json:"products"`
+
+	Variants struct {
+		Total             int64   `json:"total"`              // NEW: Total active variants
+		WithStripeSync    int64   `json:"with_stripe_sync"`   // NEW: Variants synced to Stripe
+		WithoutStripeSync int64   `json:"without_stripe_sync"` // NEW: Variants not synced
+		SyncPercentage    float64 `json:"sync_percentage"`    // NEW: Variant sync percentage
+	} `json:"variants"` // NEW: Variant sync status section
+}
+
+type VariantSyncStatus struct {
+    Total            int64   `json:"total"`
+    WithStripeSync   int64   `json:"with_stripe_sync"`
+    WithoutStripeSync int64  `json:"without_stripe_sync"`
+    SyncPercentage   float64 `json:"sync_percentage"`
+}
+
+type ProductSyncStatus struct {
+    Total            int64   `json:"total"`
+    WithVariants     int64   `json:"with_variants"`     // NEW
+    WithoutVariants  int64   `json:"without_variants"`  // NEW
+    SyncPercentage   float64 `json:"sync_percentage"`   // Now represents "readiness"
 }
 
 type BackfillJobStatus struct {
