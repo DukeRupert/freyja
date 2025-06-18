@@ -69,7 +69,7 @@ func (s *StripeProvider) CreateCheckoutSession(ctx context.Context, req interfac
 	var mode stripe.CheckoutSessionMode = stripe.CheckoutSessionModePayment
 
 	for _, item := range req.Items {
-		// *** FIX: Use existing Stripe Price ID instead of creating new PriceData ***
+		// Use existing Stripe Price ID (should always be present after sync)
 		if item.StripePriceID != "" {
 			// Use the existing Stripe Price ID (this will link to the real product)
 			lineItems = append(lineItems, &stripe.CheckoutSessionLineItemParams{
@@ -88,7 +88,7 @@ func (s *StripeProvider) CreateCheckoutSession(ctx context.Context, req interfac
 				PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
 					Currency: stripe.String("usd"),
 					ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
-						Name: stripe.String(strconv.Itoa(int(item.ProductID))),
+						Name: stripe.String(fmt.Sprintf("Product Variant %d", item.ProductVariantID)), // Fixed: Use ProductVariantID
 					},
 					UnitAmount: stripe.Int64(int64(item.Price)),
 				},
@@ -97,7 +97,6 @@ func (s *StripeProvider) CreateCheckoutSession(ctx context.Context, req interfac
 		}
 	}
 
-	// *** FIX: Set mode based on whether we have subscription items ***
 	params := &stripe.CheckoutSessionParams{
 		PaymentMethodTypes: stripe.StringSlice([]string{"card"}),
 		LineItems:          lineItems,
