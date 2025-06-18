@@ -269,8 +269,8 @@ LEFT JOIN product_variant_options pvo ON pov.id = pvo.product_option_value_id
 LEFT JOIN product_variants pv ON pvo.product_variant_id = pv.id AND pv.archived_at IS NULL
 LEFT JOIN order_items oi ON pv.id = oi.product_variant_id
 LEFT JOIN orders o ON oi.order_id = o.id
-WHERE po.product_id = $1
-  AND ($2::timestamp IS NULL OR o.created_at >= $2)
-  AND ($3::timestamp IS NULL OR o.created_at <= $3)
+WHERE po.product_id = @product_id
+  AND (@start_date::timestamp IS NULL OR o.created_at >= @start_date)
+  AND (@end_date::timestamp IS NULL OR o.created_at <= @end_date)
 GROUP BY po.id, po.option_key, pov.id, pov.value
 ORDER BY po.option_key ASC, total_sold DESC;

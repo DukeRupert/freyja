@@ -69,6 +69,7 @@ func main() {
 	// Initialize layers: Repository -> Service -> Handler
 	// Initialize repositories
 	productRepo := repository.NewPostgresProductRepository(db)
+	optionRepo := repository.NewPostgresOptionRepository(db)
 	variantRepo := repository.NewPostgresVariantRepository(db)
 	cartRepo := repository.NewPostgresCartRepository(db)
 	orderRepo := repository.NewOrderRepository(db)
@@ -76,6 +77,7 @@ func main() {
 
 	// Initialize services
 	productService := service.NewProductService(productRepo, eventPublisher)
+	optionService := service.NewOptionService(optionRepo, variantRepo, productRepo, eventPublisher)
 	variantService := service.NewVariantService(variantRepo, productRepo, eventPublisher)
 	cartService := service.NewCartService(cartRepo, variantRepo, eventPublisher)
 	orderService := service.NewOrderService(orderRepo, cartService, variantRepo, eventPublisher)
@@ -85,6 +87,7 @@ func main() {
 
 	// Initialize handlers
 	variantHandler := handler.NewVariantHandler(variantService)
+	optionHandler := handler.NewOptionHandler(optionService)
 	productHandler := handler.NewProductHandler(productService, variantService)
 	cartHandler := handler.NewCartHandler(cartService)
 	checkoutHandler := handler.NewCheckoutHandler(checkoutService)
@@ -223,8 +226,6 @@ func main() {
 		admin.POST("/products", productHandler.CreateProduct)    // Create product
 		admin.PUT("/products/:id", productHandler.UpdateProduct) // Update product
 
-		// NEW: Variant Management Routes
-		// =============================================================================
 		// Core variant CRUD operations
 		admin.POST("/variants", variantHandler.CreateVariant)        // POST /api/v1/admin/variants
 		admin.GET("/variants/:id", variantHandler.GetVariant)        // GET /api/v1/admin/variants/{id}
@@ -253,6 +254,27 @@ func main() {
 		admin.POST("/backfill/products", adminHandler.BackfillProducts)       // Start product backfill
 		admin.GET("/sync/status", adminHandler.GetSyncStatus)                 // Get overall sync status
 		admin.GET("/backfill/:job_id/status", adminHandler.GetBackfillStatus) // Get specific job status
+
+		// Product-specific option management
+		admin.POST("/products/:product_id/options", optionHandler.CreateProductOption) // POST /api/v1/admin/products/{product_id}/options
+		admin.GET("/products/:product_id/options", optionHandler.GetProductOptions)    // GET /api/v1/admin/products/{product_id}/options
+
+		// Individual option management
+		admin.GET("/options/:id", optionHandler.GetProductOption)       // GET /api/v1/admin/options/{id}
+		admin.PUT("/options/:id", optionHandler.UpdateProductOption)    // PUT /api/v1/admin/options/{id}
+		admin.DELETE("/options/:id", optionHandler.DeleteProductOption) // DELETE /api/v1/admin/options/{id}
+
+		// Option value management
+		admin.POST("/options/:option_id/values", optionHandler.CreateOptionValue) // POST /api/v1/admin/options/{option_id}/values
+		admin.GET("/options/:option_id/values", optionHandler.GetOptionValues)    // GET /api/v1/admin/options/{option_id}/values
+		admin.GET("/option-values/:id", optionHandler.GetOptionValue)             // GET /api/v1/admin/option-values/{id}
+		admin.PUT("/option-values/:id", optionHandler.UpdateOptionValue)          // PUT /api/v1/admin/option-values/{id}
+		admin.DELETE("/option-values/:id", optionHandler.DeleteOptionValue)       // DELETE /api/v1/admin/option-values/{id}
+
+		// Analytics and management endpoints
+		admin.GET("/options/:option_id/usage", optionHandler.GetOptionUsageStats)               // GET /api/v1/admin/options/{option_id}/usage
+		admin.GET("/products/:product_id/option-popularity", optionHandler.GetOptionPopularity) // GET /api/v1/admin/products/{product_id}/option-popularity
+		admin.GET("/options/orphaned", optionHandler.GetOrphanedOptions)
 	}
 
 	// Get port from environment or default to 8080

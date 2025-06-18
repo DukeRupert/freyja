@@ -304,8 +304,8 @@ ORDER BY po.option_key ASC, total_sold DESC
 
 type GetOptionPopularityParams struct {
 	ProductID int32            `db:"product_id" json:"product_id"`
-	Column2   pgtype.Timestamp `db:"column_2" json:"column_2"`
-	Column3   pgtype.Timestamp `db:"column_3" json:"column_3"`
+	StartDate pgtype.Timestamp `db:"start_date" json:"start_date"`
+	EndDate   pgtype.Timestamp `db:"end_date" json:"end_date"`
 }
 
 type GetOptionPopularityRow struct {
@@ -320,7 +320,7 @@ type GetOptionPopularityRow struct {
 
 // Option analytics
 func (q *Queries) GetOptionPopularity(ctx context.Context, arg GetOptionPopularityParams) ([]GetOptionPopularityRow, error) {
-	rows, err := q.db.Query(ctx, getOptionPopularity, arg.ProductID, arg.Column2, arg.Column3)
+	rows, err := q.db.Query(ctx, getOptionPopularity, arg.ProductID, arg.StartDate, arg.EndDate)
 	if err != nil {
 		return nil, err
 	}
