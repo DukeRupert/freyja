@@ -1,9 +1,11 @@
-// internal/handler/cart.go
+// internal/server/handler/cart.go
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/labstack/echo/v4"
@@ -23,28 +25,28 @@ func NewCartHandler(cartService interfaces.CartService) *CartHandler {
 func (h *CartHandler) GetCart(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	// Get customer ID from authentication (JWT) or session ID from header
-	customerID := h.getCustomerIDFromContext(c)
-	sessionID := h.getSessionIDFromHeader(c)
-
-	if customerID == nil && sessionID == nil {
+	// Get cart based on authentication
+	cartID, err := h.resolveCartID(c)
+	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error": "Authentication required or session ID must be provided",
-			"code":  "MISSING_AUTH_OR_SESSION",
+			"error": "Unable to identify cart",
+			"code":  "CART_IDENTIFICATION_FAILED",
 		})
 	}
 
-	cart, err := h.cartService.GetOrCreateCart(ctx, customerID, sessionID)
+	// Get cart with items (includes variant information)
+	cartWithItems, err := h.cartService.GetCart(ctx, cartID)
 	if err != nil {
-		c.Logger().Errorf("Failed to get cart: %v", err)
+		c.Logger().Errorf("Failed to get cart %d: %v", cartID, err)
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error": "Failed to retrieve cart",
-			"code":  "INTERNAL_ERROR",
+			"code":  "CART_RETRIEVAL_FAILED",
 		})
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"cart": h.cartToAPI(cart),
+		"success": true,
+		"data":    h.cartWithItemsToResponse(cartWithItems),
 	})
 }
 
@@ -62,79 +64,78 @@ func (h *CartHandler) AddItem(c echo.Context) error {
 	}
 
 	// Validate request
-	if req.ProductID <= 0 {
+	if err := c.Validate(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error": "Product ID must be greater than 0",
-			"code":  "INVALID_PRODUCT_ID",
+			"error": err.Error(),
+			"code":  "VALIDATION_ERROR",
 		})
 	}
 
-	if req.Quantity <= 0 || req.Quantity > 100 {
-		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error": "Quantity must be between 1 and 100",
-			"code":  "INVALID_QUANTITY",
-		})
-	}
-
-	// Get customer ID from authentication or session ID from header
-	customerID := h.getCustomerIDFromContext(c)
-	sessionID := h.getSessionIDFromHeader(c)
-
-	if customerID == nil && sessionID == nil {
-		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error": "Authentication required or session ID must be provided",
-			"code":  "MISSING_AUTH_OR_SESSION",
-		})
-	}
-
-	// Get or create cart
-	cart, err := h.cartService.GetOrCreateCart(ctx, customerID, sessionID)
+	// Get cart based on authentication
+	cartID, err := h.resolveCartID(c)
 	if err != nil {
-		c.Logger().Errorf("Failed to get cart: %v", err)
-		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-			"error": "Failed to retrieve cart",
-			"code":  "INTERNAL_ERROR",
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error": "Unable to identify cart",
+			"code":  "CART_IDENTIFICATION_FAILED",
 		})
 	}
 
-	// Add item to cart
-	cartItem, err := h.cartService.AddItem(ctx, cart.ID, req.ProductID, req.Quantity, req.PurchaseType, req.SubscriptionInterval)
+	// Add item to cart (now using product_variant_id)
+	cartItem, err := h.cartService.AddItem(
+		ctx,
+		cartID,
+		req.ProductVariantID, // Changed from ProductID to ProductVariantID
+		req.Quantity,
+		req.PurchaseType,
+		req.SubscriptionInterval,
+	)
 	if err != nil {
-		c.Logger().Errorf("Failed to add item to cart: %v", err)
+		c.Logger().Errorf("Failed to add item to cart %d: %v", cartID, err)
 
 		// Handle specific business logic errors
 		switch {
-		case err.Error() == "product not found":
+		case strings.Contains(err.Error(), "variant not found"):
 			return c.JSON(http.StatusNotFound, map[string]interface{}{
-				"error": "Product not found",
-				"code":  "PRODUCT_NOT_FOUND",
+				"error": "Product variant not found",
+				"code":  "VARIANT_NOT_FOUND",
 			})
-		case err.Error() == "product is not available":
+		case strings.Contains(err.Error(), "variant is not available"):
 			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": "Product is not available",
-				"code":  "PRODUCT_UNAVAILABLE",
+				"error": "Product variant is not available",
+				"code":  "VARIANT_UNAVAILABLE",
 			})
-		case containsString(err.Error(), "insufficient stock"):
+		case strings.Contains(err.Error(), "insufficient stock"):
 			return c.JSON(http.StatusBadRequest, map[string]interface{}{
 				"error": err.Error(),
 				"code":  "INSUFFICIENT_STOCK",
 			})
-		case containsString(err.Error(), "quantity"):
+		case strings.Contains(err.Error(), "quantity"):
 			return c.JSON(http.StatusBadRequest, map[string]interface{}{
 				"error": err.Error(),
 				"code":  "INVALID_QUANTITY",
 			})
+		case strings.Contains(err.Error(), "purchase type"):
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": err.Error(),
+				"code":  "INVALID_PURCHASE_TYPE",
+			})
+		case strings.Contains(err.Error(), "subscription interval"):
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": err.Error(),
+				"code":  "INVALID_SUBSCRIPTION_INTERVAL",
+			})
 		default:
 			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 				"error": "Failed to add item to cart",
-				"code":  "INTERNAL_ERROR",
+				"code":  "CART_ADD_FAILED",
 			})
 		}
 	}
 
 	return c.JSON(http.StatusCreated, map[string]interface{}{
-		"cart_item": h.cartItemToAPI(cartItem),
-		"message":   "Item added to cart successfully",
+		"success": true,
+		"data":    h.cartItemToResponse(cartItem),
+		"message": "Item added to cart successfully",
 	})
 }
 
@@ -162,10 +163,10 @@ func (h *CartHandler) UpdateItem(c echo.Context) error {
 	}
 
 	// Validate request
-	if req.Quantity <= 0 || req.Quantity > 100 {
+	if err := c.Validate(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error": "Quantity must be between 1 and 100",
-			"code":  "INVALID_QUANTITY",
+			"error": err.Error(),
+			"code":  "VALIDATION_ERROR",
 		})
 	}
 
@@ -176,27 +177,27 @@ func (h *CartHandler) UpdateItem(c echo.Context) error {
 
 		// Handle specific business logic errors
 		switch {
-		case err.Error() == "cart item not found":
+		case strings.Contains(err.Error(), "cart item not found"):
 			return c.JSON(http.StatusNotFound, map[string]interface{}{
 				"error": "Cart item not found",
 				"code":  "CART_ITEM_NOT_FOUND",
 			})
-		case err.Error() == "product not found":
+		case strings.Contains(err.Error(), "variant not found"):
 			return c.JSON(http.StatusNotFound, map[string]interface{}{
-				"error": "Product not found",
-				"code":  "PRODUCT_NOT_FOUND",
+				"error": "Product variant not found",
+				"code":  "VARIANT_NOT_FOUND",
 			})
-		case err.Error() == "product is no longer available":
+		case strings.Contains(err.Error(), "variant is no longer available"):
 			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": "Product is no longer available",
-				"code":  "PRODUCT_UNAVAILABLE",
+				"error": "Product variant is no longer available",
+				"code":  "VARIANT_UNAVAILABLE",
 			})
-		case containsString(err.Error(), "insufficient stock"):
+		case strings.Contains(err.Error(), "insufficient stock"):
 			return c.JSON(http.StatusBadRequest, map[string]interface{}{
 				"error": err.Error(),
 				"code":  "INSUFFICIENT_STOCK",
 			})
-		case containsString(err.Error(), "quantity"):
+		case strings.Contains(err.Error(), "quantity"):
 			return c.JSON(http.StatusBadRequest, map[string]interface{}{
 				"error": err.Error(),
 				"code":  "INVALID_QUANTITY",
@@ -204,14 +205,15 @@ func (h *CartHandler) UpdateItem(c echo.Context) error {
 		default:
 			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 				"error": "Failed to update cart item",
-				"code":  "INTERNAL_ERROR",
+				"code":  "CART_UPDATE_FAILED",
 			})
 		}
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"cart_item": h.cartItemToAPI(cartItem),
-		"message":   "Cart item updated successfully",
+		"success": true,
+		"data":    h.cartItemToResponse(cartItem),
+		"message": "Cart item updated successfully",
 	})
 }
 
@@ -234,7 +236,7 @@ func (h *CartHandler) RemoveItem(c echo.Context) error {
 	if err != nil {
 		c.Logger().Errorf("Failed to remove cart item %d: %v", itemID, err)
 
-		if err.Error() == "cart item not found" {
+		if strings.Contains(err.Error(), "cart item not found") {
 			return c.JSON(http.StatusNotFound, map[string]interface{}{
 				"error": "Cart item not found",
 				"code":  "CART_ITEM_NOT_FOUND",
@@ -243,162 +245,187 @@ func (h *CartHandler) RemoveItem(c echo.Context) error {
 
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error": "Failed to remove cart item",
-			"code":  "INTERNAL_ERROR",
+			"code":  "CART_REMOVE_FAILED",
 		})
 	}
 
-	return c.NoContent(http.StatusNoContent)
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"success": true,
+		"message": "Item removed from cart successfully",
+	})
 }
 
 // ClearCart handles DELETE /api/v1/cart
 func (h *CartHandler) ClearCart(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	// Get customer ID from authentication or session ID from header
-	customerID := h.getCustomerIDFromContext(c)
-	sessionID := h.getSessionIDFromHeader(c)
-
-	if customerID == nil && sessionID == nil {
-		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error": "Authentication required or session ID must be provided",
-			"code":  "MISSING_AUTH_OR_SESSION",
-		})
-	}
-
-	// Get cart
-	cart, err := h.cartService.GetOrCreateCart(ctx, customerID, sessionID)
+	// Get cart based on authentication
+	cartID, err := h.resolveCartID(c)
 	if err != nil {
-		c.Logger().Errorf("Failed to get cart: %v", err)
-		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-			"error": "Failed to retrieve cart",
-			"code":  "INTERNAL_ERROR",
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error": "Unable to identify cart",
+			"code":  "CART_IDENTIFICATION_FAILED",
 		})
 	}
 
 	// Clear cart
-	err = h.cartService.Clear(ctx, cart.ID)
+	err = h.cartService.Clear(ctx, cartID)
 	if err != nil {
-		c.Logger().Errorf("Failed to clear cart %d: %v", cart.ID, err)
+		c.Logger().Errorf("Failed to clear cart %d: %v", cartID, err)
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error": "Failed to clear cart",
-			"code":  "INTERNAL_ERROR",
+			"code":  "CART_CLEAR_FAILED",
 		})
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
+		"success": true,
 		"message": "Cart cleared successfully",
 	})
 }
 
 // GetCartSummary handles GET /api/v1/cart/summary
-// func (h *CartHandler) GetCartSummary(c echo.Context) error {
-// 	ctx := c.Request().Context()
+func (h *CartHandler) GetCartSummary(c echo.Context) error {
+	ctx := c.Request().Context()
 
-// 	// Get customer ID from authentication or session ID from header
-// 	customerID := h.getCustomerIDFromContext(c)
-// 	sessionID := h.getSessionIDFromHeader(c)
+	// Get cart based on authentication
+	cartID, err := h.resolveCartID(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error": "Unable to identify cart",
+			"code":  "CART_IDENTIFICATION_FAILED",
+		})
+	}
 
-// 	if customerID == nil && sessionID == nil {
-// 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-// 			"error": "Authentication required or session ID must be provided",
-// 			"code":  "MISSING_AUTH_OR_SESSION",
-// 		})
-// 	}
+	// Get cart summary
+	summary, err := h.cartService.GetCartSummary(ctx, cartID)
+	if err != nil {
+		c.Logger().Errorf("Failed to get cart summary %d: %v", cartID, err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error": "Failed to retrieve cart summary",
+			"code":  "CART_SUMMARY_FAILED",
+		})
+	}
 
-// 	// Get cart
-// 	cart, err := h.cartService.GetOrCreateCart(ctx, customerID, sessionID)
-// 	if err != nil {
-// 		c.Logger().Errorf("Failed to get cart: %v", err)
-// 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-// 			"error": "Failed to retrieve cart",
-// 			"code":  "INTERNAL_ERROR",
-// 		})
-// 	}
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"success": true,
+		"data":    summary,
+	})
+}
 
-// 	// Get cart summary
-// 	summary, err := h.cartService.GetCartSummary(ctx, cart.ID)
-// 	if err != nil {
-// 		c.Logger().Errorf("Failed to get cart summary: %v", err)
-// 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-// 			"error": "Failed to retrieve cart summary",
-// 			"code":  "INTERNAL_ERROR",
-// 		})
-// 	}
+// =============================================================================
+// Helper Methods
+// =============================================================================
 
-// 	return c.JSON(http.StatusOK, summary)
-// }
+// resolveCartID determines the cart ID based on customer ID or session ID
+func (h *CartHandler) resolveCartID(c echo.Context) (int32, error) {
+	ctx := c.Request().Context()
 
-// Helper methods
-
-func (h *CartHandler) getCustomerIDFromContext(c echo.Context) *int32 {
-	// Extract from JWT token or X-Customer-ID header for testing
+	// Check for customer ID (authenticated users)
 	if customerIDHeader := c.Request().Header.Get("X-Customer-ID"); customerIDHeader != "" {
-		if id, err := strconv.Atoi(customerIDHeader); err == nil {
-			customerID := int32(id)
-			return &customerID
+		customerID, err := strconv.Atoi(customerIDHeader)
+		if err != nil {
+			return 0, err
 		}
+
+		customerID32 := int32(customerID)
+		cart, err := h.cartService.GetOrCreateCart(ctx, &customerID32, nil)
+		if err != nil {
+			return 0, err
+		}
+		return cart.ID, nil
 	}
-	// TODO: Extract from JWT token in production
-	return nil
+
+	// Check for session ID (guest users)
+	if sessionID := c.Request().Header.Get("X-Session-ID"); sessionID != "" {
+		cart, err := h.cartService.GetOrCreateCart(ctx, nil, &sessionID)
+		if err != nil {
+			return 0, err
+		}
+		return cart.ID, nil
+	}
+
+	return 0, fmt.Errorf("no customer ID or session ID provided")
 }
 
-func (h *CartHandler) getSessionIDFromHeader(c echo.Context) *string {
-	sessionID := c.Request().Header.Get("X-Session-ID")
-	if sessionID == "" {
-		return nil
+// cartWithItemsToResponse converts CartWithItems to API response format
+func (h *CartHandler) cartWithItemsToResponse(cart *interfaces.CartWithItems) interfaces.CartResponse {
+	response := interfaces.CartResponse{
+		ID:        cart.ID,
+		Items:     make([]interfaces.CartItemResponse, len(cart.Items)),
+		Total:     cart.Total,
+		ItemCount: cart.ItemCount,
+		CreatedAt: cart.CreatedAt,
+		UpdatedAt: cart.UpdatedAt,
 	}
-	return &sessionID
-}
 
-func (h *CartHandler) cartToAPI(cart *interfaces.CartWithItems) map[string]interface{} {
-	items := make([]map[string]interface{}, len(cart.Items))
+	// Handle optional customer ID (already a pointer)
+	if cart.CustomerID != nil {
+		response.CustomerID = cart.CustomerID
+	}
+
+	// Handle optional session ID (already a pointer)
+	if cart.SessionID != nil {
+		response.SessionID = cart.SessionID
+	}
+
+	// Convert cart items
 	for i, item := range cart.Items {
-		items[i] = map[string]interface{}{
-			"id":              item.ID,
-			"product_id":      item.ProductID,
-			"name":            item.ProductName,
-			"description":     item.ProductDescription,
-			"quantity":        item.Quantity,
-			"price":           item.Price,
-			"subtotal":        item.Quantity * item.Price,
-			"stock":           item.ProductStock,
-			"price_formatted": formatPrice(int32(item.Price)),
-		}
+		response.Items[i] = h.cartItemWithVariantToResponse(&item)
 	}
 
-	return map[string]interface{}{
-		"id":              cart.ID,
-		"items":           items,
-		"total":           cart.Total,
-		"item_count":      cart.ItemCount,
-		"total_formatted": formatPrice(cart.Total),
-		"created_at":      cart.CreatedAt,
-		"updated_at":      cart.UpdatedAt,
-	}
+	return response
 }
 
-func (h *CartHandler) cartItemToAPI(item *interfaces.CartItem) map[string]interface{} {
-	return map[string]interface{}{
-		"id":              item.ID,
-		"cart_id":         item.CartID,
-		"product_id":      item.ProductID,
-		"quantity":        item.Quantity,
-		"price":           item.Price,
-		"subtotal":        item.Quantity * item.Price,
-		"price_formatted": formatPrice(item.Price),
-		"created_at":      item.CreatedAt,
+// cartItemToResponse converts CartItem to API response format
+func (h *CartHandler) cartItemToResponse(item *interfaces.CartItem) interfaces.CartItemResponse {
+	response := interfaces.CartItemResponse{
+		ID:               item.ID,
+		ProductVariantID: item.ProductVariantID,
+		Quantity:         item.Quantity,
+		Price:            item.Price,
+		PurchaseType:     item.PurchaseType,
+		StripePriceID:    item.StripePriceID,
+		CreatedAt:        item.CreatedAt,
 	}
+
+	// Handle optional subscription interval
+	if item.SubscriptionInterval.Valid {
+		interval := item.SubscriptionInterval.String
+		response.SubscriptionInterval = &interval
+	}
+
+	return response
 }
 
-// Helper function to check if string contains substring
-func containsString(s, substr string) bool {
-	if substr == "" {
-		return true
+// cartItemWithVariantToResponse converts CartItemWithVariant to API response format
+func (h *CartHandler) cartItemWithVariantToResponse(item *interfaces.CartItemWithVariant) interfaces.CartItemResponse {
+	response := interfaces.CartItemResponse{
+		ID:               item.ID,
+		ProductVariantID: item.ProductVariantID,
+		Quantity:         item.Quantity,
+		Price:            item.Price,
+		PurchaseType:     item.PurchaseType,
+		StripePriceID:    item.StripePriceID,
+		CreatedAt:        item.CreatedAt,
 	}
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
+
+	// Handle optional subscription interval
+	if item.SubscriptionInterval.Valid {
+		interval := item.SubscriptionInterval.String
+		response.SubscriptionInterval = &interval
 	}
-	return false
+
+	// Add variant information to response
+	response.VariantName = item.VariantName
+	response.ProductName = item.ProductName
+	response.ProductID = item.ProductID
+
+	// Handle optional options display
+	if item.OptionsDisplay.Valid {
+		optionsDisplay := item.OptionsDisplay.String
+		response.OptionsDisplay = &optionsDisplay
+	}
+
+	return response
 }
