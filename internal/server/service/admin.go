@@ -246,13 +246,16 @@ func (s *AdminService) processCustomerBackfill(ctx context.Context, jobID string
 	})
 }
 
-// Background processing for product backfill
+// Background processing for variant backfill (updated for variant-based architecture)
 func (s *AdminService) processProductBackfill(ctx context.Context, jobID string, req interfaces.BackfillProductsRequest) {
 	s.updateJobStatus(jobID, "running", func(job *interfaces.BackfillJobStatus) {
-		log.Printf("Starting product backfill job %s", jobID)
+		log.Printf("Starting variant backfill job %s", jobID)
 
-		// Get products without Stripe sync
-		products, err := s.productService.GetProductsWithoutStripeSync(ctx, req.MaxProducts, 0)
+		// Get all active products to find their variants that need Stripe sync
+		activeProducts, err := s.productService.GetAll(ctx, interfaces.ProductFilters{
+			Active: &[]bool{true}[0], // Active products only
+			Limit:  req.MaxProducts,  // Respect the max products limit
+		})
 		if err != nil {
 			job.Status = "failed"
 			job.Errors = append(job.Errors, interfaces.BackfillError{
@@ -262,40 +265,101 @@ func (s *AdminService) processProductBackfill(ctx context.Context, jobID string,
 			return
 		}
 
-		job.TotalItems = len(products)
+		// Collect all variants that need Stripe sync
+		var variantsToSync []interfaces.ProductVariant
+		
+		for _, product := range activeProducts {
+			// Get active variants for this product
+			variants, err := s.variantService.GetActiveVariantsByProduct(ctx, product.ProductID)
+			if err != nil {
+				log.Printf("Failed to get variants for product %d: %v", product.ProductID, err)
+				job.ErrorCount++
+				job.Errors = append(job.Errors, interfaces.BackfillError{
+					ItemID: product.ProductID,
+					Error:  fmt.Sprintf("Failed to get variants: %v", err),
+				})
+				continue
+			}
 
-		// Process in batches
-		for i := 0; i < len(products); i += req.BatchSize {
+			// Filter variants that don't have Stripe sync
+			for _, variant := range variants {
+				if !variant.StripeProductID.Valid || variant.StripeProductID.String == "" {
+					variantsToSync = append(variantsToSync, variant)
+				}
+			}
+		}
+
+		job.TotalItems = len(variantsToSync)
+		log.Printf("Found %d variants that need Stripe sync", len(variantsToSync))
+
+		// Process variants in batches
+		for i := 0; i < len(variantsToSync); i += req.BatchSize {
 			end := i + req.BatchSize
-			end = min(end, len(products))
-			batch := products[i:end]
+			end = min(end, len(variantsToSync))
+			batch := variantsToSync[i:end]
 
-			for _, product := range batch {
+			for _, variant := range batch {
 				if req.DryRun {
-					log.Printf("DRY RUN: Would sync product %d", product.ID)
+					log.Printf("DRY RUN: Would sync variant %d (%s)", variant.ID, variant.Name)
 				} else {
-					// Trigger product sync
-					if err := s.productService.EnsureStripeProduct(ctx, product.ID); err != nil {
+					// Trigger variant sync to Stripe
+					if err := s.syncVariantToStripe(ctx, &variant); err != nil {
 						job.ErrorCount++
 						job.Errors = append(job.Errors, interfaces.BackfillError{
-							ItemID: product.ID,
+							ItemID: variant.ID,
 							Error:  err.Error(),
 						})
+						log.Printf("Failed to sync variant %d to Stripe: %v", variant.ID, err)
 					} else {
 						job.SuccessCount++
+						log.Printf("Successfully synced variant %d (%s) to Stripe", variant.ID, variant.Name)
 					}
 				}
 				job.ProcessedItems++
 			}
 
-			// Delay between batches (longer for products due to multiple Stripe API calls)
-			time.Sleep(2 * time.Second)
+			// Delay between batches (longer for variants due to multiple Stripe API calls)
+			time.Sleep(3 * time.Second)
 		}
 
 		job.Status = "completed"
-		log.Printf("Completed product backfill job %s: %d/%d successful",
+		log.Printf("Completed variant backfill job %s: %d/%d successful",
 			jobID, job.SuccessCount, job.TotalItems)
 	})
+}
+
+// Helper method to sync a single variant to Stripe
+func (s *AdminService) syncVariantToStripe(ctx context.Context, variant *interfaces.ProductVariant) error {
+	// Publish a variant sync event to trigger the Stripe sync process
+	// This leverages the existing event-driven Stripe sync infrastructure
+	
+	event := interfaces.Event{
+		ID:          s.generateEventID(),
+		Type:        "variant.stripe_sync_requested",
+		AggregateID: fmt.Sprintf("variant-%d", variant.ID),
+		Data: map[string]interface{}{
+			"variant_id":    variant.ID,
+			"product_id":    variant.ProductID,
+			"triggered_by":  "admin_backfill",
+			"sync_requested": true,
+		},
+		Timestamp: time.Now(),
+		Version:   1,
+	}
+
+	if err := s.events.PublishEvent(ctx, event); err != nil {
+		return fmt.Errorf("failed to publish variant sync event: %w", err)
+	}
+
+	// Note: The actual Stripe sync will be handled by the ProductEventSubscriber
+	// This ensures consistency with the existing Stripe integration patterns
+	
+	return nil
+}
+
+// Helper method to generate event IDs
+func (s *AdminService) generateEventID() string {
+	return fmt.Sprintf("evt_%d", time.Now().UnixNano())
 }
 
 // Helper methods
