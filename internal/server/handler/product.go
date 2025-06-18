@@ -1,30 +1,34 @@
-// internal/handler/product.go
+// internal/server/handler/product.go
 package handler
 
 import (
-	"fmt"
-	"log"
-	"strings"
-
 	"net/http"
 	"strconv"
+	"time"
 
-	"github.com/dukerupert/freyja/internal/backend/templates"
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 )
 
 type ProductHandler struct {
 	productService interfaces.ProductService
+	variantService interfaces.VariantService
 }
 
-func NewProductHandler(productService interfaces.ProductService) *ProductHandler {
+func NewProductHandler(productService interfaces.ProductService, variantService interfaces.VariantService) *ProductHandler {
 	return &ProductHandler{
 		productService: productService,
+		variantService: variantService,
 	}
 }
 
+// =============================================================================
+// Customer-Facing Product Endpoints (with variant information)
+// =============================================================================
+
 // GetProducts handles GET /api/v1/products
+// Now returns products with aggregated variant information
 func (h *ProductHandler) GetProducts(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -54,7 +58,7 @@ func (h *ProductHandler) GetProducts(c echo.Context) error {
 	// Check for search query
 	searchQuery := c.QueryParam("search")
 
-	var products []interfaces.Product
+	var products []interfaces.ProductSummary
 	var err error
 
 	if searchQuery != "" {
@@ -71,14 +75,23 @@ func (h *ProductHandler) GetProducts(c echo.Context) error {
 		})
 	}
 
+	// Transform to API-friendly format
+	apiProducts := make([]map[string]interface{}, len(products))
+	for i, product := range products {
+		apiProducts[i] = h.productSummaryToAPI(product)
+	}
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"products": products,
-		"total":    len(products),
+		"success":  true,
+		"products": apiProducts,
+		"total":    len(apiProducts),
 		"filters":  filters,
+		"search":   searchQuery,
 	})
 }
 
 // GetProduct handles GET /api/v1/products/:id
+// Now returns product with all its variants
 func (h *ProductHandler) GetProduct(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -92,14 +105,12 @@ func (h *ProductHandler) GetProduct(c echo.Context) error {
 		})
 	}
 
-	// Fetch product
-	product, err := h.productService.GetByID(ctx, id)
+	// Get product summary with aggregated variant data
+	productSummary, err := h.productService.GetByID(ctx, id)
 	if err != nil {
-		c.Logger().Errorf("Failed to fetch product %d: %v", id, err)
+		c.Logger().Error("Failed to get product: ", err)
 
-		// Check if it's a not found error
-		if err.Error() == "product not found" ||
-			err.Error() == "no rows in result set" {
+		if err.Error() == "product not found" {
 			return c.JSON(http.StatusNotFound, map[string]interface{}{
 				"error": "Product not found",
 				"code":  "PRODUCT_NOT_FOUND",
@@ -107,12 +118,30 @@ func (h *ProductHandler) GetProduct(c echo.Context) error {
 		}
 
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-			"error": "Failed to fetch product",
+			"error": "Failed to retrieve product",
 			"code":  "INTERNAL_ERROR",
 		})
 	}
 
-	return c.JSON(http.StatusOK, h.productToAPI(*product))
+	// Get all active variants for this product
+	variants, err := h.variantService.GetActiveVariantsByProduct(ctx, int32(id))
+	if err != nil {
+		c.Logger().Error("Failed to get product variants: ", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error": "Failed to retrieve product variants",
+			"code":  "INTERNAL_ERROR",
+		})
+	}
+
+	// Build comprehensive product response
+	response := h.productSummaryToAPI(*productSummary)
+	response["variants"] = h.variantsToAPI(variants)
+	response["has_variants"] = len(variants) > 0
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"success": true,
+		"data":    response,
+	})
 }
 
 // GetInStockProducts handles GET /api/v1/products/in-stock
@@ -121,21 +150,24 @@ func (h *ProductHandler) GetInStockProducts(c echo.Context) error {
 
 	products, err := h.productService.GetInStock(ctx)
 	if err != nil {
-		c.Logger().Error("Failed to fetch in-stock products: ", err)
+		c.Logger().Error("Failed to get in-stock products: ", err)
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-			"error": "Failed to fetch in-stock products",
+			"error": "Failed to retrieve in-stock products",
 			"code":  "INTERNAL_ERROR",
 		})
 	}
 
+	// Transform to API-friendly format
 	apiProducts := make([]map[string]interface{}, len(products))
-	for i, p := range products {
-		apiProducts[i] = h.productToAPI(p)
+	for i, product := range products {
+		apiProducts[i] = h.productSummaryToAPI(product)
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
+		"success":  true,
 		"products": apiProducts,
 		"total":    len(apiProducts),
+		"filter":   "in_stock",
 	})
 }
 
@@ -144,31 +176,48 @@ func (h *ProductHandler) GetLowStockProducts(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Parse threshold parameter (default to 10)
-	threshold := 10
+	threshold := int32(10)
 	if thresholdParam := c.QueryParam("threshold"); thresholdParam != "" {
-		if t, err := strconv.Atoi(thresholdParam); err == nil && t > 0 {
-			threshold = t
+		if t, err := strconv.ParseInt(thresholdParam, 10, 32); err == nil && t > 0 {
+			threshold = int32(t)
 		}
 	}
 
-	products, err := h.productService.GetLowStock(ctx, threshold)
+	// Get low stock variants first
+	lowStockVariants, err := h.variantService.GetLowStockVariants(ctx, threshold)
 	if err != nil {
-		c.Logger().Error("Failed to fetch low-stock products: ", err)
+		c.Logger().Error("Failed to get low-stock variants: ", err)
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-			"error": "Failed to fetch low-stock products",
+			"error": "Failed to retrieve low-stock products",
 			"code":  "INTERNAL_ERROR",
 		})
 	}
 
+	// Group variants by product and get product summaries
+	productIDs := make(map[int32]bool)
+	for _, variant := range lowStockVariants {
+		productIDs[variant.ProductID] = true
+	}
+
+	var products []interfaces.ProductSummary
+	for productID := range productIDs {
+		if product, err := h.productService.GetByID(ctx, int(productID)); err == nil {
+			products = append(products, *product)
+		}
+	}
+
+	// Transform to API-friendly format
 	apiProducts := make([]map[string]interface{}, len(products))
-	for i, p := range products {
-		apiProducts[i] = h.productToAPI(p)
+	for i, product := range products {
+		apiProducts[i] = h.productSummaryToAPI(product)
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
+		"success":   true,
 		"products":  apiProducts,
 		"total":     len(apiProducts),
 		"threshold": threshold,
+		"filter":    "low_stock",
 	})
 }
 
@@ -176,145 +225,86 @@ func (h *ProductHandler) GetLowStockProducts(c echo.Context) error {
 func (h *ProductHandler) GetProductStats(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	stats, err := h.productService.GetStats(ctx)
+	// Get basic product counts by calling the service method
+	// Note: This assumes a GetStats method exists on ProductService
+	// If not, we'll gather stats manually using existing methods
+
+	// Get all products to calculate basic stats
+	allProducts, err := h.productService.GetAll(ctx, interfaces.ProductFilters{})
 	if err != nil {
-		c.Logger().Error("Failed to fetch product stats: ", err)
+		c.Logger().Error("Failed to get products for stats: ", err)
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-			"error": "Failed to fetch product statistics",
+			"error": "Failed to retrieve product statistics",
 			"code":  "INTERNAL_ERROR",
 		})
 	}
 
-	return c.JSON(http.StatusOK, stats)
-}
-
-// CreateProduct handles POST /api/v1/admin/products
-func (h *ProductHandler) CreateProduct(c echo.Context) error {
-	ctx := c.Request().Context()
-
-	// Determine if this is form data or JSON
-	contentType := c.Request().Header.Get("Content-Type")
-	
-	var req interfaces.CreateProductRequest
-	var err error
-
-	if strings.Contains(contentType, "application/x-www-form-urlencoded") {
-		// Handle form data (from backend panel)
-		req, err = h.parseProductForm(c)
-		if err != nil {
-			c.Logger().Errorf("CreateProduct - Form parsing error: %v", err)
-			return h.handleCreateProductError(c, "Invalid form data")
-		}
-	} else {
-		// Handle JSON data (from API clients)
-		var formReq interfaces.CreateProductFormRequest
-		if err := c.Bind(&formReq); err != nil {
-			c.Logger().Errorf("CreateProduct - JSON binding error: %v", err)
-			return h.handleCreateProductError(c, "Invalid request format")
-		}
-		req = formReq.ToCreateProductRequest()
-	}
-
-	product, err := h.productService.CreateProduct(ctx, req)
+	// Get in-stock products
+	inStockProducts, err := h.productService.GetInStock(ctx)
 	if err != nil {
-		c.Logger().Errorf("Failed to create product: %v", err)
-		return h.handleCreateProductError(c, "Failed to create product")
+		c.Logger().Error("Failed to get in-stock products for stats: ", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error": "Failed to retrieve product statistics",
+			"code":  "INTERNAL_ERROR",
+		})
 	}
 
-	return h.handleCreateProductSuccess(c, product)
-}
-
-// Helper method to parse form data
-func (h *ProductHandler) parseProductForm(c echo.Context) (interfaces.CreateProductRequest, error) {
-	name := c.FormValue("name")
-	description := c.FormValue("description")
-	priceStr := c.FormValue("price")
-	stockStr := c.FormValue("stock")
-	active := c.FormValue("active") == "on"
-
-	// Validate required fields
-	if name == "" {
-		return interfaces.CreateProductRequest{}, fmt.Errorf("product name is required")
+	// Get low stock variants for additional stats
+	lowStockVariants, err := h.variantService.GetLowStockVariants(ctx, 10)
+	if err != nil {
+		c.Logger().Error("Failed to get low-stock variants for stats: ", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error": "Failed to retrieve product statistics",
+			"code":  "INTERNAL_ERROR",
+		})
 	}
 
-	// Convert price from dollars to cents
-	var price int32
-	if priceStr != "" {
-		priceFloat := 0.0
-		if _, err := fmt.Sscanf(priceStr, "%f", &priceFloat); err != nil {
-			return interfaces.CreateProductRequest{}, fmt.Errorf("invalid price format")
+	// Calculate stats
+	activeProducts := 0
+	totalStock := int32(0)
+	totalVariants := int32(0)
+
+	for _, product := range allProducts {
+		if product.ProductID > 0 { // Valid product
+			totalStock += product.TotalStock
+			totalVariants += product.TotalVariants
 		}
-		price = int32(priceFloat * 100) // Convert to cents
 	}
 
-	// Convert stock
-	var stock int32
-	if stockStr != "" {
-		stockInt := 0
-		if _, err := fmt.Sscanf(stockStr, "%d", &stockInt); err != nil {
-			return interfaces.CreateProductRequest{}, fmt.Errorf("invalid stock format")
+	// Count active products (those with variants in stock)
+	for _, product := range inStockProducts {
+		if product.HasStock {
+			activeProducts++
 		}
-		stock = int32(stockInt)
 	}
 
-	return interfaces.CreateProductRequest{
-		Name:        name,
-		Description: description,
-		Price:       price,
-		Stock:       stock,
-		Active:      active,
-	}, nil
-}
-
-// Helper method to handle errors consistently
-func (h *ProductHandler) handleCreateProductError(c echo.Context, message string) error {
-	if c.Request().Header.Get("HX-Request") == "true" {
-		return c.HTML(http.StatusBadRequest, fmt.Sprintf(`<div class="text-red-600">%s</div>`, message))
+	stats := map[string]interface{}{
+		"total_products":      len(allProducts),
+		"active_products":     activeProducts,
+		"products_in_stock":   len(inStockProducts),
+		"products_low_stock":  len(lowStockVariants),
+		"total_stock":         totalStock,
+		"total_variants":      totalVariants,
+		"low_stock_threshold": 10,
+		"generated_at":        time.Now().UTC(),
 	}
-	return c.JSON(http.StatusBadRequest, map[string]interface{}{
-		"error": message,
-		"code":  "CREATION_FAILED",
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"success": true,
+		"data":    stats,
 	})
 }
 
-// Helper method to handle success consistently  
-func (h *ProductHandler) handleCreateProductSuccess(c echo.Context, product *interfaces.Product) error {
-	log.Printf("🎉 handleCreateProductSuccess called")
-	log.Printf("🎉 Product data received: %+v", product)
-	log.Printf("🎉 Product ID: %d", product.ID)
-	log.Printf("🎉 Product Name: %s", product.Name)
-	log.Printf("🎉 Product Price: %d cents", product.Price)
-	log.Printf("🎉 Product CreatedAt: %v", product.CreatedAt)
-	log.Printf("🎉 Product CreatedAt IsZero: %v", product.CreatedAt.IsZero())
-	log.Printf("🎉 Product CreatedAt Formatted: %s", product.CreatedAt.Format("Jan 2, 2006"))
-	
-	// Check if this is an HTMX request
-	if c.Request().Header.Get("HX-Request") == "true" {
-		c.Response().Header().Set("HX-Trigger", "productCreated")
-		c.Response().Header().Set("HX-Reswap", "afterbegin")
-		c.Response().Header().Set("HX-Retarget", "#products-table tbody")
+// =============================================================================
+// New Variant-Specific Product Endpoints
+// =============================================================================
 
-		// Render the ProductRow component
-		component := views.ProductRow(*product)
-		if err := component.Render(c.Request().Context(), c.Response().Writer); err != nil {
-			c.Logger().Errorf("Failed to render product row: %v", err)
-			return c.HTML(http.StatusInternalServerError, `<div class="text-red-600">Failed to render product</div>`)
-		}
-		return nil
-	}
-
-	// Default JSON response for API clients
-	return c.JSON(http.StatusCreated, map[string]interface{}{
-		"message": "Product created successfully",
-		"product": product,
-	})
-}
-
-// UpdateProduct handles PUT /api/v1/admin/products/:id
-func (h *ProductHandler) UpdateProduct(c echo.Context) error {
+// GetProductVariants handles GET /api/v1/products/:id/variants
+// Customer-facing endpoint to get all available variants for a product
+func (h *ProductHandler) GetProductVariants(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	id, err := strconv.Atoi(c.Param("id"))
+	productID, err := strconv.ParseInt(c.Param("id"), 10, 32)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
 			"error": "Invalid product ID",
@@ -322,61 +312,200 @@ func (h *ProductHandler) UpdateProduct(c echo.Context) error {
 		})
 	}
 
-	var req interfaces.UpdateProductRequest
-	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error": "Invalid request format",
-			"code":  "INVALID_REQUEST",
-		})
-	}
-
-	product, err := h.productService.UpdateProduct(ctx, int32(id), req)
+	// Get active variants only for customers
+	variants, err := h.variantService.GetActiveVariantsByProduct(ctx, int32(productID))
 	if err != nil {
-		c.Logger().Errorf("Failed to update product %d: %v", id, err)
+		c.Logger().Error("Failed to get product variants: ", err)
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-			"error": "Failed to update product",
-			"code":  "UPDATE_FAILED",
+			"error": "Failed to retrieve product variants",
+			"code":  "INTERNAL_ERROR",
 		})
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"message": "Product updated successfully",
-		"product": product,
+		"success":    true,
+		"variants":   h.variantsToAPI(variants),
+		"total":      len(variants),
+		"product_id": productID,
 	})
 }
 
-// Helper method to convert Product to API format
-func (h *ProductHandler) productToAPI(product interfaces.Product) map[string]interface{} {
+// SearchProductVariants handles GET /api/v1/products/variants/search
+// Search across all product variants
+func (h *ProductHandler) SearchProductVariants(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	query := c.QueryParam("q")
+	if query == "" {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error": "Search query parameter 'q' is required",
+			"code":  "MISSING_QUERY",
+		})
+	}
+
+	variants, err := h.variantService.SearchVariants(ctx, query)
+	if err != nil {
+		c.Logger().Error("Failed to search variants: ", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error": "Failed to search variants",
+			"code":  "INTERNAL_ERROR",
+		})
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"success":  true,
+		"variants": h.variantsToAPI(variants),
+		"total":    len(variants),
+		"query":    query,
+	})
+}
+
+// =============================================================================
+// Admin Product Endpoints (existing but updated for clarity)
+// =============================================================================
+
+// CreateProduct handles POST /api/v1/admin/products
+func (h *ProductHandler) CreateProduct(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	var req interfaces.CreateProductRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error": "Invalid request body",
+			"code":  "INVALID_REQUEST",
+		})
+	}
+
+	if err := c.Validate(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error": err.Error(),
+			"code":  "VALIDATION_ERROR",
+		})
+	}
+
+	product, err := h.productService.Create(ctx, req)
+	if err != nil {
+		c.Logger().Error("Failed to create product: ", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error": "Failed to create product",
+			"code":  "INTERNAL_ERROR",
+		})
+	}
+
+	return c.JSON(http.StatusCreated, map[string]interface{}{
+		"success": true,
+		"data":    h.basicProductToAPI(*product),
+		"message": "Product created successfully",
+	})
+}
+
+// UpdateProduct handles PUT /api/v1/admin/products/:id
+func (h *ProductHandler) UpdateProduct(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	id, err := strconv.ParseInt(c.Param("id"), 10, 32)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error": "Invalid product ID",
+			"code":  "INVALID_ID",
+		})
+	}
+
+	// Get existing product
+	product, err := h.productService.GetBasicProductByID(ctx, int(id))
+	if err != nil {
+		return c.JSON(http.StatusNotFound, map[string]interface{}{
+			"error": "Product not found",
+			"code":  "PRODUCT_NOT_FOUND",
+		})
+	}
+
+	var req interfaces.CreateProductRequest // Using same struct for updates
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error": "Invalid request body",
+			"code":  "INVALID_REQUEST",
+		})
+	}
+
+	// Update product fields
+	product.Name = req.Name
+	product.Description = stringToPgText(req.Description)
+	product.Active = req.Active
+
+	if err := h.productService.Update(ctx, product); err != nil {
+		c.Logger().Error("Failed to update product: ", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error": "Failed to update product",
+			"code":  "INTERNAL_ERROR",
+		})
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"success": true,
+		"data":    h.basicProductToAPI(*product),
+		"message": "Product updated successfully",
+	})
+}
+
+// =============================================================================
+// Helper Methods for Response Formatting
+// =============================================================================
+
+// productSummaryToAPI converts ProductSummary to API response format
+func (h *ProductHandler) productSummaryToAPI(product interfaces.ProductSummary) map[string]interface{} {
+	return map[string]interface{}{
+		"id":                product.ProductID,
+		"name":              product.Name,
+		"description":       product.Description,
+		"total_stock":       product.TotalStock,
+		"variants_in_stock": product.VariantsInStock,
+		"total_variants":    product.TotalVariants,
+		"min_price":         product.MinPrice,
+		"max_price":         product.MaxPrice,
+		"has_stock":         product.HasStock,
+		"stock_status":      product.StockStatus,
+		"available_options": product.AvailableOptions,
+	}
+}
+
+// basicProductToAPI converts basic Product to API response format (admin use)
+func (h *ProductHandler) basicProductToAPI(product interfaces.Product) map[string]interface{} {
 	return map[string]interface{}{
 		"id":          product.ID,
 		"name":        product.Name,
 		"description": product.Description,
-		"price":       product.Price,
-		"stock":       product.Stock,
 		"active":      product.Active,
-		// Add computed fields
-		"price_formatted": formatPrice(product.Price),
-		"in_stock":        product.Stock > 0,
-		"availability":    getAvailabilityStatus(product.Stock),
+		"created_at":  product.CreatedAt,
+		"updated_at":  product.UpdatedAt,
 	}
 }
 
-// Helper function to format price in cents to dollars
-func formatPrice(priceInCents int32) string {
-	dollars := float64(priceInCents) / 100
-	return "$" + strconv.FormatFloat(dollars, 'f', 2, 64)
+// variantsToAPI converts slice of ProductVariant to API format
+func (h *ProductHandler) variantsToAPI(variants []interfaces.ProductVariant) []map[string]interface{} {
+	apiVariants := make([]map[string]interface{}, len(variants))
+	for i, variant := range variants {
+		apiVariants[i] = map[string]interface{}{
+			"id":                      variant.ID,
+			"product_id":              variant.ProductID,
+			"name":                    variant.Name,
+			"price":                   variant.Price,
+			"stock":                   variant.Stock,
+			"active":                  variant.Active,
+			"is_subscription":         variant.IsSubscription,
+			"options_display":         variant.OptionsDisplay,
+			"stripe_product_id":       variant.StripeProductID,
+			"stripe_price_onetime_id": variant.StripePriceOnetimeID,
+			"created_at":              variant.CreatedAt,
+			"updated_at":              variant.UpdatedAt,
+		}
+	}
+	return apiVariants
 }
 
-// Helper function to get availability status
-func getAvailabilityStatus(stock int32) string {
-	switch {
-	case stock == 0:
-		return "out_of_stock"
-	case stock <= 5:
-		return "low_stock"
-	case stock <= 10:
-		return "limited"
-	default:
-		return "in_stock"
+func stringToPgText(s string) pgtype.Text {
+	return pgtype.Text{
+		String: s,
+		Valid:  s != "",
 	}
 }
