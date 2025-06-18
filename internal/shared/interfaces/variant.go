@@ -157,6 +157,9 @@ type VariantService interface {
 	GetActiveVariantsByProduct(ctx context.Context, productID int32) ([]ProductVariant, error)
 	SearchVariants(ctx context.Context, query string) ([]ProductVariant, error)
 
+		// Stripe integration
+	UpdateStripeIDs(ctx context.Context, variantID int32, stripeProductID string, priceIDs map[string]string) error
+
 	// Admin operations
 	Create(ctx context.Context, req CreateVariantRequest) (*ProductVariant, error)
 	Update(ctx context.Context, id int32, req UpdateVariantRequest) (*ProductVariant, error)

@@ -69,14 +69,16 @@ func main() {
 	// Initialize layers: Repository -> Service -> Handler
 	// Initialize repositories
 	productRepo := repository.NewPostgresProductRepository(db)
+	variantRepo := repository.NewPostgresVariantRepository(db)
 	cartRepo := repository.NewPostgresCartRepository(db)
 	orderRepo := repository.NewOrderRepository(db)
 	customerRepo := repository.NewPostgresCustomerRepository(db)
 
 	// Initialize services
 	productService := service.NewProductService(productRepo, eventPublisher)
-	cartService := service.NewCartService(cartRepo, productRepo)
-	orderService := service.NewOrderService(orderRepo, cartService, eventPublisher)
+	variantService := service.NewVariantService(variantRepo, productRepo, eventPublisher)
+	cartService := service.NewCartService(cartRepo, variantRepo, eventPublisher)
+	orderService := service.NewOrderService(orderRepo, cartService, variantRepo, eventPublisher)
 	customerService := service.NewCustomerService(customerRepo, stripeProvider, eventPublisher)
 	checkoutService := service.NewCheckoutService(customerService, cartService, orderService, stripeProvider, eventPublisher)
 	adminService := service.NewAdminService(customerService, productService, eventPublisher)
@@ -92,7 +94,7 @@ func main() {
 
 	// Initialize event subscribers
 	customerSubscriber := subscriber.NewCustomerEventSubscriber(customerService, eventPublisher)
-	productSubscriber := subscriber.NewProductEventSubscriber(productService, eventPublisher)
+	productSubscriber := subscriber.NewProductEventSubscriber(productService, variantService, eventPublisher)
 
 	// Start event subscribers in background goroutines
 	go func() {
