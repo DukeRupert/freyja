@@ -74,7 +74,7 @@ func (n *NATSEventPublisher) initializeStreams() error {
 		},
 		{
 			name:     "INVENTORY",
-			subjects: []string{"inventory.*", "product.*"},
+			subjects: []string{"inventory.*", "product.*", "variant.*"},
 			maxAge:   24 * time.Hour * 90, // 90 days for inventory events
 		},
 		{
