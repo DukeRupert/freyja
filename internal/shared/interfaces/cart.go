@@ -243,6 +243,7 @@ type CartService interface {
 	// Cart operations
 	GetOrCreateCart(ctx context.Context, customerID *int32, sessionID *string) (*CartWithItems, error)
 	GetCart(ctx context.Context, cartID int32) (*CartWithItems, error)
+	GetCustomerCart(ctx context.Context, customerID int32) (*CartWithItems, error)
 	GetCartItems(ctx context.Context, cartID int32) ([]CartItemWithVariant, error)
 	GetCartItemsWithOptions(ctx context.Context, cartID int32) ([]CartItemWithOptions, error)
 

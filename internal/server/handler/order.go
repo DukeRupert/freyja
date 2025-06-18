@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
+	"github.com/dukerupert/freyja/internal/database"
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/labstack/echo/v4"
 )
@@ -200,6 +202,106 @@ func (h *OrderHandler) GetAllOrders(c echo.Context) error {
 		"total":   len(apiOrders),
 		"filters": filters,
 	})
+}
+
+// UpdateOrderStatus handles PUT /api/v1/admin/orders/:id/status
+func (h *OrderHandler) UpdateOrderStatus(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// TODO: Add admin authentication check
+	// For MVP, we'll assume this is protected by middleware
+
+	// Parse order ID
+	orderIDParam := c.Param("id")
+	orderID, err := strconv.Atoi(orderIDParam)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error": "Invalid order ID",
+			"code":  "INVALID_ORDER_ID",
+		})
+	}
+
+	// Parse request body
+	var req struct {
+		Status         string  `json:"status" validate:"required"`
+		TrackingNumber *string `json:"tracking_number,omitempty"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error": "Invalid request body",
+			"code":  "INVALID_REQUEST",
+		})
+	}
+
+	// Validate status
+	if !interfaces.IsValidOrderStatusString(req.Status) {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error": "Invalid order status",
+			"code":  "INVALID_STATUS",
+		})
+	}
+
+	// Convert string to database.OrderStatus
+	status := database.OrderStatus(req.Status)
+
+	// Update order status
+	err = h.orderService.UpdateStatus(ctx, int32(orderID), status)
+	if err != nil {
+		c.Logger().Errorf("Failed to update order %d status: %v", orderID, err)
+
+		if strings.Contains(err.Error(), "not found") {
+			return c.JSON(http.StatusNotFound, map[string]interface{}{
+				"error": "Order not found",
+				"code":  "ORDER_NOT_FOUND",
+			})
+		}
+
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error": "Failed to update order status",
+			"code":  "INTERNAL_ERROR",
+		})
+	}
+
+	// If tracking number is provided and status is shipped, update it
+	// TODO: Add UpdateTrackingNumber method to service if needed
+	if req.TrackingNumber != nil && status == database.OrderStatusShipped {
+		// Log for now, implement UpdateTrackingNumber later if needed
+		c.Logger().Infof("Tracking number provided for order %d: %s", orderID, *req.TrackingNumber)
+	}
+
+	// Return updated order
+	updatedOrder, err := h.orderService.GetByID(ctx, int32(orderID))
+	if err != nil {
+		// Log error but still return success since status was updated
+		c.Logger().Errorf("Failed to get updated order %d: %v", orderID, err)
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"message": "Order status updated successfully",
+			"status":  req.Status,
+		})
+	}
+
+	return c.JSON(http.StatusOK, h.orderToAPI(*updatedOrder))
+}
+
+// GetOrderStats handles GET /api/v1/admin/orders/stats
+func (h *OrderHandler) GetOrderStats(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// TODO: Add admin authentication check
+	// For MVP, we'll assume this is protected by middleware
+
+	// Get admin order statistics
+	stats, err := h.orderService.GetAdminStats(ctx)
+	if err != nil {
+		c.Logger().Errorf("Failed to get order stats: %v", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error": "Failed to retrieve order statistics",
+			"code":  "INTERNAL_ERROR",
+		})
+	}
+
+	return c.JSON(http.StatusOK, stats)
 }
 
 // =============================================================================

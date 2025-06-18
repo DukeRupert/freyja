@@ -73,6 +73,47 @@ func (s *CartService) GetCart(ctx context.Context, cartID int32) (*interfaces.Ca
 	return s.buildCartWithItems(ctx, cart)
 }
 
+// GetCustomerCart retrieves the cart for a specific customer
+func (s *CartService) GetCustomerCart(ctx context.Context, customerID int32) (*interfaces.CartWithItems, error) {
+	// Get cart by customer ID
+	cart, err := s.cartRepo.GetByCustomerID(ctx, customerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cart for customer %d: %w", customerID, err)
+	}
+
+	if cart == nil {
+		return nil, nil // No cart found
+	}
+
+	// Get cart items with variant details
+	items, err := s.cartRepo.GetCartItems(ctx, cart.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cart items: %w", err)
+	}
+
+	// Calculate total
+	var total int32
+	for _, item := range items {
+		total += item.Price * item.Quantity
+	}
+
+	// Convert pgtype.Text to *string  
+	var sessionID *string
+	if cart.SessionID.Valid {
+		sessionID = &cart.SessionID.String
+	}
+
+	return &interfaces.CartWithItems{
+		ID:         cart.ID,
+		CustomerID: &customerID,
+		SessionID:  sessionID,
+		Items:      items,
+		Total:      total,
+		CreatedAt:  cart.CreatedAt,
+		UpdatedAt:  cart.UpdatedAt,
+	}, nil
+}
+
 // GetCartItems retrieves all items in a cart with variant details
 func (s *CartService) GetCartItems(ctx context.Context, cartID int32) ([]interfaces.CartItemWithVariant, error) {
 	if cartID <= 0 {

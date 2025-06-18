@@ -114,6 +114,90 @@ func (s *OrderService) CreateOrderFromCart(ctx context.Context, customerID int32
 	return s.orderRepo.GetWithItems(ctx, order.ID)
 }
 
+// CreateOrderFromPayment creates an order from Stripe payment information
+// This is used when we receive a successful payment webhook but don't have cart context
+func (s *OrderService) CreateOrderFromPayment(ctx context.Context, customerID int32, paymentIntentID string, amount int32) (*interfaces.OrderWithItems, error) {
+	// Create order entity with payment information
+	order := &interfaces.Order{
+		CustomerID: customerID,
+		Status:     database.OrderStatusConfirmed, // Payment already succeeded
+		Total:      amount,
+		StripePaymentIntentID: pgtype.Text{String: paymentIntentID, Valid: true},
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	if err := s.orderRepo.Create(ctx, order); err != nil {
+		return nil, fmt.Errorf("failed to create order: %w", err)
+	}
+
+	// We need to get the cart for this customer to convert to order items
+	// First, try to find the customer's cart
+	cart, err := s.cartService.GetCustomerCart(ctx, customerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get customer cart for order creation: %w", err)
+	}
+
+	if cart == nil || len(cart.Items) == 0 {
+		return nil, fmt.Errorf("no cart found for customer %d to create order from payment", customerID)
+	}
+
+	// Validate cart items before creating order items
+	validatedCart, err := s.cartService.ValidateCartForCheckout(ctx, cart.ID)
+	if err != nil {
+		return nil, fmt.Errorf("cart validation failed: %w", err)
+	}
+
+	// Convert cart items to order items
+	var orderItems []interfaces.OrderItem
+	for _, cartItem := range validatedCart.Items {
+		orderItems = append(orderItems, interfaces.OrderItem{
+			OrderID:              order.ID,
+			ProductVariantID:     cartItem.ProductVariantID,
+			Name:                 cartItem.VariantName,
+			Quantity:             cartItem.Quantity,
+			Price:                cartItem.Price,
+			PurchaseType:         cartItem.PurchaseType,
+			SubscriptionInterval: cartItem.SubscriptionInterval,
+			StripePriceID:        cartItem.StripePriceID,
+			CreatedAt:            time.Now(),
+		})
+	}
+
+	// Create order items
+	if err := s.orderRepo.CreateOrderItems(ctx, order.ID, orderItems); err != nil {
+		return nil, fmt.Errorf("failed to create order items: %w", err)
+	}
+
+	// Decrement variant stock for each item
+	for _, item := range orderItems {
+		_, err := s.variantRepo.DecrementStock(ctx, item.ProductVariantID, item.Quantity)
+		if err != nil {
+			log.Printf("Failed to decrement stock for variant %d: %v", item.ProductVariantID, err)
+		}
+	}
+
+	// Clear the cart after successful order creation
+	if err := s.cartService.Clear(ctx, cart.ID); err != nil {
+		log.Printf("Failed to clear cart %d after order creation: %v", cart.ID, err)
+	}
+
+	// Publish order created event
+	if err := s.publishOrderEvent(ctx, "order.created", order.ID, map[string]interface{}{
+		"customer_id":       customerID,
+		"total":             order.Total,
+		"item_count":        len(orderItems),
+		"payment_intent_id": paymentIntentID,
+		"creation_source":   "webhook",
+		"has_subscription":  s.hasSubscriptionItems(orderItems),
+	}); err != nil {
+		log.Printf("Failed to publish order created event: %v", err)
+	}
+
+	// Get the complete order with items to return
+	return s.orderRepo.GetWithItems(ctx, order.ID)
+}
+
 // CreateOrder creates an order from explicit request data (admin/API usage)
 func (s *OrderService) CreateOrder(ctx context.Context, req interfaces.CreateOrderRequest) (*interfaces.OrderWithItems, error) {
 	if len(req.Items) == 0 {
@@ -386,6 +470,58 @@ func (s *OrderService) GetOrderSummary(ctx context.Context, orderID int32) (*int
 	}
 
 	return summary, nil
+}
+
+// GetAdminStats returns comprehensive statistics for admin dashboard
+func (s *OrderService) GetAdminStats(ctx context.Context) (*interfaces.AdminOrderStats, error) {
+	// Get order count by status
+	statusCounts, err := s.orderRepo.GetOrderCountByStatus(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get order count by status: %w", err)
+	}
+
+	// Calculate totals
+	var totalOrders int
+	var totalRevenue int32
+	for _, count := range statusCounts {
+		totalOrders += count
+	}
+
+	// Get revenue from confirmed/completed orders only
+	filters := interfaces.OrderFilters{
+		Limit: 1000, // Get a reasonable sample for revenue calculation
+	}
+	
+	// You may want to add a specific revenue calculation method to the repository
+	// For now, we'll calculate from recent orders
+	recentOrders, err := s.orderRepo.GetAll(ctx, filters)
+	if err != nil {
+		log.Printf("Failed to get orders for revenue calculation: %v", err)
+	} else {
+		for _, order := range recentOrders {
+			if order.Status == database.OrderStatusConfirmed || 
+			   order.Status == database.OrderStatusShipped ||
+			   order.Status == database.OrderStatusDelivered {
+				totalRevenue += order.Total
+			}
+		}
+	}
+
+	// Calculate average order value
+	var averageOrderValue int32
+	if totalOrders > 0 {
+		averageOrderValue = totalRevenue / int32(totalOrders)
+	}
+
+	stats := &interfaces.AdminOrderStats{
+		TotalOrders:       totalOrders,
+		TotalRevenue:      totalRevenue,
+		AverageOrderValue: averageOrderValue,
+		OrdersByStatus:    statusCounts,
+		GeneratedAt:       time.Now(),
+	}
+
+	return stats, nil
 }
 
 // =============================================================================

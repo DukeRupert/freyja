@@ -175,6 +175,15 @@ type OrderListResponse struct {
 	Offset int             `json:"offset"`
 }
 
+// AdminOrderStats provides comprehensive statistics for admin dashboard
+type AdminOrderStats struct {
+	TotalOrders       int                `json:"total_orders"`
+	TotalRevenue      int32              `json:"total_revenue"`
+	AverageOrderValue int32              `json:"average_order_value"`
+	OrdersByStatus    map[string]int     `json:"orders_by_status"`
+	GeneratedAt       time.Time          `json:"generated_at"`
+}
+
 // =============================================================================
 // Repository Interfaces
 // =============================================================================
@@ -214,6 +223,7 @@ type OrderRepository interface {
 type OrderService interface {
 	// Order creation
 	CreateOrderFromCart(ctx context.Context, customerID int32, cartID int32) (*OrderWithItems, error)
+	CreateOrderFromPayment(ctx context.Context, customerID int32, paymentIntentID string, amount int32) (*OrderWithItems, error)
 	CreateOrder(ctx context.Context, req CreateOrderRequest) (*OrderWithItems, error)
 
 	// Order retrieval
@@ -228,6 +238,7 @@ type OrderService interface {
 
 	// Analytics
 	GetOrderSummary(ctx context.Context, orderID int32) (*OrderSummary, error)
+	GetAdminStats(ctx context.Context) (*AdminOrderStats, error)
 }
 
 // =============================================================================
