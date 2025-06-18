@@ -290,3 +290,24 @@ func (oi *OrderItemWithVariant) ToOrderItemResponse() *OrderItemResponse {
 
 	return resp
 }
+
+func IsValidOrderStatus(status database.OrderStatus) bool {
+	switch status {
+	case database.OrderStatusPending,
+		database.OrderStatusPaymentProcessing,
+		database.OrderStatusConfirmed,
+		database.OrderStatusProcessing,
+		database.OrderStatusShipped,
+		database.OrderStatusDelivered,
+		database.OrderStatusCancelled,
+		database.OrderStatusRefunded:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsValidOrderStatusString(s string) bool {
+    status := database.OrderStatus(s)
+    return IsValidOrderStatus(status)
+}

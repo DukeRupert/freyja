@@ -45,21 +45,21 @@ type CartItemWithVariant struct {
 	SubscriptionInterval pgtype.Text `json:"subscription_interval"`
 	StripePriceID        string      `json:"stripe_price_id"`
 	CreatedAt            time.Time   `json:"created_at"`
-	
+
 	// Variant information
 	VariantName    string      `json:"variant_name"`
 	VariantStock   int32       `json:"variant_stock"`
 	VariantActive  bool        `json:"variant_active"`
 	OptionsDisplay pgtype.Text `json:"options_display"`
-	
+
 	// Product information
 	ProductID          int32       `json:"product_id"`
 	ProductName        string      `json:"product_name"`
 	ProductDescription pgtype.Text `json:"product_description"`
 	ProductActive      bool        `json:"product_active"`
-	
+
 	// For validation/error reporting
-	IssueType          string      `json:"issue_type,omitempty"`
+	IssueType string `json:"issue_type,omitempty"`
 }
 
 // CartItemWithOptions includes detailed option information
@@ -70,23 +70,23 @@ type CartItemWithOptions struct {
 
 // CartWithItems represents a cart with all its items and totals
 type CartWithItems struct {
-	ID         int32                   `json:"id"`
-	CustomerID *int32                  `json:"customer_id"`
-	SessionID  *string                 `json:"session_id"`
-	Items      []CartItemWithVariant   `json:"items"`
-	Total      int32                   `json:"total"`
-	ItemCount  int32                   `json:"item_count"`
-	CreatedAt  time.Time               `json:"created_at"`
-	UpdatedAt  time.Time               `json:"updated_at"`
+	ID         int32                 `json:"id"`
+	CustomerID *int32                `json:"customer_id"`
+	SessionID  *string               `json:"session_id"`
+	Items      []CartItemWithVariant `json:"items"`
+	Total      int32                 `json:"total"`
+	ItemCount  int32                 `json:"item_count"`
+	CreatedAt  time.Time             `json:"created_at"`
+	UpdatedAt  time.Time             `json:"updated_at"`
 }
 
 // CartSummary provides cart totals and summary information
 type CartSummary struct {
-	CartID                int32                       `json:"cart_id"`
-	Total                 int32                       `json:"total"`
-	ItemCount             int32                       `json:"item_count"`
-	OneTimeTotal          int32                       `json:"one_time_total"`
-	SubscriptionSummaries []CartSubscriptionSummary   `json:"subscription_summaries"`
+	CartID                int32                     `json:"cart_id"`
+	Total                 int32                     `json:"total"`
+	ItemCount             int32                     `json:"item_count"`
+	OneTimeTotal          int32                     `json:"one_time_total"`
+	SubscriptionSummaries []CartSubscriptionSummary `json:"subscription_summaries"`
 }
 
 // CartSubscriptionSummary groups subscription items by interval
@@ -136,37 +136,39 @@ type UpdateCartItemRequest struct {
 
 // CartResponse represents cart data in API responses
 type CartResponse struct {
-	ID         int32                      `json:"id"`
-	CustomerID *int32                     `json:"customer_id"`
-	SessionID  *string                    `json:"session_id"`
-	Items      []CartItemResponse         `json:"items"`
-	Total      int32                      `json:"total"`
-	ItemCount  int32                      `json:"item_count"`
-	CreatedAt  time.Time                  `json:"created_at"`
-	UpdatedAt  time.Time                  `json:"updated_at"`
+	ID         int32              `json:"id"`
+	CustomerID *int32             `json:"customer_id"`
+	SessionID  *string            `json:"session_id"`
+	Items      []CartItemResponse `json:"items"`
+	Total      int32              `json:"total"`
+	ItemCount  int32              `json:"item_count"`
+	CreatedAt  time.Time          `json:"created_at"`
+	UpdatedAt  time.Time          `json:"updated_at"`
 }
 
 // CartItemResponse represents cart item data in API responses
 type CartItemResponse struct {
-	ID                   int32                  `json:"id"`
-	ProductVariantID     int32                  `json:"product_variant_id"`
-	Quantity             int32                  `json:"quantity"`
-	Price                int32                  `json:"price"`
-	PurchaseType         string                 `json:"purchase_type"`
-	SubscriptionInterval *string                `json:"subscription_interval"`
-	CreatedAt            time.Time              `json:"created_at"`
-	
+	ID                   int32     `json:"id"`
+	ProductVariantID     int32     `json:"product_variant_id"`
+	Quantity             int32     `json:"quantity"`
+	Price                int32     `json:"price"`
+	PurchaseType         string    `json:"purchase_type"`
+	StripePriceID        string    `json:"stripe_price_id"`
+	SubscriptionInterval *string   `json:"subscription_interval"`
+	CreatedAt            time.Time `json:"created_at"`
+
 	// Product and variant details
-	ProductID          int32                   `json:"product_id"`
-	ProductName        string                  `json:"product_name"`
-	ProductDescription *string                 `json:"product_description"`
-	VariantName        string                  `json:"variant_name"`
-	VariantOptions     interface{}             `json:"variant_options,omitempty"`
-	
+	ProductID          int32       `json:"product_id"`
+	ProductName        string      `json:"product_name"`
+	ProductDescription *string     `json:"product_description"`
+	VariantName        string      `json:"variant_name"`
+	VariantOptions     interface{} `json:"variant_options,omitempty"`
+
 	// Display helpers
-	LineTotal          int32                   `json:"line_total"`
-	PriceDisplay       string                  `json:"price_display"`
-	LineTotalDisplay   string                  `json:"line_total_display"`
+	LineTotal        int32   `json:"line_total"`
+	PriceDisplay     string  `json:"price_display"`
+	LineTotalDisplay string  `json:"line_total_display"`
+	OptionsDisplay   *string `json:"options_display,omitempty"`
 }
 
 // CartSummaryResponse represents cart summary in API responses
@@ -177,18 +179,18 @@ type CartSummaryResponse struct {
 	OneTimeTotal          int32                           `json:"one_time_total"`
 	SubscriptionTotal     int32                           `json:"subscription_total"`
 	SubscriptionBreakdown []SubscriptionBreakdownResponse `json:"subscription_breakdown"`
-	
+
 	// Display helpers
-	TotalDisplay            string `json:"total_display"`
-	OneTimeTotalDisplay     string `json:"one_time_total_display"`
+	TotalDisplay             string `json:"total_display"`
+	OneTimeTotalDisplay      string `json:"one_time_total_display"`
 	SubscriptionTotalDisplay string `json:"subscription_total_display"`
 }
 
 // SubscriptionBreakdownResponse shows subscription totals by interval
 type SubscriptionBreakdownResponse struct {
-	Interval     string `json:"interval"`
-	ItemCount    int64  `json:"item_count"`
-	TotalAmount  int64  `json:"total_amount"`
+	Interval      string `json:"interval"`
+	ItemCount     int64  `json:"item_count"`
+	TotalAmount   int64  `json:"total_amount"`
 	AmountDisplay string `json:"amount_display"`
 }
 
@@ -320,12 +322,12 @@ func (c *CartItemWithVariant) ToCartItemResponse() *CartItemResponse {
 // ToCartSummaryResponse converts CartSummary to API response format
 func (c *CartSummary) ToCartSummaryResponse() *CartSummaryResponse {
 	resp := &CartSummaryResponse{
-		CartID:                   c.CartID,
-		Total:                    c.Total,
-		ItemCount:                c.ItemCount,
-		OneTimeTotal:            c.OneTimeTotal,
-		TotalDisplay:            formatCurrency(c.Total),
-		OneTimeTotalDisplay:     formatCurrency(c.OneTimeTotal),
+		CartID:              c.CartID,
+		Total:               c.Total,
+		ItemCount:           c.ItemCount,
+		OneTimeTotal:        c.OneTimeTotal,
+		TotalDisplay:        formatCurrency(c.Total),
+		OneTimeTotalDisplay: formatCurrency(c.OneTimeTotal),
 	}
 
 	// Calculate subscription total and breakdown
@@ -333,7 +335,7 @@ func (c *CartSummary) ToCartSummaryResponse() *CartSummaryResponse {
 	for _, sub := range c.SubscriptionSummaries {
 		amount := int32(sub.TotalAmount)
 		subscriptionTotal += amount
-		
+
 		resp.SubscriptionBreakdown = append(resp.SubscriptionBreakdown, SubscriptionBreakdownResponse{
 			Interval:      sub.SubscriptionInterval.String,
 			ItemCount:     sub.ItemCount,

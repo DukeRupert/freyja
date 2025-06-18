@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -50,7 +51,7 @@ func (h *OrderHandler) GetOrders(c echo.Context) error {
 
 	// Parse status filter
 	if status := c.QueryParam("status"); status != "" {
-		if interfaces.IsValidOrderStatus(status) {
+		if interfaces.IsValidOrderStatusString(status) {
 			filters.Status = &status
 		} else {
 			return c.JSON(http.StatusBadRequest, map[string]interface{}{
@@ -166,7 +167,7 @@ func (h *OrderHandler) GetAllOrders(c echo.Context) error {
 	}
 
 	if status := c.QueryParam("status"); status != "" {
-		if interfaces.IsValidOrderStatus(status) {
+		if interfaces.IsValidOrderStatusString(status) {
 			filters.Status = &status
 		}
 	}
@@ -213,9 +214,9 @@ func (h *OrderHandler) orderToAPI(order interfaces.OrderWithItems) map[string]in
 		"total":           order.Total,
 		"created_at":      order.CreatedAt,
 		"updated_at":      order.UpdatedAt,
-		"items":           h.orderItemsToAPI(order.Items),
+		"items":           order.Items,
 		"item_count":      len(order.Items),
-		"total_formatted": formatPrice(order.Total),
+		"total_formatted": formatCurrency(order.Total),
 	}
 
 	// Add optional Stripe fields
@@ -235,13 +236,13 @@ func (h *OrderHandler) orderItemsToAPI(items []interfaces.OrderItem) []map[strin
 	for i, item := range items {
 		apiItems[i] = map[string]interface{}{
 			"id":                 item.ID,
-			"product_id":         item.ProductID,
+			"product_id":         item.ProductVariantID,
 			"name":               item.Name,
 			"quantity":           item.Quantity,
 			"price":              item.Price,
 			"subtotal":           item.Quantity * item.Price,
-			"price_formatted":    formatPrice(item.Price),
-			"subtotal_formatted": formatPrice(item.Quantity * item.Price),
+			"price_formatted":    formatCurrency(item.Price),
+			"subtotal_formatted": formatCurrency(item.Quantity * item.Price),
 			"created_at":         item.CreatedAt,
 		}
 	}
@@ -259,4 +260,18 @@ func getCustomerIDFromContext(c echo.Context) *int32 {
 	}
 	// TODO: Extract from JWT token in production
 	return nil
+}
+
+// formatPriceDisplay creates a user-friendly price display string
+func formatPriceDisplay(minPrice, maxPrice int32) string {
+	if minPrice == maxPrice {
+		return formatCurrency(minPrice)
+	}
+	return formatCurrency(minPrice) + " - " + formatCurrency(maxPrice)
+}
+
+// formatCurrency converts cents to dollar display
+func formatCurrency(cents int32) string {
+	dollars := float64(cents) / 100
+	return fmt.Sprintf("$%.2f", dollars)
 }
