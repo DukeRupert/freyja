@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"net/http"
 	"os"
@@ -34,6 +35,17 @@ func (cv *CustomValidator) Validate(i interface{}) error {
 }
 
 func main() {
+	// Define command line flags
+    var (
+        logLevel = flag.String("log-level", "info", "Log level (trace, debug, info, warn, error, fatal, panic)")
+        logFormat = flag.String("log-format", "json", "Log format (json, console)")
+        portFlag = flag.String("port", "8080", "Server port, default 8080 (overrides PORT environment variable)")
+    )
+    flag.Parse()
+
+    // Configure zerolog
+    logger := customMiddleware.SetupLogger(*logLevel, *logFormat)
+	
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatal("Config validation failed:", err)
@@ -128,7 +140,7 @@ func main() {
 	e.Validator = &CustomValidator{validator: validator.New()}
 
 	// Middleware
-	e.Use(middleware.Logger())
+	e.Use(customMiddleware.ZerologMiddleware(logger))
 	e.Use(middleware.Recover())
 	// Permissive settings, DO NOT DEPLOY!
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
@@ -278,10 +290,7 @@ func main() {
 	}
 
 	// Get port from environment or default to 8080
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
+	port := getPort(portFlag)
 
 	// Start server with graceful shutdown support
 	e.Logger.Info("🚀 Coffee E-commerce API starting on port " + port)
@@ -358,4 +367,20 @@ func helloWorld(c echo.Context) error {
 			"Prometheus metrics",
 		},
 	})
+}
+
+// Get port with precedence: CLI flag > environment variable > default
+func getPort(portFlag *string) string {
+    // First check command line flag
+    if *portFlag != "" {
+        return *portFlag
+    }
+    
+    // Then check environment variable
+    if envPort := os.Getenv("PORT"); envPort != "" {
+        return envPort
+    }
+    
+    // Default fallback
+    return "8080"
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
 )
@@ -126,16 +127,20 @@ func (s *VariantService) Create(ctx context.Context, req interfaces.CreateVarian
 	}
 
 	// Publish event
-	if err := s.events.PublishEvent(ctx, interfaces.Event{
-		Type:        interfaces.EventVariantCreated,
+	event := interfaces.Event{
+		ID: generateEventID(),
+		Type: interfaces.EventVariantCreated,
 		AggregateID: fmt.Sprintf("variant-%d", variant.ID),
 		Data: map[string]interface{}{
+			
 			"variant_id": variant.ID,
 			"product_id": variant.ProductID,
 			"name":       variant.Name,
 			"price":      variant.Price,
 		},
-	}); err != nil {
+		Timestamp: time.Now(),
+	}
+	if err := s.events.PublishEvent(ctx, event); err != nil {
 		log.Printf("Failed to publish variant.created event: %v", err)
 	}
 
