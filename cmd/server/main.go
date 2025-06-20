@@ -111,7 +111,7 @@ func main() {
 	// Initialize event subscribers
 	customerSubscriber := subscriber.NewCustomerEventSubscriber(customerService, eventPublisher, logger)
 	productSubscriber := subscriber.NewProductEventSubscriber(productService, variantService, eventPublisher, logger)
-	materializedViewSubscriber := subscriber.NewMaterializedViewSubscriber(productRepo, eventPublisher)
+	materializedViewSubscriber := subscriber.NewMaterializedViewSubscriber(productRepo, eventPublisher, logger)
 
 	// Start event subscribers in background goroutines
 	go func() {
