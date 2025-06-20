@@ -42,7 +42,8 @@ func (h *CustomerHandler) CreateCustomer(c echo.Context) error {
 		Str("email", req.Email).
 		Msg("Creating new customer")
 
-	ctx := c.Request().Context()
+	// Create context with logger for service layer
+	ctx := logger.WithContext(c.Request().Context())
 
 	customer, err := h.service.CreateCustomer(ctx, req)
 	if err != nil {

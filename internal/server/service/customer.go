@@ -10,6 +10,7 @@ import (
 	"github.com/dukerupert/freyja/internal/server/provider"
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog"
 	"github.com/stripe/stripe-go/v82"
 	stripeCustomer "github.com/stripe/stripe-go/v82/customer"
 )
@@ -34,6 +35,14 @@ func NewCustomerService(
 
 // CreateCustomer creates a customer in both our database and Stripe
 func (s *CustomerService) CreateCustomer(ctx context.Context, req interfaces.CreateCustomerRequest) (*interfaces.Customer, error) {
+	// Get logger from context (with request ID if available)
+	logger := zerolog.Ctx(ctx).With().
+		Str("method", "CreateCustomer").
+		Str("email", req.Email).
+		Logger()
+
+	logger.Info().Msg("Creating new customer")
+
 	// Validate request
 	if err := s.validateCreateRequest(req); err != nil {
 		return nil, fmt.Errorf("validation failed: %w", err)
@@ -45,17 +54,26 @@ func (s *CustomerService) CreateCustomer(ctx context.Context, req interfaces.Cre
 		return nil, fmt.Errorf("customer with email %s already exists", req.Email)
 	}
 
+	// Generate password hash if not provided
+	passwordHash := req.PasswordHash
+	if passwordHash == "" {
+		passwordHash = generateGuestPassword()
+		logger.Info().Msg("Generated placeholder password for customer")
+	}
+
 	// Create customer in our database first
 	customer := &interfaces.Customer{
 		Email:        req.Email,
 		FirstName:    pgtype.Text{String: req.FirstName, Valid: req.FirstName != ""},
 		LastName:     pgtype.Text{String: req.LastName, Valid: req.LastName != ""},
-		PasswordHash: req.PasswordHash, // Should be hashed before calling this service
+		PasswordHash: passwordHash,
 	}
 
 	if err := s.repo.Create(ctx, customer); err != nil {
 		return nil, fmt.Errorf("failed to create customer in database: %w", err)
 	}
+
+	logger.Info().Int32("customer_id", customer.ID).Msg("Customer created in database")
 
 	// Create customer in Stripe
 	stripeParams := &stripe.CustomerParams{
@@ -70,13 +88,14 @@ func (s *CustomerService) CreateCustomer(ctx context.Context, req interfaces.Cre
 	if err != nil {
 		// If Stripe creation fails, we should consider rolling back the database creation
 		// For now, we'll log the error and continue
-		fmt.Printf("Warning: Failed to create Stripe customer for %s: %v\n", req.Email, err)
+		logger.Warn().Err(err).Msg("Failed to create Stripe customer")
 	} else {
 		// Update our customer record with the Stripe customer ID
 		if err := s.repo.UpdateStripeID(ctx, customer.ID, stripeCustomer.ID); err != nil {
-			fmt.Printf("Warning: Failed to update Stripe customer ID: %v\n", err)
+			logger.Warn().Err(err).Msg("Failed to update Stripe customer ID")
 		} else {
 			customer.StripeCustomerID = pgtype.Text{String: stripeCustomer.ID, Valid: true}
+			logger.Info().Str("stripe_customer_id", stripeCustomer.ID).Msg("Linked customer to Stripe")
 		}
 	}
 
@@ -85,7 +104,7 @@ func (s *CustomerService) CreateCustomer(ctx context.Context, req interfaces.Cre
 		"email":              customer.Email,
 		"stripe_customer_id": customer.StripeCustomerID.String,
 	}); err != nil {
-		fmt.Printf("Warning: Failed to publish customer created event: %v\n", err)
+		logger.Warn().Err(err).Msg("Failed to publish customer created event")
 	}
 
 	return customer, nil
@@ -422,9 +441,7 @@ func (s *CustomerService) validateCreateRequest(req interfaces.CreateCustomerReq
 	if req.Email == "" {
 		return fmt.Errorf("email is required")
 	}
-	if req.PasswordHash == "" {
-		return fmt.Errorf("password hash is required")
-	}
+	// Password hash is optional - will be generated if not provided
 	return nil
 }
 
