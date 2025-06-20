@@ -31,19 +31,13 @@ func NewMaterializedViewSubscriber(
 func (s *MaterializedViewSubscriber) Start(ctx context.Context) error {
 	// Product events that affect the materialized view
 	productEvents := []string{
-		interfaces.EventProductCreated,
-		interfaces.EventProductUpdated,
 		interfaces.EventProductActivated,
-		interfaces.EventProductDeactivated,
 		interfaces.EventProductDeleted,
 	}
 
 	// Variant events that affect the materialized view
 	variantEvents := []string{
-		interfaces.EventVariantCreated,
-		interfaces.EventVariantUpdated,
 		interfaces.EventVariantActivated,
-		interfaces.EventVariantDeactivated,
 		interfaces.EventVariantDeleted,
 		interfaces.EventVariantStockUpdated,
 		interfaces.EventVariantPriceUpdated,
