@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
+	customMiddleware "github.com/dukerupert/freyja/internal/server/middleware"
 	"github.com/labstack/echo/v4"
 )
 
@@ -22,13 +23,24 @@ func NewCustomerHandler(service interfaces.CustomerService) *CustomerHandler {
 
 // CreateCustomer creates a new customer
 func (h *CustomerHandler) CreateCustomer(c echo.Context) error {
+	logger := customMiddleware.GetLogger(c)
+	
 	var req interfaces.CreateCustomerRequest
 	if err := c.Bind(&req); err != nil {
+		logger.Error().
+			Err(err).
+			Str("method", "CreateCustomer").
+			Msg("Failed to bind request JSON")
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
 			"error": "Invalid JSON",
 			"code":  "INVALID_REQUEST",
 		})
 	}
+
+	logger.Info().
+		Str("method", "CreateCustomer").
+		Str("email", req.Email).
+		Msg("Creating new customer")
 
 	ctx := c.Request().Context()
 
@@ -36,17 +48,32 @@ func (h *CustomerHandler) CreateCustomer(c echo.Context) error {
 	if err != nil {
 		if err.Error() == "validation failed" ||
 			err.Error() == "customer with email already exists" {
+			logger.Warn().
+				Err(err).
+				Str("method", "CreateCustomer").
+				Str("email", req.Email).
+				Msg("Customer creation validation failed")
 			return c.JSON(http.StatusBadRequest, map[string]interface{}{
 				"error": err.Error(),
 				"code":  "VALIDATION_ERROR",
 			})
 		}
-		c.Logger().Errorf("Failed to create customer: %v", err)
+		logger.Error().
+			Err(err).
+			Str("method", "CreateCustomer").
+			Str("email", req.Email).
+			Msg("Failed to create customer")
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error": "Internal server error",
 			"code":  "INTERNAL_ERROR",
 		})
 	}
+
+	logger.Info().
+		Str("method", "CreateCustomer").
+		Str("email", req.Email).
+		Int32("customer_id", customer.ID).
+		Msg("[OK] Customer created successfully")
 
 	return c.JSON(http.StatusCreated, map[string]interface{}{
 		"customer": customer,
