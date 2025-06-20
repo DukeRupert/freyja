@@ -271,12 +271,15 @@ func (r *OrderRepository) UpdateStripeChargeID(ctx context.Context, orderID int3
 }
 
 // CreateOrderItems creates order items for an order
+
+// CreateOrderItems creates order items for an order
 func (r *OrderRepository) CreateOrderItems(ctx context.Context, orderID int32, items []interfaces.OrderItem) error {
 	for _, item := range items {
 		_, err := r.db.Queries.CreateOrderItem(ctx, database.CreateOrderItemParams{
 			OrderID:              orderID,
 			ProductVariantID:     item.ProductVariantID,
 			Name:                 item.Name,
+			VariantName:          item.VariantName,
 			Quantity:             item.Quantity,
 			Price:                item.Price,
 			PurchaseType:         item.PurchaseType,

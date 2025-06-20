@@ -14,17 +14,18 @@ import (
 
 const createOrderItem = `-- name: CreateOrderItem :one
 INSERT INTO order_items (
-  order_id, product_variant_id, name, quantity, price, purchase_type, subscription_interval, stripe_price_id
+  order_id, product_variant_id, name, variant_name, quantity, price, purchase_type, subscription_interval, stripe_price_id
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8
+  $1, $2, $3, $4, $5, $6, $7, $8, $9
 )
-RETURNING id, order_id, product_variant_id, name, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
+RETURNING id, order_id, product_variant_id, name, variant_name, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at
 `
 
 type CreateOrderItemParams struct {
 	OrderID              int32       `db:"order_id" json:"order_id"`
 	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
 	Name                 string      `db:"name" json:"name"`
+	VariantName          string      `db:"variant_name" json:"variant_name"`
 	Quantity             int32       `db:"quantity" json:"quantity"`
 	Price                int32       `db:"price" json:"price"`
 	PurchaseType         string      `db:"purchase_type" json:"purchase_type"`
@@ -37,6 +38,7 @@ type CreateOrderItemRow struct {
 	OrderID              int32       `db:"order_id" json:"order_id"`
 	ProductVariantID     int32       `db:"product_variant_id" json:"product_variant_id"`
 	Name                 string      `db:"name" json:"name"`
+	VariantName          string      `db:"variant_name" json:"variant_name"`
 	Quantity             int32       `db:"quantity" json:"quantity"`
 	Price                int32       `db:"price" json:"price"`
 	PurchaseType         string      `db:"purchase_type" json:"purchase_type"`
@@ -50,6 +52,7 @@ func (q *Queries) CreateOrderItem(ctx context.Context, arg CreateOrderItemParams
 		arg.OrderID,
 		arg.ProductVariantID,
 		arg.Name,
+		arg.VariantName,
 		arg.Quantity,
 		arg.Price,
 		arg.PurchaseType,
@@ -62,6 +65,7 @@ func (q *Queries) CreateOrderItem(ctx context.Context, arg CreateOrderItemParams
 		&i.OrderID,
 		&i.ProductVariantID,
 		&i.Name,
+		&i.VariantName,
 		&i.Quantity,
 		&i.Price,
 		&i.PurchaseType,

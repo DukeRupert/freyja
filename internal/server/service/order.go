@@ -69,7 +69,8 @@ func (s *OrderService) CreateOrderFromCart(ctx context.Context, customerID int32
 		orderItems = append(orderItems, interfaces.OrderItem{
 			OrderID:              order.ID,
 			ProductVariantID:     cartItem.ProductVariantID,
-			Name:                 cartItem.VariantName, // Use variant name as snapshot
+			Name:                 cartItem.VariantName,
+			VariantName:          cartItem.VariantName,
 			Quantity:             cartItem.Quantity,
 			Price:                cartItem.Price,
 			PurchaseType:         cartItem.PurchaseType,
@@ -154,7 +155,8 @@ func (s *OrderService) CreateOrderFromPayment(ctx context.Context, customerID in
 		orderItems = append(orderItems, interfaces.OrderItem{
 			OrderID:              order.ID,
 			ProductVariantID:     cartItem.ProductVariantID,
-			Name:                 cartItem.VariantName,
+			Name:                 cartItem.ProductName,
+			VariantName:          cartItem.VariantName,
 			Quantity:             cartItem.Quantity,
 			Price:                cartItem.Price,
 			PurchaseType:         cartItem.PurchaseType,
@@ -204,7 +206,8 @@ func (s *OrderService) CreateOrder(ctx context.Context, req interfaces.CreateOrd
 		return nil, fmt.Errorf("order must have at least one item")
 	}
 
-	// Validate all variants exist and are available
+	// Validate all variants exist and are available, AND collect variant details
+	variantDetails := make(map[int32]*interfaces.ProductVariant)
 	for _, reqItem := range req.Items {
 		variant, err := s.variantRepo.GetByID(ctx, reqItem.ProductVariantID)
 		if err != nil {
@@ -217,6 +220,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, req interfaces.CreateOrd
 			return nil, fmt.Errorf("insufficient stock for variant %d: requested %d, available %d",
 				reqItem.ProductVariantID, reqItem.Quantity, variant.Stock)
 		}
+		
+		// Store variant details for later use
+		variantDetails[reqItem.ProductVariantID] = variant
 	}
 
 	// Create order entity
@@ -243,10 +249,28 @@ func (s *OrderService) CreateOrder(ctx context.Context, req interfaces.CreateOrd
 	// Convert request items to order items
 	var orderItems []interfaces.OrderItem
 	for _, reqItem := range req.Items {
+		variant := variantDetails[reqItem.ProductVariantID]
+		
+		// Determine names: use provided names if available, otherwise fetch from variant
+		productName := reqItem.Name
+		variantName := reqItem.VariantName
+		
+		// If variant name not provided in request, use variant details
+		if variantName == "" {
+			variantName = variant.Name
+		}
+		
+		// Product name should always be provided in request for explicit orders
+		// But as fallback, use variant name if needed
+		if productName == "" {
+			productName = variant.Name
+		}
+		
 		orderItems = append(orderItems, interfaces.OrderItem{
 			OrderID:              order.ID,
 			ProductVariantID:     reqItem.ProductVariantID,
-			Name:                 reqItem.Name,
+			Name:                 productName,
+			VariantName:          variantName,
 			Quantity:             reqItem.Quantity,
 			Price:                reqItem.Price,
 			PurchaseType:         reqItem.PurchaseType,

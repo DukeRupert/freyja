@@ -32,6 +32,7 @@ type OrderItem struct {
 	OrderID              int32       `json:"order_id"`
 	ProductVariantID     int32       `json:"product_variant_id"`
 	Name                 string      `json:"name"`
+	VariantName          string      `json:"variant_name"`
 	Quantity             int32       `json:"quantity"`
 	Price                int32       `json:"price"`
 	PurchaseType         string      `json:"purchase_type"`
@@ -94,6 +95,7 @@ type CreateOrderRequest struct {
 type CreateOrderItemRequest struct {
 	ProductVariantID     int32   `json:"product_variant_id" validate:"required,min=1"`
 	Name                 string  `json:"name" validate:"required,min=1"`
+	VariantName          string  `json:"variant_name"`
 	Quantity             int32   `json:"quantity" validate:"required,min=1"`
 	Price                int32   `json:"price" validate:"required,min=1"`
 	PurchaseType         string  `json:"purchase_type" validate:"required,oneof=one_time subscription"`

@@ -60,11 +60,11 @@ ORDER BY oi.created_at ASC;
 
 -- name: CreateOrderItem :one
 INSERT INTO order_items (
-  order_id, product_variant_id, name, quantity, price, purchase_type, subscription_interval, stripe_price_id
+  order_id, product_variant_id, name, variant_name, quantity, price, purchase_type, subscription_interval, stripe_price_id
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8
+  $1, $2, $3, $4, $5, $6, $7, $8, $9
 )
-RETURNING id, order_id, product_variant_id, name, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at;
+RETURNING id, order_id, product_variant_id, name, variant_name, quantity, price, purchase_type, subscription_interval, stripe_price_id, created_at;
 
 -- Order item filtering and grouping
 
