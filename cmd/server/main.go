@@ -36,16 +36,16 @@ func (cv *CustomValidator) Validate(i interface{}) error {
 
 func main() {
 	// Define command line flags
-    var (
-        logLevel = flag.String("log-level", "info", "Log level (trace, debug, info, warn, error, fatal, panic)")
-        logFormat = flag.String("log-format", "json", "Log format (json, console)")
-        portFlag = flag.String("port", "8080", "Server port, default 8080 (overrides PORT environment variable)")
-    )
-    flag.Parse()
+	var (
+		logLevel  = flag.String("log-level", "info", "Log level (trace, debug, info, warn, error, fatal, panic)")
+		logFormat = flag.String("log-format", "json", "Log format (json, console)")
+		portFlag  = flag.String("port", "8080", "Server port, default 8080 (overrides PORT environment variable)")
+	)
+	flag.Parse()
 
-    // Configure zerolog
-    logger := customMiddleware.SetupLogger(*logLevel, *logFormat)
-	
+	// Configure zerolog
+	logger := customMiddleware.SetupLogger(*logLevel, *logFormat)
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatal("Config validation failed:", err)
@@ -67,9 +67,9 @@ func main() {
 	log.Println("✅ Database connected and migrations completed")
 
 	// Initialize NATS event publisher
-	eventPublisher, err := provider.NewNATSEventPublisher(cfg.NATSUrl)
+	eventPublisher, err := provider.NewNATSEventPublisher(cfg.NATSUrl, logger)
 	if err != nil {
-		log.Fatal("Failed to create NATS event publisher:", err)
+		logger.Fatal().Err(err).Msg("Failed to create NATS event publisher")
 	}
 	defer eventPublisher.Close()
 
@@ -380,16 +380,16 @@ func helloWorld(c echo.Context) error {
 
 // Get port with precedence: CLI flag > environment variable > default
 func getPort(portFlag *string) string {
-    // First check command line flag
-    if *portFlag != "" {
-        return *portFlag
-    }
-    
-    // Then check environment variable
-    if envPort := os.Getenv("PORT"); envPort != "" {
-        return envPort
-    }
-    
-    // Default fallback
-    return "8080"
+	// First check command line flag
+	if *portFlag != "" {
+		return *portFlag
+	}
+
+	// Then check environment variable
+	if envPort := os.Getenv("PORT"); envPort != "" {
+		return envPort
+	}
+
+	// Default fallback
+	return "8080"
 }
