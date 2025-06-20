@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
+	"github.com/dukerupert/freyja/internal/server/middleware"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 )
@@ -31,6 +32,9 @@ func NewProductHandler(productService interfaces.ProductService, variantService 
 // Now returns products with aggregated variant information
 func (h *ProductHandler) GetProducts(c echo.Context) error {
 	ctx := c.Request().Context()
+	logger := middleware.GetLogger(c)
+
+	logger.Info().Msg("Starting GetProducts request")
 
 	// Parse query parameters for filtering
 	filters := interfaces.ProductFilters{}
@@ -39,6 +43,9 @@ func (h *ProductHandler) GetProducts(c echo.Context) error {
 	if activeParam := c.QueryParam("active"); activeParam != "" {
 		if active, err := strconv.ParseBool(activeParam); err == nil {
 			filters.Active = &active
+			logger.Debug().Bool("active_filter", active).Msg("Applied active filter")
+		} else {
+			logger.Warn().Str("active_param", activeParam).Msg("Invalid active parameter, ignoring")
 		}
 	}
 
@@ -46,25 +53,61 @@ func (h *ProductHandler) GetProducts(c echo.Context) error {
 	if limitParam := c.QueryParam("limit"); limitParam != "" {
 		if limit, err := strconv.Atoi(limitParam); err == nil && limit > 0 {
 			filters.Limit = limit
+			logger.Debug().Int("limit", limit).Msg("Applied limit filter")
+		} else {
+			logger.Warn().Str("limit_param", limitParam).Msg("Invalid limit parameter, ignoring")
 		}
 	}
 
 	if offsetParam := c.QueryParam("offset"); offsetParam != "" {
 		if offset, err := strconv.Atoi(offsetParam); err == nil && offset >= 0 {
 			filters.Offset = offset
+			logger.Debug().Int("offset", offset).Msg("Applied offset filter")
+		} else {
+			logger.Warn().Str("offset_param", offsetParam).Msg("Invalid offset parameter, ignoring")
 		}
 	}
 
 	// Check for search query
 	searchQuery := c.QueryParam("search")
+	if searchQuery != "" {
+		logger.Debug().Str("search_query", searchQuery).Msg("Search query provided")
+	}
 
 	var products []interfaces.ProductSummary
 	var err error
 
+	logger.Info().
+		Interface("filters", filters).
+		Str("search_query", searchQuery).
+		Msg("Fetching products from service")
+
 	if searchQuery != "" {
 		products, err = h.productService.SearchProducts(ctx, searchQuery)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("search_query", searchQuery).
+				Msg("Failed to search products")
+		} else {
+			logger.Info().
+				Int("result_count", len(products)).
+				Str("search_query", searchQuery).
+				Msg("Successfully searched products")
+		}
 	} else {
 		products, err = h.productService.GetAll(ctx, filters)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Interface("filters", filters).
+				Msg("Failed to fetch products")
+		} else {
+			logger.Info().
+				Int("result_count", len(products)).
+				Interface("filters", filters).
+				Msg("Successfully fetched products")
+		}
 	}
 
 	if err != nil {
@@ -75,11 +118,18 @@ func (h *ProductHandler) GetProducts(c echo.Context) error {
 		})
 	}
 
+	logger.Debug().Int("products_count", len(products)).Msg("Starting product transformation")
+
 	// Transform to API-friendly format
 	apiProducts := make([]map[string]interface{}, len(products))
 	for i, product := range products {
 		apiProducts[i] = h.productSummaryToAPI(product)
 	}
+
+	logger.Info().
+		Int("total_products", len(apiProducts)).
+		Bool("has_search", searchQuery != "").
+		Msg("Successfully completed GetProducts request")
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"success":  true,

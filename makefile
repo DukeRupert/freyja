@@ -1,7 +1,7 @@
 # Coffee E-commerce Makefile
 # NOTE: All command lines under targets MUST be indented with TABS, not spaces
 
-.PHONY: help build up down logs restart clean dev test-api dev-logs dev-shell dev-db-shell dev-local dev-services dev-stop
+.PHONY: help build up down logs restart clean dev test-api dev-logs dev-shell dev-db-shell dev-local dev-services dev-stop debug
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -101,3 +101,8 @@ seed-dev:
 .PHONY: seed-clean-dev
 seed-clean-dev:
 	DATABASE_URL=$(DATABASE_URL) CLEAR_DATA=true go run cmd/seed/main.go
+
+# Run server debug
+.PHONY: debug
+debug:
+	go run cmd/server/main.go -log-level=debug -log-format=console

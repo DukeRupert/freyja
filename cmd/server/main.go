@@ -110,7 +110,8 @@ func main() {
 
 	// Initialize event subscribers
 	customerSubscriber := subscriber.NewCustomerEventSubscriber(customerService, eventPublisher)
-	productSubscriber := subscriber.NewProductEventSubscriber(productService, variantService, eventPublisher)
+	productSubscriber := subscriber.NewProductEventSubscriber(productService, variantService, eventPublisher, logger)
+	materializedViewSubscriber := subscriber.NewMaterializedViewSubscriber(productRepo, eventPublisher)
 
 	// Start event subscribers in background goroutines
 	go func() {
@@ -121,7 +122,13 @@ func main() {
 
 	go func() {
 		if err := productSubscriber.Start(context.Background()); err != nil {
-			log.Printf("Failed to start product event subscriber: %v", err)
+			logger.Fatal().Err(err).Msg("Failed to subscribe to variant.created events")
+		}
+	}()
+
+	go func() {
+		if err := materializedViewSubscriber.Start(context.Background()); err != nil {
+			log.Printf("Failed to start materialized view subscriber: %v", err)
 		}
 	}()
 

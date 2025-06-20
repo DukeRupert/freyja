@@ -77,7 +77,7 @@ const (
 
 	// Customer events
 	EventCustomerCreated             = "customer.created"
-	EventGuestCustomerCreated		 = "customer.created_guest"
+	EventGuestCustomerCreated        = "customer.created_guest"
 	EventCustomerUpdated             = "customer.updated"
 	EventCustomerStripeEnsured       = "customer.stripe_ensured"
 	EventCustomerStripeSyncRequested = "customer.stripe_sync_requested"
@@ -85,19 +85,23 @@ const (
 	// Product events
 	EventProductCreated     = "product.created"
 	EventProductUpdated     = "product.updated"
+	EventProductDeleted     = "product.deleted"
+	EventProductActivated   = "product.activated"
 	EventProductDeactivated = "product.deactivated"
 	EventProductStockLow    = "product.stock_low"
 	EventProductStripeSync  = "product.stripe_sync_requested"
 
 	// Variant events
-	EventVariantCreated             = "variant.created"
-	EventVariantUpdated             = "variant.updated"
-	EventVariantArchived            = "variant.archived"
-	EventVariantActivated           = "variant.activated"
-	EventVariantDeactivated         = "variant.deactivated"
-	EventVariantStockUpdated        = "variant.stock_updated"
-	EventVariantStockIncremented    = "variant.stock_incremented"
-	EventVariantStockDecremented    = "variant.stock_decremented"
+	EventVariantCreated          = "variant.created"
+	EventVariantUpdated          = "variant.updated"
+	EventVariantArchived         = "variant.archived"
+	EventVariantDeleted          = "variant.deleted"
+	EventVariantActivated        = "variant.activated"
+	EventVariantDeactivated      = "variant.deactivated"
+	EventVariantPriceUpdated     = "variant.price_updated"
+	EventVariantStockUpdated     = "variant.stock_updated"
+	EventVariantStockIncremented = "variant.stock_incremented"
+	EventVariantStockDecremented = "variant.stock_decremented"
 )
 
 // =============================================================================

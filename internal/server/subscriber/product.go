@@ -5,8 +5,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
+	"github.com/rs/zerolog"
 	"github.com/stripe/stripe-go/v82"
 	stripePrice "github.com/stripe/stripe-go/v82/price"
 	stripeProduct "github.com/stripe/stripe-go/v82/product"
@@ -16,17 +18,20 @@ type ProductEventSubscriber struct {
 	productService interfaces.ProductService
 	variantService interfaces.VariantService
 	events         interfaces.EventPublisher
+	logger         zerolog.Logger
 }
 
 func NewProductEventSubscriber(
 	productService interfaces.ProductService,
 	variantService interfaces.VariantService,
 	events interfaces.EventPublisher,
+	logger zerolog.Logger,
 ) *ProductEventSubscriber {
 	return &ProductEventSubscriber{
 		productService: productService,
 		variantService: variantService,
 		events:         events,
+		logger:         logger.With().Str("component", "ProductEventSubscriber").Logger(),
 	}
 }
 
@@ -65,7 +70,7 @@ func (s *ProductEventSubscriber) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to subscribe to product.stripe_sync_requested events: %w", err)
 	}
 
-	log.Println("✅ Product event subscriber started")
+	log.Println("[OK] Product event subscriber started")
 	return nil
 }
 
@@ -93,7 +98,7 @@ func (s *ProductEventSubscriber) handleProductStripeSyncRequested(ctx context.Co
 		return fmt.Errorf("failed to sync variants for product %d to Stripe: %w", productID, err)
 	}
 
-	log.Printf("✅ Product %d synced to Stripe successfully (via sync request)", productID)
+	log.Printf("[OK] Product %d synced to Stripe successfully (via sync request)", productID)
 	return nil
 }
 
@@ -133,7 +138,7 @@ func (s *ProductEventSubscriber) handleProductCreated(ctx context.Context, event
 		return fmt.Errorf("failed to sync variants for product %d to Stripe: %w", productID, err)
 	}
 
-	log.Printf("✅ Product %d synced to Stripe successfully (%d variants)", productID, len(variants))
+	log.Printf("[OK] Product %d synced to Stripe successfully (%d variants)", productID, len(variants))
 	return nil
 }
 
@@ -178,7 +183,7 @@ func (s *ProductEventSubscriber) handleProductUpdated(ctx context.Context, event
 	// For other product updates (name, description changes), update all variant Stripe products
 	// Note: In the variant model, product name/description changes might affect variant display names
 	log.Printf("Product %d metadata updated, updating %d variants in Stripe", productID, len(variants))
-	
+
 	successCount := 0
 	var lastError error
 
@@ -197,37 +202,88 @@ func (s *ProductEventSubscriber) handleProductUpdated(ctx context.Context, event
 		return fmt.Errorf("failed to update any variant Stripe products for product %d: %w", productID, lastError)
 	}
 
-	log.Printf("✅ Product %d updated in Stripe successfully (%d/%d variants)", productID, successCount, len(variants))
+	log.Printf("[OK] Product %d updated in Stripe successfully (%d/%d variants)", productID, successCount, len(variants))
 	return nil
 }
 
 // handleVariantCreated syncs newly created variants to Stripe
 func (s *ProductEventSubscriber) handleVariantCreated(ctx context.Context, event interfaces.Event) error {
-	log.Printf("Processing variant.created event: %s", event.AggregateID)
+	logger := s.logger.With().
+		Str("event_id", event.ID).
+		Str("event_type", event.Type).
+		Str("aggregate_id", event.AggregateID).
+		Str("handler", "handleVariantCreated").
+		Logger()
 
+	logger.Info().Msg("Processing variant.created event")
+
+	// Enhanced aggregate ID extraction with better error handling
 	variantID, err := interfaces.ExtractAggregateID(event.AggregateID)
 	if err != nil {
-		return fmt.Errorf("invalid variant ID in event: %w", err)
-	}
+		logger.Error().
+			Err(err).
+			Str("expected_format", "variant:123").
+			Str("received_format", event.AggregateID).
+			Msg("Invalid aggregate ID format - this event will be skipped to prevent loop")
 
-	// Get the variant
-	variant, err := s.variantService.GetByID(ctx, int32(variantID))
-	if err != nil {
-		return fmt.Errorf("failed to get variant %d: %w", variantID, err)
-	}
-
-	// Only sync active variants
-	if !variant.Active {
-		log.Printf("Skipping Stripe sync for inactive variant %d", variantID)
+		// CRITICAL: Return nil instead of error to prevent retry loop
+		// This allows the event to be marked as processed and removed from queue
 		return nil
 	}
 
-	// Sync to Stripe
+	logger = logger.With().Int32("variant_id", variantID).Logger()
+	logger.Info().Msg("Successfully extracted variant ID from aggregate")
+
+	// Get the variant with enhanced error logging
+	variant, err := s.variantService.GetByID(ctx, int32(variantID))
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Msg("Failed to get variant from database")
+
+		// If variant doesn't exist, don't retry - return nil to prevent loop
+		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "no rows") {
+			logger.Warn().Msg("Variant not found - event will be skipped")
+			return nil
+		}
+
+		// For other database errors, we might want to retry, so return the error
+		return fmt.Errorf("failed to get variant %d: %w", variantID, err)
+	}
+
+	logger.Info().
+		Str("variant_name", variant.Name).
+		Bool("active", variant.Active).
+		Bool("is_subscription", variant.IsSubscription).
+		Msg("Successfully retrieved variant details")
+
+	// Only sync active variants
+	if !variant.Active {
+		logger.Info().Msg("Skipping Stripe sync for inactive variant")
+		return nil
+	}
+
+	// Sync to Stripe with detailed logging
+	logger.Info().Msg("Starting Stripe sync for variant")
+
 	if err := s.syncVariantToStripe(ctx, variant); err != nil {
+		logger.Error().
+			Err(err).
+			Msg("Failed to sync variant to Stripe")
+
+		// Log specific Stripe error details if available
+		if stripeErr, ok := err.(*stripe.Error); ok {
+			logger.Error().
+				Str("stripe_error_code", string(stripeErr.Code)).
+				Str("stripe_error_type", string(stripeErr.Type)).
+				Str("stripe_error_message", stripeErr.Msg).
+				Msg("Stripe API error details")
+		}
+
 		return fmt.Errorf("failed to sync variant %d to Stripe: %w", variantID, err)
 	}
 
-	log.Printf("✅ Variant %d synced to Stripe successfully", variantID)
+	logger.Info().Msg("[OK] Variant synced to Stripe successfully")
 	return nil
 }
 
@@ -249,7 +305,7 @@ func (s *ProductEventSubscriber) handleVariantUpdated(ctx context.Context, event
 	// Check if price changed (requires new Stripe prices since they're immutable)
 	if priceChanged, exists := event.Data["price_changed"].(bool); exists && priceChanged {
 		log.Printf("Price changed for variant %d, creating new Stripe prices", variantID)
-		
+
 		// Create new prices (Stripe prices are immutable)
 		if err := s.createAllStripePricesForVariant(ctx, variant); err != nil {
 			return fmt.Errorf("failed to create new Stripe prices for variant %d: %w", variantID, err)
@@ -271,7 +327,7 @@ func (s *ProductEventSubscriber) handleVariantUpdated(ctx context.Context, event
 		}
 	}
 
-	log.Printf("✅ Variant %d updated in Stripe successfully", variantID)
+	log.Printf("[OK] Variant %d updated in Stripe successfully", variantID)
 	return nil
 }
 
@@ -299,7 +355,7 @@ func (s *ProductEventSubscriber) handleVariantDeactivated(ctx context.Context, e
 		log.Printf("Variant %d has no Stripe product to deactivate", variantID)
 	}
 
-	log.Printf("✅ Variant %d deactivated in Stripe successfully", variantID)
+	log.Printf("[OK] Variant %d deactivated in Stripe successfully", variantID)
 	return nil
 }
 
@@ -427,24 +483,34 @@ func (s *ProductEventSubscriber) handleProductDeactivated(ctx context.Context, e
 		return fmt.Errorf("failed to deactivate any variants for product %d in Stripe: %w", productID, lastError)
 	}
 
-	log.Printf("✅ Product %d deactivated in Stripe successfully (%d/%d variants)", productID, successCount, len(variants))
+	log.Printf("[OK] Product %d deactivated in Stripe successfully (%d/%d variants)", productID, successCount, len(variants))
 	return nil
 }
 
 // Helper methods for Stripe operations
 // syncVariantToStripe syncs a single variant to Stripe (creates Stripe Product + Prices)
 func (s *ProductEventSubscriber) syncVariantToStripe(ctx context.Context, variant *interfaces.ProductVariant) error {
+	// Create context-specific logger
+	logger := s.logger.With().
+		Int32("variant_id", variant.ID).
+		Str("variant_name", variant.Name).
+		Bool("is_subscription", variant.IsSubscription).
+		Str("function", "syncVariantToStripe").
+		Logger()
+
 	// Create Stripe Product if it doesn't exist
 	if !variant.StripeProductID.Valid {
-		log.Printf("Creating Stripe product for variant %d (%s)", variant.ID, variant.Name)
+		logger.Info().Msg("Creating Stripe product for variant")
 		
 		stripeProduct, err := s.createStripeProductForVariant(variant)
 		if err != nil {
+			logger.Error().Err(err).Msg("Failed to create Stripe product")
 			return fmt.Errorf("failed to create Stripe product for variant %d: %w", variant.ID, err)
 		}
 
 		// Update our variant with Stripe Product ID
 		if err := s.variantService.UpdateStripeIDs(ctx, variant.ID, stripeProduct.ID, nil); err != nil {
+			logger.Error().Err(err).Str("stripe_product_id", stripeProduct.ID).Msg("Failed to update variant with Stripe product ID")
 			return fmt.Errorf("failed to update variant with Stripe product ID: %w", err)
 		}
 
@@ -452,25 +518,26 @@ func (s *ProductEventSubscriber) syncVariantToStripe(ctx context.Context, varian
 		variant.StripeProductID.String = stripeProduct.ID
 		variant.StripeProductID.Valid = true
 		
-		log.Printf("✅ Created Stripe product %s for variant %d", stripeProduct.ID, variant.ID)
+		logger.Info().Str("stripe_product_id", stripeProduct.ID).Msg("[OK] Created and linked Stripe product")
 	} else {
-		log.Printf("Stripe product already exists for variant %d: %s", variant.ID, variant.StripeProductID.String)
+		logger.Info().Str("stripe_product_id", variant.StripeProductID.String).Msg("Stripe product already exists")
 	}
 
 	// Create all Price objects for this variant
-	log.Printf("Creating Stripe prices for variant %d", variant.ID)
+	logger.Info().Msg("Creating Stripe prices for variant")
 	if err := s.createAllStripePricesForVariant(ctx, variant); err != nil {
+		logger.Error().Err(err).Msg("Failed to create Stripe prices")
 		return fmt.Errorf("failed to create Stripe prices for variant %d: %w", variant.ID, err)
 	}
 
-	log.Printf("✅ Successfully synced variant %d to Stripe", variant.ID)
+	logger.Info().Msg("[OK] Successfully synced variant to Stripe")
 	return nil
 }
 
 // syncAllVariantsForProduct syncs all variants of a product to Stripe
 func (s *ProductEventSubscriber) syncAllVariantsForProduct(ctx context.Context, productID int32) error {
 	log.Printf("Starting Stripe sync for all variants of product %d", productID)
-	
+
 	// Get all active variants for this product
 	variants, err := s.variantService.GetActiveVariantsByProduct(ctx, productID)
 	if err != nil {
@@ -497,7 +564,7 @@ func (s *ProductEventSubscriber) syncAllVariantsForProduct(ctx context.Context, 
 			continue
 		}
 		successCount++
-		log.Printf("✅ Synced variant %d (%s) to Stripe", variant.ID, variant.Name)
+		log.Printf("[OK] Synced variant %d (%s) to Stripe", variant.ID, variant.Name)
 	}
 
 	// Report results
@@ -506,12 +573,12 @@ func (s *ProductEventSubscriber) syncAllVariantsForProduct(ctx context.Context, 
 	}
 
 	if errorCount > 0 {
-		log.Printf("⚠️ Partial success: %d/%d variants synced for product %d (%d errors)", 
+		log.Printf("⚠️ Partial success: %d/%d variants synced for product %d (%d errors)",
 			successCount, len(variants), productID, errorCount)
 		// You might want to return an error here if partial failures should fail the operation
 		// For now, we'll continue with partial success
 	} else {
-		log.Printf("✅ Successfully synced all %d variants for product %d", successCount, productID)
+		log.Printf("[OK] Successfully synced all %d variants for product %d", successCount, productID)
 	}
 
 	return nil
@@ -563,16 +630,23 @@ func (s *ProductEventSubscriber) getVariantDescription(variant *interfaces.Produ
 	// You might want to fetch the parent product description
 	// or create a variant-specific description
 	// This depends on your business requirements
-	
+
 	if variant.IsSubscription {
 		return fmt.Sprintf("Subscription variant of %s", variant.Name)
 	}
 	return fmt.Sprintf("One-time purchase variant of %s", variant.Name)
 }
 
+// createSingleStripePriceForVariant creates a single price (one-time or subscription)
 func (s *ProductEventSubscriber) createSingleStripePriceForVariant(variant *interfaces.ProductVariant, recurringDays *int) (*stripe.Price, error) {
+	logger := s.logger.With().
+		Int32("variant_id", variant.ID).
+		Str("function", "createSingleStripePriceForVariant").
+		Logger()
+
 	// Validate that variant has a Stripe Product ID
 	if !variant.StripeProductID.Valid || variant.StripeProductID.String == "" {
+		logger.Error().Msg("Variant does not have a valid Stripe Product ID")
 		return nil, fmt.Errorf("variant %d does not have a valid Stripe Product ID", variant.ID)
 	}
 
@@ -595,10 +669,12 @@ func (s *ProductEventSubscriber) createSingleStripePriceForVariant(variant *inte
 		params.Metadata["subscription_days"] = fmt.Sprintf("%d", *recurringDays)
 		params.Metadata["type"] = "subscription"
 		
-		log.Printf("Creating subscription price for variant %d (%d day interval)", variant.ID, *recurringDays)
+		logger = logger.With().Int("recurring_days", *recurringDays).Str("price_type", "subscription").Logger()
+		logger.Info().Msg("Creating subscription price")
 	} else {
 		params.Metadata["type"] = "onetime"
-		log.Printf("Creating one-time price for variant %d", variant.ID)
+		logger = logger.With().Str("price_type", "one_time").Logger()
+		logger.Info().Msg("Creating one-time price")
 	}
 
 	// Add variant options to metadata for both types
@@ -619,6 +695,7 @@ func (s *ProductEventSubscriber) createSingleStripePriceForVariant(variant *inte
 		if recurringDays != nil {
 			priceType = fmt.Sprintf("subscription (%d days)", *recurringDays)
 		}
+		logger.Error().Err(err).Str("price_type", priceType).Msg("Failed to create Stripe price")
 		return nil, fmt.Errorf("failed to create %s Stripe price for variant %d: %w", priceType, variant.ID, err)
 	}
 
@@ -627,31 +704,43 @@ func (s *ProductEventSubscriber) createSingleStripePriceForVariant(variant *inte
 	if recurringDays != nil {
 		priceType = fmt.Sprintf("subscription (%d day)", *recurringDays)
 	}
-	log.Printf("✅ Created %s Stripe price %s for variant %d", priceType, stripePrice.ID, variant.ID)
+	logger.Info().Str("stripe_price_id", stripePrice.ID).Str("price_type", priceType).Msg("[OK] Successfully created Stripe price")
 
 	return stripePrice, nil
 }
 
+// createAllStripePricesForVariant creates all necessary price objects for a variant
 func (s *ProductEventSubscriber) createAllStripePricesForVariant(ctx context.Context, variant *interfaces.ProductVariant) error {
-	log.Printf("Creating all Stripe prices for variant %d (%s)", variant.ID, variant.Name)
+	logger := s.logger.With().
+		Int32("variant_id", variant.ID).
+		Str("variant_name", variant.Name).
+		Bool("is_subscription", variant.IsSubscription).
+		Str("function", "createAllStripePricesForVariant").
+		Logger()
+
+	logger.Info().Msg("Starting price creation process")
 	
 	priceUpdates := make(map[string]string)
+	totalPricesCreated := 0
 
 	// One-time purchase price
 	if !variant.StripePriceOnetimeID.Valid {
-		price, err := s.createSingleStripePriceForVariant(variant, nil) // Fixed method name
+		logger.Info().Msg("Creating one-time purchase price")
+		price, err := s.createSingleStripePriceForVariant(variant, nil)
 		if err != nil {
+			logger.Error().Err(err).Msg("Failed to create one-time price")
 			return fmt.Errorf("failed to create one-time price: %w", err)
 		}
 		priceUpdates["onetime"] = price.ID
-		log.Printf("Created one-time price %s for variant %d", price.ID, variant.ID)
+		totalPricesCreated++
+		logger.Info().Str("stripe_price_id", price.ID).Msg("[OK] Created one-time price")
 	} else {
-		log.Printf("One-time price already exists for variant %d", variant.ID)
+		logger.Info().Str("stripe_price_id", variant.StripePriceOnetimeID.String).Msg("One-time price already exists")
 	}
 
 	// Subscription prices (only create if variant supports subscriptions)
 	if variant.IsSubscription {
-		log.Printf("Creating subscription prices for variant %d", variant.ID)
+		logger.Info().Msg("Creating subscription prices")
 		
 		intervals := map[string]int{"14day": 14, "21day": 21, "30day": 30, "60day": 60}
 		currentPrices := map[string]bool{
@@ -661,36 +750,45 @@ func (s *ProductEventSubscriber) createAllStripePricesForVariant(ctx context.Con
 			"60day": variant.StripePrice60dayID.Valid,
 		}
 
-		createdCount := 0
+		subscriptionPricesCreated := 0
 		for interval, days := range intervals {
+			intervalLogger := logger.With().Str("interval", interval).Int("days", days).Logger()
+			
 			if !currentPrices[interval] {
-				price, err := s.createSingleStripePriceForVariant(variant, &days) // Fixed method name
+				intervalLogger.Info().Msg("Creating subscription price")
+				price, err := s.createSingleStripePriceForVariant(variant, &days)
 				if err != nil {
+					intervalLogger.Error().Err(err).Msg("Failed to create subscription price")
 					return fmt.Errorf("failed to create %s subscription price: %w", interval, err)
 				}
 				priceUpdates[interval] = price.ID
-				createdCount++
+				subscriptionPricesCreated++
+				totalPricesCreated++
+				intervalLogger.Info().Str("stripe_price_id", price.ID).Msg("[OK] Created subscription price")
+			} else {
+				intervalLogger.Info().Msg("Subscription price already exists")
 			}
 		}
 		
-		log.Printf("Created %d subscription prices for variant %d", createdCount, variant.ID)
+		logger.Info().Int("created_count", subscriptionPricesCreated).Msg("Completed subscription price creation")
 	} else {
-		log.Printf("Variant %d does not support subscriptions, skipping subscription prices", variant.ID)
+		logger.Info().Msg("Variant does not support subscriptions, skipping subscription prices")
 	}
 
 	// Update all price IDs in database using variant service
 	if len(priceUpdates) > 0 {
-		log.Printf("Updating database with %d new price IDs for variant %d", len(priceUpdates), variant.ID)
+		logger.Info().Int("price_count", len(priceUpdates)).Msg("Updating database with new price IDs")
 		
 		if err := s.variantService.UpdateStripeIDs(ctx, variant.ID, variant.StripeProductID.String, priceUpdates); err != nil {
+			logger.Error().Err(err).Int("price_count", len(priceUpdates)).Msg("Failed to update variant with price IDs")
 			return fmt.Errorf("failed to update variant with new Stripe price IDs: %w", err)
 		}
 		
-		log.Printf("✅ Successfully updated variant %d with new Stripe price IDs", variant.ID)
+		logger.Info().Int("price_count", len(priceUpdates)).Msg("[OK] Successfully updated variant with new Stripe price IDs")
 	} else {
-		log.Printf("No new prices needed for variant %d - all prices already exist", variant.ID)
+		logger.Info().Msg("No new prices needed - all prices already exist")
 	}
 
-	log.Printf("✅ Completed price creation for variant %d", variant.ID)
+	logger.Info().Int("total_created", totalPricesCreated).Msg("[OK] Completed price creation process")
 	return nil
 }

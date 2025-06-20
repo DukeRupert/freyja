@@ -128,11 +128,11 @@ func (s *VariantService) Create(ctx context.Context, req interfaces.CreateVarian
 
 	// Publish event
 	event := interfaces.Event{
-		ID: generateEventID(),
-		Type: interfaces.EventVariantCreated,
-		AggregateID: fmt.Sprintf("variant-%d", variant.ID),
+		ID:          generateEventID(),
+		Type:        interfaces.EventVariantCreated,
+		AggregateID: fmt.Sprintf("variant:%d", variant.ID),
 		Data: map[string]interface{}{
-			
+
 			"variant_id": variant.ID,
 			"product_id": variant.ProductID,
 			"name":       variant.Name,
@@ -178,7 +178,7 @@ func (s *VariantService) Update(ctx context.Context, id int32, req interfaces.Up
 
 	if err := s.events.PublishEvent(ctx, interfaces.Event{
 		Type:        interfaces.EventVariantUpdated,
-		AggregateID: fmt.Sprintf("variant-%d", variant.ID),
+		AggregateID: fmt.Sprintf("variant:%d", variant.ID),
 		Data:        eventData,
 	}); err != nil {
 		log.Printf("Failed to publish variant.updated event: %v", err)
@@ -197,7 +197,7 @@ func (s *VariantService) Archive(ctx context.Context, id int32) (*interfaces.Pro
 	// Publish event
 	if err := s.events.PublishEvent(ctx, interfaces.Event{
 		Type:        interfaces.EventVariantArchived,
-		AggregateID: fmt.Sprintf("variant-%d", variant.ID),
+		AggregateID: fmt.Sprintf("variant:%d", variant.ID),
 		Data: map[string]interface{}{
 			"variant_id": variant.ID,
 			"product_id": variant.ProductID,
@@ -219,7 +219,7 @@ func (s *VariantService) Activate(ctx context.Context, id int32) (*interfaces.Pr
 	// Publish event
 	if err := s.events.PublishEvent(ctx, interfaces.Event{
 		Type:        interfaces.EventVariantActivated,
-		AggregateID: fmt.Sprintf("variant-%d", variant.ID),
+		AggregateID: fmt.Sprintf("variant:%d", variant.ID),
 		Data: map[string]interface{}{
 			"variant_id": variant.ID,
 			"product_id": variant.ProductID,
@@ -241,7 +241,7 @@ func (s *VariantService) Deactivate(ctx context.Context, id int32) (*interfaces.
 	// Publish event
 	if err := s.events.PublishEvent(ctx, interfaces.Event{
 		Type:        interfaces.EventVariantDeactivated,
-		AggregateID: fmt.Sprintf("variant-%d", variant.ID),
+		AggregateID: fmt.Sprintf("variant:%d", variant.ID),
 		Data: map[string]interface{}{
 			"variant_id": variant.ID,
 			"product_id": variant.ProductID,
@@ -271,7 +271,7 @@ func (s *VariantService) UpdateStock(ctx context.Context, id int32, stock int32)
 	// Publish event
 	if err := s.events.PublishEvent(ctx, interfaces.Event{
 		Type:        interfaces.EventVariantStockUpdated,
-		AggregateID: fmt.Sprintf("variant-%d", variant.ID),
+		AggregateID: fmt.Sprintf("variant:%d", variant.ID),
 		Data: map[string]interface{}{
 			"variant_id": variant.ID,
 			"product_id": variant.ProductID,
@@ -297,7 +297,7 @@ func (s *VariantService) IncrementStock(ctx context.Context, id int32, delta int
 	// Publish event
 	if err := s.events.PublishEvent(ctx, interfaces.Event{
 		Type:        interfaces.EventVariantStockIncremented,
-		AggregateID: fmt.Sprintf("variant-%d", variant.ID),
+		AggregateID: fmt.Sprintf("variant:%d", variant.ID),
 		Data: map[string]interface{}{
 			"variant_id": variant.ID,
 			"product_id": variant.ProductID,
@@ -324,7 +324,7 @@ func (s *VariantService) DecrementStock(ctx context.Context, id int32, delta int
 	// Publish event
 	if err := s.events.PublishEvent(ctx, interfaces.Event{
 		Type:        interfaces.EventVariantStockDecremented,
-		AggregateID: fmt.Sprintf("variant-%d", variant.ID),
+		AggregateID: fmt.Sprintf("variant:%d", variant.ID),
 		Data: map[string]interface{}{
 			"variant_id": variant.ID,
 			"product_id": variant.ProductID,
@@ -385,7 +385,7 @@ func (s *VariantService) UpdateStripeIDs(ctx context.Context, variantID int32, s
 func (s *VariantService) GetVariantCount(ctx context.Context, activeOnly bool) (int64, error) {
 	// For now, we'll count by getting all active products and their variants
 	// This is not the most efficient but works with existing repository methods
-	
+
 	// Get all active products
 	activeFilter := true
 	allProducts, err := s.productRepo.GetAllWithSummary(ctx, interfaces.ProductFilters{
@@ -395,25 +395,25 @@ func (s *VariantService) GetVariantCount(ctx context.Context, activeOnly bool) (
 	if err != nil {
 		return 0, fmt.Errorf("failed to get products for variant counting: %w", err)
 	}
-	
+
 	totalCount := int64(0)
-	
+
 	// For each product, get its variants and count them
 	for _, product := range allProducts {
 		var variants []interfaces.ProductVariant
-		
+
 		if activeOnly {
 			variants, err = s.variantRepo.GetActiveVariantsByProduct(ctx, product.ProductID)
 		} else {
 			variants, err = s.variantRepo.GetVariantsByProduct(ctx, product.ProductID)
 		}
-		
+
 		if err != nil {
 			// Log error but continue counting other products
 			log.Printf("Failed to get variants for product %d: %v", product.ProductID, err)
 			continue
 		}
-		
+
 		if activeOnly {
 			// Additional filtering for active, non-archived variants
 			for _, variant := range variants {
@@ -425,7 +425,7 @@ func (s *VariantService) GetVariantCount(ctx context.Context, activeOnly bool) (
 			totalCount += int64(len(variants))
 		}
 	}
-	
+
 	return totalCount, nil
 }
 
@@ -439,9 +439,9 @@ func (s *VariantService) GetVariantsWithStripeCount(ctx context.Context) (int64,
 	if err != nil {
 		return 0, fmt.Errorf("failed to get products for Stripe variant counting: %w", err)
 	}
-	
+
 	stripeCount := int64(0)
-	
+
 	// For each product, get its active variants and count those with Stripe IDs
 	for _, product := range allProducts {
 		variants, err := s.variantRepo.GetActiveVariantsByProduct(ctx, product.ProductID)
@@ -450,17 +450,17 @@ func (s *VariantService) GetVariantsWithStripeCount(ctx context.Context) (int64,
 			log.Printf("Failed to get variants for product %d: %v", product.ProductID, err)
 			continue
 		}
-		
+
 		for _, variant := range variants {
 			// Check if variant has a Stripe Product ID and is not archived
-			if variant.StripeProductID.Valid && 
-			   variant.StripeProductID.String != "" && 
-			   variant.Active && 
-			   !variant.ArchivedAt.Valid {
+			if variant.StripeProductID.Valid &&
+				variant.StripeProductID.String != "" &&
+				variant.Active &&
+				!variant.ArchivedAt.Valid {
 				stripeCount++
 			}
 		}
 	}
-	
+
 	return stripeCount, nil
 }
