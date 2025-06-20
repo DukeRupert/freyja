@@ -10,7 +10,15 @@ import (
 )
 
 type Config struct {
+	// Database configuration
 	DatabaseURL    string
+	DatabaseHost   string
+	DatabasePort   string
+	DatabaseName   string
+	DatabaseUser   string
+	DatabasePassword string
+	DatabaseSSLMode string
+	
 	ValkeyAddr     string
 	NATSUrl        string
 	MinIOEndpoint  string
@@ -56,6 +64,14 @@ func Load() (*Config, error) {
 	viper.SetDefault("MINIO_ENDPOINT", "localhost:9000")
 	viper.SetDefault("ADMIN_DOMAIN", "localhost:8081")
 	viper.SetDefault("API_VERSION", "v1")
+	
+	// Database defaults
+	viper.SetDefault("DATABASE_HOST", "localhost")
+	viper.SetDefault("DATABASE_PORT", "5432")
+	viper.SetDefault("DATABASE_NAME", "coffee_ecommerce")
+	viper.SetDefault("DATABASE_USER", "postgres")
+	viper.SetDefault("DATABASE_PASSWORD", "password")
+	viper.SetDefault("DATABASE_SSL_MODE", "disable")
 
 	// Smart host detection
 	isDocker := isRunningInDocker()
@@ -65,6 +81,7 @@ func Load() (*Config, error) {
 		viper.SetDefault("VALKEY_ADDR", "valkey:6379")
 		viper.SetDefault("NATS_URL", "nats://nats:4222")
 		viper.SetDefault("MINIO_ENDPOINT", "minio:9000")
+		viper.SetDefault("DATABASE_HOST", "postgres")
 	}
 
 	// Build config struct
@@ -83,16 +100,27 @@ func Load() (*Config, error) {
 		MinIOEndpoint:        viper.GetString("MINIO_ENDPOINT"),
 		AdminDomain: viper.GetString("ADMIN_DOMAIN"),
 		ApiVersion: viper.GetString("API_VERSION"),
+		
+		// Database configuration
+		DatabaseHost:     viper.GetString("DATABASE_HOST"),
+		DatabasePort:     viper.GetString("DATABASE_PORT"),
+		DatabaseName:     viper.GetString("DATABASE_NAME"),
+		DatabaseUser:     viper.GetString("DATABASE_USER"),
+		DatabasePassword: viper.GetString("DATABASE_PASSWORD"),
+		DatabaseSSLMode:  viper.GetString("DATABASE_SSL_MODE"),
 	}
 
-	// Handle DATABASE_URL with smart defaults
+	// Handle DATABASE_URL - if provided, use it directly; otherwise construct from components
 	cfg.DatabaseURL = viper.GetString("DATABASE_URL")
 	if cfg.DatabaseURL == "" {
-		host := "localhost"
-		if isDocker {
-			host = "postgres"
-		}
-		cfg.DatabaseURL = fmt.Sprintf("postgres://postgres:password@%s:5432/coffee_ecommerce?sslmode=disable", host)
+		cfg.DatabaseURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+			cfg.DatabaseUser,
+			cfg.DatabasePassword,
+			cfg.DatabaseHost,
+			cfg.DatabasePort,
+			cfg.DatabaseName,
+			cfg.DatabaseSSLMode,
+		)
 	}
 	
 	cfg.ApiURL = cfg.Domain + "api/" + cfg.ApiVersion
@@ -105,6 +133,25 @@ func (c *Config) validate() error {
 		return fmt.Errorf("DATABASE_URL is required")
 	}
 	
+	// Validate individual database components if DATABASE_URL is constructed
+	if viper.GetString("DATABASE_URL") == "" {
+		if c.DatabaseHost == "" {
+			return fmt.Errorf("DATABASE_HOST is required")
+		}
+		if c.DatabasePort == "" {
+			return fmt.Errorf("DATABASE_PORT is required")
+		}
+		if c.DatabaseName == "" {
+			return fmt.Errorf("DATABASE_NAME is required")
+		}
+		if c.DatabaseUser == "" {
+			return fmt.Errorf("DATABASE_USER is required")
+		}
+		if c.DatabasePassword == "" {
+			return fmt.Errorf("DATABASE_PASSWORD is required")
+		}
+	}
+	
 	// Validate Stripe configuration for production
 	if c.Environment == "production" {
 		if c.StripeSecretKey == "" {
@@ -113,59 +160,21 @@ func (c *Config) validate() error {
 		if c.StripeWebhookSecret == "" {
 			return fmt.Errorf("STRIPE_WEBHOOK_SECRET is required in production")
 		}
-		if !strings.HasPrefix(c.StripeSecretKey, "sk_live_") {
-			return fmt.Errorf("production environment requires live Stripe keys")
-		}
-	}
-	
-	// For development, warn if Stripe keys are missing but don't fail
-	if c.Environment == "development" {
-		if c.StripeSecretKey == "" {
-			fmt.Println("⚠️  Warning: STRIPE_SECRET_KEY not set - Stripe functionality will be disabled")
-		}
-		if c.StripeWebhookSecret == "" {
-			fmt.Println("⚠️  Warning: STRIPE_WEBHOOK_SECRET not set - webhook verification will be disabled")
-		}
 	}
 	
 	return nil
 }
 
-// IsStripeConfigured returns true if Stripe is properly configured
-func (c *Config) IsStripeConfigured() bool {
-	return c.StripeSecretKey != "" && c.StripeWebhookSecret != ""
-}
-
-// IsStripeLiveMode returns true if using live Stripe keys
-func (c *Config) IsStripeLiveMode() bool {
-	return strings.HasPrefix(c.StripeSecretKey, "sk_live_")
-}
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
 func isRunningInDocker() bool {
-	// Check for Docker environment indicators
-	if os.Getenv("DOCKER_CONTAINER") == "true" {
+	// Check if we're running in a Docker container
+	if _, err := os.Stat("/.dockerenv"); err == nil {
 		return true
 	}
-
-	// Check if we're in a container by looking at cgroup
+	
+	// Alternative check: look for docker in cgroup
 	if data, err := os.ReadFile("/proc/1/cgroup"); err == nil {
-		return strings.Contains(string(data), "docker") || strings.Contains(string(data), "containerd")
+		return strings.Contains(string(data), "docker")
 	}
-
-	// Check hostname (Docker containers often have random hostnames)
-	if hostname, err := os.Hostname(); err == nil {
-		// Docker compose containers often have predictable names
-		if strings.Contains(hostname, "coffee-") || len(hostname) == 12 {
-			return true
-		}
-	}
-
+	
 	return false
 }
