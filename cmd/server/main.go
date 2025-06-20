@@ -109,28 +109,30 @@ func main() {
 	webhookHandler := handler.NewWebhookHandler(stripeProvider, orderService, customerService)
 
 	// Initialize event subscribers
-	customerSubscriber := subscriber.NewCustomerEventSubscriber(customerService, eventPublisher)
+	customerSubscriber := subscriber.NewCustomerEventSubscriber(customerService, eventPublisher, logger)
 	productSubscriber := subscriber.NewProductEventSubscriber(productService, variantService, eventPublisher, logger)
 	materializedViewSubscriber := subscriber.NewMaterializedViewSubscriber(productRepo, eventPublisher)
 
 	// Start event subscribers in background goroutines
 	go func() {
 		if err := customerSubscriber.Start(context.Background()); err != nil {
-			log.Printf("Failed to start customer event subscriber: %v", err)
+			logger.Fatal().Err(err).Msg("Failed to start customer event subscriber")
 		}
 	}()
 
 	go func() {
 		if err := productSubscriber.Start(context.Background()); err != nil {
-			logger.Fatal().Err(err).Msg("Failed to subscribe to variant.created events")
+			logger.Fatal().Err(err).Msg("Failed to start product event subscriber")
 		}
 	}()
 
 	go func() {
 		if err := materializedViewSubscriber.Start(context.Background()); err != nil {
-			log.Printf("Failed to start materialized view subscriber: %v", err)
+			logger.Fatal().Err(err).Msg("Failed to start materialized view subscriber")
 		}
 	}()
+
+	logger.Info().Msg("[OK] Event subscribers started")
 
 	// Optional: Run backfill for existing customers (uncomment if needed)
 	// go func() {

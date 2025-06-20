@@ -4,12 +4,12 @@ package subscriber
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/dukerupert/freyja/internal/shared/metrics"
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog"
 	"github.com/stripe/stripe-go/v82"
 	stripeCustomer "github.com/stripe/stripe-go/v82/customer"
 )
@@ -17,15 +17,18 @@ import (
 type CustomerEventSubscriber struct {
 	customerService interfaces.CustomerService
 	events          interfaces.EventPublisher
+	logger          zerolog.Logger
 }
 
 func NewCustomerEventSubscriber(
 	customerService interfaces.CustomerService,
 	events interfaces.EventPublisher,
+	logger zerolog.Logger,
 ) *CustomerEventSubscriber {
 	return &CustomerEventSubscriber{
 		customerService: customerService,
 		events:          events,
+		logger:          logger.With().Str("component", "CustomerEventSubscriber").Logger(),
 	}
 }
 
@@ -45,7 +48,7 @@ func (s *CustomerEventSubscriber) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to subscribe to customer.stripe_sync_requested events: %w", err)
 	}
 
-	log.Println("✅ Customer event subscriber started")
+	s.logger.Info().Msg("[OK] Customer event subscriber started")
 	return nil
 }
 
@@ -96,18 +99,28 @@ func (s *CustomerEventSubscriber) handleCustomerCreated(ctx context.Context, eve
 	timer := prometheus.NewTimer(metrics.EventProcessingDuration.WithLabelValues(event.Type, "customer_subscriber"))
 	defer timer.ObserveDuration()
 
-	log.Printf("Processing customer.created event: %s", event.AggregateID)
+	s.logger.Info().
+		Str("event_type", event.Type).
+		Str("aggregate_id", event.AggregateID).
+		Msg("Processing customer.created event")
 
 	// Extract customer ID from aggregate ID
 	customerID, err := interfaces.ExtractAggregateID(event.AggregateID)
 	if err != nil {
 		metrics.EventsProcessed.WithLabelValues(event.Type, "customer_subscriber", "error").Inc()
+		s.logger.Error().
+			Err(err).
+			Str("aggregate_id", event.AggregateID).
+			Msg("Invalid customer ID in event")
 		return fmt.Errorf("invalid customer ID in event: %w", err)
 	}
 
 	// Check if customer already has Stripe ID (from event data)
 	if stripeCustomerID, exists := event.Data["stripe_customer_id"].(string); exists && stripeCustomerID != "" {
-		log.Printf("Customer %d already has Stripe ID: %s", customerID, stripeCustomerID)
+		s.logger.Info().
+			Int("customer_id", int(customerID)).
+			Str("stripe_customer_id", stripeCustomerID).
+			Msg("Customer already has Stripe ID")
 		metrics.EventsProcessed.WithLabelValues(event.Type, "customer_subscriber", "success").Inc()
 		return nil
 	}
@@ -115,7 +128,10 @@ func (s *CustomerEventSubscriber) handleCustomerCreated(ctx context.Context, eve
 	// Ensure customer has Stripe customer ID
 	stripeCustomerID, err := s.customerService.EnsureStripeCustomer(ctx, customerID)
 	if err != nil {
-		log.Printf("Failed to ensure Stripe customer for %d: %v", customerID, err)
+		s.logger.Error().
+			Err(err).
+			Int("customer_id", int(customerID)).
+			Msg("Failed to ensure Stripe customer")
 		metrics.EventsProcessed.WithLabelValues(event.Type, "customer_subscriber", "error").Inc()
 		return fmt.Errorf("failed to ensure Stripe customer: %w", err)
 	}
@@ -123,7 +139,10 @@ func (s *CustomerEventSubscriber) handleCustomerCreated(ctx context.Context, eve
 	// Record business metric
 	metrics.CustomerStripeCreations.WithLabelValues("created").Inc()
 
-	log.Printf("✅ Ensured Stripe customer ID for customer %d: %s", customerID, stripeCustomerID)
+	s.logger.Info().
+		Int("customer_id", int(customerID)).
+		Str("stripe_customer_id", stripeCustomerID).
+		Msg("[OK] Ensured Stripe customer ID for customer")
 
 	// Publish a follow-up event indicating Stripe customer was created
 	followUpEvent := interfaces.BuildCustomerEvent("customer.stripe_ensured", customerID, map[string]interface{}{
@@ -132,7 +151,10 @@ func (s *CustomerEventSubscriber) handleCustomerCreated(ctx context.Context, eve
 	})
 
 	if err := s.events.PublishEvent(ctx, followUpEvent); err != nil {
-		log.Printf("Warning: Failed to publish customer.stripe_ensured event: %v", err)
+		s.logger.Warn().
+			Err(err).
+			Int("customer_id", int(customerID)).
+			Msg("Failed to publish customer.stripe_ensured event")
 		// Don't return error as the main operation succeeded
 	}
 
@@ -145,12 +167,19 @@ func (s *CustomerEventSubscriber) handleCustomerUpdated(ctx context.Context, eve
 	timer := prometheus.NewTimer(metrics.EventProcessingDuration.WithLabelValues(event.Type, "customer_subscriber"))
 	defer timer.ObserveDuration()
 
-	log.Printf("Processing customer.updated event: %s", event.AggregateID)
+	s.logger.Info().
+		Str("event_type", event.Type).
+		Str("aggregate_id", event.AggregateID).
+		Msg("Processing customer.updated event")
 
 	// Extract customer ID from aggregate ID
 	customerID, err := interfaces.ExtractAggregateID(event.AggregateID)
 	if err != nil {
 		metrics.EventsProcessed.WithLabelValues(event.Type, "customer_subscriber", "error").Inc()
+		s.logger.Error().
+			Err(err).
+			Str("aggregate_id", event.AggregateID).
+			Msg("Invalid customer ID in event")
 		return fmt.Errorf("invalid customer ID in event: %w", err)
 	}
 
@@ -158,16 +187,25 @@ func (s *CustomerEventSubscriber) handleCustomerUpdated(ctx context.Context, eve
 	customer, err := s.customerService.GetCustomerByID(ctx, customerID)
 	if err != nil {
 		metrics.EventsProcessed.WithLabelValues(event.Type, "customer_subscriber", "error").Inc()
+		s.logger.Error().
+			Err(err).
+			Int("customer_id", int(customerID)).
+			Msg("Failed to get customer")
 		return fmt.Errorf("failed to get customer %d: %w", customerID, err)
 	}
 
 	// If customer doesn't have Stripe ID, ensure they get one
 	if !customer.StripeCustomerID.Valid || customer.StripeCustomerID.String == "" {
-		log.Printf("Customer %d updated but missing Stripe ID, ensuring creation", customerID)
+		s.logger.Info().
+			Int("customer_id", int(customerID)).
+			Msg("Customer updated but missing Stripe ID, ensuring creation")
 
 		stripeCustomerID, err := s.customerService.EnsureStripeCustomer(ctx, customerID)
 		if err != nil {
-			log.Printf("Failed to ensure Stripe customer for updated customer %d: %v", customerID, err)
+			s.logger.Error().
+				Err(err).
+				Int("customer_id", int(customerID)).
+				Msg("Failed to ensure Stripe customer for updated customer")
 			metrics.EventsProcessed.WithLabelValues(event.Type, "customer_subscriber", "error").Inc()
 			return fmt.Errorf("failed to ensure Stripe customer: %w", err)
 		}
@@ -175,7 +213,10 @@ func (s *CustomerEventSubscriber) handleCustomerUpdated(ctx context.Context, eve
 		// Record business metric
 		metrics.CustomerStripeCreations.WithLabelValues("updated").Inc()
 
-		log.Printf("✅ Ensured Stripe customer ID for updated customer %d: %s", customerID, stripeCustomerID)
+		s.logger.Info().
+			Int("customer_id", int(customerID)).
+			Str("stripe_customer_id", stripeCustomerID).
+			Msg("[OK] Ensured Stripe customer ID for updated customer")
 
 		// Publish follow-up event
 		followUpEvent := interfaces.BuildCustomerEvent("customer.stripe_ensured", customerID, map[string]interface{}{
@@ -184,14 +225,23 @@ func (s *CustomerEventSubscriber) handleCustomerUpdated(ctx context.Context, eve
 		})
 
 		if err := s.events.PublishEvent(ctx, followUpEvent); err != nil {
-			log.Printf("Warning: Failed to publish customer.stripe_ensured event: %v", err)
+			s.logger.Warn().
+				Err(err).
+				Int("customer_id", int(customerID)).
+				Msg("Failed to publish customer.stripe_ensured event")
 		}
 	} else {
 		// Customer has Stripe ID, update their info in Stripe
-		log.Printf("Updating customer %d in Stripe: %s", customerID, customer.StripeCustomerID.String)
+		s.logger.Info().
+			Int("customer_id", int(customerID)).
+			Str("stripe_customer_id", customer.StripeCustomerID.String).
+			Msg("Updating customer in Stripe")
 
 		if err := s.updateCustomerInStripe(customer); err != nil {
-			log.Printf("Failed to update customer %d in Stripe: %v", customerID, err)
+			s.logger.Error().
+				Err(err).
+				Int("customer_id", int(customerID)).
+				Msg("Failed to update customer in Stripe")
 			metrics.CustomerStripeUpdates.WithLabelValues("error").Inc()
 			metrics.EventsProcessed.WithLabelValues(event.Type, "customer_subscriber", "error").Inc()
 			return fmt.Errorf("failed to update customer in Stripe: %w", err)
@@ -199,7 +249,9 @@ func (s *CustomerEventSubscriber) handleCustomerUpdated(ctx context.Context, eve
 
 		// Record successful Stripe update
 		metrics.CustomerStripeUpdates.WithLabelValues("success").Inc()
-		log.Printf("✅ Updated customer %d in Stripe successfully", customerID)
+		s.logger.Info().
+			Int("customer_id", int(customerID)).
+			Msg("[OK] Updated customer in Stripe successfully")
 	}
 
 	metrics.EventsProcessed.WithLabelValues(event.Type, "customer_subscriber", "success").Inc()
@@ -208,7 +260,7 @@ func (s *CustomerEventSubscriber) handleCustomerUpdated(ctx context.Context, eve
 
 // EnsureAllCustomersHaveStripeIDs is a utility method to backfill existing customers
 func (s *CustomerEventSubscriber) EnsureAllCustomersHaveStripeIDs(ctx context.Context) error {
-	log.Println("🔄 Starting backfill process for customers without Stripe IDs...")
+	s.logger.Info().Msg("Starting backfill process for customers without Stripe IDs...")
 
 	// This would require a new method in your customer service to get customers without Stripe IDs
 	// For now, this is a placeholder showing the pattern
@@ -218,7 +270,7 @@ func (s *CustomerEventSubscriber) EnsureAllCustomersHaveStripeIDs(ctx context.Co
 	// 2. Iterating through those customers
 	// 3. Calling EnsureStripeCustomer for each one
 
-	log.Println("✅ Backfill process completed")
+	s.logger.Info().Msg("[OK] Backfill process completed")
 	return nil
 }
 
@@ -226,24 +278,37 @@ func (s *CustomerEventSubscriber) handleCustomerStripeSyncRequested(ctx context.
 	timer := prometheus.NewTimer(metrics.EventProcessingDuration.WithLabelValues(event.Type, "customer_subscriber"))
 	defer timer.ObserveDuration()
 
-	log.Printf("Processing customer.stripe_sync_requested event: %s", event.AggregateID)
+	s.logger.Info().
+		Str("event_type", event.Type).
+		Str("aggregate_id", event.AggregateID).
+		Msg("Processing customer.stripe_sync_requested event")
 
 	// Extract customer ID from aggregate ID
 	customerID, err := interfaces.ExtractAggregateID(event.AggregateID)
 	if err != nil {
 		metrics.EventsProcessed.WithLabelValues(event.Type, "customer_subscriber", "error").Inc()
+		s.logger.Error().
+			Err(err).
+			Str("aggregate_id", event.AggregateID).
+			Msg("Invalid customer ID in event")
 		return fmt.Errorf("invalid customer ID in event: %w", err)
 	}
 
 	// Ensure customer has Stripe customer ID
 	stripeCustomerID, err := s.customerService.EnsureStripeCustomer(ctx, customerID)
 	if err != nil {
-		log.Printf("Failed to ensure Stripe customer for %d: %v", customerID, err)
+		s.logger.Error().
+			Err(err).
+			Int("customer_id", int(customerID)).
+			Msg("Failed to ensure Stripe customer")
 		metrics.EventsProcessed.WithLabelValues(event.Type, "customer_subscriber", "error").Inc()
 		return fmt.Errorf("failed to ensure Stripe customer: %w", err)
 	}
 
-	log.Printf("✅ Ensured Stripe customer ID for customer %d: %s", customerID, stripeCustomerID)
+	s.logger.Info().
+		Int("customer_id", int(customerID)).
+		Str("stripe_customer_id", stripeCustomerID).
+		Msg("[OK] Ensured Stripe customer ID for customer")
 
 	// Publish a follow-up event indicating Stripe customer was ensured
 	followUpEvent := interfaces.BuildCustomerEvent("customer.stripe_ensured", customerID, map[string]interface{}{
@@ -252,7 +317,10 @@ func (s *CustomerEventSubscriber) handleCustomerStripeSyncRequested(ctx context.
 	})
 
 	if err := s.events.PublishEvent(ctx, followUpEvent); err != nil {
-		log.Printf("Warning: Failed to publish customer.stripe_ensured event: %v", err)
+		s.logger.Warn().
+			Err(err).
+			Int("customer_id", int(customerID)).
+			Msg("Failed to publish customer.stripe_ensured event")
 	}
 
 	metrics.EventsProcessed.WithLabelValues(event.Type, "customer_subscriber", "success").Inc()
