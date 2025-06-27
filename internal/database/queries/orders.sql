@@ -91,7 +91,7 @@ LIMIT @limit_count OFFSET @offset_count;
 SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at, stripe_charge_id
 FROM orders
 WHERE (@customer_id::int IS NULL OR customer_id = @customer_id::int)
-  AND (@status::text IS NULL OR status = @status::text)
+  AND (@status::text IS NULL OR status::text = @status::text)
   AND (@date_from::timestamptz IS NULL OR created_at >= @date_from::timestamptz)
   AND (@date_to::timestamptz IS NULL OR created_at <= @date_to::timestamptz)
 ORDER BY created_at DESC

@@ -647,7 +647,7 @@ func (q *Queries) ListProductsByStatus(ctx context.Context, arg ListProductsBySt
 
 const refreshProductStockSummary = `-- name: RefreshProductStockSummary :exec
 
-REFRESH MATERIALIZED VIEW CONCURRENTLY product_stock_summary
+REFRESH MATERIALIZED VIEW product_stock_summary
 `
 
 // Utility queries

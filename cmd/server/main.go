@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/dukerupert/freyja/internal/database"
 	"github.com/dukerupert/freyja/internal/server/handler"
@@ -133,6 +134,18 @@ func main() {
 	}()
 
 	logger.Info().Msg("[OK] Event subscribers started")
+
+	// Refresh materialized view on startup
+	go func() {
+		// Wait a moment for all services to be fully initialized
+		time.Sleep(2 * time.Second)
+
+		if err := productService.RefreshProductSummary(context.Background()); err != nil {
+			logger.Warn().Err(err).Msg("Failed to refresh materialized view on startup")
+		} else {
+			logger.Info().Msg("[OK] Materialized view refreshed on startup")
+		}
+	}()
 
 	// Optional: Run backfill for existing customers (uncomment if needed)
 	// go func() {

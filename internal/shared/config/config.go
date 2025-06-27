@@ -68,7 +68,7 @@ func Load() (*Config, error) {
 	// Database defaults
 	viper.SetDefault("DATABASE_HOST", "localhost")
 	viper.SetDefault("DATABASE_PORT", "5432")
-	viper.SetDefault("DATABASE_NAME", "coffee_ecommerce")
+	viper.SetDefault("DATABASE_NAME", "my_coffee_db")
 	viper.SetDefault("DATABASE_USER", "postgres")
 	viper.SetDefault("DATABASE_PASSWORD", "password")
 	viper.SetDefault("DATABASE_SSL_MODE", "disable")

@@ -117,6 +117,7 @@ func (r *PostgresProductRepository) GetAllWithSummary(ctx context.Context, filte
 		})
 	} else {
 		// Default to active products only
+		fmt.Sprintln("Executing default ListProducts() repo query")
 		dbSummaries, err = r.db.Queries.ListProducts(ctx)
 	}
 

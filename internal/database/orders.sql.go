@@ -124,7 +124,7 @@ const getAllOrdersWithFilters = `-- name: GetAllOrdersWithFilters :many
 SELECT id, customer_id, status, total, stripe_session_id, stripe_payment_intent_id, created_at, updated_at, stripe_charge_id
 FROM orders
 WHERE ($1::int IS NULL OR customer_id = $1::int)
-  AND ($2::text IS NULL OR status = $2::text)
+  AND ($2::text IS NULL OR status::text = $2::text)
   AND ($3::timestamptz IS NULL OR created_at >= $3::timestamptz)
   AND ($4::timestamptz IS NULL OR created_at <= $4::timestamptz)
 ORDER BY created_at DESC
