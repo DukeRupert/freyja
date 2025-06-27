@@ -68,13 +68,13 @@ func main() {
 	log.Println("✅ Database connected and migrations completed")
 
 	// Initialize NATS event publisher
-	eventPublisher, err := provider.NewNATSEventPublisher(cfg.NATSUrl, logger)
+	eventBus, err := provider.NewNATSEventPublisher(cfg.NATSUrl, logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to create NATS event publisher")
 	}
-	defer eventPublisher.Close()
+	defer eventBus.Close()
 
-	stripeProvider, err := provider.NewStripeProvider(cfg.StripeSecretKey, cfg.StripeWebhookSecret)
+	stripeProvider, err := provider.NewStripeProvider(cfg.StripeSecretKey, cfg.StripeWebhookSecret, eventBus)
 	if err != nil {
 		log.Fatal("Stripe provider initialization failed:", err)
 	}
@@ -89,14 +89,14 @@ func main() {
 	customerRepo := repository.NewPostgresCustomerRepository(db)
 
 	// Initialize services
-	productService := service.NewProductService(productRepo, eventPublisher)
-	optionService := service.NewOptionService(optionRepo, variantRepo, productRepo, eventPublisher)
-	variantService := service.NewVariantService(variantRepo, productRepo, eventPublisher)
-	cartService := service.NewCartService(cartRepo, variantRepo, eventPublisher)
-	orderService := service.NewOrderService(orderRepo, cartService, variantRepo, eventPublisher)
-	customerService := service.NewCustomerService(customerRepo, stripeProvider, eventPublisher)
-	checkoutService := service.NewCheckoutService(customerService, cartService, orderService, stripeProvider, eventPublisher)
-	adminService := service.NewAdminService(customerService, productService, variantService, eventPublisher)
+	productService := service.NewProductService(productRepo, eventBus)
+	optionService := service.NewOptionService(optionRepo, variantRepo, productRepo, eventBus)
+	variantService := service.NewVariantService(variantRepo, productRepo, eventBus)
+	cartService := service.NewCartService(cartRepo, variantRepo, eventBus)
+	orderService := service.NewOrderService(orderRepo, cartService, variantRepo, eventBus)
+	customerService := service.NewCustomerService(customerRepo, stripeProvider, eventBus)
+	checkoutService := service.NewCheckoutService(customerService, cartService, orderService, stripeProvider, eventBus)
+	adminService := service.NewAdminService(customerService, productService, variantService, eventBus)
 
 	// Initialize handlers
 	variantHandler := handler.NewVariantHandler(variantService)
@@ -110,9 +110,10 @@ func main() {
 	webhookHandler := handler.NewWebhookHandler(stripeProvider, orderService, customerService)
 
 	// Initialize event subscribers
-	customerSubscriber := subscriber.NewCustomerEventSubscriber(customerService, eventPublisher, logger)
-	productSubscriber := subscriber.NewProductEventSubscriber(productService, variantService, eventPublisher, logger)
-	materializedViewSubscriber := subscriber.NewMaterializedViewSubscriber(productRepo, eventPublisher, logger)
+	customerSubscriber := subscriber.NewCustomerEventSubscriber(customerService, eventBus, logger)
+	productSubscriber := subscriber.NewProductEventSubscriber(productService, variantService, eventBus, logger)
+	orderSubscriber := subscriber.NewOrderEventSubscriber(orderService, cartService, eventBus, logger)
+	materializedViewSubscriber := subscriber.NewMaterializedViewSubscriber(productRepo, eventBus, logger)
 
 	// Start event subscribers in background goroutines
 	go func() {
@@ -124,6 +125,12 @@ func main() {
 	go func() {
 		if err := productSubscriber.Start(context.Background()); err != nil {
 			logger.Fatal().Err(err).Msg("Failed to start product event subscriber")
+		}
+	}()
+
+	go func() {
+		if err := orderSubscriber.Start(context.Background()); err != nil {
+			logger.Fatal().Err(err).Msg("Failed to start order event subscriber")
 		}
 	}()
 

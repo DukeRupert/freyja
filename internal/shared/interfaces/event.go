@@ -44,6 +44,16 @@ type EventHandler func(ctx context.Context, event Event) error
 // Common Event Types (for reference)
 // =============================================================================
 
+type WebhookEventType string
+
+const (
+	WebhookCheckoutSessionCompleted  = "checkout.session.completed"
+	WebhookPaymentIntentSucceeded    = "payment_intent.succeeded"
+	WebhookPaymentIntentFailed       = "payment_intent.payment_failed"
+	WebhookCustomerCreated           = "customer.created"
+	WebhookCustomerUpdated           = "customer.updated"
+)
+
 const (
 	// Cart events
 	EventCartItemAdded   = "cart.item_added"
@@ -54,7 +64,7 @@ const (
 	// Checkout events
 	EventCheckoutInitiated        = "checkout.initiated"
 	EventCheckoutSessionCreated   = "checkout.session_created"
-	EventCheckoutSessionCompleted = "checkout.session.completed"
+	EventCheckoutSessionCompleted = "checkout.session_completed"
 
 	// Payment events
 	EventPaymentProcessing      = "payment.processing"
@@ -144,7 +154,7 @@ type InventoryReservedData struct {
 // BuildEvent creates a new event with generated ID and timestamp
 func BuildEvent(eventType, aggregateID string, data map[string]interface{}) Event {
 	return Event{
-		ID:          generateEventID(),
+		ID:          GenerateEventID(),
 		Type:        eventType,
 		AggregateID: aggregateID,
 		Data:        data,
@@ -174,7 +184,7 @@ func BuildProductEvent(eventType string, productID int32, data map[string]interf
 }
 
 // Helper function to generate event IDs
-func generateEventID() string {
+func GenerateEventID() string {
 	// For MVP, use timestamp-based ID
 	// In production, you might want to use UUID
 	return fmt.Sprintf("evt_%d", time.Now().UnixNano())

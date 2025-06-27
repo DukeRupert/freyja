@@ -133,15 +133,7 @@ type AbandonedCheckout struct {
 // Webhook Event Types
 // =============================================================================
 
-type WebhookEventType string
 
-const (
-	WebhookCheckoutSessionCompleted WebhookEventType = "checkout.session.completed"
-	WebhookPaymentIntentSucceeded   WebhookEventType = "payment_intent.succeeded"
-	WebhookPaymentIntentFailed      WebhookEventType = "payment_intent.payment_failed"
-	WebhookCustomerCreated          WebhookEventType = "customer.created"
-	WebhookCustomerUpdated          WebhookEventType = "customer.updated"
-)
 
 type WebhookProcessingResult struct {
 	EventType     string                 `json:"event_type"`

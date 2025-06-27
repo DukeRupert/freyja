@@ -99,7 +99,7 @@ type CreateOrderItemRequest struct {
 	Quantity             int32   `json:"quantity" validate:"required,min=1"`
 	Price                int32   `json:"price" validate:"required,min=1"`
 	PurchaseType         string  `json:"purchase_type" validate:"required,oneof=one_time subscription"`
-	SubscriptionInterval *string `json:"subscription_interval,omitempty"`
+	SubscriptionInterval pgtype.Text `json:"subscription_interval,omitempty"`
 	StripePriceID        string  `json:"stripe_price_id" validate:"required"`
 }
 

@@ -102,10 +102,10 @@ func (s *OrderService) CreateOrderFromCart(ctx context.Context, customerID int32
 
 	// Publish order created event
 	if err := s.publishOrderEvent(ctx, "order.created", order.ID, map[string]interface{}{
-		"customer_id":    customerID,
-		"total":          order.Total,
-		"item_count":     len(orderItems),
-		"cart_id":        cartID,
+		"customer_id":      customerID,
+		"total":            order.Total,
+		"item_count":       len(orderItems),
+		"cart_id":          cartID,
 		"has_subscription": s.hasSubscriptionItems(orderItems),
 	}); err != nil {
 		log.Printf("Failed to publish order created event: %v", err)
@@ -120,12 +120,12 @@ func (s *OrderService) CreateOrderFromCart(ctx context.Context, customerID int32
 func (s *OrderService) CreateOrderFromPayment(ctx context.Context, customerID int32, paymentIntentID string, amount int32) (*interfaces.OrderWithItems, error) {
 	// Create order entity with payment information
 	order := &interfaces.Order{
-		CustomerID: customerID,
-		Status:     database.OrderStatusConfirmed, // Payment already succeeded
-		Total:      amount,
+		CustomerID:            customerID,
+		Status:                database.OrderStatusConfirmed, // Payment already succeeded
+		Total:                 amount,
 		StripePaymentIntentID: pgtype.Text{String: paymentIntentID, Valid: true},
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+		CreatedAt:             time.Now(),
+		UpdatedAt:             time.Now(),
 	}
 
 	if err := s.orderRepo.Create(ctx, order); err != nil {
@@ -220,7 +220,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, req interfaces.CreateOrd
 			return nil, fmt.Errorf("insufficient stock for variant %d: requested %d, available %d",
 				reqItem.ProductVariantID, reqItem.Quantity, variant.Stock)
 		}
-		
+
 		// Store variant details for later use
 		variantDetails[reqItem.ProductVariantID] = variant
 	}
@@ -250,22 +250,22 @@ func (s *OrderService) CreateOrder(ctx context.Context, req interfaces.CreateOrd
 	var orderItems []interfaces.OrderItem
 	for _, reqItem := range req.Items {
 		variant := variantDetails[reqItem.ProductVariantID]
-		
+
 		// Determine names: use provided names if available, otherwise fetch from variant
 		productName := reqItem.Name
 		variantName := reqItem.VariantName
-		
+
 		// If variant name not provided in request, use variant details
 		if variantName == "" {
 			variantName = variant.Name
 		}
-		
+
 		// Product name should always be provided in request for explicit orders
 		// But as fallback, use variant name if needed
 		if productName == "" {
 			productName = variant.Name
 		}
-		
+
 		orderItems = append(orderItems, interfaces.OrderItem{
 			OrderID:              order.ID,
 			ProductVariantID:     reqItem.ProductVariantID,
@@ -274,14 +274,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, req interfaces.CreateOrd
 			Quantity:             reqItem.Quantity,
 			Price:                reqItem.Price,
 			PurchaseType:         reqItem.PurchaseType,
-			SubscriptionInterval: func() pgtype.Text {
-				if reqItem.SubscriptionInterval != nil {
-					return pgtype.Text{String: *reqItem.SubscriptionInterval, Valid: true}
-				}
-				return pgtype.Text{}
-			}(),
-			StripePriceID: reqItem.StripePriceID,
-			CreatedAt:     time.Now(),
+			SubscriptionInterval: reqItem.SubscriptionInterval,
+			StripePriceID:        reqItem.StripePriceID,
+			CreatedAt:            time.Now(),
 		})
 	}
 
@@ -364,15 +359,6 @@ func (s *OrderService) GetByCustomer(ctx context.Context, customerID int32, filt
 	ordersWithItems, err := s.orderRepo.GetOrdersWithItems(ctx, customerID, filters)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get orders for customer %d: %w", customerID, err)
-	}
-
-	// Publish customer order access event
-	if err := s.publishOrderEvent(ctx, "orders.customer_accessed", 0, map[string]interface{}{
-		"customer_id":  customerID,
-		"total_orders": len(ordersWithItems),
-		"filters":      filters,
-	}); err != nil {
-		log.Printf("Failed to publish customer order access event: %v", err)
 	}
 
 	return ordersWithItems, nil
@@ -515,7 +501,7 @@ func (s *OrderService) GetAdminStats(ctx context.Context) (*interfaces.AdminOrde
 	filters := interfaces.OrderFilters{
 		Limit: 1000, // Get a reasonable sample for revenue calculation
 	}
-	
+
 	// You may want to add a specific revenue calculation method to the repository
 	// For now, we'll calculate from recent orders
 	recentOrders, err := s.orderRepo.GetAll(ctx, filters)
@@ -523,9 +509,9 @@ func (s *OrderService) GetAdminStats(ctx context.Context) (*interfaces.AdminOrde
 		log.Printf("Failed to get orders for revenue calculation: %v", err)
 	} else {
 		for _, order := range recentOrders {
-			if order.Status == database.OrderStatusConfirmed || 
-			   order.Status == database.OrderStatusShipped ||
-			   order.Status == database.OrderStatusDelivered {
+			if order.Status == database.OrderStatusConfirmed ||
+				order.Status == database.OrderStatusShipped ||
+				order.Status == database.OrderStatusDelivered {
 				totalRevenue += order.Total
 			}
 		}
@@ -569,12 +555,12 @@ func (s *OrderService) publishOrderEvent(ctx context.Context, eventType string, 
 	}
 
 	event := interfaces.Event{
-		ID: generateEventID(),
-		Type: eventType,
+		ID:          generateEventID(),
+		Type:        eventType,
 		AggregateID: fmt.Sprintf("order:%d", orderID),
-		Data: data,
-		Timestamp: time.Now(),
-		Version: 1,
+		Data:        data,
+		Timestamp:   time.Now(),
+		Version:     1,
 	}
 	return s.events.PublishEvent(ctx, event)
 }

@@ -22,9 +22,10 @@ import (
 type StripeProvider struct {
 	apiKey         string
 	signing_secret string
+	events         interfaces.EventPublisher
 }
 
-func NewStripeProvider(apiKey string, signing_secret string) (*StripeProvider, error) {
+func NewStripeProvider(apiKey string, signing_secret string, events interfaces.EventPublisher) (*StripeProvider, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("Stripe API key is required")
 	}
@@ -36,6 +37,7 @@ func NewStripeProvider(apiKey string, signing_secret string) (*StripeProvider, e
 	provider := &StripeProvider{
 		apiKey:         apiKey,
 		signing_secret: signing_secret,
+		events:         events,
 	}
 
 	// Set the global Stripe API key
@@ -211,11 +213,11 @@ func (s *StripeProvider) HandleWebhookEvent(ctx context.Context, event *interfac
 	log.Printf("🔄 Processing Stripe webhook event: %s", event.Type)
 
 	switch event.Type {
-	case "checkout.session.completed":
+	case interfaces.WebhookCheckoutSessionCompleted:
 		return s.handleCheckoutSessionCompleted(ctx, event.Data)
-	case "payment_intent.payment_failed":
+	case interfaces.WebhookPaymentIntentFailed:
 		return s.handlePaymentIntentFailed(ctx, event.Data)
-	case "customer.created":
+	case interfaces.WebhookCustomerCreated:
 		return s.handleCustomerCreated(ctx, event.Data, customerService)
 	default:
 		// Log unhandled events but don't error - allows for easy extension
@@ -234,7 +236,7 @@ func (s *StripeProvider) handleCheckoutSessionCompleted(ctx context.Context, eve
 
 	log.Printf("✅ Checkout session completed: %s", sessionID)
 
-	// Extract customer info from metadata if present
+	// Extract customer info from metadata
 	var customerID *int32
 	if metadata, ok := eventData["metadata"].(map[string]interface{}); ok {
 		if customerIDStr, exists := metadata["customer_id"].(string); exists {
@@ -245,12 +247,43 @@ func (s *StripeProvider) handleCheckoutSessionCompleted(ctx context.Context, eve
 		}
 	}
 
-	// You can publish events here or return data for the handler to process
-	if customerID != nil {
-		log.Printf("Customer ID from session: %d", *customerID)
-	} else {
-		log.Printf("No customer ID found in session metadata")
+	// Extract payment details
+	var amountTotal int32
+	if amount, ok := eventData["amount_total"].(float64); ok {
+		amountTotal = int32(amount)
 	}
+
+	var paymentIntentID *string
+	if piID, ok := eventData["payment_intent"].(string); ok {
+		paymentIntentID = &piID
+	}
+
+	// Publish checkout completed event to event bus
+	if s.events != nil {
+		event := interfaces.Event{
+			ID:          interfaces.GenerateEventID(),
+			Type:        interfaces.EventCheckoutSessionCompleted,
+			AggregateID: fmt.Sprintf("checkout:%s", sessionID),
+			Data: map[string]interface{}{
+				"stripe_session_id": sessionID,
+				"customer_id":       customerID,
+				"amount_total":      amountTotal,
+				"payment_intent_id": paymentIntentID,
+				"payment_status":    eventData["payment_status"],
+				"completed_at":      time.Now().Unix(),
+			},
+			Timestamp: time.Now(),
+			Version:   1,
+		}
+
+		if err := s.events.PublishEvent(ctx, event); err != nil {
+			log.Printf("Failed to publish checkout.session_completed event: %v", err)
+			return err
+		}
+
+		log.Printf("📤 Published checkout.session_completed event for session %s", sessionID)
+	}
+
 	return nil
 }
 
