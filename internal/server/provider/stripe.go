@@ -330,42 +330,52 @@ func (s *StripeProvider) handlePaymentIntentFailed(ctx context.Context, eventDat
 }
 
 func (s *StripeProvider) handleCustomerCreated(ctx context.Context, eventData map[string]interface{}, customerService interfaces.CustomerService) error {
+	logger := s.logger.With().
+		Str("function", "handleCustomerCreated").
+		Str("event_type", "customer.created").
+		Logger()
+
+	logger.Info().Msg("Processing customer created webhook")
+
 	stripeCustomerID, ok := eventData["id"].(string)
 	if !ok {
+		logger.Error().Msg("Invalid customer ID in customer created event")
 		return fmt.Errorf("invalid customer ID in customer.created event")
 	}
 
-	log.Printf("👤 Stripe customer created: %s", stripeCustomerID)
+	// Extract customer email - required for creating internal customer
+	email, ok := eventData["email"].(string)
+	if !ok || email == "" {
+		logger.Error().Str("stripe_customer_id", stripeCustomerID).Msg("No email found in customer created event")
+		return fmt.Errorf("no email found in customer.created event for customer %s", stripeCustomerID)
+	}
 
-	// You could sync this back to your customer service if needed
-	// This is useful if customers are created directly in Stripe dashboard
+	logger = logger.With().
+		Str("stripe_customer_id", stripeCustomerID).
+		Str("email", email).
+		Logger()
+
+	// Extract additional customer data
+	name, _ := eventData["name"].(string)
+	created, _ := eventData["created"].(float64)
+
+	logger.Info().
+		Str("name", name).
+		Time("created_at", time.Unix(int64(created), 0)).
+		Msg("Stripe customer created - syncing to internal database")
+
+	// Create or update customer in internal database
+	customer, err := customerService.CreateCustomerFromStripe(ctx, stripeCustomerID, email)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to create internal customer from Stripe customer")
+		return fmt.Errorf("failed to create internal customer from Stripe customer %s: %w", stripeCustomerID, err)
+	}
+
+	logger.Info().
+		Int32("internal_customer_id", customer.ID).
+		Msg("Successfully synced Stripe customer to internal database")
 
 	return nil
-}
-
-// RefundPayment creates a refund for a payment
-func (s *StripeProvider) RefundPayment(ctx context.Context, paymentID string, amount int) (*interfaces.RefundResponse, error) {
-	params := &stripe.RefundParams{
-		PaymentIntent: stripe.String(paymentID),
-	}
-
-	// If amount is specified and not full refund
-	if amount > 0 {
-		params.Amount = stripe.Int64(int64(amount))
-	}
-
-	stripeRefund, err := refund.New(params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Stripe refund: %w", err)
-	}
-
-	log.Printf("✅ Created Stripe refund: %s for payment: %s", stripeRefund.ID, paymentID)
-
-	return &interfaces.RefundResponse{
-		ID:     stripeRefund.ID,
-		Amount: int(stripeRefund.Amount),
-		Status: string(stripeRefund.Status),
-	}, nil
 }
 
 // handleInvoicePaymentSucceeded processes successful recurring billing
@@ -674,4 +684,29 @@ func (s *StripeProvider) handleInvoicePaymentSucceeded(ctx context.Context, even
 		Msg("Successfully created order for subscription renewal")
 
 	return nil
+}
+
+// RefundPayment creates a refund for a payment ** Untested **
+func (s *StripeProvider) RefundPayment(ctx context.Context, paymentID string, amount int) (*interfaces.RefundResponse, error) {
+	params := &stripe.RefundParams{
+		PaymentIntent: stripe.String(paymentID),
+	}
+
+	// If amount is specified and not full refund
+	if amount > 0 {
+		params.Amount = stripe.Int64(int64(amount))
+	}
+
+	stripeRefund, err := refund.New(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Stripe refund: %w", err)
+	}
+
+	log.Printf("✅ Created Stripe refund: %s for payment: %s", stripeRefund.ID, paymentID)
+
+	return &interfaces.RefundResponse{
+		ID:     stripeRefund.ID,
+		Amount: int(stripeRefund.Amount),
+		Status: string(stripeRefund.Status),
+	}, nil
 }
