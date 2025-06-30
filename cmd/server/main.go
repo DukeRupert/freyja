@@ -74,7 +74,7 @@ func main() {
 	}
 	defer eventBus.Close()
 
-	stripeProvider, err := provider.NewStripeProvider(cfg.StripeSecretKey, cfg.StripeWebhookSecret, eventBus)
+	stripeProvider, err := provider.NewStripeProvider(cfg.StripeSecretKey, cfg.StripeWebhookSecret, eventBus, logger)
 	if err != nil {
 		log.Fatal("Stripe provider initialization failed:", err)
 	}

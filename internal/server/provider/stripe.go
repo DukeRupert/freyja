@@ -12,6 +12,7 @@ import (
 	"github.com/dukerupert/freyja/internal/database"
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog"
 	"github.com/stripe/stripe-go/v82"
 	"github.com/stripe/stripe-go/v82/account"
 	"github.com/stripe/stripe-go/v82/checkout/session"
@@ -25,32 +26,44 @@ type StripeProvider struct {
 	apiKey         string
 	signing_secret string
 	events         interfaces.EventPublisher
+	logger         zerolog.Logger
 }
 
-func NewStripeProvider(apiKey string, signing_secret string, events interfaces.EventPublisher) (*StripeProvider, error) {
+func NewStripeProvider(apiKey string, signing_secret string, events interfaces.EventPublisher, logger zerolog.Logger) (*StripeProvider, error) {
+	// Create contextual logger for this provider
+	providerLogger := logger.With().
+		Str("component", "StripeProvider").
+		Logger()
+
 	if apiKey == "" {
-		return nil, fmt.Errorf("Stripe API key is required")
+		providerLogger.Error().Msg("Stripe API key is required")
+		return nil, fmt.Errorf("stripe API key is required")
 	}
 
 	if signing_secret == "" {
-		return nil, fmt.Errorf("Stripe event signing secret is required")
+		providerLogger.Error().Msg("Stripe webhook signing secret is required")
+		return nil, fmt.Errorf("stripe event signing secret is required")
 	}
 
 	provider := &StripeProvider{
 		apiKey:         apiKey,
 		signing_secret: signing_secret,
 		events:         events,
+		logger:         providerLogger, // Use the contextual logger
 	}
 
 	// Set the global Stripe API key
 	stripe.Key = apiKey
+	providerLogger.Debug().Msg("Stripe API key configured")
 
 	// Perform health check
+	providerLogger.Info().Msg("Performing Stripe health check")
 	if err := provider.HealthCheck(context.Background()); err != nil {
-		return nil, fmt.Errorf("Stripe health check failed: %w", err)
+		providerLogger.Error().Err(err).Msg("Stripe health check failed")
+		return nil, fmt.Errorf("stripe health check failed: %w", err)
 	}
 
-	log.Println("✅ Stripe provider initialized and health check passed")
+	providerLogger.Info().Msg("Stripe provider initialized successfully")
 	return provider, nil
 }
 
@@ -356,45 +369,57 @@ func (s *StripeProvider) RefundPayment(ctx context.Context, paymentID string, am
 }
 
 // handleInvoicePaymentSucceeded processes successful recurring billing
-// handleInvoicePaymentSucceeded processes successful recurring billing
 func (s *StripeProvider) handleInvoicePaymentSucceeded(ctx context.Context, eventData map[string]interface{}, orderService interfaces.OrderService, customerService interfaces.CustomerService) error {
-	log.Printf("💰 Processing invoice.payment_succeeded webhook")
+	logger := s.logger.With().
+		Str("function", "handleInvoicePaymentSucceeded").
+		Str("event_type", "invoice.payment_succeeded").
+		Logger()
+
+	logger.Info().Msg("Processing invoice payment succeeded webhook")
 
 	// Extract invoice ID
 	invoiceID, ok := eventData["id"].(string)
 	if !ok {
+		logger.Error().Msg("No invoice ID in invoice payment succeeded event")
 		return fmt.Errorf("no invoice ID in invoice.payment_succeeded event")
 	}
 
 	// Extract customer ID from the invoice
 	stripeCustomerID, ok := eventData["customer"].(string)
 	if !ok {
+		logger.Error().Str("invoice_id", invoiceID).Msg("No customer ID in invoice payment succeeded event")
 		return fmt.Errorf("no customer ID in invoice.payment_succeeded event")
 	}
 
 	// Extract billing reason to distinguish subscription types
 	billingReason, _ := eventData["billing_reason"].(string)
-	
-	// Log billing context
-	log.Printf("📋 Invoice %s: billing_reason=%s, customer=%s", invoiceID, billingReason, stripeCustomerID)
+
+	// Add context to logger
+	logger = logger.With().
+		Str("invoice_id", invoiceID).
+		Str("stripe_customer_id", stripeCustomerID).
+		Str("billing_reason", billingReason).
+		Logger()
+
+	logger.Info().Msg("Invoice details extracted")
 
 	// Only process subscription renewals, not initial subscriptions
 	if billingReason != "subscription_cycle" {
-		log.Printf("⏭️  Skipping invoice %s - billing_reason '%s' is not a subscription renewal", invoiceID, billingReason)
+		logger.Info().Msg("Skipping invoice - billing reason is not a subscription renewal")
 		return nil
 	}
 
 	// Extract subscription ID to get line items (make this optional)
 	subscriptionID, ok := eventData["subscription"].(string)
 	if !ok {
-		// Some invoices might not have a subscription field, let's continue without it
-		log.Printf("⚠️  No subscription ID found in invoice %s, will process without subscription context", invoiceID)
-		subscriptionID = "" // Set empty string as fallback
+		logger.Warn().Msg("No subscription ID found in invoice, will process without subscription context")
+		subscriptionID = ""
 	}
 
 	// Extract amount paid
 	amountPaidFloat, ok := eventData["amount_paid"].(float64)
 	if !ok {
+		logger.Error().Msg("No amount_paid in invoice payment succeeded event")
 		return fmt.Errorf("no amount_paid in invoice.payment_succeeded event")
 	}
 	amountPaid := int32(amountPaidFloat)
@@ -403,51 +428,57 @@ func (s *StripeProvider) handleInvoicePaymentSucceeded(ctx context.Context, even
 	periodStart, _ := eventData["period_start"].(float64)
 	periodEnd, _ := eventData["period_end"].(float64)
 
-	log.Printf("🔄 Processing subscription renewal: subscription=%s, amount=%d, period=%v to %v", 
-		subscriptionID, amountPaid, time.Unix(int64(periodStart), 0), time.Unix(int64(periodEnd), 0))
+	logger.Info().
+		Str("subscription_id", subscriptionID).
+		Int32("amount_paid", amountPaid).
+		Time("period_start", time.Unix(int64(periodStart), 0)).
+		Time("period_end", time.Unix(int64(periodEnd), 0)).
+		Msg("Processing subscription renewal")
 
 	// Find internal customer by Stripe customer ID
 	internalCustomer, err := customerService.GetCustomerByStripeID(ctx, stripeCustomerID)
 	if err != nil || internalCustomer == nil {
-		log.Printf("❌ Could not find internal customer for Stripe customer %s: %v", stripeCustomerID, err)
+		logger.Error().Err(err).Msg("Could not find internal customer for Stripe customer")
 		return fmt.Errorf("customer not found for Stripe customer %s: %w", stripeCustomerID, err)
 	}
 
-	log.Printf("✅ Found internal customer %d for Stripe customer %s", internalCustomer.ID, stripeCustomerID)
+	logger.Info().Int32("internal_customer_id", internalCustomer.ID).Msg("Found internal customer")
 
 	// Get invoice line items to create order items
 	lines, ok := eventData["lines"].(map[string]interface{})
 	if !ok {
-		log.Printf("❌ No lines object in invoice.payment_succeeded event")
+		logger.Error().Msg("No lines object in invoice payment succeeded event")
 		return fmt.Errorf("no lines in invoice.payment_succeeded event")
 	}
 
 	lineData, ok := lines["data"].([]interface{})
 	if !ok {
-		log.Printf("❌ No line data array in invoice.payment_succeeded event")
+		logger.Error().Msg("No line data array in invoice payment succeeded event")
 		return fmt.Errorf("no line data in invoice.payment_succeeded event")
 	}
 
-	log.Printf("🔍 Found %d line items in invoice %s", len(lineData), invoiceID)
+	logger.Info().Int("line_item_count", len(lineData)).Msg("Found line items in invoice")
 
 	// Create order items from invoice line items
 	var orderItems []interfaces.CreateOrderItemRequest
 	for i, line := range lineData {
+		lineLogger := logger.With().Int("line_item_index", i).Logger()
+
 		lineItem, ok := line.(map[string]interface{})
 		if !ok {
-			log.Printf("⚠️  Line item %d is not a map, skipping", i)
+			lineLogger.Warn().Msg("Line item is not a map, skipping")
 			continue
 		}
 
-		log.Printf("🔍 Processing line item %d: %+v", i, lineItem)
+		lineLogger.Debug().Interface("line_item_data", lineItem).Msg("Processing line item")
 
 		// Extract line item details
 		quantity, _ := lineItem["quantity"].(float64)
 		if quantity <= 0 {
-			log.Printf("⚠️  Line item %d has invalid quantity %f, skipping", i, quantity)
+			lineLogger.Warn().Float64("quantity", quantity).Msg("Line item has invalid quantity, skipping")
 			continue
 		}
-		
+
 		// Get price information - check both possible locations
 		var price map[string]interface{}
 		var stripePriceID string
@@ -469,8 +500,7 @@ func (s *StripeProvider) handleInvoicePaymentSucceeded(ctx context.Context, even
 							unitAmountFloat = parsed
 						}
 					}
-					// We'll need to fetch the price object separately for metadata
-					// For now, create a minimal price object
+					// Create a minimal price object for metadata fetching
 					price = map[string]interface{}{
 						"id":          stripePriceID,
 						"unit_amount": unitAmountFloat,
@@ -480,68 +510,72 @@ func (s *StripeProvider) handleInvoicePaymentSucceeded(ctx context.Context, even
 		}
 
 		if price == nil {
-			log.Printf("⚠️  Line item %d has no price object in either location, skipping", i)
+			lineLogger.Warn().Msg("Line item has no price object in either location, skipping")
 			continue
 		}
 
-		log.Printf("🔍 Price info for line item %d: ID=%s, amount=%f", i, stripePriceID, unitAmountFloat)
-		
+		lineLogger = lineLogger.With().
+			Str("stripe_price_id", stripePriceID).
+			Float64("unit_amount", unitAmountFloat).
+			Logger()
+
+		lineLogger.Debug().Msg("Extracted price information")
+
 		if stripePriceID == "" {
-			log.Printf("⚠️  Line item %d has no Stripe price ID, skipping", i)
+			lineLogger.Warn().Msg("Line item has no Stripe price ID, skipping")
 			continue
 		}
-		
+
 		if unitAmountFloat <= 0 {
-			log.Printf("⚠️  Line item %d has invalid unit amount %f, skipping", i, unitAmountFloat)
+			lineLogger.Warn().Msg("Line item has invalid unit amount, skipping")
 			continue
 		}
 
 		// Get metadata to find our internal variant ID and extract product details
-		// For invoice line items, we need to fetch the price object to get metadata
 		var metadata map[string]interface{}
-		
+
 		if priceMetadata, ok := price["metadata"].(map[string]interface{}); ok {
 			// Metadata is available directly in the price object
 			metadata = priceMetadata
+			lineLogger.Debug().Interface("metadata", metadata).Msg("Using metadata from price object")
 		} else if stripePriceID != "" {
 			// Need to fetch the price from Stripe to get metadata
-			log.Printf("🔍 Fetching price %s from Stripe to get metadata", stripePriceID)
-			
+			lineLogger.Info().Msg("Fetching price from Stripe to get metadata")
+
 			// Use Stripe SDK to fetch the price with metadata
 			stripePrice, err := stripePrice.Get(stripePriceID, nil)
 			if err != nil {
-				log.Printf("❌ Failed to fetch price %s from Stripe: %v", stripePriceID, err)
+				lineLogger.Error().Err(err).Msg("Failed to fetch price from Stripe")
 				continue
 			}
-			
+
 			// Convert Stripe metadata to our format
 			metadata = make(map[string]interface{})
 			for key, value := range stripePrice.Metadata {
 				metadata[key] = value
 			}
-			
+
 			// Also update the unit amount from the fetched price if it wasn't available
 			if unitAmountFloat == 0 && stripePrice.UnitAmount > 0 {
 				unitAmountFloat = float64(stripePrice.UnitAmount)
+				lineLogger = lineLogger.With().Float64("updated_unit_amount", unitAmountFloat).Logger()
 			}
-			
-			log.Printf("✅ Fetched metadata for price %s: %+v", stripePriceID, metadata)
+
+			lineLogger.Debug().Interface("metadata", metadata).Msg("Fetched metadata from Stripe API")
 		} else {
-			log.Printf("⚠️  No price ID available for line item %d, skipping", i)
+			lineLogger.Warn().Msg("No price ID available for line item, skipping")
 			continue
 		}
 
-		log.Printf("🔍 Final metadata for price %s: %+v", stripePriceID, metadata)
-
 		variantIDStr, ok := metadata["internal_variant_id"].(string)
 		if !ok {
-			log.Printf("⚠️  No internal_variant_id in metadata for price %s, skipping line item", stripePriceID)
+			lineLogger.Warn().Msg("No internal variant ID in metadata, skipping line item")
 			continue
 		}
 
 		variantID, err := strconv.ParseInt(variantIDStr, 10, 32)
 		if err != nil {
-			log.Printf("⚠️  Invalid variant ID '%s' for price %s, skipping line item", variantIDStr, stripePriceID)
+			lineLogger.Error().Err(err).Str("variant_id_str", variantIDStr).Msg("Invalid variant ID, skipping line item")
 			continue
 		}
 
@@ -558,30 +592,34 @@ func (s *StripeProvider) handleInvoicePaymentSucceeded(ctx context.Context, even
 		if variantName == "" {
 			variantName = fmt.Sprintf("Subscription Item (Variant %d)", variantID)
 		}
-		
-		// You might want to get the product name from metadata too
-		productName, _ := metadata["product_name"].(string)
+
+		// Use variant_name as product name for now
+		productName, _ := metadata["variant_name"].(string)
 		if productName == "" {
 			productName = variantName // Fallback to variant name
 		}
 
 		orderItems = append(orderItems, interfaces.CreateOrderItemRequest{
 			ProductVariantID:     int32(variantID),
-			Name:                productName,
-			VariantName:         variantName,
-			Quantity:            int32(quantity),
-			Price:               int32(unitAmountFloat),
-			PurchaseType:        "subscription",
+			Name:                 productName,
+			VariantName:          variantName,
+			Quantity:             int32(quantity),
+			Price:                int32(unitAmountFloat),
+			PurchaseType:         "subscription",
 			SubscriptionInterval: subscriptionInterval,
-			StripePriceID:       stripePriceID,
+			StripePriceID:        stripePriceID,
 		})
 
-		log.Printf("📦 Added recurring order item: variant=%d, quantity=%d, interval=%s", 
-			variantID, int32(quantity), subscriptionInterval)
+		lineLogger.Info().
+			Int64("variant_id", variantID).
+			Int32("quantity", int32(quantity)).
+			Str("subscription_interval", subscriptionInterval.String).
+			Str("variant_name", variantName).
+			Msg("Added recurring order item")
 	}
 
 	if len(orderItems) == 0 {
-		log.Printf("⚠️  No valid order items found in invoice %s", invoiceID)
+		logger.Warn().Msg("No valid order items found in invoice")
 		return fmt.Errorf("no valid order items found in invoice %s", invoiceID)
 	}
 
@@ -599,14 +637,14 @@ func (s *StripeProvider) handleInvoicePaymentSucceeded(ctx context.Context, even
 	// Create order for the subscription renewal
 	source := "subscription_renewal"
 	createOrderReq := interfaces.CreateOrderRequest{
-		CustomerID:           internalCustomer.ID,
-		Status:              database.OrderStatusConfirmed, // Subscription renewals are auto-confirmed
-		Total:               amountPaid,
-		Items:               orderItems,
-		Source:              &source,
-		StripeInvoiceID:     &invoiceID,
-		BillingPeriodStart:  periodStartTime,
-		BillingPeriodEnd:    periodEndTime,
+		CustomerID:         internalCustomer.ID,
+		Status:             database.OrderStatusConfirmed, // Subscription renewals are auto-confirmed
+		Total:              amountPaid,
+		Items:              orderItems,
+		Source:             &source,
+		StripeInvoiceID:    &invoiceID,
+		BillingPeriodStart: periodStartTime,
+		BillingPeriodEnd:   periodEndTime,
 		Metadata: map[string]string{
 			"billing_reason": billingReason,
 		},
@@ -617,14 +655,23 @@ func (s *StripeProvider) handleInvoicePaymentSucceeded(ctx context.Context, even
 		createOrderReq.StripeSubscriptionID = &subscriptionID
 	}
 
+	logger.Info().
+		Int32("customer_id", internalCustomer.ID).
+		Int("order_item_count", len(orderItems)).
+		Int32("total_amount", amountPaid).
+		Msg("Creating order for subscription renewal")
+
 	order, err := orderService.CreateOrder(ctx, createOrderReq)
 	if err != nil {
-		log.Printf("❌ Failed to create order for subscription renewal: %v", err)
+		logger.Error().Err(err).Msg("Failed to create order for subscription renewal")
 		return fmt.Errorf("failed to create order for subscription renewal: %w", err)
 	}
 
-	log.Printf("🎉 Successfully created order %d for subscription renewal (invoice: %s, customer: %d)", 
-		order.ID, invoiceID, internalCustomer.ID)
+	logger.Info().
+		Int32("order_id", order.ID).
+		Int32("customer_id", internalCustomer.ID).
+		Str("source", "subscription_renewal").
+		Msg("Successfully created order for subscription renewal")
 
 	return nil
 }
