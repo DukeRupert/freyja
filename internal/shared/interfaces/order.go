@@ -89,18 +89,24 @@ type CreateOrderRequest struct {
 	StripeSessionID       *string                  `json:"stripe_session_id,omitempty"`
 	StripePaymentIntentID *string                  `json:"stripe_payment_intent_id,omitempty"`
 	Items                 []CreateOrderItemRequest `json:"items" validate:"required,min=1"`
+	Source                *string                  `json:"source,omitempty"`                 // "api", "webhook", "subscription_renewal"
+	StripeInvoiceID       *string                  `json:"stripe_invoice_id,omitempty"`      // For subscription renewals
+	StripeSubscriptionID  *string                  `json:"stripe_subscription_id,omitempty"` // For subscription renewals
+	BillingPeriodStart    *time.Time               `json:"billing_period_start,omitempty"`   // For subscription renewals
+	BillingPeriodEnd      *time.Time               `json:"billing_period_end,omitempty"`     // For subscription renewals
+	Metadata              map[string]string        `json:"metadata,omitempty"`
 }
 
 // CreateOrderItemRequest represents the data needed to create an order item
 type CreateOrderItemRequest struct {
-	ProductVariantID     int32   `json:"product_variant_id" validate:"required,min=1"`
-	Name                 string  `json:"name" validate:"required,min=1"`
-	VariantName          string  `json:"variant_name"`
-	Quantity             int32   `json:"quantity" validate:"required,min=1"`
-	Price                int32   `json:"price" validate:"required,min=1"`
-	PurchaseType         string  `json:"purchase_type" validate:"required,oneof=one_time subscription"`
+	ProductVariantID     int32       `json:"product_variant_id" validate:"required,min=1"`
+	Name                 string      `json:"name" validate:"required,min=1"`
+	VariantName          string      `json:"variant_name"`
+	Quantity             int32       `json:"quantity" validate:"required,min=1"`
+	Price                int32       `json:"price" validate:"required,min=1"`
+	PurchaseType         string      `json:"purchase_type" validate:"required,oneof=one_time subscription"`
 	SubscriptionInterval pgtype.Text `json:"subscription_interval,omitempty"`
-	StripePriceID        string  `json:"stripe_price_id" validate:"required"`
+	StripePriceID        string      `json:"stripe_price_id" validate:"required"`
 }
 
 // OrderFilters represents filtering options for order queries
@@ -179,11 +185,11 @@ type OrderListResponse struct {
 
 // AdminOrderStats provides comprehensive statistics for admin dashboard
 type AdminOrderStats struct {
-	TotalOrders       int                `json:"total_orders"`
-	TotalRevenue      int32              `json:"total_revenue"`
-	AverageOrderValue int32              `json:"average_order_value"`
-	OrdersByStatus    map[string]int     `json:"orders_by_status"`
-	GeneratedAt       time.Time          `json:"generated_at"`
+	TotalOrders       int            `json:"total_orders"`
+	TotalRevenue      int32          `json:"total_revenue"`
+	AverageOrderValue int32          `json:"average_order_value"`
+	OrdersByStatus    map[string]int `json:"orders_by_status"`
+	GeneratedAt       time.Time      `json:"generated_at"`
 }
 
 // =============================================================================
@@ -224,9 +230,9 @@ type OrderRepository interface {
 
 type OrderService interface {
 	// Order creation
+	CreateOrder(ctx context.Context, req CreateOrderRequest) (*OrderWithItems, error)
 	CreateOrderFromCart(ctx context.Context, customerID int32, cartID int32) (*OrderWithItems, error)
 	CreateOrderFromPayment(ctx context.Context, customerID int32, paymentIntentID string, amount int32) (*OrderWithItems, error)
-	CreateOrder(ctx context.Context, req CreateOrderRequest) (*OrderWithItems, error)
 
 	// Order retrieval
 	GetByID(ctx context.Context, orderID int32) (*OrderWithItems, error)
@@ -321,6 +327,6 @@ func IsValidOrderStatus(status database.OrderStatus) bool {
 }
 
 func IsValidOrderStatusString(s string) bool {
-    status := database.OrderStatus(s)
-    return IsValidOrderStatus(status)
+	status := database.OrderStatus(s)
+	return IsValidOrderStatus(status)
 }

@@ -47,11 +47,12 @@ type EventHandler func(ctx context.Context, event Event) error
 type WebhookEventType string
 
 const (
-	WebhookCheckoutSessionCompleted  = "checkout.session.completed"
-	WebhookPaymentIntentSucceeded    = "payment_intent.succeeded"
-	WebhookPaymentIntentFailed       = "payment_intent.payment_failed"
-	WebhookCustomerCreated           = "customer.created"
-	WebhookCustomerUpdated           = "customer.updated"
+	WebhookCheckoutSessionCompleted = "checkout.session.completed"
+	WebhookPaymentIntentSucceeded   = "payment_intent.succeeded"
+	WebhookPaymentIntentFailed      = "payment_intent.payment_failed"
+	WebhookInvoicePaymentSucceeded  = "invoice.payment_succeeded"
+	WebhookCustomerCreated          = "customer.created"
+	WebhookCustomerUpdated          = "customer.updated"
 )
 
 const (

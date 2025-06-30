@@ -11,6 +11,7 @@ import (
 
 	"github.com/dukerupert/freyja/internal/database"
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stripe/stripe-go/v82"
 	"github.com/stripe/stripe-go/v82/account"
 	"github.com/stripe/stripe-go/v82/checkout/session"
@@ -219,6 +220,8 @@ func (s *StripeProvider) HandleWebhookEvent(ctx context.Context, event *interfac
 		return s.handlePaymentIntentFailed(ctx, event.Data)
 	case interfaces.WebhookCustomerCreated:
 		return s.handleCustomerCreated(ctx, event.Data, customerService)
+	case interfaces.WebhookInvoicePaymentSucceeded:
+		return s.handleInvoicePaymentSucceeded(ctx, event.Data, orderService, customerService)
 	default:
 		// Log unhandled events but don't error - allows for easy extension
 		log.Printf("📝 Received unhandled Stripe webhook event type: %s", event.Type)
@@ -349,4 +352,189 @@ func (s *StripeProvider) RefundPayment(ctx context.Context, paymentID string, am
 		Amount: int(stripeRefund.Amount),
 		Status: string(stripeRefund.Status),
 	}, nil
+}
+
+// handleInvoicePaymentSucceeded processes successful recurring billing
+func (s *StripeProvider) handleInvoicePaymentSucceeded(ctx context.Context, eventData map[string]interface{}, orderService interfaces.OrderService, customerService interfaces.CustomerService) error {
+	log.Printf("Processing invoice.payment_succeeded webhook")
+
+	// Extract invoice ID
+	invoiceID, ok := eventData["id"].(string)
+	if !ok {
+		return fmt.Errorf("no invoice ID in invoice.payment_succeeded event")
+	}
+
+	// Extract customer ID from the invoice
+	stripeCustomerID, ok := eventData["customer"].(string)
+	if !ok {
+		return fmt.Errorf("no customer ID in invoice.payment_succeeded event")
+	}
+
+	// Extract billing reason to distinguish subscription types
+	billingReason, _ := eventData["billing_reason"].(string)
+
+	// Log billing context
+	log.Printf("Invoice %s: billing_reason=%s, customer=%s", invoiceID, billingReason, stripeCustomerID)
+
+	// Only process subscription renewals, not initial subscriptions
+	if billingReason != "subscription_cycle" {
+		log.Printf("Skipping invoice %s - billing_reason '%s' is not a subscription renewal", invoiceID, billingReason)
+		return nil
+	}
+
+	// Extract subscription ID to get line items
+	subscriptionID, ok := eventData["subscription"].(string)
+	if !ok {
+		return fmt.Errorf("no subscription ID in invoice.payment_succeeded event")
+	}
+
+	// Extract amount paid
+	amountPaidFloat, ok := eventData["amount_paid"].(float64)
+	if !ok {
+		return fmt.Errorf("no amount_paid in invoice.payment_succeeded event")
+	}
+	amountPaid := int32(amountPaidFloat)
+
+	// Extract billing period
+	periodStart, _ := eventData["period_start"].(float64)
+	periodEnd, _ := eventData["period_end"].(float64)
+
+	log.Printf("Processing subscription renewal: subscription=%s, amount=%d, period=%v to %v",
+		subscriptionID, amountPaid, time.Unix(int64(periodStart), 0), time.Unix(int64(periodEnd), 0))
+
+	// Find internal customer by Stripe customer ID
+	internalCustomer, err := customerService.GetCustomerByStripeID(ctx, stripeCustomerID)
+	if err != nil || internalCustomer == nil {
+		log.Printf("Could not find internal customer for Stripe customer %s: %v", stripeCustomerID, err)
+		return fmt.Errorf("customer not found for Stripe customer %s: %w", stripeCustomerID, err)
+	}
+
+	log.Printf("Found internal customer %d for Stripe customer %s", internalCustomer.ID, stripeCustomerID)
+
+	// Get invoice line items to create order items
+	lines, ok := eventData["lines"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("no lines in invoice.payment_succeeded event")
+	}
+
+	lineData, ok := lines["data"].([]interface{})
+	if !ok {
+		return fmt.Errorf("no line data in invoice.payment_succeeded event")
+	}
+
+	// Create order items from invoice line items
+	var orderItems []interfaces.CreateOrderItemRequest
+	for _, line := range lineData {
+		lineItem, ok := line.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// Extract line item details
+		quantity, _ := lineItem["quantity"].(float64)
+
+		// Get price information
+		price, ok := lineItem["price"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		stripePriceID, _ := price["id"].(string)
+		unitAmountFloat, _ := price["unit_amount"].(float64)
+
+		// Get metadata to find our internal variant ID and extract product details
+		metadata, ok := price["metadata"].(map[string]interface{})
+		if !ok {
+			log.Printf("No metadata found for price %s, skipping line item", stripePriceID)
+			continue
+		}
+
+		variantIDStr, ok := metadata["internal_variant_id"].(string)
+		if !ok {
+			log.Printf("No internal_variant_id in metadata for price %s, skipping line item", stripePriceID)
+			continue
+		}
+
+		variantID, err := strconv.ParseInt(variantIDStr, 10, 32)
+		if err != nil {
+			log.Printf("Invalid variant ID '%s' for price %s, skipping line item", variantIDStr, stripePriceID)
+			continue
+		}
+
+		// Get subscription interval from metadata
+		subscriptionInterval := pgtype.Text{}
+		if intervalStr, ok := metadata["subscription_days"].(string); ok && intervalStr != "" {
+			subscriptionInterval = pgtype.Text{String: intervalStr, Valid: true}
+		}
+
+		// Extract product and variant names from metadata
+		variantName, _ := metadata["variant_name"].(string)
+		if variantName == "" {
+			variantName = fmt.Sprintf("Subscription Item (Variant %d)", variantID)
+		}
+
+		// You might want to get the product name from metadata too
+		productName, _ := metadata["product_name"].(string)
+		if productName == "" {
+			productName = variantName // Fallback to variant name
+		}
+
+		orderItems = append(orderItems, interfaces.CreateOrderItemRequest{
+			ProductVariantID:     int32(variantID),
+			Name:                 productName,
+			VariantName:          variantName,
+			Quantity:             int32(quantity),
+			Price:                int32(unitAmountFloat),
+			PurchaseType:         "subscription",
+			SubscriptionInterval: subscriptionInterval,
+			StripePriceID:        stripePriceID,
+		})
+
+		log.Printf("Added recurring order item: variant=%d, quantity=%d, interval=%s",
+			variantID, int32(quantity), subscriptionInterval)
+	}
+
+	if len(orderItems) == 0 {
+		log.Printf("No valid order items found in invoice %s", invoiceID)
+		return fmt.Errorf("no valid order items found in invoice %s", invoiceID)
+	}
+
+	// Prepare billing period times
+	var periodStartTime, periodEndTime *time.Time
+	if periodStart > 0 {
+		t := time.Unix(int64(periodStart), 0)
+		periodStartTime = &t
+	}
+	if periodEnd > 0 {
+		t := time.Unix(int64(periodEnd), 0)
+		periodEndTime = &t
+	}
+
+	// Create order for the subscription renewal
+	source := "subscription_renewal"
+	createOrderReq := interfaces.CreateOrderRequest{
+		CustomerID:           internalCustomer.ID,
+		Status:               database.OrderStatusConfirmed, // Subscription renewals are auto-confirmed
+		Total:                amountPaid,
+		Items:                orderItems,
+		Source:               &source,
+		StripeInvoiceID:      &invoiceID,
+		StripeSubscriptionID: &subscriptionID,
+		BillingPeriodStart:   periodStartTime,
+		BillingPeriodEnd:     periodEndTime,
+		Metadata: map[string]string{
+			"billing_reason": billingReason,
+		},
+	}
+
+	order, err := orderService.CreateOrder(ctx, createOrderReq)
+	if err != nil {
+		log.Printf("Failed to create order for subscription renewal: %v", err)
+		return fmt.Errorf("failed to create order for subscription renewal: %w", err)
+	}
+
+	log.Printf("Successfully created order %d for subscription renewal (invoice: %s, customer: %d)",
+		order.ID, invoiceID, internalCustomer.ID)
+
+	return nil
 }
