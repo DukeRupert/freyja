@@ -1,4 +1,4 @@
-# ☕ Freyja - Coffee E-commerce Platform
+# Freyja - Coffee E-commerce Platform
 
 > Modern, event-driven e-commerce platform designed specifically for coffee roasting businesses
 
@@ -25,13 +25,12 @@ open http://localhost:3000    # Grafana (admin/grafana_admin_123)
 
 ## Features
 
-🛒 Retail E-commerce - Complete online store with cart and checkout
-📦 Subscription Management - Flexible recurring orders and billing
-🏢 B2B Wholesale - Tiered pricing and NET-30 terms
-📊 Business Analytics - Real-time metrics and insights
-⚡ Event-Driven - Reliable workflows with NATS JetStream
-🔒 Security First - JWT auth, RBAC, audit trails
-📈 Observability - Prometheus metrics and Grafana dashboards
+Retail E-commerce - Complete online store with cart and checkout
+Subscription Management - Flexible recurring orders and billing
+B2B Wholesale - Tiered pricing and NET-30 terms
+Business Analytics - Real-time metrics and insights
+Security First - JWT auth, RBAC, audit trails
+Observability - Prometheus metrics and Grafana dashboards
 
 ## Architecture
 Backend: Go + Echo + PostgreSQL + SQLC
@@ -39,17 +38,7 @@ Caching: Valkey (Redis fork)
 Events: NATS JetStream
 Storage: MinIO/S3-compatible
 Monitoring: Prometheus + Grafana + AlertManager
-Deployment: Docker Compose → Kubernetes
-
-## Documentation
-
-Architecture Decision Records - Key technical decisions
-Getting Started - Setup and development guide
-API Documentation - RESTful API reference
-Deployment Guide - Production setup
-
-## Contributing
-We welcome contributions! See CONTRIBUTING.md for guidelines.
+Deployment: Docker Compose
 
 ## License
 MIT License - see LICENSE file for details.
