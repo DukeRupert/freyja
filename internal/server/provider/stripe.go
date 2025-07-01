@@ -225,20 +225,35 @@ func (s *StripeProvider) GetCustomer(ctx context.Context, customerID string) (*i
 
 // HandleWebhookEvent processes a verified webhook event and performs business logic
 func (s *StripeProvider) HandleWebhookEvent(ctx context.Context, event *interfaces.PaymentWebhookEvent, orderService interfaces.OrderService, customerService interfaces.CustomerService) error {
-	log.Printf("🔄 Processing Stripe webhook event: %s", event.Type)
+	logger := s.logger.With().
+		Str("function", "HandleWebhookEvent").
+		Str("event_type", event.Type).
+		Str("event_id", event.ID).
+		Time("event_created_at", event.CreatedAt).
+		Logger()
+
+	logger.Info().Msg("Processing Stripe webhook event")
 
 	switch event.Type {
 	case interfaces.WebhookCheckoutSessionCompleted:
+		logger.Info().Msg("Routing to checkout session completed handler")
 		return s.handleCheckoutSessionCompleted(ctx, event.Data)
+		
 	case interfaces.WebhookPaymentIntentFailed:
+		logger.Info().Msg("Routing to payment intent failed handler")
 		return s.handlePaymentIntentFailed(ctx, event.Data)
+		
 	case interfaces.WebhookCustomerCreated:
+		logger.Info().Msg("Routing to customer created handler")
 		return s.handleCustomerCreated(ctx, event.Data, customerService)
+		
 	case interfaces.WebhookInvoicePaymentSucceeded:
+		logger.Info().Msg("Routing to invoice payment succeeded handler")
 		return s.handleInvoicePaymentSucceeded(ctx, event.Data, orderService, customerService)
+		
 	default:
 		// Log unhandled events but don't error - allows for easy extension
-		log.Printf("📝 Received unhandled Stripe webhook event type: %s", event.Type)
+		logger.Info().Msg("Received unhandled Stripe webhook event type - skipping processing")
 		return nil
 	}
 }
@@ -246,12 +261,22 @@ func (s *StripeProvider) HandleWebhookEvent(ctx context.Context, event *interfac
 // Internal webhook handlers
 
 func (s *StripeProvider) handleCheckoutSessionCompleted(ctx context.Context, eventData map[string]interface{}) error {
+	logger := s.logger.With().
+		Str("function", "handleCheckoutSessionCompleted").
+		Str("event_type", "checkout.session.completed").
+		Logger()
+
+	logger.Info().Msg("Processing checkout session completed webhook")
+
 	sessionID, ok := eventData["id"].(string)
 	if !ok {
+		logger.Error().Msg("Invalid session ID in checkout session completed event")
 		return fmt.Errorf("invalid session ID in checkout.session.completed event")
 	}
 
-	log.Printf("✅ Checkout session completed: %s", sessionID)
+	logger = logger.With().Str("session_id", sessionID).Logger()
+
+	logger.Info().Msg("Checkout session completed")
 
 	// Extract customer info from metadata
 	var customerID *int32
@@ -260,8 +285,18 @@ func (s *StripeProvider) handleCheckoutSessionCompleted(ctx context.Context, eve
 			if id, err := strconv.ParseInt(customerIDStr, 10, 32); err == nil {
 				customerID32 := int32(id)
 				customerID = &customerID32
+				logger = logger.With().Int32("customer_id", *customerID).Logger()
+			} else {
+				logger.Warn().
+					Str("customer_id_str", customerIDStr).
+					Err(err).
+					Msg("Failed to parse customer ID from metadata")
 			}
+		} else {
+			logger.Debug().Msg("No customer ID found in session metadata")
 		}
+	} else {
+		logger.Debug().Msg("No metadata found in checkout session")
 	}
 
 	// Extract payment details
@@ -275,6 +310,24 @@ func (s *StripeProvider) handleCheckoutSessionCompleted(ctx context.Context, eve
 		paymentIntentID = &piID
 	}
 
+	// Extract additional session details
+	paymentStatus, _ := eventData["payment_status"].(string)
+	mode, _ := eventData["mode"].(string)
+	stripeCustomerID, _ := eventData["customer"].(string)
+
+	logger = logger.With().
+		Int32("amount_total", amountTotal).
+		Str("payment_status", paymentStatus).
+		Str("mode", mode).
+		Str("stripe_customer_id", stripeCustomerID).
+		Logger()
+
+	if paymentIntentID != nil {
+		logger = logger.With().Str("payment_intent_id", *paymentIntentID).Logger()
+	}
+
+	logger.Info().Msg("Extracted checkout session details")
+
 	// Publish checkout completed event to event bus
 	if s.events != nil {
 		event := interfaces.Event{
@@ -282,28 +335,41 @@ func (s *StripeProvider) handleCheckoutSessionCompleted(ctx context.Context, eve
 			Type:        interfaces.EventCheckoutSessionCompleted,
 			AggregateID: fmt.Sprintf("checkout:%s", sessionID),
 			Data: map[string]interface{}{
-				"stripe_session_id": sessionID,
-				"customer_id":       customerID,
-				"amount_total":      amountTotal,
-				"payment_intent_id": paymentIntentID,
-				"payment_status":    eventData["payment_status"],
-				"completed_at":      time.Now().Unix(),
+				"stripe_session_id":   sessionID,
+				"customer_id":         customerID,
+				"amount_total":        amountTotal,
+				"payment_intent_id":   paymentIntentID,
+				"payment_status":      paymentStatus,
+				"mode":               mode,
+				"stripe_customer_id": stripeCustomerID,
+				"completed_at":       time.Now().Unix(),
 			},
 			Timestamp: time.Now(),
 			Version:   1,
 		}
 
+		logger.Info().
+			Str("event_id", event.ID).
+			Str("aggregate_id", event.AggregateID).
+			Msg("Publishing checkout session completed event")
+
 		if err := s.events.PublishEvent(ctx, event); err != nil {
-			log.Printf("Failed to publish checkout.session_completed event: %v", err)
+			logger.Error().
+				Err(err).
+				Str("event_id", event.ID).
+				Msg("Failed to publish checkout session completed event")
 			return err
 		}
 
-		log.Printf("📤 Published checkout.session_completed event for session %s", sessionID)
+		logger.Info().
+			Str("event_id", event.ID).
+			Msg("Successfully published checkout session completed event")
+	} else {
+		logger.Warn().Msg("Event publisher not available, skipping event publication")
 	}
 
 	return nil
 }
-
 
 func (s *StripeProvider) handlePaymentIntentFailed(ctx context.Context, eventData map[string]interface{}) error {
 	logger := s.logger.With().
