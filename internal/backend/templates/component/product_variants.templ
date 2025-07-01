@@ -1,0 +1,13 @@
+// /internal/backend/templates/component/product_variants.templ
+package component
+
+import (
+    "fmt"
+
+    "github.com/dukerupert/freyja/internal/database"
+)
+
+templ ProductVariants(product database.ProductStockSummary) {
+    <div class="text-sm text-gray-900">{ fmt.Sprintf("%v variants", product.TotalVariants) }</div>
+    <div class="text-sm text-gray-500">{ fmt.Sprintf("%v active", product.VariantsInStock) }</div>
+}

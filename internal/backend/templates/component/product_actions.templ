@@ -1,0 +1,37 @@
+// /internal/backend/templates/component/product_actions.templ
+package component
+
+import (
+    "fmt"
+    "strconv"
+
+    "github.com/dukerupert/freyja/internal/database"
+)
+
+templ ProductActions(product database.ProductStockSummary) {
+    <div class="flex items-center space-x-2">
+        <button type="button" 
+                hx-get={ fmt.Sprintf("/admin/products/%d/edit", product.ProductID) }
+                hx-target="#main-content"
+                class="text-indigo-600 hover:text-indigo-900">
+            Edit
+        </button>
+        if product.ProductActive {
+            <button type="button" 
+                    data-product-id={ strconv.Itoa(int(product.ProductID)) }
+                    data-current-status={ strconv.FormatBool(product.ProductActive) }
+                    onclick="toggleProductStatus(this.dataset.productId, this.dataset.currentStatus === 'true')"
+                    class="text-red-600 hover:text-red-900">
+                Disable
+            </button>
+        } else {
+            <button type="button" 
+                    data-product-id={ strconv.Itoa(int(product.ProductID)) }
+                    data-current-status={ strconv.FormatBool(product.ProductActive) }
+                    onclick="toggleProductStatus(this.dataset.productId, this.dataset.currentStatus === 'true')"
+                    class="text-green-600 hover:text-green-900">
+                Enable
+            </button>
+        }
+    </div>
+}

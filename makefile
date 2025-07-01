@@ -37,6 +37,12 @@ dev: ## Start development environment
 	@echo "  • Grafana: http://localhost:3000 (admin/admin123)"
 	@echo "  • MinIO Console: http://localhost:9001 (minioadmin/minioadmin123)"
 
+server: ## Start development server
+	go run cmd/server/main.go -log-format=console
+
+server-debug: ## Start development server with flag level set to debug
+	go run cmd/server/main.go -log-format=console -log-level=debug -port=8080
+
 dev-local: ## Run app locally with Docker services
 	@echo "🏠 Starting local development..."
 	docker-compose -f docker-compose.dev.yml up -d postgres valkey

@@ -1,0 +1,38 @@
+// /internal/backend/templates/page/products.templ
+package page
+
+import (
+    "github.com/dukerupert/freyja/internal/database"
+    "github.com/dukerupert/freyja/internal/backend/templates/layout"
+    "github.com/dukerupert/freyja/internal/backend/templates/component"
+)
+
+type ProductsPageData struct {
+    Products   []database.ProductStockSummary
+    Pagination *component.PaginationData
+}
+
+templ ProductsPage(data ProductsPageData) {
+    @layout.BaseLayout(layout.BaseLayoutData{
+        Title:       "Products - Admin Panel",
+        CurrentPage: "products",
+        PageTitle:   "Products",
+        Breadcrumbs: []layout.Breadcrumb{
+            {Name: "Admin", URL: "/admin/dashboard"},
+            {Name: "Products"},
+        },
+    }) {
+        @ProductsContent(data)
+    }
+}
+
+templ ProductsContent(data ProductsPageData) {
+    <div class="space-y-6">
+        @component.ProductsHeader()
+        
+        @component.ProductsTable(data.Products)
+        if data.Pagination != nil {
+            @component.Pagination(*data.Pagination, "/admin/products")
+        }
+    </div>
+}

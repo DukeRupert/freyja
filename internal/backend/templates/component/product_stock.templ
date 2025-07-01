@@ -1,0 +1,32 @@
+// /internal/backend/templates/component/product_stock.templ
+package component
+
+import (
+    "fmt"
+
+    "github.com/dukerupert/freyja/internal/database"
+)
+
+templ ProductStock(product database.ProductStockSummary) {
+    <div class="flex items-center">
+        if product.HasStock {
+            if product.StockStatus == "healthy" {
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    { fmt.Sprintf("%v units", product.TotalStock) }
+                </span>
+            } else if product.StockStatus == "low" {
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                    { fmt.Sprintf("%v units", product.TotalStock) }
+                </span>
+            } else {
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    { fmt.Sprintf("%v units", product.TotalStock) }
+                </span>
+            }
+        } else {
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                Out of stock
+            </span>
+        }
+    </div>
+}

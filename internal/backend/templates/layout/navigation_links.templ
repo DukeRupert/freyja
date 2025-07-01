@@ -1,0 +1,13 @@
+// /internal/backend/templates/layout/navigation_links.templ
+package layout
+
+templ NavigationLinks(currentPage string) {
+    <div class="hidden lg:ml-10 lg:block">
+        <div class="flex space-x-4">
+            @NavigationLink("/admin/dashboard", "Dashboard", currentPage == "dashboard")
+            @NavigationLink("/admin/products", "Products", currentPage == "products")
+            @NavigationLink("/admin/orders", "Orders", currentPage == "orders")
+            @NavigationLink("/admin/customers", "Customers", currentPage == "customers")
+        </div>
+    </div>
+}

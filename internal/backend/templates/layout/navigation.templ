@@ -1,0 +1,19 @@
+// /internal/backend/templates/layout/navigation.templ
+package layout
+
+templ Navigation(currentPage string) {
+    <div class="bg-indigo-600 pb-32">
+        <nav class="border-b border-indigo-300/25 bg-indigo-600 lg:border-none">
+            <div class="mx-auto max-w-7xl px-2 sm:px-4 lg:px-8">
+                <div class="relative flex h-16 items-center justify-between lg:border-b lg:border-indigo-400/25">
+                    @NavigationLogo()
+                    @NavigationLinks(currentPage)
+                    @NavigationSearch()
+                    @MobileMenuButton()
+                    @NavigationProfile()
+                </div>
+            </div>
+            @MobileMenu(currentPage)
+        </nav>
+    </div>
+}

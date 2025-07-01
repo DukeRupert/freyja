@@ -1,0 +1,11 @@
+// /internal/backend/templates/layout/navigation_profile.templ
+package layout
+
+templ NavigationProfile() {
+    <div class="hidden lg:ml-4 lg:block">
+        <div class="flex items-center">
+            @NotificationButton()
+            @ProfileDropdown()
+        </div>
+    </div>
+}

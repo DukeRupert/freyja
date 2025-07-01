@@ -53,6 +53,12 @@ func ZerologMiddleware(logger zerolog.Logger) echo.MiddlewareFunc {
 		LogUserAgent: true,
 		LogError:     true,
 		LogValuesFunc: func(c echo.Context, values middleware.RequestLoggerValues) error {
+			// if user agent is prometheus, ignore
+			agent := values.UserAgent
+			if agent == "Prometheus/3.4.1" {
+				return nil
+			}
+
 			// Generate request ID if not present
 			requestID := c.Response().Header().Get(echo.HeaderXRequestID)
 			if requestID == "" {
@@ -91,12 +97,12 @@ func ZerologMiddleware(logger zerolog.Logger) echo.MiddlewareFunc {
 
 // Helper function to get logger from Echo context
 func GetLogger(c echo.Context) *zerolog.Logger {
-    if logger, ok := c.Get("logger").(*zerolog.Logger); ok {
-        return logger
-    }
-    // Fallback to global zerolog logger
-    globalLogger := zerolog.New(os.Stdout).With().Timestamp().Logger()
-    return &globalLogger
+	if logger, ok := c.Get("logger").(*zerolog.Logger); ok {
+		return logger
+	}
+	// Fallback to global zerolog logger
+	globalLogger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+	return &globalLogger
 }
 
 func generateRequestID() string {
