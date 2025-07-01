@@ -304,28 +304,72 @@ func (s *StripeProvider) handleCheckoutSessionCompleted(ctx context.Context, eve
 	return nil
 }
 
-// Helper method to find internal customer ID from Stripe customer ID
 
 func (s *StripeProvider) handlePaymentIntentFailed(ctx context.Context, eventData map[string]interface{}) error {
+	logger := s.logger.With().
+		Str("function", "handlePaymentIntentFailed").
+		Str("event_type", "payment_intent.payment_failed").
+		Logger()
+
+	logger.Info().Msg("Processing payment intent failed webhook")
+
 	paymentIntentID, ok := eventData["id"].(string)
 	if !ok {
+		logger.Error().Msg("Invalid payment intent ID in payment intent failed event")
 		return fmt.Errorf("invalid payment intent ID in payment_intent.payment_failed event")
 	}
 
-	log.Printf("❌ Payment failed: %s", paymentIntentID)
+	logger = logger.With().Str("payment_intent_id", paymentIntentID).Logger()
 
 	// Extract error information
-	var errorMessage string
+	var errorMessage, errorCode, errorType string
 	if lastPaymentError, ok := eventData["last_payment_error"].(map[string]interface{}); ok {
 		if msg, exists := lastPaymentError["message"].(string); exists {
 			errorMessage = msg
 		}
+		if code, exists := lastPaymentError["code"].(string); exists {
+			errorCode = code
+		}
+		if errType, exists := lastPaymentError["type"].(string); exists {
+			errorType = errType
+		}
 	}
+
+	// Set default error message if none provided
 	if errorMessage == "" {
 		errorMessage = "Payment failed"
 	}
 
-	log.Printf("Error details: %s", errorMessage)
+	// Extract additional payment context
+	amount, _ := eventData["amount"].(float64)
+	currency, _ := eventData["currency"].(string)
+	stripeCustomerID, _ := eventData["customer"].(string)
+	status, _ := eventData["status"].(string)
+
+	logger.Error().
+		Str("error_message", errorMessage).
+		Str("error_code", errorCode).
+		Str("error_type", errorType).
+		Float64("amount", amount).
+		Str("currency", currency).
+		Str("stripe_customer_id", stripeCustomerID).
+		Str("status", status).
+		Msg("Payment intent failed")
+
+	// Log detailed error information for debugging
+	logger.Debug().
+		Interface("last_payment_error", eventData["last_payment_error"]).
+		Interface("charges", eventData["charges"]).
+		Msg("Detailed payment failure information")
+
+	// TODO: Implement business logic for payment failures
+	// - Update order status to failed
+	// - Notify customer about payment failure
+	// - Trigger retry logic or dunning management
+	// - Send failure notifications to admin
+
+	logger.Info().Msg("Payment failure processed - business logic implementation needed")
+
 	return nil
 }
 
