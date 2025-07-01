@@ -69,23 +69,63 @@ func NewStripeProvider(apiKey string, signing_secret string, events interfaces.E
 
 // HealthCheck verifies the API key and Stripe service connectivity
 func (s *StripeProvider) HealthCheck(ctx context.Context) error {
+	logger := s.logger.With().
+		Str("function", "HealthCheck").
+		Str("provider", "stripe").
+		Logger()
+
+	logger.Info().Msg("Performing Stripe health check")
+
 	// Attempt to retrieve account information to verify API key and connectivity
-	_, err := account.Get()
+	account, err := account.Get()
 	if err != nil {
+		logger.Error().
+			Err(err).
+			Msg("Stripe health check failed - API connection error")
 		return fmt.Errorf("failed to connect to Stripe: %w", err)
 	}
 
-	log.Printf("Stripe health check passed - API key valid and service reachable")
+	logger.Info().
+		Str("account_id", account.ID).
+		Str("business_type", string(account.BusinessType)).
+		Bool("charges_enabled", account.ChargesEnabled).
+		Bool("payouts_enabled", account.PayoutsEnabled).
+		Msg("Stripe health check passed - API key valid and service reachable")
+
 	return nil
 }
 
 // CreateCheckoutSession creates a Stripe Checkout session
 func (s *StripeProvider) CreateCheckoutSession(ctx context.Context, req interfaces.CheckoutSessionRequest) (*interfaces.CheckoutSessionResponse, error) {
+	logger := s.logger.With().
+		Str("function", "CreateCheckoutSession").
+		Int("item_count", len(req.Items)).
+		Logger()
+
+	if req.CustomerID != nil {
+		logger = logger.With().Int32("customer_id", *req.CustomerID).Logger()
+	}
+
+	if req.CustomerEmail != nil {
+		logger = logger.With().Str("customer_email", *req.CustomerEmail).Logger()
+	}
+
+	logger.Info().Msg("Creating Stripe checkout session")
+
 	// Convert cart items to Stripe line items using existing Price IDs
 	var lineItems []*stripe.CheckoutSessionLineItemParams
 	var mode stripe.CheckoutSessionMode = stripe.CheckoutSessionModePayment
+	var subscriptionItemCount, oneTimeItemCount, fallbackItemCount int
 
-	for _, item := range req.Items {
+	for i, item := range req.Items {
+		itemLogger := logger.With().
+			Int("item_index", i).
+			Int32("item_id", item.ID).
+			Int32("product_variant_id", item.ProductVariantID).
+			Int32("quantity", item.Quantity).
+			Str("purchase_type", item.PurchaseType).
+			Logger()
+
 		// Use existing Stripe Price ID (should always be present after sync)
 		if item.StripePriceID != "" {
 			// Use the existing Stripe Price ID (this will link to the real product)
@@ -97,15 +137,27 @@ func (s *StripeProvider) CreateCheckoutSession(ctx context.Context, req interfac
 			// Check if this is a subscription item (if any item has recurring pricing)
 			if item.PurchaseType == "subscription" {
 				mode = stripe.CheckoutSessionModeSubscription
+				subscriptionItemCount++
+				itemLogger.Debug().
+					Str("stripe_price_id", item.StripePriceID).
+					Msg("Added subscription item to checkout session")
+			} else {
+				oneTimeItemCount++
+				itemLogger.Debug().
+					Str("stripe_price_id", item.StripePriceID).
+					Msg("Added one-time item to checkout session")
 			}
 		} else {
 			// Fallback to PriceData if no Stripe Price ID (shouldn't happen after sync)
-			log.Printf("Warning: Cart item %d missing Stripe Price ID, falling back to PriceData", item.ID)
+			fallbackItemCount++
+			itemLogger.Warn().
+				Msg("Cart item missing Stripe Price ID, falling back to PriceData")
+			
 			lineItems = append(lineItems, &stripe.CheckoutSessionLineItemParams{
 				PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
 					Currency: stripe.String("usd"),
 					ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
-						Name: stripe.String(fmt.Sprintf("Product Variant %d", item.ProductVariantID)), // Fixed: Use ProductVariantID
+						Name: stripe.String(fmt.Sprintf("Product Variant %d", item.ProductVariantID)),
 					},
 					UnitAmount: stripe.Int64(int64(item.Price)),
 				},
@@ -113,6 +165,15 @@ func (s *StripeProvider) CreateCheckoutSession(ctx context.Context, req interfac
 			})
 		}
 	}
+
+	logger = logger.With().
+		Str("session_mode", string(mode)).
+		Int("subscription_items", subscriptionItemCount).
+		Int("one_time_items", oneTimeItemCount).
+		Int("fallback_items", fallbackItemCount).
+		Logger()
+
+	logger.Info().Msg("Prepared checkout session items")
 
 	params := &stripe.CheckoutSessionParams{
 		PaymentMethodTypes: stripe.StringSlice([]string{"card"}),
@@ -135,44 +196,94 @@ func (s *StripeProvider) CreateCheckoutSession(ctx context.Context, req interfac
 		params.CustomerEmail = stripe.String(*req.CustomerEmail)
 	}
 
+	logger.Debug().
+		Str("success_url", req.SuccessURL).
+		Str("cancel_url", req.CancelURL).
+		Interface("metadata", params.Metadata).
+		Msg("Prepared checkout session parameters")
+
 	// Create the session
 	sess, err := session.New(params)
 	if err != nil {
+		logger.Error().
+			Err(err).
+			Msg("Failed to create Stripe checkout session")
 		return nil, fmt.Errorf("failed to create Stripe checkout session: %w", err)
 	}
 
-	log.Printf("✅ Created Stripe checkout session: %s (mode: %s)", sess.ID, mode)
-
-	return &interfaces.CheckoutSessionResponse{
+	response := &interfaces.CheckoutSessionResponse{
 		SessionID:   sess.ID,
 		CheckoutURL: sess.URL,
-	}, nil
+	}
+
+	logger.Info().
+		Str("session_id", sess.ID).
+		Str("checkout_url", sess.URL).
+		Msg("Successfully created Stripe checkout session")
+
+	return response, nil
 }
 
 // VerifyWebhook verifies the webhook signature and parses the event
 func (s *StripeProvider) VerifyWebhook(payload []byte, signature string) (*interfaces.PaymentWebhookEvent, error) {
+	logger := s.logger.With().
+		Str("function", "VerifyWebhook").
+		Int("payload_size", len(payload)).
+		Bool("signature_present", signature != "").
+		Logger()
+
+	logger.Debug().Msg("Verifying webhook signature and parsing event")
 
 	event, err := webhook.ConstructEvent(payload, signature, s.signing_secret)
 	if err != nil {
+		logger.Error().
+			Err(err).
+			Msg("Webhook signature verification failed")
 		return nil, fmt.Errorf("webhook signature verification failed: %w", err)
 	}
+
+	logger = logger.With().
+		Str("event_type", string(event.Type)).
+		Str("event_id", event.ID).
+		Time("event_created_at", time.Unix(event.Created, 0)).
+		Logger()
+
+	logger.Debug().Msg("Webhook signature verified successfully")
 
 	// Convert Stripe event to our interface format
 	eventData := make(map[string]interface{})
 	if err := json.Unmarshal(event.Data.Raw, &eventData); err != nil {
+		logger.Error().
+			Err(err).
+			Str("raw_data_size", fmt.Sprintf("%d bytes", len(event.Data.Raw))).
+			Msg("Failed to parse event data")
 		return nil, fmt.Errorf("failed to parse event data: %w", err)
 	}
 
-	return &interfaces.PaymentWebhookEvent{
+	webhookEvent := &interfaces.PaymentWebhookEvent{
 		Type:      string(event.Type),
 		ID:        event.ID,
 		Data:      eventData,
 		CreatedAt: time.Unix(event.Created, 0),
-	}, nil
+	}
+
+	logger.Debug().
+		Int("event_data_fields", len(eventData)).
+		Msg("Successfully verified and parsed webhook event")
+
+	return webhookEvent, nil
 }
 
 // CreateCustomer creates a customer in Stripe
 func (s *StripeProvider) CreateCustomer(ctx context.Context, cust database.Customers) (*interfaces.PaymentCustomer, error) {
+	logger := s.logger.With().
+		Str("function", "CreateCustomer").
+		Int32("internal_customer_id", cust.ID).
+		Str("email", cust.Email).
+		Logger()
+
+	logger.Info().Msg("Creating customer in Stripe")
+
 	params := &stripe.CustomerParams{
 		Email: stripe.String(cust.Email),
 		Metadata: map[string]string{
@@ -181,6 +292,7 @@ func (s *StripeProvider) CreateCustomer(ctx context.Context, cust database.Custo
 	}
 
 	// Add name if available
+	var fullName string
 	if cust.FirstName.Valid || cust.LastName.Valid {
 		name := ""
 		if cust.FirstName.Valid {
@@ -194,33 +306,56 @@ func (s *StripeProvider) CreateCustomer(ctx context.Context, cust database.Custo
 		}
 		if name != "" {
 			params.Name = stripe.String(name)
+			fullName = name
 		}
 	}
 
+	logger = logger.With().Str("full_name", fullName).Logger()
+	logger.Debug().Msg("Prepared Stripe customer parameters")
+
 	stripeCustomer, err := customer.New(params)
 	if err != nil {
+		logger.Error().Err(err).Msg("Failed to create Stripe customer")
 		return nil, fmt.Errorf("failed to create Stripe customer: %w", err)
 	}
 
-	log.Printf("✅ Created Stripe customer: %s for email: %s", stripeCustomer.ID, cust.Email)
-
-	return &interfaces.PaymentCustomer{
+	paymentCustomer := &interfaces.PaymentCustomer{
 		ID:    stripeCustomer.ID,
 		Email: stripeCustomer.Email,
-	}, nil
+	}
+
+	logger.Info().
+		Str("stripe_customer_id", stripeCustomer.ID).
+		Msg("Successfully created Stripe customer")
+
+	return paymentCustomer, nil
 }
 
 // GetCustomer retrieves a customer from Stripe
 func (s *StripeProvider) GetCustomer(ctx context.Context, customerID string) (*interfaces.PaymentCustomer, error) {
+	logger := s.logger.With().
+		Str("function", "GetCustomer").
+		Str("stripe_customer_id", customerID).
+		Logger()
+
+	logger.Debug().Msg("Retrieving customer from Stripe")
+
 	stripeCustomer, err := customer.Get(customerID, nil)
 	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get Stripe customer")
 		return nil, fmt.Errorf("failed to get Stripe customer: %w", err)
 	}
 
-	return &interfaces.PaymentCustomer{
+	paymentCustomer := &interfaces.PaymentCustomer{
 		ID:    stripeCustomer.ID,
 		Email: stripeCustomer.Email,
-	}, nil
+	}
+
+	logger.Debug().
+		Str("email", paymentCustomer.Email).
+		Msg("Successfully retrieved Stripe customer")
+
+	return paymentCustomer, nil
 }
 
 // HandleWebhookEvent processes a verified webhook event and performs business logic
