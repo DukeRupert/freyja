@@ -9,9 +9,10 @@ import (
 	"strings"
 
 	"github.com/dukerupert/freyja/internal/backend/client"
-	page_views "github.com/dukerupert/freyja/internal/backend/templates/page"
 	"github.com/dukerupert/freyja/internal/backend/templates/component"
+	page_views "github.com/dukerupert/freyja/internal/backend/templates/page"
 	"github.com/dukerupert/freyja/internal/database"
+	"github.com/dukerupert/freyja/internal/shared/interfaces"
 
 	"github.com/labstack/echo/v4"
 )
@@ -150,6 +151,92 @@ func (h *ProductHandler) matchesFilters(product database.ProductStockSummary, st
 	}
 	
 	return true
+}
+
+// GetProductDetail handles GET /admin/products/:id
+// Returns HTML for HTMX to inject into #main-content
+func (h *ProductHandler) GetProductDetail(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// Parse product ID
+	idParam := c.Param("id")
+	id, err := strconv.Atoi(idParam)
+	if err != nil {
+		return page_views.ErrorState("Invalid product ID", "bg-red-50 border-red-200 text-red-800").Render(ctx, c.Response().Writer)
+	}
+
+	// Get product with full details
+	productSummary, err := h.queries.GetProductWithSummary(ctx, int32(id))
+	if err != nil {
+		if err.Error() == "product not found" {
+			return page_views.ErrorState("Product not found", "bg-yellow-50 border-yellow-200 text-yellow-800").Render(ctx, c.Response().Writer)
+		}
+
+		c.Logger().Error("Failed to get product details: ", err)
+		return page_views.ErrorState("Failed to load product details", "bg-red-50 border-red-200 text-red-800").Render(ctx, c.Response().Writer)
+	}
+
+	// Get variants for this product
+	variants, err := h.queries.GetActiveVariantsByProduct(ctx, int32(id))
+	if err != nil {
+		c.Logger().Error("Failed to get product variants: ", err)
+		// Continue without variants rather than failing completely
+		variants = []database.ProductVariants{}
+	}
+
+	// Set content type to HTML
+	c.Response().Header().Set("Content-Type", "text/html")
+
+	// convert productSummary 
+	product := h.convertToProductSummary(productSummary)
+	
+	// Render the templ component
+	return page_views.ProductDetailPage(product, variants).Render(ctx, c.Response().Writer)
+}
+
+func (h *ProductHandler) convertToProductSummary(dbSummary database.ProductStockSummary) *interfaces.ProductSummary {
+	summary := &interfaces.ProductSummary{
+		ProductID:        dbSummary.ProductID,
+		Name:             dbSummary.Name,
+		Description:      dbSummary.Description,
+		ProductActive:    dbSummary.ProductActive,
+		HasStock:         dbSummary.HasStock,
+		StockStatus:      dbSummary.StockStatus,
+		AvailableOptions: dbSummary.AvailableOptions,
+	}
+
+	// Handle nullable interface{} fields safely
+	if dbSummary.TotalStock != nil {
+		if val, ok := dbSummary.TotalStock.(int64); ok {
+			summary.TotalStock = int32(val)
+		}
+	}
+
+	if dbSummary.VariantsInStock != nil {
+		if val, ok := dbSummary.VariantsInStock.(int64); ok {
+			summary.VariantsInStock = int32(val)
+		}
+	}
+
+	if dbSummary.TotalVariants != nil {
+		if val, ok := dbSummary.TotalVariants.(int64); ok {
+			summary.TotalVariants = int32(val)
+		}
+	}
+
+	if dbSummary.MinPrice != nil {
+		if val, ok := dbSummary.MinPrice.(int64); ok {
+			summary.MinPrice = int32(val)
+		}
+	}
+
+	if dbSummary.MaxPrice != nil {
+		if val, ok := dbSummary.MaxPrice.(int64); ok {
+			summary.MaxPrice = int32(val)
+		}
+	}
+
+	return summary
 }
 
 // Helper function to generate page numbers for pagination

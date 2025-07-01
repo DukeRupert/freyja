@@ -51,6 +51,7 @@ func main() {
 	{
 		// Products
 		admin.GET("/products", productHandler.ShowProductsPage)
+		admin.GET("/products/:id", productHandler.GetProductDetail)
 		
 		// Add more admin routes as needed
 	}
