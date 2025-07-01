@@ -1,58 +1,69 @@
-// cmd/admin/main.go
+// internal/backend/main.go
 package main
 
 import (
 	"log"
-
-	"github.com/dukerupert/freyja/internal/backend/client"
-	"github.com/dukerupert/freyja/internal/backend/handlers"
-	"github.com/dukerupert/freyja/internal/shared/config"
+	"os"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	
+	"github.com/dukerupert/freyja/internal/backend/client"
+	"github.com/dukerupert/freyja/internal/backend/handlers"
+	"github.com/dukerupert/freyja/internal/backend/database"
 )
 
 func main() {
-	// Load configuration
-	_, err := config.Load()
-	if err != nil {
-		log.Fatal("Config validation failed:", err)
+	// Load environment variables
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		log.Fatal("DATABASE_URL environment variable required")
+	}
+	
+	serverURL := os.Getenv("FREYJA_SERVER_URL")
+	if serverURL == "" {
+		log.Fatal("FREYJA_SERVER_URL environment variable required")
 	}
 
-	// Default Freyja API URL (can be overridden with env var)
-	freyjaAPIURL := "http://localhost:8080"
-	// if apiURL := cfg.ApiURL; apiURL != "" {
-	// 	freyjaAPIURL = apiURL
-	// }
+	// Create simplified database connection for reads
+	db, err := database.NewSimplifiedDB(databaseURL)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer db.Close()
 
-	log.Printf("✅ Admin panel connecting to Freyja API at: %s", freyjaAPIURL)
+	// Create HTTP client for API mutations
+	freyjaClient := client.NewFreyjaClient(serverURL)
 
-	// Initialize Freyja API client
-	freyjaClient := client.NewFreyjaClient(freyjaAPIURL)
+	// Create handlers with hybrid access
+	productHandler := handlers.NewProductHandler(freyjaClient, db.GetQueries())
 
-	// Initialize handlers
-	productHandler := handlers.NewProductHandler(freyjaClient)
-
-	// Initialize Echo
+	// Create Echo instance
 	e := echo.New()
+
+	// Middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
+	e.Use(middleware.CORS())
 
-	// Serve static files (CSS, JS)
-	e.Static("/static", "web/static")
+	// Admin routes
+	admin := e.Group("/admin")
+	{
+		// Products
+		admin.GET("/products", productHandler.ShowProductsPage)
+		
+		// Add more admin routes as needed
+	}
 
-	// Product routes
-	e.GET("/", productHandler.ShowProductsPage)
-	e.GET("/products", productHandler.ShowProductsTable)
-	e.GET("/products/add", productHandler.ShowAddProductModal)
-	e.POST("/products", productHandler.CreateProduct)
-	e.PUT("/products/:id", productHandler.UpdateProduct)
-	e.DELETE("/products/:id", productHandler.DeleteProduct)
+	// Static files (if needed)
+	e.Static("/static", "static")
 
-	// Future: Add other handler groups here
-	// orderHandler := handlers.NewOrderHandler(freyjaClient)
-	// customerHandler := handlers.NewCustomerHandler(freyjaClient)
+	// Start server
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8081" // Different from your main server
+	}
 
-	log.Println("🚀 Admin panel starting on :8081")
-	log.Fatal(e.Start(":8081"))
+	log.Printf("🚀 Backend admin panel starting on port %s", port)
+	log.Fatal(e.Start(":" + port))
 }
