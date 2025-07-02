@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"time"
 
 	"github.com/dukerupert/freyja/internal/database"
@@ -79,11 +78,11 @@ func addRoutes(
 
 	// Products
 	products := api.Group("/products")
-	products.GET("", h.GetProducts(db, logger))
+	products.GET("", h.HandleGetProducts(db, logger))
 	// products.GET("/in-stock", handleGetInStockProducts(db, logger))
 	// products.GET("/low-stock", handleGetLowStockProducts(db, logger))
 	// products.GET("/stats", handleGetProductStats(db, logger))
-	// products.GET("/:id", handleGetProduct(db, logger))
+	products.GET("/:id", h.HandleGetProduct(db, logger))
 	// products.GET("/:id/variants", handleGetProductVariants(db, logger))
 	// products.GET("/variants/search", handleSearchProductVariants(db, logger))
 
@@ -273,17 +272,6 @@ func (cv *CustomValidator) Validate(i interface{}) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 	return nil
-}
-
-func getCustomerID(c echo.Context) int64 {
-	// Extract from header or JWT token
-	customerIDStr := c.Request().Header.Get("X-Customer-ID")
-	if customerIDStr == "" {
-		return 0 // Handle guest users
-	}
-
-	customerID, _ := strconv.ParseInt(customerIDStr, 10, 64)
-	return customerID
 }
 
 func startEventSubscribers(ctx context.Context, db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) {
