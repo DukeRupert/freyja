@@ -2,14 +2,18 @@
 package handler
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/dukerupert/freyja/internal/shared/interfaces"
+	"github.com/dukerupert/freyja/internal/database"
 	"github.com/dukerupert/freyja/internal/server/middleware"
+	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
+	"github.com/rs/zerolog"
 )
 
 type ProductHandler struct {
@@ -21,6 +25,168 @@ func NewProductHandler(productService interfaces.ProductService, variantService 
 	return &ProductHandler{
 		productService: productService,
 		variantService: variantService,
+	}
+}
+
+type ProductSummary struct {
+	ProductID        int32       `json:"product_id"`
+	Name             string      `json:"name"`
+	Description      pgtype.Text `json:"description"`
+	ProductActive    bool        `json:"product_active"`
+	TotalStock       int32       `json:"total_stock"`
+	VariantsInStock  int32       `json:"variants_in_stock"`
+	TotalVariants    int32       `json:"total_variants"`
+	MinPrice         int32       `json:"min_price"`
+	MaxPrice         int32       `json:"max_price"`
+	HasStock         bool        `json:"has_stock"`
+	StockStatus      string      `json:"stock_status"`
+	AvailableOptions []byte      `json:"available_options"`
+}
+
+type ProductFilters struct {
+	Active *bool `json:"active,omitempty"`
+	Limit  int32 `json:"limit,omitempty"`
+	Offset int32 `json:"offset,omitempty"`
+}
+
+func getProductFiltersSimple(c echo.Context) ProductFilters {
+	return ProductFilters{
+		Limit:  parseIntParam(c.QueryParam("limit"), 0),
+		Offset: parseIntParam(c.QueryParam("offset"), 0),
+		Active: parseBoolParam(c.QueryParam("active")),
+	}
+}
+
+func parseIntParam(param string, defaultValue int) int32 {
+	if param == "" {
+		return int32(defaultValue)
+	}
+
+	if val, err := strconv.Atoi(param); err == nil {
+		return int32(val)
+	}
+
+	return int32(defaultValue) // Return default for invalid values
+}
+
+func parseBoolParam(param string) *bool {
+	if param == "" {
+		return nil
+	}
+	if val, err := strconv.ParseBool(param); err == nil {
+		return &val
+	}
+	return nil
+}
+
+func executeProductQuery(
+	ctx context.Context,
+	db *database.DB,
+	filters ProductFilters,
+) ([]database.ProductStockSummary, error) {
+	// If Active filter is specified, use status-based query
+	if filters.Active != nil {
+		return db.Queries.ListProductsByStatus(ctx, database.ListProductsByStatusParams{
+			ProductActive: *filters.Active,
+			Limit:         filters.Limit,
+			Offset:        filters.Offset,
+		})
+	}
+
+	// If pagination is specified but no active filter, list all with pagination
+	if filters.Limit > 0 || filters.Offset > 0 {
+		return db.Queries.ListAllProducts(ctx, database.ListAllProductsParams{
+			Limit:  filters.Limit,
+			Offset: filters.Offset,
+		})
+	}
+
+	// Default: active products only, no pagination
+	return db.Queries.ListProducts(ctx)
+}
+
+func convertToJSONMap(summaries []database.ProductStockSummary) []map[string]interface{} {
+	result := make([]map[string]interface{}, len(summaries))
+
+	for i, summary := range summaries {
+		result[i] = map[string]interface{}{
+			"product_id":        summary.ProductID,
+			"name":              summary.Name,
+			"description":       convertPgText(summary.Description),
+			"product_active":    summary.ProductActive,
+			"total_stock":       summary.TotalStock,
+			"variants_in_stock": summary.VariantsInStock,
+			"total_variants":    summary.TotalVariants,
+			"min_price":         summary.MinPrice,
+			"max_price":         summary.MaxPrice,
+			"has_stock":         summary.HasStock,
+			"stock_status":      summary.StockStatus,
+			"available_options": convertJSONBytes(summary.AvailableOptions),
+			"last_stock_update": summary.LastStockUpdate,
+		}
+	}
+
+	return result
+}
+
+func convertPgText(pgText pgtype.Text) *string {
+	if !pgText.Valid {
+		return nil
+	}
+	return &pgText.String
+}
+
+func convertJSONBytes(jsonBytes []byte) []map[string]interface{} {
+	if len(jsonBytes) == 0 {
+		return []map[string]interface{}{}
+	}
+
+	var options []map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &options); err != nil {
+		// If parsing fails, return empty slice instead of nil
+		return []map[string]interface{}{}
+	}
+
+	return options
+}
+
+func GetProducts(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+		logger.Info().Msg("Starting GetProducts request")
+
+		filters := getProductFiltersSimple(c)
+
+		rows, err := executeProductQuery(ctx, db, filters)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Interface("filters", filters).
+				Msg("Failed to fetch products")
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to fetch products",
+				"code":  "INTERNAL_ERROR",
+			})
+		} else {
+			logger.Info().
+				Int("result_count", len(rows)).
+				Interface("filters", filters).
+				Msg("Successfully fetched products")
+		}
+
+		// Transform to API-friendly format
+		apiProducts := convertToJSONMap(rows)
+
+		logger.Info().
+			Int("total_products", len(apiProducts)).
+			Msg("Successfully completed GetProducts request")
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"success":  true,
+			"products": apiProducts,
+			"total":    len(apiProducts),
+			"filters":  filters,
+		})
 	}
 }
 
@@ -558,4 +724,49 @@ func stringToPgText(s string) pgtype.Text {
 		String: s,
 		Valid:  s != "",
 	}
+}
+
+func convertToProductSummary(dbSummary database.ProductStockSummary) *ProductSummary {
+	summary := &ProductSummary{
+		ProductID:        dbSummary.ProductID,
+		Name:             dbSummary.Name,
+		Description:      dbSummary.Description,
+		ProductActive:    dbSummary.ProductActive,
+		HasStock:         dbSummary.HasStock,
+		StockStatus:      dbSummary.StockStatus,
+		AvailableOptions: dbSummary.AvailableOptions,
+	}
+
+	// Handle nullable interface{} fields safely
+	if dbSummary.TotalStock != nil {
+		if val, ok := dbSummary.TotalStock.(int64); ok {
+			summary.TotalStock = int32(val)
+		}
+	}
+
+	if dbSummary.VariantsInStock != nil {
+		if val, ok := dbSummary.VariantsInStock.(int64); ok {
+			summary.VariantsInStock = int32(val)
+		}
+	}
+
+	if dbSummary.TotalVariants != nil {
+		if val, ok := dbSummary.TotalVariants.(int64); ok {
+			summary.TotalVariants = int32(val)
+		}
+	}
+
+	if dbSummary.MinPrice != nil {
+		if val, ok := dbSummary.MinPrice.(int64); ok {
+			summary.MinPrice = int32(val)
+		}
+	}
+
+	if dbSummary.MaxPrice != nil {
+		if val, ok := dbSummary.MaxPrice.(int64); ok {
+			summary.MaxPrice = int32(val)
+		}
+	}
+
+	return summary
 }
