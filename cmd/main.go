@@ -86,6 +86,15 @@ func addRoutes(
 	// products.GET("/:id/variants", handleGetProductVariants(db, logger))
 	// products.GET("/variants/search", handleSearchProductVariants(db, logger))
 
+	// Options
+	// admin := api.Group("/admin")
+	options := api.Group("/options")
+	options.POST("", h.HandleCreateProductOption(db, eventBus, logger))
+	// admin.GET("/products/:product_id/options", handleGetProductOptions(db, logger))
+	// admin.GET("/options/:id", handleGetProductOption(db, logger))
+	// admin.PUT("/options/:id", handleUpdateProductOption(db, eventBus, logger))
+	// admin.DELETE("/options/:id", handleDeleteProductOption(db, eventBus, logger))
+
 	// Cart
 	// cart := api.Group("/cart")
 	// cart.GET("", handleGetCart(db, logger))
@@ -116,7 +125,6 @@ func addRoutes(
 	// customers.GET("/stats", handleGetCustomerStats(db, logger))
 
 	// Admin
-	// admin := api.Group("/admin")
 	// admin.GET("/orders", handleGetAllOrders(db, logger))
 	// admin.PUT("/orders/:id/status", handleUpdateOrderStatus(db, eventBus, logger))
 	// admin.GET("/orders/stats", handleGetOrderStats(db, logger))
@@ -131,12 +139,6 @@ func addRoutes(
 	// admin.POST("/variants/:id/activate", handleActivateVariant(db, eventBus, logger))
 	// admin.POST("/variants/:id/deactivate", handleDeactivateVariant(db, eventBus, logger))
 
-	// Options
-	// admin.POST("/products/:product_id/options", handleCreateProductOption(db, eventBus, logger))
-	// admin.GET("/products/:product_id/options", handleGetProductOptions(db, logger))
-	// admin.GET("/options/:id", handleGetProductOption(db, logger))
-	// admin.PUT("/options/:id", handleUpdateProductOption(db, eventBus, logger))
-	// admin.DELETE("/options/:id", handleDeleteProductOption(db, eventBus, logger))
 }
 
 func run(
@@ -268,10 +270,7 @@ type CustomValidator struct {
 }
 
 func (cv *CustomValidator) Validate(i interface{}) error {
-	if err := cv.validator.Struct(i); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
-	}
-	return nil
+	return cv.validator.Struct(i) // handle error response in handler
 }
 
 func startEventSubscribers(ctx context.Context, db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) {

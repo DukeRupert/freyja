@@ -5,8 +5,11 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/labstack/echo/v4"
+	"github.com/dukerupert/freyja/internal/database"
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
+	"github.com/jackc/pgx/v5"
+	"github.com/labstack/echo/v4"
+	"github.com/rs/zerolog"
 )
 
 type OptionHandler struct {
@@ -16,6 +19,68 @@ type OptionHandler struct {
 func NewOptionHandler(optionService interfaces.OptionService) *OptionHandler {
 	return &OptionHandler{
 		optionService: optionService,
+	}
+}
+
+func HandleCreateProductOption(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
+
+	type CreateProductOptionRequest struct {
+		ProductID int32  `json:"product_id" form:"product_id" validate:"required,min=1"`
+		OptionKey string `json:"option_key" form:"option_key" validate:"required,min=1,max=50"`
+	}
+
+	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+
+		req := &CreateProductOptionRequest{}
+		logger.Info().Interface("req_before_bind", req).Msg("before bind")
+
+		if err := c.Bind(req); err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+		}
+
+		logger.Info().Interface("req_after_bind", req).Msg("after bind")
+
+		if err := c.Validate(req); err != nil {
+			logger.Error().Err(err).Interface("req", req).Msg("validation failed")
+			return echo.NewHTTPError(http.StatusBadRequest, map[string]interface{}{
+				"error": "invalid request body",
+				"code":  "BAD_REQUEST",
+			})
+		}
+
+		// check if product exists
+		_, err := db.Queries.GetProduct(ctx, req.ProductID)
+		if err != nil {
+			logger.Error().Err(err).Msg("failed to get product")
+			if err == pgx.ErrNoRows {
+				return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
+					"error": "product not found",
+					"code":  "INTERNAL_ERROR",
+				})
+			}
+			return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
+				"error": "failed to retrieve product",
+				"code":  "INTERNAL_ERROR",
+			})
+		}
+
+		// create option
+		params := database.CreateProductOptionParams{
+			ProductID: req.ProductID,
+			OptionKey: req.OptionKey,
+		}
+
+		option, err := db.Queries.CreateProductOption(ctx, params)
+		if err != nil {
+			logger.Error().Err(err).Msg("failed to create option")
+			return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
+				"error": "failed to create product",
+				"code":  "INTERNAL_ERROR",
+			})
+		}
+
+		return c.JSON(http.StatusCreated, &option)
 	}
 }
 
@@ -312,10 +377,10 @@ func (h *OptionHandler) GetOptionCombinationsInStock(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"success":          true,
-		"data":             combinations,
-		"count":            len(combinations),
-		"product_id":       productID,
+		"success":                true,
+		"data":                   combinations,
+		"count":                  len(combinations),
+		"product_id":             productID,
 		"combinations_available": len(combinations) > 0,
 	})
 }
