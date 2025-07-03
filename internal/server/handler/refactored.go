@@ -1055,6 +1055,299 @@ func HandleCreateProductOptionValue(db *database.DB, eventBus interfaces.EventPu
 	}
 }
 
+func HandleUpdateProductOptionValue(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
+	type UpdateProductOptionValueRequest struct {
+		Value string `json:"value" validate:"required,min=1,max=100"`
+	}
+
+	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+
+		// Parse and validate option ID
+		optionID, err := strconv.ParseInt(c.Param("id"), 10, 32)
+		if err != nil || optionID <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid option ID. Must be a positive integer",
+				"code":  "INVALID_OPTION_ID",
+			})
+		}
+
+		// Parse and validate option value ID
+		valueID, err := strconv.ParseInt(c.Param("value_id"), 10, 32)
+		if err != nil || valueID <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid option value ID. Must be a positive integer",
+				"code":  "INVALID_OPTION_VALUE_ID",
+			})
+		}
+
+		// Parse and validate request body
+		var req UpdateProductOptionValueRequest
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid JSON format in request body",
+				"code":  "INVALID_JSON",
+			})
+		}
+
+		if err := c.Validate(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": err.Error(),
+				"code":  "VALIDATION_ERROR",
+			})
+		}
+
+		// Sanitize and validate value
+		trimmedValue := strings.TrimSpace(req.Value)
+		if trimmedValue == "" {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Option value cannot be empty or whitespace only",
+				"code":  "INVALID_OPTION_VALUE",
+			})
+		}
+
+		// Check if option exists
+		option, err := db.Queries.GetProductOption(ctx, int32(optionID))
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("option_id", int32(optionID)).
+				Msg("Failed to get option")
+
+			if err == pgx.ErrNoRows {
+				return c.JSON(http.StatusNotFound, map[string]interface{}{
+					"error": "Option not found",
+					"code":  "OPTION_NOT_FOUND",
+				})
+			}
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to retrieve option",
+				"code":  "OPTION_RETRIEVAL_FAILED",
+			})
+		}
+
+		// Check if option value exists and belongs to the specified option
+		existingValue, err := db.Queries.GetProductOptionValue(ctx, int32(valueID))
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("option_value_id", int32(valueID)).
+				Msg("Failed to get option value")
+
+			if err == pgx.ErrNoRows {
+				return c.JSON(http.StatusNotFound, map[string]interface{}{
+					"error": "Option value not found",
+					"code":  "OPTION_VALUE_NOT_FOUND",
+				})
+			}
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to retrieve option value",
+				"code":  "OPTION_VALUE_RETRIEVAL_FAILED",
+			})
+		}
+
+		// Verify that the option value belongs to the specified option
+		if existingValue.ProductOptionID != option.ID {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Option value does not belong to the specified option",
+				"code":  "OPTION_VALUE_MISMATCH",
+			})
+		}
+
+		// Check if another value with the same name already exists for this option
+		conflictingValue, err := db.Queries.GetProductOptionValueByValue(ctx, database.GetProductOptionValueByValueParams{
+			ProductOptionID: option.ID,
+			Value:           trimmedValue,
+		})
+		if err == nil && conflictingValue.ID != int32(valueID) {
+			return c.JSON(http.StatusConflict, map[string]interface{}{
+				"error": "An option value with this name already exists for this option",
+				"code":  "OPTION_VALUE_CONFLICT",
+			})
+		}
+		if err != nil && err != pgx.ErrNoRows {
+			logger.Error().
+				Err(err).
+				Int32("option_id", option.ID).
+				Str("value", trimmedValue).
+				Msg("Failed to check existing option values")
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to validate option value uniqueness",
+				"code":  "VALIDATION_ERROR",
+			})
+		}
+
+		// Update the option value
+		updatedValue, err := db.Queries.UpdateProductOptionValue(ctx, database.UpdateProductOptionValueParams{
+			ID:    int32(valueID),
+			Value: trimmedValue,
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("option_value_id", int32(valueID)).
+				Str("value", trimmedValue).
+				Msg("Failed to update option value")
+
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to update option value",
+				"code":  "OPTION_VALUE_UPDATE_FAILED",
+			})
+		}
+
+		logger.Info().
+			Int32("option_id", option.ID).
+			Int32("option_value_id", updatedValue.ID).
+			Str("option_key", option.OptionKey).
+			Str("old_value", existingValue.Value).
+			Str("new_value", updatedValue.Value).
+			Msg("Option value updated successfully")
+
+		// TODO: Publish event
+		// eventBus.Publish("product.option_value.updated", ProductOptionValueUpdatedEvent{
+		//     OptionID:      option.ID,
+		//     OptionValueID: updatedValue.ID,
+		//     OptionKey:     option.OptionKey,
+		//     OldValue:      existingValue.Value,
+		//     NewValue:      updatedValue.Value,
+		// })
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"success": true,
+			"data":    updatedValue,
+			"message": "Option value updated successfully",
+		})
+	}
+}
+
+func HandleDeleteProductOptionValue(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+
+		// Parse and validate option ID
+		optionID, err := strconv.ParseInt(c.Param("id"), 10, 32)
+		if err != nil || optionID <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid option ID. Must be a positive integer",
+				"code":  "INVALID_OPTION_ID",
+			})
+		}
+
+		// Parse and validate option value ID
+		valueID, err := strconv.ParseInt(c.Param("value_id"), 10, 32)
+		if err != nil || valueID <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid option value ID. Must be a positive integer",
+				"code":  "INVALID_OPTION_VALUE_ID",
+			})
+		}
+
+		// Check if option exists
+		option, err := db.Queries.GetProductOption(ctx, int32(optionID))
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("option_id", int32(optionID)).
+				Msg("Failed to get option")
+
+			if err == pgx.ErrNoRows {
+				return c.JSON(http.StatusNotFound, map[string]interface{}{
+					"error": "Option not found",
+					"code":  "OPTION_NOT_FOUND",
+				})
+			}
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to retrieve option",
+				"code":  "OPTION_RETRIEVAL_FAILED",
+			})
+		}
+
+		// Check if option value exists and belongs to the specified option
+		existingValue, err := db.Queries.GetProductOptionValue(ctx, int32(valueID))
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("option_value_id", int32(valueID)).
+				Msg("Failed to get option value")
+
+			if err == pgx.ErrNoRows {
+				return c.JSON(http.StatusNotFound, map[string]interface{}{
+					"error": "Option value not found",
+					"code":  "OPTION_VALUE_NOT_FOUND",
+				})
+			}
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to retrieve option value",
+				"code":  "OPTION_VALUE_RETRIEVAL_FAILED",
+			})
+		}
+
+		// Verify that the option value belongs to the specified option
+		if existingValue.ProductOptionID != option.ID {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Option value does not belong to the specified option",
+				"code":  "OPTION_VALUE_MISMATCH",
+			})
+		}
+
+		// Check if option value is being used by any variants
+		usageCount, err := db.Queries.CheckOptionValueUsage(ctx, int32(valueID))
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("option_value_id", int32(valueID)).
+				Msg("Failed to check option value usage")
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to check option value usage",
+				"code":  "USAGE_CHECK_FAILED",
+			})
+		}
+
+		if usageCount > 0 {
+			return c.JSON(http.StatusConflict, map[string]interface{}{
+				"error": "Cannot delete option value because it is being used by existing product variants",
+				"code":  "OPTION_VALUE_IN_USE",
+				"usage_count": usageCount,
+			})
+		}
+
+		// Delete the option value
+		err = db.Queries.DeleteProductOptionValue(ctx, int32(valueID))
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("option_value_id", int32(valueID)).
+				Str("value", existingValue.Value).
+				Msg("Failed to delete option value")
+
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to delete option value",
+				"code":  "OPTION_VALUE_DELETION_FAILED",
+			})
+		}
+
+		logger.Info().
+			Int32("option_id", option.ID).
+			Int32("option_value_id", int32(valueID)).
+			Str("option_key", option.OptionKey).
+			Str("deleted_value", existingValue.Value).
+			Msg("Option value deleted successfully")
+
+		// TODO: Publish event
+		// eventBus.Publish("product.option_value.deleted", ProductOptionValueDeletedEvent{
+		//     OptionID:      option.ID,
+		//     OptionValueID: int32(valueID),
+		//     OptionKey:     option.OptionKey,
+		//     DeletedValue:  existingValue.Value,
+		// })
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"success": true,
+			"message": "Option value deleted successfully",
+		})
+	}
+}
+
 // helpers
 func convertProductVariantsToJSON(variants []database.ProductVariants) []map[string]interface{} {
 	result := make([]map[string]interface{}, len(variants))

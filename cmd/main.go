@@ -91,6 +91,8 @@ func addRoutes(
 	options.PUT("/:id", h.HandleUpdateProductOption(db, eventBus, logger))
 	options.DELETE("/:id", h.HandleDeleteProductOption(db, eventBus, logger))
 	options.POST("/:id/values", h.HandleCreateProductOptionValue(db, eventBus, logger))
+	options.PUT("/:id/values/:value_id", h.HandleUpdateProductOptionValue(db, eventBus, logger))
+	options.DELETE("/:id/values/:value_id", h.HandleDeleteProductOptionValue(db, eventBus, logger))
 
 	// Cart
 	// cart := api.Group("/cart")

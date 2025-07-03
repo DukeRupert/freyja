@@ -28,6 +28,30 @@ RETURNING *;
 DELETE FROM product_options
 WHERE id = $1;
 
+-- name: CreateProductOptionValue :one
+INSERT INTO product_option_values (
+    product_option_id, value
+) VALUES (
+    $1, $2
+)
+RETURNING *;
+
+-- name: GetProductOptionValueByValue :one
+SELECT *
+FROM product_option_values
+WHERE product_option_id = $1 AND value = $2;
+
+-- name: UpdateProductOptionValue :one
+UPDATE product_option_values
+SET
+    value = $2
+WHERE id = $1
+RETURNING *;
+
+-- name: DeleteProductOptionValue :exec
+DELETE FROM product_option_values
+WHERE id = $1;
+
 -- name: GetProductOptions :many
 SELECT *
 FROM product_options
@@ -39,6 +63,15 @@ SELECT *
 FROM product_option_values
 WHERE product_option_id = $1
 ORDER BY value ASC;
+
+
+-- Validation and integrity queries
+
+-- name: CheckOptionValueUsage :one
+SELECT COUNT(*) as usage_count
+FROM product_variant_options pvo
+JOIN product_variants pv ON pvo.product_variant_id = pv.id
+WHERE pvo.product_option_value_id = $1 AND pv.archived_at IS NULL;
 
 -- END --
 
@@ -62,30 +95,6 @@ FROM product_option_values pov
 JOIN product_options po ON pov.product_option_id = po.id
 WHERE po.product_id = $1
 ORDER BY po.option_key ASC, pov.value ASC;
-
--- name: GetProductOptionValueByValue :one
-SELECT id, product_option_id, value, created_at
-FROM product_option_values
-WHERE product_option_id = $1 AND value = $2;
-
--- name: CreateProductOptionValue :one
-INSERT INTO product_option_values (
-    product_option_id, value
-) VALUES (
-    $1, $2
-)
-RETURNING id, product_option_id, value, created_at;
-
--- name: UpdateProductOptionValue :one
-UPDATE product_option_values
-SET
-    value = $2
-WHERE id = $1
-RETURNING id, product_option_id, value, created_at;
-
--- name: DeleteProductOptionValue :exec
-DELETE FROM product_option_values
-WHERE id = $1;
 
 -- Product Variant Options (Junction Table) CRUD
 
@@ -227,14 +236,6 @@ LEFT JOIN product_option_values pov ON pvo.product_option_value_id = pov.id
 WHERE pv.product_id = $1 AND pv.archived_at IS NULL
 GROUP BY pv.id, pv.name, pv.price, pv.stock, pv.active
 ORDER BY pv.price ASC, pv.name ASC;
-
--- Validation and integrity queries
-
--- name: CheckOptionValueUsage :one
-SELECT COUNT(*) as usage_count
-FROM product_variant_options pvo
-JOIN product_variants pv ON pvo.product_variant_id = pv.id
-WHERE pvo.product_option_value_id = $1 AND pv.archived_at IS NULL;
 
 -- name: CheckOptionUsage :one
 SELECT COUNT(*) as usage_count
