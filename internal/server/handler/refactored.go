@@ -212,9 +212,9 @@ func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 
 func HandleUpdateProduct(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
 	type UpdateParams struct {
-		Name        string      `db:"name" json:"name" validate:"required,min=1,max=255"`
-		Description pgtype.Text `db:"description" json:"description" validate:"max=1000"`
-		Active      bool        `db:"active" json:"active"`
+		Name        string `json:"name" validate:"required,min=1,max=255"`
+		Description string `json:"description" validate:"max=1000"`  // Changed to string
+		Active      bool   `json:"active"`
 	}
 
 	return func(c echo.Context) error {
@@ -244,8 +244,17 @@ func HandleUpdateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 			})
 		}
 
+		// Trim whitespace from name
+		trimmedName := strings.TrimSpace(req.Name)
+		if trimmedName == "" {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Product name cannot be empty or whitespace only",
+				"code":  "INVALID_NAME",
+			})
+		}
+
 		// Check for name collision (excluding current product)
-		if existingProduct, err := db.Queries.GetProductByName(ctx, req.Name); err == nil {
+		if existingProduct, err := db.Queries.GetProductByName(ctx, trimmedName); err == nil {
 			if existingProduct.ID != int32(id) {
 				return c.JSON(http.StatusConflict, map[string]interface{}{
 					"error": "A product with this name already exists",
@@ -260,10 +269,18 @@ func HandleUpdateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 			})
 		}
 
+		// Convert string to pgtype.Text
+		var description pgtype.Text
+		if req.Description != "" {
+			description = pgtype.Text{String: req.Description, Valid: true}
+		} else {
+			description = pgtype.Text{Valid: false}
+		}
+
 		product, err := db.Queries.UpdateProduct(ctx, database.UpdateProductParams{
 			ID:          int32(id),
-			Name:        req.Name,
-			Description: req.Description,
+			Name:        trimmedName,
+			Description: description, // Use converted pgtype.Text
 			Active:      req.Active,
 		})
 		if err != nil {
@@ -292,7 +309,7 @@ func HandleUpdateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 
 		logger.Info().
 			Int64("product_id", id).
-			Str("name", req.Name).
+			Str("name", trimmedName).
 			Bool("active", req.Active).
 			Msg("Product updated successfully")
 
@@ -604,6 +621,13 @@ func convertPgText(pgText pgtype.Text) *string {
 		return nil
 	}
 	return &pgText.String
+}
+
+func convertStringToPgText(s string) pgtype.Text {
+	if s == "" {
+		return pgtype.Text{Valid: false}
+	}
+	return pgtype.Text{String: s, Valid: true}
 }
 
 func convertJSONBytes(jsonBytes []byte) []map[string]interface{} {

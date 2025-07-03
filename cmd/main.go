@@ -79,6 +79,7 @@ func addRoutes(
 	products.GET("", h.HandleGetProducts(db, logger))
 	products.POST("", h.HandleCreateProduct(db, eventBus, logger))
 	products.GET("/:id", h.HandleGetProduct(db, logger))
+	products.PUT("/:id", h.HandleUpdateProduct(db, eventBus, logger))
 	// products.GET("/:id/variants", handleGetProductVariants(db, logger))
 	// products.POST("/:id/variants". h.HandleCreateProductVariant(db, eventBus, logger))
 	products.GET("/:id/options", h.HandleGetProductOptions(db, logger))
