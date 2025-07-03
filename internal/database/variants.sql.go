@@ -613,11 +613,7 @@ func (q *Queries) GetVariantsByPriceRange(ctx context.Context, arg GetVariantsBy
 }
 
 const getVariantsByProduct = `-- name: GetVariantsByProduct :many
-SELECT 
-    id, product_id, name, price, stock, active, is_subscription,
-    archived_at, created_at, updated_at, stripe_product_id,
-    stripe_price_onetime_id, stripe_price_14day_id, stripe_price_21day_id,
-    stripe_price_30day_id, stripe_price_60day_id, options_display
+SELECT id, product_id, name, price, stock, active, is_subscription, archived_at, created_at, updated_at, stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id, stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id, options_display 
 FROM product_variants
 WHERE product_id = $1 AND archived_at IS NULL
 ORDER BY price ASC, name ASC

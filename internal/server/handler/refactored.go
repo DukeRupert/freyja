@@ -323,6 +323,129 @@ func HandleUpdateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 	}
 }
 
+func HandleDeleteProduct(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+
+		// Parse and validate product ID
+		id, err := strconv.ParseInt(c.Param("id"), 10, 32)
+		if err != nil || id <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid product ID. Must be a positive integer",
+				"code":  "INVALID_ID",
+			})
+		}
+		productID := int32(id)
+
+		// Check if product exists before attempting deletion
+		product, err := db.Queries.GetProduct(ctx, productID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("product_id", productID).
+				Msg("Failed to get product for deletion")
+
+			if err == pgx.ErrNoRows {
+				return c.JSON(http.StatusNotFound, map[string]interface{}{
+					"error": "Product not found",
+					"code":  "PRODUCT_NOT_FOUND",
+				})
+			}
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to retrieve product",
+				"code":  "PRODUCT_RETRIEVAL_FAILED",
+			})
+		}
+
+		// Check if product has variants (business rule - prevent deletion if variants exist)
+		variants, err := db.Queries.GetVariantsByProduct(ctx, productID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("product_id", productID).
+				Msg("Failed to check product variants")
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to validate product deletion",
+				"code":  "VALIDATION_ERROR",
+			})
+		}
+
+		if len(variants) > 0 {
+			return c.JSON(http.StatusConflict, map[string]interface{}{
+				"error": "Cannot delete product with existing variants. Delete variants first",
+				"code":  "HAS_VARIANTS",
+			})
+		}
+
+		// Check if product has options (business rule - prevent deletion if options exist)
+		options, err := db.Queries.GetProductOptions(ctx, productID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("product_id", productID).
+				Msg("Failed to check product options")
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to validate product deletion",
+				"code":  "VALIDATION_ERROR",
+			})
+		}
+
+		if len(options) > 0 {
+			return c.JSON(http.StatusConflict, map[string]interface{}{
+				"error": "Cannot delete product with existing options. Delete options first",
+				"code":  "HAS_OPTIONS",
+			})
+		}
+
+		// Perform the deletion
+		err = db.Queries.DeleteProduct(ctx, productID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("product_id", productID).
+				Str("product_name", product.Name).
+				Msg("Failed to delete product")
+
+			// Check for foreign key constraints
+			if strings.Contains(err.Error(), "foreign key") {
+				return c.JSON(http.StatusConflict, map[string]interface{}{
+					"error": "Cannot delete product due to existing references",
+					"code":  "FOREIGN_KEY_CONSTRAINT",
+				})
+			}
+
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to delete product",
+				"code":  "DELETION_FAILED",
+			})
+		}
+
+		logger.Info().
+			Int32("product_id", productID).
+			Str("product_name", product.Name).
+			Bool("was_active", product.Active).
+			Msg("Product deleted successfully")
+
+		// TODO: Publish event
+		// eventBus.Publish("product.deleted", ProductDeletedEvent{
+		//     ProductID: productID,
+		//     Name:      product.Name,
+		//     DeletedBy: getUserID(c),
+		// })
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"success": true,
+			"message": "Product deleted successfully",
+			"data": map[string]interface{}{
+				"deleted_product": map[string]interface{}{
+					"id":   product.ID,
+					"name": product.Name,
+				},
+			},
+		})
+	}
+}
+
 func HandleGetProductOptions(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 	type OptionWithValues struct {
 		ID           int32                           `json:"id"`
@@ -552,6 +675,251 @@ func HandleCreateProductOption(db *database.DB, eventBus interfaces.EventPublish
 			"success": true,
 			"data":    option,
 			"message": "Product option created successfully",
+		})
+	}
+}
+
+func HandleUpdateProductOption(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
+	type UpdateProductOptionRequest struct {
+		OptionKey string `json:"option_key" validate:"required,min=1,max=50"`
+	}
+
+	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+
+		// Parse and validate option ID
+		id, err := strconv.ParseInt(c.Param("id"), 10, 32)
+		if err != nil || id <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid option ID. Must be a positive integer",
+				"code":  "INVALID_OPTION_ID",
+			})
+		}
+		optionID := int32(id)
+
+		// Parse and validate request body
+		var req UpdateProductOptionRequest
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid JSON format in request body",
+				"code":  "INVALID_JSON",
+			})
+		}
+
+		if err := c.Validate(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": err.Error(),
+				"code":  "VALIDATION_ERROR",
+			})
+		}
+
+		// Sanitize and validate option key
+		trimmedOptionKey := strings.TrimSpace(req.OptionKey)
+		if trimmedOptionKey == "" {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Option key cannot be empty or whitespace only",
+				"code":  "INVALID_OPTION_KEY",
+			})
+		}
+
+		// Normalize option key (lowercase for consistency)
+		normalizedOptionKey := strings.ToLower(trimmedOptionKey)
+
+		// Check if option exists
+		existingOption, err := db.Queries.GetProductOption(ctx, optionID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("option_id", optionID).
+				Msg("Failed to get product option for update")
+
+			if err == pgx.ErrNoRows {
+				return c.JSON(http.StatusNotFound, map[string]interface{}{
+					"error": "Product option not found",
+					"code":  "OPTION_NOT_FOUND",
+				})
+			}
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to retrieve product option",
+				"code":  "OPTION_RETRIEVAL_FAILED",
+			})
+		}
+
+		// Check for option key collision within the same product (excluding current option)
+		existingOptions, err := db.Queries.GetProductOptions(ctx, existingOption.ProductID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("product_id", existingOption.ProductID).
+				Msg("Failed to check existing options for collision")
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to validate option key uniqueness",
+				"code":  "VALIDATION_ERROR",
+			})
+		}
+
+		for _, option := range existingOptions {
+			if option.ID != optionID && strings.ToLower(option.OptionKey) == normalizedOptionKey {
+				return c.JSON(http.StatusConflict, map[string]interface{}{
+					"error": "An option with this key already exists for this product",
+					"code":  "OPTION_KEY_CONFLICT",
+				})
+			}
+		}
+
+		// Update the option
+		updatedOption, err := db.Queries.UpdateProductOption(ctx, database.UpdateProductOptionParams{
+			ID:        optionID,
+			OptionKey: normalizedOptionKey,
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("option_id", optionID).
+				Str("option_key", normalizedOptionKey).
+				Int32("product_id", existingOption.ProductID).
+				Msg("Failed to update product option")
+
+			// Check for specific database constraints
+			if strings.Contains(err.Error(), "duplicate key") {
+				return c.JSON(http.StatusConflict, map[string]interface{}{
+					"error": "Option key must be unique for this product",
+					"code":  "DUPLICATE_OPTION_KEY",
+				})
+			}
+
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to update product option",
+				"code":  "UPDATE_FAILED",
+			})
+		}
+
+		logger.Info().
+			Int32("option_id", optionID).
+			Str("old_option_key", existingOption.OptionKey).
+			Str("new_option_key", updatedOption.OptionKey).
+			Int32("product_id", updatedOption.ProductID).
+			Msg("Product option updated successfully")
+
+		// TODO: Publish event
+		// eventBus.Publish("product.option.updated", ProductOptionUpdatedEvent{
+		//     OptionID:     optionID,
+		//     ProductID:    updatedOption.ProductID,
+		//     OldOptionKey: existingOption.OptionKey,
+		//     NewOptionKey: updatedOption.OptionKey,
+		//     UpdatedBy:    getUserID(c),
+		// })
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"success": true,
+			"data":    updatedOption,
+			"message": "Product option updated successfully",
+		})
+	}
+}
+
+func HandleDeleteProductOption(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+
+		// Parse and validate option ID
+		id, err := strconv.ParseInt(c.Param("id"), 10, 32)
+		if err != nil || id <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid option ID. Must be a positive integer",
+				"code":  "INVALID_OPTION_ID",
+			})
+		}
+		optionID := int32(id)
+
+		// Check if option exists before attempting deletion
+		option, err := db.Queries.GetProductOption(ctx, optionID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("option_id", optionID).
+				Msg("Failed to get product option for deletion")
+
+			if err == pgx.ErrNoRows {
+				return c.JSON(http.StatusNotFound, map[string]interface{}{
+					"error": "Product option not found",
+					"code":  "OPTION_NOT_FOUND",
+				})
+			}
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to retrieve product option",
+				"code":  "OPTION_RETRIEVAL_FAILED",
+			})
+		}
+
+		// Check if option has values (business rule - prevent deletion if values exist)
+		optionValues, err := db.Queries.GetProductOptionValues(ctx, optionID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("option_id", optionID).
+				Msg("Failed to check option values")
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to validate option deletion",
+				"code":  "VALIDATION_ERROR",
+			})
+		}
+
+		if len(optionValues) > 0 {
+			return c.JSON(http.StatusConflict, map[string]interface{}{
+				"error": "Cannot delete option with existing values. Delete option values first",
+				"code":  "HAS_OPTION_VALUES",
+			})
+		}
+
+		// Perform the deletion
+		err = db.Queries.DeleteProductOption(ctx, optionID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("option_id", optionID).
+				Str("option_key", option.OptionKey).
+				Int32("product_id", option.ProductID).
+				Msg("Failed to delete product option")
+
+			// Check for foreign key constraints
+			if strings.Contains(err.Error(), "foreign key") {
+				return c.JSON(http.StatusConflict, map[string]interface{}{
+					"error": "Cannot delete option due to existing references",
+					"code":  "FOREIGN_KEY_CONSTRAINT",
+				})
+			}
+
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to delete product option",
+				"code":  "DELETION_FAILED",
+			})
+		}
+
+		logger.Info().
+			Int32("option_id", optionID).
+			Str("option_key", option.OptionKey).
+			Int32("product_id", option.ProductID).
+			Msg("Product option deleted successfully")
+
+		// TODO: Publish event
+		// eventBus.Publish("product.option.deleted", ProductOptionDeletedEvent{
+		//     OptionID:  optionID,
+		//     ProductID: option.ProductID,
+		//     OptionKey: option.OptionKey,
+		//     DeletedBy: getUserID(c),
+		// })
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"success": true,
+			"message": "Product option deleted successfully",
+			"data": map[string]interface{}{
+				"deleted_option": map[string]interface{}{
+					"id":         option.ID,
+					"product_id": option.ProductID,
+					"option_key": option.OptionKey,
+				},
+			},
 		})
 	}
 }

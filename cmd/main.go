@@ -80,15 +80,16 @@ func addRoutes(
 	products.POST("", h.HandleCreateProduct(db, eventBus, logger))
 	products.GET("/:id", h.HandleGetProduct(db, logger))
 	products.PUT("/:id", h.HandleUpdateProduct(db, eventBus, logger))
+	products.DELETE("/:id", h.HandleDeleteProduct(db, eventBus, logger))
 	// products.GET("/:id/variants", handleGetProductVariants(db, logger))
 	// products.POST("/:id/variants". h.HandleCreateProductVariant(db, eventBus, logger))
 	products.GET("/:id/options", h.HandleGetProductOptions(db, logger))
 	products.POST("/:id/options", h.HandleCreateProductOption(db, eventBus, logger))
 
 	// Options
-	// options := api.Group("/options")
-	// options.PUT("/:id", h.HandleUpdateProductOption(db, eventBus, logger))
-	// options.DELETE("/:id", h.HandleDeleteProductOption(db, eventBus, logger))
+	options := api.Group("/options")
+	options.PUT("/:id", h.HandleUpdateProductOption(db, eventBus, logger))
+	options.DELETE("/:id", h.HandleDeleteProductOption(db, eventBus, logger))
 
 	// Cart
 	// cart := api.Group("/cart")
