@@ -154,13 +154,15 @@ func (q *Queries) GetLowStockProducts(ctx context.Context, totalStock interface{
 
 const getProduct = `-- name: GetProduct :one
 
-SELECT p.id, p.name, p.description, p.active, p.created_at, p.updated_at
+
+SELECT id, name, description, active, created_at, updated_at 
 FROM products p
 WHERE p.id = $1
 `
 
 // internal/database/queries/products.sql
 // Updated for product variants system
+// Start --
 func (q *Queries) GetProduct(ctx context.Context, id int32) (Products, error) {
 	row := q.db.QueryRow(ctx, getProduct, id)
 	var i Products
@@ -272,6 +274,8 @@ func (q *Queries) GetProductPerformanceStats(ctx context.Context, arg GetProduct
 }
 
 const getProductWithSummary = `-- name: GetProductWithSummary :one
+
+
 SELECT 
     pss.product_id,
     pss.name,
@@ -290,6 +294,7 @@ FROM product_stock_summary pss
 WHERE pss.product_id = $1 AND pss.product_active = true
 `
 
+// End --
 func (q *Queries) GetProductWithSummary(ctx context.Context, productID int32) (ProductStockSummary, error) {
 	row := q.db.QueryRow(ctx, getProductWithSummary, productID)
 	var i ProductStockSummary
@@ -309,6 +314,45 @@ func (q *Queries) GetProductWithSummary(ctx context.Context, productID int32) (P
 		&i.LastStockUpdate,
 	)
 	return i, err
+}
+
+const getProducts = `-- name: GetProducts :many
+SELECT id, name, description, active, created_at, updated_at FROM products p
+WHERE p.active = $1
+LIMIT $2 OFFSET $3
+`
+
+type GetProductsParams struct {
+	Active bool  `db:"active" json:"active"`
+	Limit  int32 `db:"limit" json:"limit"`
+	Offset int32 `db:"offset" json:"offset"`
+}
+
+func (q *Queries) GetProducts(ctx context.Context, arg GetProductsParams) ([]Products, error) {
+	rows, err := q.db.Query(ctx, getProducts, arg.Active, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Products{}
+	for rows.Next() {
+		var i Products
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Active,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getProductsInStock = `-- name: GetProductsInStock :many
@@ -647,7 +691,7 @@ func (q *Queries) ListProductsByStatus(ctx context.Context, arg ListProductsBySt
 
 const refreshProductStockSummary = `-- name: RefreshProductStockSummary :exec
 
-REFRESH MATERIALIZED VIEW product_stock_summary
+REFRESH MATERIALIZED VIEW CONCURRENTLY product_stock_summary
 `
 
 // Utility queries

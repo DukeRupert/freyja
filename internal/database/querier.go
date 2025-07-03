@@ -124,6 +124,7 @@ type Querier interface {
 	GetOrphanedOptions(ctx context.Context) ([]ProductOptions, error)
 	// internal/database/queries/products.sql
 	// Updated for product variants system
+	// Start --
 	GetProduct(ctx context.Context, id int32) (Products, error)
 	GetProductByName(ctx context.Context, name string) (Products, error)
 	// internal/database/queries/options.sql
@@ -140,7 +141,9 @@ type Querier interface {
 	// Product analytics and reporting queries
 	GetProductPerformanceStats(ctx context.Context, arg GetProductPerformanceStatsParams) ([]GetProductPerformanceStatsRow, error)
 	GetProductSalesStats(ctx context.Context, arg GetProductSalesStatsParams) ([]GetProductSalesStatsRow, error)
+	// End --
 	GetProductWithSummary(ctx context.Context, productID int32) (ProductStockSummary, error)
+	GetProducts(ctx context.Context, arg GetProductsParams) ([]Products, error)
 	GetProductsInStock(ctx context.Context) ([]ProductStockSummary, error)
 	GetProductsWithoutVariants(ctx context.Context, arg GetProductsWithoutVariantsParams) ([]Products, error)
 	GetRecentCustomers(ctx context.Context, limit int32) ([]GetRecentCustomersRow, error)

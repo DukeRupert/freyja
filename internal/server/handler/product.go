@@ -2,8 +2,6 @@
 package handler
 
 import (
-	"context"
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -11,23 +9,9 @@ import (
 	"github.com/dukerupert/freyja/internal/database"
 	"github.com/dukerupert/freyja/internal/server/middleware"
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
-	"github.com/rs/zerolog"
 )
-
-type ProductHandler struct {
-	productService interfaces.ProductService
-	variantService interfaces.VariantService
-}
-
-func NewProductHandler(productService interfaces.ProductService, variantService interfaces.VariantService) *ProductHandler {
-	return &ProductHandler{
-		productService: productService,
-		variantService: variantService,
-	}
-}
 
 type ProductSummary struct {
 	ProductID        int32       `json:"product_id"`
@@ -44,245 +28,19 @@ type ProductSummary struct {
 	AvailableOptions []byte      `json:"available_options"`
 }
 
-type ProductFilters struct {
-	Active *bool `json:"active,omitempty"`
-	Limit  int32 `json:"limit,omitempty"`
-	Offset int32 `json:"offset,omitempty"`
+type ProductHandler struct {
+	productService interfaces.ProductService
+	variantService interfaces.VariantService
 }
 
-func getProductFiltersSimple(c echo.Context) ProductFilters {
-	return ProductFilters{
-		Limit:  parseIntParam(c.QueryParam("limit"), 0),
-		Offset: parseIntParam(c.QueryParam("offset"), 0),
-		Active: parseBoolParam(c.QueryParam("active")),
-	}
-}
-
-func parseIntParam(param string, defaultValue int) int32 {
-	if param == "" {
-		return int32(defaultValue)
-	}
-
-	if val, err := strconv.Atoi(param); err == nil {
-		return int32(val)
-	}
-
-	return int32(defaultValue) // Return default for invalid values
-}
-
-func parseBoolParam(param string) *bool {
-	if param == "" {
-		return nil
-	}
-	if val, err := strconv.ParseBool(param); err == nil {
-		return &val
-	}
-	return nil
-}
-
-func executeGetProductsQuery(
-	ctx context.Context,
-	db *database.DB,
-	filters ProductFilters,
-) ([]database.ProductStockSummary, error) {
-	// If Active filter is specified, use status-based query
-	if filters.Active != nil {
-		return db.Queries.ListProductsByStatus(ctx, database.ListProductsByStatusParams{
-			ProductActive: *filters.Active,
-			Limit:         filters.Limit,
-			Offset:        filters.Offset,
-		})
-	}
-
-	// If pagination is specified but no active filter, list all with pagination
-	if filters.Limit > 0 || filters.Offset > 0 {
-		return db.Queries.ListAllProducts(ctx, database.ListAllProductsParams{
-			Limit:  filters.Limit,
-			Offset: filters.Offset,
-		})
-	}
-
-	// Default: active products only, no pagination
-	return db.Queries.ListProducts(ctx)
-}
-
-func convertProductStockSummarytoJSON(summaries []database.ProductStockSummary) []map[string]interface{} {
-	result := make([]map[string]interface{}, len(summaries))
-
-	for i, summary := range summaries {
-		result[i] = map[string]interface{}{
-			"product_id":        summary.ProductID,
-			"name":              summary.Name,
-			"description":       convertPgText(summary.Description),
-			"product_active":    summary.ProductActive,
-			"total_stock":       summary.TotalStock,
-			"variants_in_stock": summary.VariantsInStock,
-			"total_variants":    summary.TotalVariants,
-			"min_price":         summary.MinPrice,
-			"max_price":         summary.MaxPrice,
-			"has_stock":         summary.HasStock,
-			"stock_status":      summary.StockStatus,
-			"available_options": convertJSONBytes(summary.AvailableOptions),
-			"last_stock_update": summary.LastStockUpdate,
-		}
-	}
-
-	return result
-}
-
-func convertPgText(pgText pgtype.Text) *string {
-	if !pgText.Valid {
-		return nil
-	}
-	return &pgText.String
-}
-
-func convertJSONBytes(jsonBytes []byte) []map[string]interface{} {
-	if len(jsonBytes) == 0 {
-		return []map[string]interface{}{}
-	}
-
-	var options []map[string]interface{}
-	if err := json.Unmarshal(jsonBytes, &options); err != nil {
-		// If parsing fails, return empty slice instead of nil
-		return []map[string]interface{}{}
-	}
-
-	return options
-}
-
-func HandleGetProducts(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		ctx := c.Request().Context()
-		logger.Info().Msg("Starting GetProducts request")
-
-		filters := getProductFiltersSimple(c)
-
-		rows, err := executeGetProductsQuery(ctx, db, filters)
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Interface("filters", filters).
-				Msg("Failed to fetch products")
-			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-				"error": "Failed to fetch products",
-				"code":  "INTERNAL_ERROR",
-			})
-		} else {
-			logger.Info().
-				Int("result_count", len(rows)).
-				Interface("filters", filters).
-				Msg("Successfully fetched products")
-		}
-
-		// Transform to API-friendly format
-		apiProducts := convertProductStockSummarytoJSON(rows)
-
-		logger.Info().
-			Int("total_products", len(apiProducts)).
-			Msg("Successfully completed GetProducts request")
-
-		return c.JSON(http.StatusOK, map[string]interface{}{
-			"products": apiProducts,
-			"total":    len(apiProducts),
-			"filters":  filters,
-		})
+func NewProductHandler(productService interfaces.ProductService, variantService interfaces.VariantService) *ProductHandler {
+	return &ProductHandler{
+		productService: productService,
+		variantService: variantService,
 	}
 }
 
-func convertProductVariantsToJSON(variants []database.ProductVariants) []map[string]interface{} {
-	result := make([]map[string]interface{}, len(variants))
 
-	for i, variant := range variants {
-		result[i] = map[string]interface{}{
-			"id":                     variant.ID,
-			"product_id":             variant.ProductID,
-			"name":                   variant.Name,
-			"price":                  variant.Price,
-			"stock":                  variant.Stock,
-			"active":                 variant.Active,
-			"is_subscription":        variant.IsSubscription,
-			"archived_at":            convertPgTimestamp(variant.ArchivedAt),
-			"created_at":             variant.CreatedAt,
-			"updated_at":             variant.UpdatedAt,
-			"stripe_product_id":      convertPgText(variant.StripeProductID),
-			"stripe_price_onetime_id": convertPgText(variant.StripePriceOnetimeID),
-			"stripe_price_14day_id":  convertPgText(variant.StripePrice14dayID),
-			"stripe_price_21day_id":  convertPgText(variant.StripePrice21dayID),
-			"stripe_price_30day_id":  convertPgText(variant.StripePrice30dayID),
-			"stripe_price_60day_id":  convertPgText(variant.StripePrice60dayID),
-			"options_display":        convertPgText(variant.OptionsDisplay),
-		}
-	}
-
-	return result
-}
-
-func convertPgTimestamp(pgTimestamp pgtype.Timestamp) *time.Time {
-	if !pgTimestamp.Valid {
-		return nil
-	}
-	return &pgTimestamp.Time
-}
-
-func HandleGetProduct(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
-
-	return func(c echo.Context) error {
-		ctx := c.Request().Context()
-
-		// Parse product ID
-		idParam := c.Param("id")
-		id, err := strconv.Atoi(idParam)
-		if err != nil {
-			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": "Invalid product ID",
-				"code":  "INVALID_ID",
-			})
-		}
-
-		// Get product summary with aggregated variant data
-		product, err := db.Queries.GetProductWithSummary(ctx, int32(id))
-		if err != nil {
-			c.Logger().Error("Failed to get product: ", err)
-			if err == pgx.ErrNoRows {
-				return c.JSON(http.StatusNotFound, map[string]interface{}{
-					"error": "Product not found",
-					"code":  "PRODUCT_NOT_FOUND",
-				})
-			}
-			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-				"error": "Failed to retrieve product",
-				"code":  "INTERNAL_ERROR",
-			})
-		}
-
-		rows := []database.ProductVariants{}
-		if product.ProductActive {
-			variants, err := db.Queries.GetActiveVariantsByProduct(ctx, product.ProductID)
-			if err != nil {
-				c.Logger().Error("Failed to get product variants: ", err)
-				return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-					"error": "Failed to retrieve product variants",
-					"code":  "INTERNAL_ERROR",
-				})
-			}
-			rows = variants
-		}
-
-		// Transform to API-friendly format
-		variants := convertProductVariantsToJSON(rows)
-
-		logger.Info().
-			Int("total_products", len(variants)).
-			Msg("Successfully completed GetProducts request")
-
-		return c.JSON(http.StatusOK, map[string]interface{}{
-			"products": variants,
-			"total":    len(variants),
-		})
-
-	}
-}
 
 // =============================================================================
 // Customer-Facing Product Endpoints (with variant information)

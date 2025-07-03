@@ -1,10 +1,25 @@
 -- internal/database/queries/products.sql
 -- Updated for product variants system
 
+-- Start --
+
 -- name: GetProduct :one
-SELECT p.id, p.name, p.description, p.active, p.created_at, p.updated_at
+SELECT * 
 FROM products p
 WHERE p.id = $1;
+
+-- name: GetProductByName :one
+SELECT p.id, p.name, p.description, p.active, p.created_at, p.updated_at
+FROM products p
+WHERE p.name = $1;
+
+-- name: GetProducts :many
+SELECT * FROM products p
+WHERE p.active = $1
+LIMIT $2 OFFSET $3;
+
+-- End --
+
 
 -- name: GetProductWithSummary :one
 SELECT 
@@ -23,11 +38,6 @@ SELECT
     pss.last_stock_update
 FROM product_stock_summary pss
 WHERE pss.product_id = $1 AND pss.product_active = true;
-
--- name: GetProductByName :one
-SELECT p.id, p.name, p.description, p.active, p.created_at, p.updated_at
-FROM products p
-WHERE p.name = $1;
 
 -- name: ListProducts :many
 SELECT 
