@@ -501,15 +501,15 @@ func (q *Queries) GetProductOptionValueByValue(ctx context.Context, arg GetProdu
 	return i, err
 }
 
-const getProductOptionValuesByOption = `-- name: GetProductOptionValuesByOption :many
+const getProductOptionValues = `-- name: GetProductOptionValues :many
 SELECT id, product_option_id, value, created_at
 FROM product_option_values
 WHERE product_option_id = $1
 ORDER BY value ASC
 `
 
-func (q *Queries) GetProductOptionValuesByOption(ctx context.Context, productOptionID int32) ([]ProductOptionValues, error) {
-	rows, err := q.db.Query(ctx, getProductOptionValuesByOption, productOptionID)
+func (q *Queries) GetProductOptionValues(ctx context.Context, productOptionID int32) ([]ProductOptionValues, error) {
+	rows, err := q.db.Query(ctx, getProductOptionValues, productOptionID)
 	if err != nil {
 		return nil, err
 	}

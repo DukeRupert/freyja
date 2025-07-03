@@ -216,7 +216,7 @@ func HandleUpdateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 		Description pgtype.Text `db:"description" json:"description" validate:"max=1000"`
 		Active      bool        `db:"active" json:"active"`
 	}
-	
+
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
 
@@ -268,14 +268,14 @@ func HandleUpdateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 		})
 		if err != nil {
 			logger.Error().Err(err).Int64("product_id", id).Msg("Failed to update product")
-			
+
 			if err == pgx.ErrNoRows {
 				return c.JSON(http.StatusNotFound, map[string]interface{}{
 					"error": "Product not found",
 					"code":  "PRODUCT_NOT_FOUND",
 				})
 			}
-			
+
 			// Check for specific database constraints
 			if strings.Contains(err.Error(), "duplicate key") {
 				return c.JSON(http.StatusConflict, map[string]interface{}{
@@ -283,7 +283,7 @@ func HandleUpdateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 					"code":  "DUPLICATE_NAME",
 				})
 			}
-			
+
 			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 				"error": "Failed to update product",
 				"code":  "UPDATE_FAILED",
@@ -306,74 +306,92 @@ func HandleUpdateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 	}
 }
 
-func HandleGetOption(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		ctx := c.Request().Context()
-
-		option_id, err := strconv.ParseInt(c.Param("id"), 10, 32)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "Invalid option ID")
-		}
-		id := int32(option_id)
-
-		option, err := db.Queries.GetProductOption(ctx, id)
-		if err != nil {
-			logger.Error().Err(err).Msg("failed to get option")
-			if err == pgx.ErrNoRows {
-				return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
-					"error": "option not found",
-					"code":  "INTERNAL_ERROR",
-				})
-			}
-			return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
-				"error": "failed to retrieve option",
-				"code":  "INTERNAL_ERROR",
-			})
-		}
-
-		return c.JSON(http.StatusOK, &option)
-	}
-}
-
 func HandleGetProductOptions(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
+	type OptionWithValues struct {
+		ID           int32                           `json:"id"`
+		ProductID    int32                           `json:"product_id"`
+		OptionKey    string                          `json:"option_key"`
+		CreatedAt    time.Time                       `json:"created_at"`
+		OptionValues []database.ProductOptionValues  `json:"option_values"`
+	}
+
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
 
-		id, err := strconv.ParseInt(c.Param("id"), 10, 32)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "Invalid product ID")
+		// Parse and validate product ID
+		productID, err := strconv.ParseInt(c.Param("id"), 10, 32)
+		if err != nil || productID <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid product ID. Must be a positive integer",
+				"code":  "INVALID_PRODUCT_ID",
+			})
 		}
-		product_id := int32(id)
+		id := int32(productID)
 
-		// check if product exists
-		_, err = db.Queries.GetProduct(ctx, product_id)
+		// Check if product exists
+		_, err = db.Queries.GetProduct(ctx, id)
 		if err != nil {
-			logger.Error().Err(err).Msg("failed to get product")
+			logger.Error().
+				Err(err).
+				Int32("product_id", id).
+				Msg("Failed to get product")
+
 			if err == pgx.ErrNoRows {
-				return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
-					"error": "product not found",
-					"code":  "INTERNAL_ERROR",
+				return c.JSON(http.StatusNotFound, map[string]interface{}{
+					"error": "Product not found",
+					"code":  "PRODUCT_NOT_FOUND",
 				})
 			}
-			return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
-				"error": "failed to retrieve product",
-				"code":  "INTERNAL_ERROR",
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to retrieve product",
+				"code":  "PRODUCT_RETRIEVAL_FAILED",
 			})
 		}
 
-		options, err := db.Queries.GetProductOptions(ctx, product_id)
+		// Get all options for this product
+		options, err := db.Queries.GetProductOptions(ctx, id)
 		if err != nil {
-			logger.Error().Err(err).Msg("failed to retrieve options")
-			return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
-				"error": "failed to retrieve product",
-				"code":  "INTERNAL_ERROR",
+			logger.Error().
+				Err(err).
+				Int32("product_id", id).
+				Msg("Failed to get product options")
+
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to retrieve product options",
+				"code":  "OPTIONS_RETRIEVAL_FAILED",
 			})
 		}
+
+		// Build response with option values included
+		optionsWithValues := make([]OptionWithValues, len(options))
+		for i, option := range options {
+			// Get values for each option
+			values, err := db.Queries.GetProductOptionValues(ctx, option.ID)
+			if err != nil {
+				logger.Warn().
+					Err(err).
+					Int32("option_id", option.ID).
+					Msg("Failed to get option values, using empty array")
+				values = []database.ProductOptionValues{} // Empty slice on error
+			}
+
+			optionsWithValues[i] = OptionWithValues{
+				ID:           option.ID,
+				ProductID:    option.ProductID,
+				OptionKey:    option.OptionKey,
+				CreatedAt:    option.CreatedAt,
+				OptionValues: values,
+			}
+		}
+
+		logger.Debug().
+			Int32("product_id", id).
+			Int("options_count", len(optionsWithValues)).
+			Msg("Product options with values retrieved successfully")
 
 		return c.JSON(http.StatusOK, map[string]interface{}{
-			"endpoint":   "/products/:id/option",
-			"product_id": product_id,
-			"options":    options,
+			"success": true,
+			"data":    optionsWithValues,
 		})
 	}
 }

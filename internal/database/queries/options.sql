@@ -41,12 +41,12 @@ WHERE id = $1;
 -- Product Option Values CRUD
 
 -- name: GetProductOptionValue :one
-SELECT id, product_option_id, value, created_at
+SELECT *
 FROM product_option_values
 WHERE id = $1;
 
--- name: GetProductOptionValuesByOption :many
-SELECT id, product_option_id, value, created_at
+-- name: GetProductOptionValues :many
+SELECT *
 FROM product_option_values
 WHERE product_option_id = $1
 ORDER BY value ASC;
