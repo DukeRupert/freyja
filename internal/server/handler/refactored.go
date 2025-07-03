@@ -111,7 +111,7 @@ func HandleGetProduct(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
 	type CreateProductRequest struct {
 		Name        string      `json:"name" validate:"required,min=1,max=255"`
-		Description pgtype.Text `json:"description" validate:"max=1000"`
+		Description string `json:"description" validate:"max=1000"`
 		Active      bool        `json:"active"`
 	}
 
@@ -162,10 +162,16 @@ func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 			})
 		}
 
+		// Convert string to pgtype.Text for database
+		description := pgtype.Text{
+			String: strings.TrimSpace(req.Description),
+			Valid:  req.Description != "",
+		}
+
 		// Create product with sanitized data
 		product, err := db.Queries.CreateProduct(ctx, database.CreateProductParams{
 			Name:        trimmedName,
-			Description: req.Description,
+			Description: description,
 			Active:      req.Active,
 		})
 		if err != nil {
@@ -924,31 +930,132 @@ func HandleDeleteProductOption(db *database.DB, eventBus interfaces.EventPublish
 	}
 }
 
-// helpers
-func convertProductStockSummarytoJSON(summaries []database.ProductStockSummary) []map[string]interface{} {
-	result := make([]map[string]interface{}, len(summaries))
-
-	for i, summary := range summaries {
-		result[i] = map[string]interface{}{
-			"product_id":        summary.ProductID,
-			"name":              summary.Name,
-			"description":       convertPgText(summary.Description),
-			"product_active":    summary.ProductActive,
-			"total_stock":       summary.TotalStock,
-			"variants_in_stock": summary.VariantsInStock,
-			"total_variants":    summary.TotalVariants,
-			"min_price":         summary.MinPrice,
-			"max_price":         summary.MaxPrice,
-			"has_stock":         summary.HasStock,
-			"stock_status":      summary.StockStatus,
-			"available_options": convertJSONBytes(summary.AvailableOptions),
-			"last_stock_update": summary.LastStockUpdate,
-		}
+func HandleCreateProductOptionValue(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
+	type CreateProductOptionValueRequest struct {
+		Value string `json:"value" validate:"required,min=1,max=100"`
 	}
 
-	return result
+	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+
+		// Parse and validate option ID
+		id, err := strconv.ParseInt(c.Param("id"), 10, 32)
+		if err != nil || id <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid option ID. Must be a positive integer",
+				"code":  "INVALID_OPTION_ID",
+			})
+		}
+		optionID := int32(id)
+
+		// Parse and validate request body
+		var req CreateProductOptionValueRequest
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid JSON format in request body",
+				"code":  "INVALID_JSON",
+			})
+		}
+
+		if err := c.Validate(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": err.Error(),
+				"code":  "VALIDATION_ERROR",
+			})
+		}
+
+		// Sanitize and validate value
+		trimmedValue := strings.TrimSpace(req.Value)
+		if trimmedValue == "" {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Option value cannot be empty or whitespace only",
+				"code":  "INVALID_OPTION_VALUE",
+			})
+		}
+
+		// Check if option exists
+		_, err = db.Queries.GetProductOption(ctx, optionID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("option_id", optionID).
+				Msg("Failed to get option")
+
+			if err == pgx.ErrNoRows {
+				return c.JSON(http.StatusNotFound, map[string]interface{}{
+					"error": "Option not found",
+					"code":  "OPTION_NOT_FOUND",
+				})
+			}
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to retrieve option",
+				"code":  "OPTION_RETRIEVAL_FAILED",
+			})
+		}
+
+		// Check if value already exists for this option
+		_, err = db.Queries.GetProductOptionValueByValue(ctx, database.GetProductOptionValueByValueParams{
+			ProductOptionID: optionID,
+			Value:           trimmedValue,
+		})
+		if err == nil {
+			return c.JSON(http.StatusConflict, map[string]interface{}{
+				"error": "An option value with this name already exists for this option",
+				"code":  "OPTION_VALUE_CONFLICT",
+			})
+		}
+		if err != pgx.ErrNoRows {
+			logger.Error().
+				Err(err).
+				Int32("option_id", optionID).
+				Str("value", trimmedValue).
+				Msg("Failed to check existing option values")
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to validate option value uniqueness",
+				"code":  "VALIDATION_ERROR",
+			})
+		}
+
+		// Create the option value
+		optionValue, err := db.Queries.CreateProductOptionValue(ctx, database.CreateProductOptionValueParams{
+			ProductOptionID: optionID,
+			Value:           trimmedValue,
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("option_id", optionID).
+				Str("value", trimmedValue).
+				Msg("Failed to create option value")
+
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to create option value",
+				"code":  "OPTION_VALUE_CREATION_FAILED",
+			})
+		}
+
+		logger.Info().
+			Int32("option_id", optionID).
+			Int32("option_value_id", optionValue.ID).
+			Str("value", optionValue.Value).
+			Msg("Option value created successfully")
+
+		// TODO: Publish event
+		// eventBus.Publish("product.option_value.created", ProductOptionValueCreatedEvent{
+		//     OptionID:      optionID,
+		//     OptionValueID: optionValue.ID,
+		//     Value:         optionValue.Value,
+		// })
+
+		return c.JSON(http.StatusCreated, map[string]interface{}{
+			"success": true,
+			"data":    optionValue,
+			"message": "Option value created successfully",
+		})
+	}
 }
 
+// helpers
 func convertProductVariantsToJSON(variants []database.ProductVariants) []map[string]interface{} {
 	result := make([]map[string]interface{}, len(variants))
 
