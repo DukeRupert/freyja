@@ -577,15 +577,15 @@ func (q *Queries) GetProductOptionValuesByProduct(ctx context.Context, productID
 	return items, nil
 }
 
-const getProductOptionsByProduct = `-- name: GetProductOptionsByProduct :many
+const getProductOptions = `-- name: GetProductOptions :many
 SELECT id, product_id, option_key, created_at
 FROM product_options
 WHERE product_id = $1
 ORDER BY option_key ASC
 `
 
-func (q *Queries) GetProductOptionsByProduct(ctx context.Context, productID int32) ([]ProductOptions, error) {
-	rows, err := q.db.Query(ctx, getProductOptionsByProduct, productID)
+func (q *Queries) GetProductOptions(ctx context.Context, productID int32) ([]ProductOptions, error) {
+	rows, err := q.db.Query(ctx, getProductOptions, productID)
 	if err != nil {
 		return nil, err
 	}

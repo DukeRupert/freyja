@@ -8,8 +8,8 @@ SELECT id, product_id, option_key, created_at
 FROM product_options
 WHERE id = $1;
 
--- name: GetProductOptionsByProduct :many
-SELECT id, product_id, option_key, created_at
+-- name: GetProductOptions :many
+SELECT *
 FROM product_options
 WHERE product_id = $1
 ORDER BY option_key ASC;

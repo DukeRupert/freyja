@@ -137,7 +137,7 @@ type Querier interface {
 	GetProductOptionValueByValue(ctx context.Context, arg GetProductOptionValueByValueParams) (ProductOptionValues, error)
 	GetProductOptionValuesByOption(ctx context.Context, productOptionID int32) ([]ProductOptionValues, error)
 	GetProductOptionValuesByProduct(ctx context.Context, productID int32) ([]GetProductOptionValuesByProductRow, error)
-	GetProductOptionsByProduct(ctx context.Context, productID int32) ([]ProductOptions, error)
+	GetProductOptions(ctx context.Context, productID int32) ([]ProductOptions, error)
 	// Product analytics and reporting queries
 	GetProductPerformanceStats(ctx context.Context, arg GetProductPerformanceStatsParams) ([]GetProductPerformanceStatsRow, error)
 	GetProductSalesStats(ctx context.Context, arg GetProductSalesStatsParams) ([]GetProductSalesStatsRow, error)

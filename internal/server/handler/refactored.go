@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dukerupert/freyja/internal/database"
@@ -67,7 +68,6 @@ func HandleGetProduct(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 			})
 		}
 
-		// Get product summary with aggregated variant data
 		product, err := db.Queries.GetProduct(ctx, int32(id))
 		if err != nil {
 			c.Logger().Error("Failed to get product: ", err)
@@ -109,14 +109,20 @@ func HandleGetProduct(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 }
 
 func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
+	type CreateProductRequest struct {
+		Name        string      `json:"name" validate:"required,min=1,max=255"`
+		Description pgtype.Text `json:"description" validate:"max=1000"`
+		Active      bool        `json:"active"`
+	}
+
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
 
-		var req database.CreateProductParams
+		var req CreateProductRequest
 		if err := c.Bind(&req); err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": "Invalid request body",
-				"code":  "INVALID_REQUEST",
+				"error": "Invalid JSON format in request body",
+				"code":  "INVALID_JSON",
 			})
 		}
 
@@ -127,37 +133,176 @@ func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 			})
 		}
 
-		// Validate that the product name is unique
-		_, err := db.Queries.GetProductByName(ctx, req.Name)
+		// Sanitize and validate name
+		trimmedName := strings.TrimSpace(req.Name)
+		if trimmedName == "" {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Product name cannot be empty or whitespace only",
+				"code":  "INVALID_NAME",
+			})
+		}
+
+		// Check for name collision
+		_, err := db.Queries.GetProductByName(ctx, trimmedName)
 		if err != nil && err != pgx.ErrNoRows {
-			// Database error (not "no rows found")
-			logger.Error().Err(err).Msg("failed to check if product name already exists")
+			logger.Error().
+				Err(err).
+				Str("product_name", trimmedName).
+				Msg("Failed to check product name uniqueness")
 			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-				"error": "failed to validate product name",
-				"code":  "INTERNAL_ERROR",
+				"error": "Failed to validate product name",
+				"code":  "VALIDATION_ERROR",
 			})
 		}
 
 		if err == nil {
-			// Product with this name already exists (no error = found a product)
 			return c.JSON(http.StatusConflict, map[string]interface{}{
-				"error": "product with this name already exists",
+				"error": "A product with this name already exists",
 				"code":  "NAME_CONFLICT",
 			})
 		}
 
-		// Create product
-		product, err := db.Queries.CreateProduct(ctx, req)
+		// Create product with sanitized data
+		product, err := db.Queries.CreateProduct(ctx, database.CreateProductParams{
+			Name:        trimmedName,
+			Description: req.Description,
+			Active:      req.Active,
+		})
 		if err != nil {
-			logger.Error().Err(err).Msg("failed to create product")
-			return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
-				"error": "failed to create product",
-				"code":  "INTERNAL_ERROR",
+			logger.Error().
+				Err(err).
+				Str("product_name", trimmedName).
+				Bool("active", req.Active).
+				Msg("Failed to create product")
+
+			// Handle specific database errors
+			if strings.Contains(err.Error(), "duplicate key") {
+				return c.JSON(http.StatusConflict, map[string]interface{}{
+					"error": "Product name must be unique",
+					"code":  "DUPLICATE_NAME",
+				})
+			}
+
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to create product",
+				"code":  "CREATION_FAILED",
 			})
 		}
 
-		// TODO: publish event
-		return c.JSON(http.StatusCreated, product)
+		logger.Info().
+			Int32("product_id", product.ID).
+			Str("name", product.Name).
+			Bool("active", product.Active).
+			Msg("Product created successfully")
+
+		// TODO: Publish event
+		// eventBus.Publish("product.created", ProductCreatedEvent{
+		//     ProductID: product.ID,
+		//     Name:      product.Name,
+		//     Active:    product.Active,
+		// })
+
+		return c.JSON(http.StatusCreated, map[string]interface{}{
+			"success": true,
+			"data":    product,
+			"message": "Product created successfully",
+		})
+	}
+}
+
+func HandleUpdateProduct(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
+	type UpdateParams struct {
+		Name        string      `db:"name" json:"name" validate:"required,min=1,max=255"`
+		Description pgtype.Text `db:"description" json:"description" validate:"max=1000"`
+		Active      bool        `db:"active" json:"active"`
+	}
+	
+	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+
+		// Parse product ID with better validation
+		id, err := strconv.ParseInt(c.Param("id"), 10, 32)
+		if err != nil || id <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid product ID. Must be a positive integer",
+				"code":  "INVALID_ID",
+			})
+		}
+
+		var req UpdateParams
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid JSON format in request body",
+				"code":  "INVALID_JSON",
+			})
+		}
+
+		if err := c.Validate(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": err.Error(),
+				"code":  "VALIDATION_ERROR",
+			})
+		}
+
+		// Check for name collision (excluding current product)
+		if existingProduct, err := db.Queries.GetProductByName(ctx, req.Name); err == nil {
+			if existingProduct.ID != int32(id) {
+				return c.JSON(http.StatusConflict, map[string]interface{}{
+					"error": "A product with this name already exists",
+					"code":  "NAME_CONFLICT",
+				})
+			}
+		} else if err != pgx.ErrNoRows {
+			logger.Error().Err(err).Msg("Failed to check product name uniqueness")
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to validate product name",
+				"code":  "VALIDATION_ERROR",
+			})
+		}
+
+		product, err := db.Queries.UpdateProduct(ctx, database.UpdateProductParams{
+			ID:          int32(id),
+			Name:        req.Name,
+			Description: req.Description,
+			Active:      req.Active,
+		})
+		if err != nil {
+			logger.Error().Err(err).Int64("product_id", id).Msg("Failed to update product")
+			
+			if err == pgx.ErrNoRows {
+				return c.JSON(http.StatusNotFound, map[string]interface{}{
+					"error": "Product not found",
+					"code":  "PRODUCT_NOT_FOUND",
+				})
+			}
+			
+			// Check for specific database constraints
+			if strings.Contains(err.Error(), "duplicate key") {
+				return c.JSON(http.StatusConflict, map[string]interface{}{
+					"error": "Product name must be unique",
+					"code":  "DUPLICATE_NAME",
+				})
+			}
+			
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to update product",
+				"code":  "UPDATE_FAILED",
+			})
+		}
+
+		logger.Info().
+			Int64("product_id", id).
+			Str("name", req.Name).
+			Bool("active", req.Active).
+			Msg("Product updated successfully")
+
+		// TODO: Publish event
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"success": true,
+			"data":    product,
+			"message": "Product updated successfully",
+		})
 	}
 }
 
@@ -190,7 +335,7 @@ func HandleGetOption(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 	}
 }
 
-func HandleGetProductOption(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
+func HandleGetProductOptions(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
 
@@ -216,7 +361,7 @@ func HandleGetProductOption(db *database.DB, logger zerolog.Logger) echo.Handler
 			})
 		}
 
-		options, err := db.Queries.GetProductOptionsByProduct(ctx, product_id)
+		options, err := db.Queries.GetProductOptions(ctx, product_id)
 		if err != nil {
 			logger.Error().Err(err).Msg("failed to retrieve options")
 			return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
@@ -234,67 +379,145 @@ func HandleGetProductOption(db *database.DB, logger zerolog.Logger) echo.Handler
 }
 
 func HandleCreateProductOption(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
-
 	type CreateProductOptionRequest struct {
-		OptionKey string `json:"option_key" form:"option_key" validate:"required,min=1,max=50"`
+		OptionKey string `json:"option_key" validate:"required,min=1,max=50"`
 	}
 
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
 
+		// Parse and validate product ID
 		id, err := strconv.ParseInt(c.Param("id"), 10, 32)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "Invalid product ID")
-		}
-		product_id := int32(id)
-
-		// check if product exists
-		_, err = db.Queries.GetProduct(ctx, product_id)
-		if err != nil {
-			logger.Error().Err(err).Msg("failed to get product")
-			if err == pgx.ErrNoRows {
-				return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
-					"error": "product not found",
-					"code":  "INTERNAL_ERROR",
-				})
-			}
-			return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
-				"error": "failed to retrieve product",
-				"code":  "INTERNAL_ERROR",
+		if err != nil || id <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid product ID. Must be a positive integer",
+				"code":  "INVALID_PRODUCT_ID",
 			})
 		}
+		productID := int32(id)
 
+		// Parse and validate request body
 		var req CreateProductOptionRequest
 		if err := c.Bind(&req); err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid JSON format in request body",
+				"code":  "INVALID_JSON",
+			})
 		}
 
 		if err := c.Validate(&req); err != nil {
-			logger.Error().Err(err).Interface("req", req).Msg("validation failed")
-			return echo.NewHTTPError(http.StatusBadRequest, map[string]interface{}{
-				"error": "invalid request body",
-				"code":  "BAD_REQUEST",
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": err.Error(),
+				"code":  "VALIDATION_ERROR",
 			})
 		}
 
-		// create option
-		params := database.CreateProductOptionParams{
-			ProductID: product_id,
-			OptionKey: req.OptionKey,
+		// Sanitize and validate option key
+		trimmedOptionKey := strings.TrimSpace(req.OptionKey)
+		if trimmedOptionKey == "" {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Option key cannot be empty or whitespace only",
+				"code":  "INVALID_OPTION_KEY",
+			})
 		}
 
-		option, err := db.Queries.CreateProductOption(ctx, params)
+		// Normalize option key (lowercase for consistency)
+		normalizedOptionKey := strings.ToLower(trimmedOptionKey)
+
+		// Check if product exists
+		product, err := db.Queries.GetProduct(ctx, productID)
 		if err != nil {
-			logger.Error().Err(err).Msg("failed to create option")
-			return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
-				"error": "failed to create product",
-				"code":  "INTERNAL_ERROR",
+			logger.Error().
+				Err(err).
+				Int32("product_id", productID).
+				Msg("Failed to get product")
+
+			if err == pgx.ErrNoRows {
+				return c.JSON(http.StatusNotFound, map[string]interface{}{
+					"error": "Product not found",
+					"code":  "PRODUCT_NOT_FOUND",
+				})
+			}
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to retrieve product",
+				"code":  "PRODUCT_RETRIEVAL_FAILED",
 			})
 		}
 
-		// TODO: publish event
+		// Check if product is active (optional business rule)
+		if !product.Active {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Cannot add options to inactive product",
+				"code":  "PRODUCT_INACTIVE",
+			})
+		}
 
-		return c.JSON(http.StatusCreated, &option)
+		// Check if option key already exists for this product
+		existingOptions, err := db.Queries.GetProductOptions(ctx, productID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("product_id", productID).
+				Msg("Failed to check existing options")
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to validate option uniqueness",
+				"code":  "VALIDATION_ERROR",
+			})
+		}
+
+		for _, existingOption := range existingOptions {
+			if strings.ToLower(existingOption.OptionKey) == normalizedOptionKey {
+				return c.JSON(http.StatusConflict, map[string]interface{}{
+					"error": "An option with this key already exists for this product",
+					"code":  "OPTION_KEY_CONFLICT",
+				})
+			}
+		}
+
+		// Create the option
+		option, err := db.Queries.CreateProductOption(ctx, database.CreateProductOptionParams{
+			ProductID: productID,
+			OptionKey: normalizedOptionKey,
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("product_id", productID).
+				Str("option_key", normalizedOptionKey).
+				Msg("Failed to create product option")
+
+			// Handle specific database errors
+			if strings.Contains(err.Error(), "duplicate key") {
+				return c.JSON(http.StatusConflict, map[string]interface{}{
+					"error": "Option key must be unique for this product",
+					"code":  "DUPLICATE_OPTION_KEY",
+				})
+			}
+
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to create product option",
+				"code":  "OPTION_CREATION_FAILED",
+			})
+		}
+
+		logger.Info().
+			Int32("product_id", productID).
+			Int32("option_id", option.ID).
+			Str("option_key", option.OptionKey).
+			Msg("Product option created successfully")
+
+		// TODO: Publish event
+		// eventBus.Publish("product.option.created", ProductOptionCreatedEvent{
+		//     ProductID: productID,
+		//     OptionID:  option.ID,
+		//     OptionKey: option.OptionKey,
+		// })
+
+		return c.JSON(http.StatusCreated, map[string]interface{}{
+			"success": true,
+			"data":    option,
+			"message": "Product option created successfully",
+		})
 	}
 }
 
