@@ -26,7 +26,6 @@ import (
 // NewServer creates and configures an Echo instance
 func NewServer(
 	logger zerolog.Logger,
-	cfg *config.Config,
 	db *database.DB,
 	eventBus interfaces.EventPublisher,
 	stripeProvider *provider.StripeProvider,
@@ -50,7 +49,7 @@ func NewServer(
 	e.Use(customMiddleware.PrometheusMiddleware())
 
 	// Add routes
-	addRoutes(e, logger, cfg, db, eventBus, stripeProvider)
+	addRoutes(e, logger, db, eventBus, stripeProvider)
 
 	return e
 }
@@ -58,7 +57,6 @@ func NewServer(
 func addRoutes(
 	e *echo.Echo,
 	logger zerolog.Logger,
-	cfg *config.Config,
 	db *database.DB,
 	eventBus interfaces.EventPublisher,
 	stripeProvider *provider.StripeProvider,
@@ -84,16 +82,15 @@ func addRoutes(
 	// products.GET("/stats", handleGetProductStats(db, logger))
 	products.GET("/:id", h.HandleGetProduct(db, logger))
 	// products.GET("/:id/variants", handleGetProductVariants(db, logger))
+	products.GET("/:id/option", h.HandleGetProductOption(db, logger))
+	products.POST("/:id/option", h.HandleCreateProductOption(db, eventBus, logger))
 	// products.GET("/variants/search", handleSearchProductVariants(db, logger))
 
 	// Options
-	// admin := api.Group("/admin")
 	options := api.Group("/options")
-	options.POST("", h.HandleCreateProductOption(db, eventBus, logger))
-	// admin.GET("/products/:product_id/options", handleGetProductOptions(db, logger))
-	// admin.GET("/options/:id", handleGetProductOption(db, logger))
-	// admin.PUT("/options/:id", handleUpdateProductOption(db, eventBus, logger))
-	// admin.DELETE("/options/:id", handleDeleteProductOption(db, eventBus, logger))
+	options.GET("/:id", h.HandleGetOption(db, logger))
+	// options.PUT("/:id", h.HandleUpdateProductOption(db, eventBus, logger))
+	// options.DELETE("/:id", h.HandleDeleteProductOption(db, eventBus, logger))
 
 	// Cart
 	// cart := api.Group("/cart")
@@ -125,6 +122,7 @@ func addRoutes(
 	// customers.GET("/stats", handleGetCustomerStats(db, logger))
 
 	// Admin
+	// admin := api.Group("/admin")
 	// admin.GET("/orders", handleGetAllOrders(db, logger))
 	// admin.PUT("/orders/:id/status", handleUpdateOrderStatus(db, eventBus, logger))
 	// admin.GET("/orders/stats", handleGetOrderStats(db, logger))
@@ -209,7 +207,7 @@ func run(
 	go startEventSubscribers(ctx, db, eventBus, logger)
 
 	// Create server
-	e := NewServer(logger, cfg, db, eventBus, stripeProvider)
+	e := NewServer(logger, db, eventBus, stripeProvider)
 
 	// Start server
 	go func() {
