@@ -1,11 +1,31 @@
 -- internal/database/queries/options.sql
 -- Product options and option values queries
 
+-- START -- 
 -- Product Options CRUD
 
 -- name: GetProductOption :one
-SELECT id, product_id, option_key, created_at
+SELECT *
 FROM product_options
+WHERE id = $1;
+
+-- name: CreateProductOption :one
+INSERT INTO product_options (
+    product_id, option_key
+) VALUES (
+    $1, $2
+)
+RETURNING *;
+
+-- name: UpdateProductOption :one
+UPDATE product_options
+SET
+    option_key = $2
+WHERE id = $1
+RETURNING *;
+
+-- name: DeleteProductOption :exec
+DELETE FROM product_options
 WHERE id = $1;
 
 -- name: GetProductOptions :many
@@ -14,29 +34,18 @@ FROM product_options
 WHERE product_id = $1
 ORDER BY option_key ASC;
 
+-- name: GetProductOptionValues :many
+SELECT *
+FROM product_option_values
+WHERE product_option_id = $1
+ORDER BY value ASC;
+
+-- END --
+
 -- name: GetProductOptionByKey :one
 SELECT id, product_id, option_key, created_at
 FROM product_options
 WHERE product_id = $1 AND option_key = $2;
-
--- name: CreateProductOption :one
-INSERT INTO product_options (
-    product_id, option_key
-) VALUES (
-    $1, $2
-)
-RETURNING id, product_id, option_key, created_at;
-
--- name: UpdateProductOption :one
-UPDATE product_options
-SET
-    option_key = $2
-WHERE id = $1
-RETURNING id, product_id, option_key, created_at;
-
--- name: DeleteProductOption :exec
-DELETE FROM product_options
-WHERE id = $1;
 
 -- Product Option Values CRUD
 
@@ -44,12 +53,6 @@ WHERE id = $1;
 SELECT *
 FROM product_option_values
 WHERE id = $1;
-
--- name: GetProductOptionValues :many
-SELECT *
-FROM product_option_values
-WHERE product_option_id = $1
-ORDER BY value ASC;
 
 -- name: GetProductOptionValuesByProduct :many
 SELECT 

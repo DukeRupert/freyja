@@ -9,9 +9,31 @@ FROM products p
 WHERE p.id = $1;
 
 -- name: GetProductByName :one
-SELECT p.id, p.name, p.description, p.active, p.created_at, p.updated_at
+SELECT *
 FROM products p
 WHERE p.name = $1;
+
+-- name: CreateProduct :one
+INSERT INTO products (
+  name, description, active
+) VALUES (
+  $1, $2, $3
+)
+RETURNING *;
+
+-- name: UpdateProduct :one
+UPDATE products
+SET
+  name = $2,
+  description = $3,
+  active = $4,
+  updated_at = NOW()
+WHERE id = $1
+RETURNING *;
+
+-- name: DeleteProduct :exec
+DELETE FROM products
+WHERE id = $1;
 
 -- name: GetProducts :many
 SELECT * FROM products p
@@ -191,23 +213,7 @@ LIMIT $1 OFFSET $2;
 
 -- Product management queries (admin operations)
 
--- name: CreateProduct :one
-INSERT INTO products (
-  name, description, active
-) VALUES (
-  $1, $2, $3
-)
-RETURNING id, name, description, active, created_at, updated_at;
 
--- name: UpdateProduct :one
-UPDATE products
-SET
-  name = COALESCE($2, name),
-  description = COALESCE($3, description),
-  active = COALESCE($4, active),
-  updated_at = NOW()
-WHERE id = $1
-RETURNING id, name, description, active, created_at, updated_at;
 
 -- name: ActivateProduct :one
 UPDATE products
@@ -225,9 +231,6 @@ SET
 WHERE id = $1
 RETURNING id, name, description, active, created_at, updated_at;
 
--- name: DeleteProduct :exec
-DELETE FROM products
-WHERE id = $1;
 
 -- Product analytics and reporting queries
 

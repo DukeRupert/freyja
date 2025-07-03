@@ -1,8 +1,22 @@
 -- internal/database/queries/variants.sql
 -- Product variant queries for the variant system
 
+-- START --
 -- Basic variant CRUD operations
+-- name: GetVariantsByProduct :many
+SELECT * 
+FROM product_variants
+WHERE product_id = $1 AND archived_at IS NULL
+ORDER BY price ASC, name ASC;
 
+-- name: GetActiveVariantsByProduct :many
+SELECT *
+FROM product_variants
+WHERE product_id = $1 AND active = true AND archived_at IS NULL
+ORDER BY price ASC, name ASC;
+
+
+-- END --
 -- name: GetVariant :one
 SELECT 
     id, product_id, name, price, stock, active, is_subscription,
@@ -37,21 +51,6 @@ LEFT JOIN product_option_values pov ON pvo.product_option_value_id = pov.id
 WHERE pv.id = $1 AND pv.archived_at IS NULL
 GROUP BY pv.id;
 
--- name: GetVariantsByProduct :many
-SELECT * 
-FROM product_variants
-WHERE product_id = $1 AND archived_at IS NULL
-ORDER BY price ASC, name ASC;
-
--- name: GetActiveVariantsByProduct :many
-SELECT 
-    id, product_id, name, price, stock, active, is_subscription,
-    archived_at, created_at, updated_at, stripe_product_id,
-    stripe_price_onetime_id, stripe_price_14day_id, stripe_price_21day_id,
-    stripe_price_30day_id, stripe_price_60day_id, options_display
-FROM product_variants
-WHERE product_id = $1 AND active = true AND archived_at IS NULL
-ORDER BY price ASC, name ASC;
 
 -- name: GetVariantsInStock :many
 SELECT 

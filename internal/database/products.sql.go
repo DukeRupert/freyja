@@ -12,6 +12,9 @@ import (
 )
 
 const activateProduct = `-- name: ActivateProduct :one
+
+
+
 UPDATE products
 SET
   active = true,
@@ -20,6 +23,7 @@ WHERE id = $1
 RETURNING id, name, description, active, created_at, updated_at
 `
 
+// Product management queries (admin operations)
 func (q *Queries) ActivateProduct(ctx context.Context, id int32) (Products, error) {
 	row := q.db.QueryRow(ctx, activateProduct, id)
 	var i Products
@@ -35,7 +39,6 @@ func (q *Queries) ActivateProduct(ctx context.Context, id int32) (Products, erro
 }
 
 const createProduct = `-- name: CreateProduct :one
-
 INSERT INTO products (
   name, description, active
 ) VALUES (
@@ -50,7 +53,6 @@ type CreateProductParams struct {
 	Active      bool        `db:"active" json:"active"`
 }
 
-// Product management queries (admin operations)
 func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (Products, error) {
 	row := q.db.QueryRow(ctx, createProduct, arg.Name, arg.Description, arg.Active)
 	var i Products
@@ -178,7 +180,7 @@ func (q *Queries) GetProduct(ctx context.Context, id int32) (Products, error) {
 }
 
 const getProductByName = `-- name: GetProductByName :one
-SELECT p.id, p.name, p.description, p.active, p.created_at, p.updated_at
+SELECT id, name, description, active, created_at, updated_at
 FROM products p
 WHERE p.name = $1
 `
@@ -819,9 +821,9 @@ func (q *Queries) SearchProductsWithOptions(ctx context.Context, name string) ([
 const updateProduct = `-- name: UpdateProduct :one
 UPDATE products
 SET
-  name = COALESCE($2, name),
-  description = COALESCE($3, description),
-  active = COALESCE($4, active),
+  name = $2,
+  description = $3,
+  active = $4,
   updated_at = NOW()
 WHERE id = $1
 RETURNING id, name, description, active, created_at, updated_at

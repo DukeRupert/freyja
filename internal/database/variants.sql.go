@@ -227,11 +227,7 @@ func (q *Queries) DecrementVariantStock(ctx context.Context, arg DecrementVarian
 }
 
 const getActiveVariantsByProduct = `-- name: GetActiveVariantsByProduct :many
-SELECT 
-    id, product_id, name, price, stock, active, is_subscription,
-    archived_at, created_at, updated_at, stripe_product_id,
-    stripe_price_onetime_id, stripe_price_14day_id, stripe_price_21day_id,
-    stripe_price_30day_id, stripe_price_60day_id, options_display
+SELECT id, product_id, name, price, stock, active, is_subscription, archived_at, created_at, updated_at, stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id, stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id, options_display
 FROM product_variants
 WHERE product_id = $1 AND active = true AND archived_at IS NULL
 ORDER BY price ASC, name ASC
@@ -406,8 +402,6 @@ func (q *Queries) GetSubscriptionVariants(ctx context.Context) ([]ProductVariant
 }
 
 const getVariant = `-- name: GetVariant :one
-
-
 SELECT 
     id, product_id, name, price, stock, active, is_subscription,
     archived_at, created_at, updated_at, stripe_product_id,
@@ -417,9 +411,7 @@ FROM product_variants
 WHERE id = $1 AND archived_at IS NULL
 `
 
-// internal/database/queries/variants.sql
-// Product variant queries for the variant system
-// Basic variant CRUD operations
+// END --
 func (q *Queries) GetVariant(ctx context.Context, id int32) (ProductVariants, error) {
 	row := q.db.QueryRow(ctx, getVariant, id)
 	var i ProductVariants
@@ -613,12 +605,17 @@ func (q *Queries) GetVariantsByPriceRange(ctx context.Context, arg GetVariantsBy
 }
 
 const getVariantsByProduct = `-- name: GetVariantsByProduct :many
+
 SELECT id, product_id, name, price, stock, active, is_subscription, archived_at, created_at, updated_at, stripe_product_id, stripe_price_onetime_id, stripe_price_14day_id, stripe_price_21day_id, stripe_price_30day_id, stripe_price_60day_id, options_display 
 FROM product_variants
 WHERE product_id = $1 AND archived_at IS NULL
 ORDER BY price ASC, name ASC
 `
 
+// internal/database/queries/variants.sql
+// Product variant queries for the variant system
+// START --
+// Basic variant CRUD operations
 func (q *Queries) GetVariantsByProduct(ctx context.Context, productID int32) ([]ProductVariants, error) {
 	rows, err := q.db.Query(ctx, getVariantsByProduct, productID)
 	if err != nil {

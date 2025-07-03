@@ -280,7 +280,7 @@ func HandleUpdateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 		product, err := db.Queries.UpdateProduct(ctx, database.UpdateProductParams{
 			ID:          int32(id),
 			Name:        trimmedName,
-			Description: description, // Use converted pgtype.Text
+			Description: description,
 			Active:      req.Active,
 		})
 		if err != nil {

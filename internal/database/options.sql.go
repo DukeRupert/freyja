@@ -422,6 +422,7 @@ WHERE id = $1
 
 // internal/database/queries/options.sql
 // Product options and option values queries
+// START --
 // Product Options CRUD
 func (q *Queries) GetProductOption(ctx context.Context, id int32) (ProductOptions, error) {
 	row := q.db.QueryRow(ctx, getProductOption, id)
@@ -436,6 +437,7 @@ func (q *Queries) GetProductOption(ctx context.Context, id int32) (ProductOption
 }
 
 const getProductOptionByKey = `-- name: GetProductOptionByKey :one
+
 SELECT id, product_id, option_key, created_at
 FROM product_options
 WHERE product_id = $1 AND option_key = $2
@@ -446,6 +448,7 @@ type GetProductOptionByKeyParams struct {
 	OptionKey string `db:"option_key" json:"option_key"`
 }
 
+// END --
 func (q *Queries) GetProductOptionByKey(ctx context.Context, arg GetProductOptionByKeyParams) (ProductOptions, error) {
 	row := q.db.QueryRow(ctx, getProductOptionByKey, arg.ProductID, arg.OptionKey)
 	var i ProductOptions

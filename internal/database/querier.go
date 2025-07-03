@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	// Product management queries (admin operations)
 	ActivateProduct(ctx context.Context, id int32) (Products, error)
 	ActivateVariant(ctx context.Context, id int32) (ProductVariants, error)
 	ArchiveCustomer(ctx context.Context, id int32) (ArchiveCustomerRow, error)
@@ -27,7 +28,6 @@ type Querier interface {
 	CreateCustomer(ctx context.Context, arg CreateCustomerParams) (CreateCustomerRow, error)
 	CreateOrder(ctx context.Context, arg CreateOrderParams) (CreateOrderRow, error)
 	CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (CreateOrderItemRow, error)
-	// Product management queries (admin operations)
 	CreateProduct(ctx context.Context, arg CreateProductParams) (Products, error)
 	CreateProductOption(ctx context.Context, arg CreateProductOptionParams) (ProductOptions, error)
 	CreateProductOptionValue(ctx context.Context, arg CreateProductOptionValueParams) (ProductOptionValues, error)
@@ -129,8 +129,10 @@ type Querier interface {
 	GetProductByName(ctx context.Context, name string) (Products, error)
 	// internal/database/queries/options.sql
 	// Product options and option values queries
+	// START --
 	// Product Options CRUD
 	GetProductOption(ctx context.Context, id int32) (ProductOptions, error)
+	// END --
 	GetProductOptionByKey(ctx context.Context, arg GetProductOptionByKeyParams) (ProductOptions, error)
 	// Product Option Values CRUD
 	GetProductOptionValue(ctx context.Context, id int32) (ProductOptionValues, error)
@@ -153,9 +155,7 @@ type Querier interface {
 	GetSubscriptionsByInterval(ctx context.Context, arg GetSubscriptionsByIntervalParams) ([]GetSubscriptionsByIntervalRow, error)
 	GetTopSellingProducts(ctx context.Context, arg GetTopSellingProductsParams) ([]GetTopSellingProductsRow, error)
 	GetTopSellingVariants(ctx context.Context, arg GetTopSellingVariantsParams) ([]GetTopSellingVariantsRow, error)
-	// internal/database/queries/variants.sql
-	// Product variant queries for the variant system
-	// Basic variant CRUD operations
+	// END --
 	GetVariant(ctx context.Context, id int32) (ProductVariants, error)
 	// Complex option queries for variant management
 	GetVariantByOptionCombination(ctx context.Context, arg GetVariantByOptionCombinationParams) (ProductVariants, error)
@@ -168,6 +168,10 @@ type Querier interface {
 	GetVariantSalesStats(ctx context.Context, arg GetVariantSalesStatsParams) ([]GetVariantSalesStatsRow, error)
 	GetVariantWithOptions(ctx context.Context, id int32) (GetVariantWithOptionsRow, error)
 	GetVariantsByPriceRange(ctx context.Context, arg GetVariantsByPriceRangeParams) ([]ProductVariants, error)
+	// internal/database/queries/variants.sql
+	// Product variant queries for the variant system
+	// START --
+	// Basic variant CRUD operations
 	GetVariantsByProduct(ctx context.Context, productID int32) ([]ProductVariants, error)
 	GetVariantsInStock(ctx context.Context, productID int32) ([]ProductVariants, error)
 	GetVariantsNeedingStripeSync(ctx context.Context, arg GetVariantsNeedingStripeSyncParams) ([]ProductVariants, error)
