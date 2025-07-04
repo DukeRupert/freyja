@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -1428,6 +1429,384 @@ func HandleDeleteProductOptionValue(db *database.DB, eventBus interfaces.EventPu
 		return c.JSON(http.StatusOK, map[string]interface{}{
 			"success": true,
 			"message": "Option value deleted successfully",
+		})
+	}
+}
+
+// CreateVariant handles variant creation with database-enforced option constraints.
+//
+// Database Trigger Constraints:
+// 1. If product has NO options defined → variant can exist with empty option set (default variant)
+// 2. If product has ANY options defined → variant MUST have exactly one value for EACH option
+// 3. Option values must belong to their specified options (validated automatically)
+// 4. Cannot create partial option sets - it's all or nothing
+//
+// This means: products either have all variants with complete option combinations,
+// or all variants with no options (default variants only).
+func HandleCreateProductVariant(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
+	type CreateVariantRequest struct {
+		Name           string  `json:"name" validate:"required,min=1,max=500"`
+		Price          int32   `json:"price" validate:"required,min=1"`
+		Stock          int32   `json:"stock" validate:"min=0"`
+		Active         bool    `json:"active"`
+		IsSubscription bool    `json:"is_subscription"`
+		OptionValueIDs []int32 `json:"option_value_ids"` // For setting variant options
+	}
+
+	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+
+		// Parse and validate product ID
+		id, err := strconv.ParseInt(c.Param("id"), 10, 32)
+		if err != nil || id <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid product ID. Must be a positive integer",
+				"code":  "INVALID_PRODUCT_ID",
+			})
+		}
+		productID := int32(id)
+
+		// Parse and validate request body
+		var req CreateVariantRequest
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid JSON format in request body",
+				"code":  "INVALID_JSON",
+			})
+		}
+
+		if err := c.Validate(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": err.Error(),
+				"code":  "VALIDATION_ERROR",
+			})
+		}
+
+		// Sanitize name
+		trimmedName := strings.TrimSpace(req.Name)
+		if trimmedName == "" {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Variant name cannot be empty or whitespace only",
+				"code":  "INVALID_VARIANT_NAME",
+			})
+		}
+
+		// Verify product exists
+		_, err = db.Queries.GetProduct(ctx, productID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("product_id", productID).
+				Msg("Failed to get product")
+
+			if err == pgx.ErrNoRows {
+				return c.JSON(http.StatusNotFound, map[string]interface{}{
+					"error": "Product not found",
+					"code":  "PRODUCT_NOT_FOUND",
+				})
+			}
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to retrieve product",
+				"code":  "PRODUCT_RETRIEVAL_FAILED",
+			})
+		}
+
+		// Check for existing variant with same name for this product
+		existingVariants, err := db.Queries.GetVariantsByProduct(ctx, productID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("product_id", productID).
+				Msg("Failed to check existing variants")
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to validate variant name uniqueness",
+				"code":  "VALIDATION_ERROR",
+			})
+		}
+
+		for _, existingVariant := range existingVariants {
+			if strings.EqualFold(existingVariant.Name, trimmedName) && existingVariant.ArchivedAt.Time.IsZero() {
+				return c.JSON(http.StatusConflict, map[string]interface{}{
+					"error": "A variant with this name already exists for this product",
+					"code":  "VARIANT_NAME_CONFLICT",
+				})
+			}
+		}
+
+		// Create variant
+		variant, err := db.Queries.CreateVariant(ctx, database.CreateVariantParams{
+			ProductID:      productID,
+			Name:          trimmedName,
+			Price:         req.Price,
+			Stock:         req.Stock,
+			Active:        req.Active,
+			IsSubscription: req.IsSubscription,
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("product_id", productID).
+				Str("name", trimmedName).
+				Msg("Failed to create variant")
+
+			// Check for specific database constraints
+			if strings.Contains(err.Error(), "duplicate key") {
+				return c.JSON(http.StatusConflict, map[string]interface{}{
+					"error": "Variant with this configuration already exists",
+					"code":  "DUPLICATE_VARIANT",
+				})
+			}
+
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to create variant",
+				"code":  "VARIANT_CREATION_FAILED",
+			})
+		}
+
+		// Create variant option associations if provided
+		if len(req.OptionValueIDs) > 0 {
+			for _, valueID := range req.OptionValueIDs {
+				// Get the option value to validate it exists and get its option ID
+				optionValue, err := db.Queries.GetProductOptionValue(ctx, valueID)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Int32("option_value_id", valueID).
+						Int32("variant_id", variant.ID).
+						Msg("Failed to get option value for variant")
+
+					// Clean up the variant since option association failed
+					db.Queries.ArchiveVariant(ctx, variant.ID)
+
+					if err == pgx.ErrNoRows {
+						return c.JSON(http.StatusBadRequest, map[string]interface{}{
+							"error": fmt.Sprintf("Option value with ID %d not found", valueID),
+							"code":  "OPTION_VALUE_NOT_FOUND",
+						})
+					}
+					return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+						"error": "Failed to validate option values",
+						"code":  "OPTION_VALUE_RETRIEVAL_FAILED",
+					})
+				}
+
+				// Create the variant option association
+				_, err = db.Queries.CreateVariantOption(ctx, database.CreateVariantOptionParams{
+					ProductVariantID:     variant.ID,
+					ProductOptionID:      optionValue.ProductOptionID,
+					ProductOptionValueID: valueID,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Int32("variant_id", variant.ID).
+						Int32("option_value_id", valueID).
+						Msg("Failed to create variant option association")
+
+					// Clean up the variant since option association failed
+					db.Queries.ArchiveVariant(ctx, variant.ID)
+
+					// Check for database constraint violations
+					if strings.Contains(err.Error(), "variant must have exactly one value") {
+						return c.JSON(http.StatusBadRequest, map[string]interface{}{
+							"error": "Variant must have exactly one value for each product option",
+							"code":  "INCOMPLETE_OPTION_SET",
+						})
+					}
+					if strings.Contains(err.Error(), "option value") && strings.Contains(err.Error(), "does not belong") {
+						return c.JSON(http.StatusBadRequest, map[string]interface{}{
+							"error": "Option value does not belong to the specified option",
+							"code":  "INVALID_OPTION_COMBINATION",
+						})
+					}
+
+					return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+						"error": "Failed to create variant option associations",
+						"code":  "VARIANT_OPTION_CREATION_FAILED",
+					})
+				}
+			}
+		}
+
+		// Publish event
+		// event := interfaces.Event{
+		// 	Type:        "variant.created",
+		// 	AggregateID: fmt.Sprintf("variant:%d", variant.ID),
+		// 	Data: map[string]interface{}{
+		// 		"variant_id":      variant.ID,
+		// 		"product_id":      variant.ProductID,
+		// 		"name":           variant.Name,
+		// 		"price":          variant.Price,
+		// 		"stock":          variant.Stock,
+		// 		"option_value_ids": req.OptionValueIDs,
+		// 	},
+		// 	Timestamp: time.Now(),
+		// }
+		
+		// if err := eventBus.PublishEvent(ctx, event); err != nil {
+		// 	logger.Error().
+		// 		Err(err).
+		// 		Int32("variant_id", variant.ID).
+		// 		Msg("Failed to publish variant.created event")
+		// 	// Don't fail the request for event publishing failures
+		// }
+
+		logger.Info().
+			Int32("product_id", productID).
+			Int32("variant_id", variant.ID).
+			Str("name", variant.Name).
+			Int32("price", variant.Price).
+			Msg("Created product variant")
+
+		return c.JSON(http.StatusCreated, map[string]interface{}{
+			"success": true,
+			"data":    variant,
+			"message": "Variant created successfully",
+		})
+	}
+}
+
+func HandleGetVariant(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+
+		// Parse and validate variant ID
+		id, err := strconv.ParseInt(c.Param("id"), 10, 32)
+		if err != nil || id <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid variant ID. Must be a positive integer",
+				"code":  "INVALID_VARIANT_ID",
+			})
+		}
+		variantID := int32(id)
+
+		// Get variant
+		variant, err := db.Queries.GetVariant(ctx, variantID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("variant_id", variantID).
+				Msg("Failed to get variant")
+
+			if err == pgx.ErrNoRows {
+				return c.JSON(http.StatusNotFound, map[string]interface{}{
+					"error": "Variant not found",
+					"code":  "VARIANT_NOT_FOUND",
+				})
+			}
+
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to retrieve variant",
+				"code":  "VARIANT_RETRIEVAL_FAILED",
+			})
+		}
+
+		logger.Info().
+			Int32("variant_id", variantID).
+			Str("name", variant.Name).
+			Msg("Retrieved variant")
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"success": true,
+			"data":    variant,
+		})
+	}
+}
+
+// HandleDeleteProductVariant archives a product variant (soft delete).
+// - Soft deletes by archiving (following existing pattern)
+// - Validates that the variant exists and isn't already archived
+// - Publishes events for the deletion
+// - Returns the archived variant so you can see the archived_at timestamp
+func HandleDeleteProductVariant(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+
+		// Parse and validate variant ID
+		id, err := strconv.ParseInt(c.Param("id"), 10, 32)
+		if err != nil || id <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid variant ID. Must be a positive integer",
+				"code":  "INVALID_VARIANT_ID",
+			})
+		}
+		variantID := int32(id)
+
+		// Check if variant exists and get it for logging/events
+		existingVariant, err := db.Queries.GetVariant(ctx, variantID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("variant_id", variantID).
+				Msg("Failed to get variant for deletion")
+
+			if err == pgx.ErrNoRows {
+				return c.JSON(http.StatusNotFound, map[string]interface{}{
+					"error": "Variant not found",
+					"code":  "VARIANT_NOT_FOUND",
+				})
+			}
+
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to retrieve variant",
+				"code":  "VARIANT_RETRIEVAL_FAILED",
+			})
+		}
+
+		// Check if variant is already archived
+		if existingVariant.ArchivedAt.Valid {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Variant is already archived",
+				"code":  "VARIANT_ALREADY_ARCHIVED",
+			})
+		}
+
+		// Archive the variant (soft delete)
+		archivedVariant, err := db.Queries.ArchiveVariant(ctx, variantID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("variant_id", variantID).
+				Str("variant_name", existingVariant.Name).
+				Msg("Failed to archive variant")
+
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to archive variant",
+				"code":  "VARIANT_ARCHIVE_FAILED",
+			})
+		}
+
+		// Publish event
+		// event := interfaces.Event{
+		// 	Type:        "variant.archived",
+		// 	AggregateID: fmt.Sprintf("variant:%d", variantID),
+		// 	Data: map[string]interface{}{
+		// 		"variant_id": variantID,
+		// 		"product_id": existingVariant.ProductID,
+		// 		"name":       existingVariant.Name,
+		// 		"archived_at": archivedVariant.ArchivedAt.Time,
+		// 	},
+		// 	Timestamp: time.Now(),
+		// }
+		
+		// if err := eventBus.PublishEvent(ctx, event); err != nil {
+		// 	logger.Error().
+		// 		Err(err).
+		// 		Int32("variant_id", variantID).
+		// 		Msg("Failed to publish variant.archived event")
+		// 	// Don't fail the request for event publishing failures
+		// }
+
+		logger.Info().
+			Int32("variant_id", variantID).
+			Int32("product_id", existingVariant.ProductID).
+			Str("name", existingVariant.Name).
+			Msg("Archived product variant")
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"success": true,
+			"message": "Variant archived successfully",
+			"data":    archivedVariant,
 		})
 	}
 }

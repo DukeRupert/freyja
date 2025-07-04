@@ -43,17 +43,17 @@ RETURNS TRIGGER AS $$
 DECLARE
     expected_option_count INTEGER;
     actual_option_count INTEGER;
-    product_id INTEGER;
+    variant_product_id INTEGER;
 BEGIN
     -- Get the product_id for this variant
-    SELECT pv.product_id INTO product_id 
+    SELECT pv.product_id INTO variant_product_id 
     FROM product_variants pv 
     WHERE pv.id = NEW.product_variant_id;
     
     -- Count expected options for this product
     SELECT COUNT(*) INTO expected_option_count
     FROM product_options po
-    WHERE po.product_id = product_id;
+    WHERE po.product_id = variant_product_id;
     
     -- Count actual options for this variant
     SELECT COUNT(*) INTO actual_option_count

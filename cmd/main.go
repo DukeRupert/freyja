@@ -81,8 +81,8 @@ func addRoutes(
 	products.GET("/:id", h.HandleGetProduct(db, logger))
 	products.PUT("/:id", h.HandleUpdateProduct(db, eventBus, logger))
 	products.DELETE("/:id", h.HandleDeleteProduct(db, eventBus, logger))
-	// products.GET("/:id/variants", handleGetProductVariants(db, logger))
-	// products.POST("/:id/variants". h.HandleCreateProductVariant(db, eventBus, logger))
+	// products.GET("/:id/variants", h.HandleGetProductVariants(db, logger))
+	products.POST("/:id/variants", h.HandleCreateProductVariant(db, eventBus, logger))
 	products.GET("/:id/options", h.HandleGetProductOptions(db, logger))
 	products.POST("/:id/options", h.HandleCreateProductOption(db, eventBus, logger))
 
@@ -91,8 +91,18 @@ func addRoutes(
 	options.PUT("/:id", h.HandleUpdateProductOption(db, eventBus, logger))
 	options.DELETE("/:id", h.HandleDeleteProductOption(db, eventBus, logger))
 	options.POST("/:id/values", h.HandleCreateProductOptionValue(db, eventBus, logger))
+	options.POST("/:id/values/:value_id", h.HandleGetProductOptionValue(db, logger))
 	options.PUT("/:id/values/:value_id", h.HandleUpdateProductOptionValue(db, eventBus, logger))
 	options.DELETE("/:id/values/:value_id", h.HandleDeleteProductOptionValue(db, eventBus, logger))
+
+	// Variants
+	variants := api.Group("/variants")
+	variants.GET("/:id", h.HandleGetVariant(db, logger))
+	variants.DELETE("/:id", h.HandleDeleteProductVariant(db, eventBus, logger))
+	// admin.PUT("/variants/:id", handleUpdateVariant(db, eventBus, logger))
+	// admin.POST("/variants/:id/activate", handleActivateVariant(db, eventBus, logger))
+	// admin.POST("/variants/:id/deactivate", handleDeactivateVariant(db, eventBus, logger))
+
 
 	// Cart
 	// cart := api.Group("/cart")
@@ -130,15 +140,6 @@ func addRoutes(
 	// admin.GET("/orders/stats", handleGetOrderStats(db, logger))
 	// admin.POST("/products", handleCreateProduct(db, eventBus, logger))
 	// admin.PUT("/products/:id", handleUpdateProduct(db, eventBus, logger))
-
-	// Variants
-	// admin.POST("/variants", handleCreateVariant(db, eventBus, logger))
-	// admin.GET("/variants/:id", handleGetVariant(db, logger))
-	// admin.PUT("/variants/:id", handleUpdateVariant(db, eventBus, logger))
-	// admin.DELETE("/variants/:id", handleArchiveVariant(db, eventBus, logger))
-	// admin.POST("/variants/:id/activate", handleActivateVariant(db, eventBus, logger))
-	// admin.POST("/variants/:id/deactivate", handleDeactivateVariant(db, eventBus, logger))
-
 }
 
 func run(
