@@ -110,9 +110,9 @@ func HandleGetProduct(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 
 func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
 	type CreateProductRequest struct {
-		Name        string      `json:"name" validate:"required,min=1,max=255"`
+		Name        string `json:"name" validate:"required,min=1,max=255"`
 		Description string `json:"description" validate:"max=1000"`
-		Active      bool        `json:"active"`
+		Active      bool   `json:"active"`
 	}
 
 	return func(c echo.Context) error {
@@ -219,7 +219,7 @@ func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 func HandleUpdateProduct(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
 	type UpdateParams struct {
 		Name        string `json:"name" validate:"required,min=1,max=255"`
-		Description string `json:"description" validate:"max=1000"`  // Changed to string
+		Description string `json:"description" validate:"max=1000"` // Changed to string
 		Active      bool   `json:"active"`
 	}
 
@@ -454,11 +454,11 @@ func HandleDeleteProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 
 func HandleGetProductOptions(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 	type OptionWithValues struct {
-		ID           int32                           `json:"id"`
-		ProductID    int32                           `json:"product_id"`
-		OptionKey    string                          `json:"option_key"`
-		CreatedAt    time.Time                       `json:"created_at"`
-		OptionValues []database.ProductOptionValues  `json:"option_values"`
+		ID           int32                          `json:"id"`
+		ProductID    int32                          `json:"product_id"`
+		OptionKey    string                         `json:"option_key"`
+		CreatedAt    time.Time                      `json:"created_at"`
+		OptionValues []database.ProductOptionValues `json:"option_values"`
 	}
 
 	return func(c echo.Context) error {
@@ -1055,6 +1055,90 @@ func HandleCreateProductOptionValue(db *database.DB, eventBus interfaces.EventPu
 	}
 }
 
+func HandleGetProductOptionValue(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+
+		// Parse and validate option ID
+		optionID, err := strconv.ParseInt(c.Param("id"), 10, 32)
+		if err != nil || optionID <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid option ID. Must be a positive integer",
+				"code":  "INVALID_OPTION_ID",
+			})
+		}
+
+		// Parse and validate option value ID
+		valueID, err := strconv.ParseInt(c.Param("value_id"), 10, 32)
+		if err != nil || valueID <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid option value ID. Must be a positive integer",
+				"code":  "INVALID_OPTION_VALUE_ID",
+			})
+		}
+
+		// Check if option exists
+		option, err := db.Queries.GetProductOption(ctx, int32(optionID))
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("option_id", int32(optionID)).
+				Msg("Failed to get option")
+
+			if err == pgx.ErrNoRows {
+				return c.JSON(http.StatusNotFound, map[string]interface{}{
+					"error": "Option not found",
+					"code":  "OPTION_NOT_FOUND",
+				})
+			}
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to retrieve option",
+				"code":  "OPTION_RETRIEVAL_FAILED",
+			})
+		}
+
+		// Get the option value
+		optionValue, err := db.Queries.GetProductOptionValue(ctx, int32(valueID))
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int32("option_value_id", int32(valueID)).
+				Msg("Failed to get option value")
+
+			if err == pgx.ErrNoRows {
+				return c.JSON(http.StatusNotFound, map[string]interface{}{
+					"error": "Option value not found",
+					"code":  "OPTION_VALUE_NOT_FOUND",
+				})
+			}
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to retrieve option value",
+				"code":  "OPTION_VALUE_RETRIEVAL_FAILED",
+			})
+		}
+
+		// Verify that the option value belongs to the specified option
+		if optionValue.ProductOptionID != option.ID {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Option value does not belong to the specified option",
+				"code":  "OPTION_VALUE_MISMATCH",
+			})
+		}
+
+		logger.Debug().
+			Int32("option_id", option.ID).
+			Int32("option_value_id", optionValue.ID).
+			Str("option_key", option.OptionKey).
+			Str("value", optionValue.Value).
+			Msg("Option value retrieved successfully")
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"success": true,
+			"data":    optionValue,
+		})
+	}
+}
+
 func HandleUpdateProductOptionValue(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
 	type UpdateProductOptionValueRequest struct {
 		Value string `json:"value" validate:"required,min=1,max=100"`
@@ -1305,8 +1389,8 @@ func HandleDeleteProductOptionValue(db *database.DB, eventBus interfaces.EventPu
 
 		if usageCount > 0 {
 			return c.JSON(http.StatusConflict, map[string]interface{}{
-				"error": "Cannot delete option value because it is being used by existing product variants",
-				"code":  "OPTION_VALUE_IN_USE",
+				"error":       "Cannot delete option value because it is being used by existing product variants",
+				"code":        "OPTION_VALUE_IN_USE",
 				"usage_count": usageCount,
 			})
 		}
