@@ -29,9 +29,9 @@ templ ProductsPage(data ProductsPageData) {
 templ ProductsContent(data ProductsPageData) {
 	<div class="card w-full bg-base-100 shadow-sm">
 		<div class="card-body">
-		@component.ProductsHeader()
-		@component.ProductsTable(data.Products)
-		@component.Pagination(data.Pagination, "/admin/products")
+			@component.ProductsHeader()
+			@component.ProductsTable(data.Products)
+			@component.Pagination(data.Pagination, "/admin/products")
 		</div>
 	</div>
 }

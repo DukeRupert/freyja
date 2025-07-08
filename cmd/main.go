@@ -47,6 +47,7 @@ func NewServer(
 		AllowCredentials: false,
 	}))
 	e.Use(customMiddleware.PrometheusMiddleware())
+	e.Use(customMiddleware.HTMXMiddleware())
 
 	// Add routes
 	addRoutes(e, logger, db, eventBus, stripeProvider)
@@ -75,9 +76,10 @@ func addRoutes(
 	api := e.Group("/api/v1")
 
 	// Products
-	products := api.Group("/products")
+	products := e.Group("/products")
 	products.GET("", h.HandleGetProducts(db, logger))
 	products.POST("", h.HandleCreateProduct(db, eventBus, logger))
+	products.GET("/create", h.HandleGetCreateProductForm(db, eventBus, logger))
 	products.GET("/:id", h.HandleGetProduct(db, logger))
 	products.PUT("/:id", h.HandleUpdateProduct(db, eventBus, logger))
 	products.DELETE("/:id", h.HandleDeleteProduct(db, eventBus, logger))

@@ -2,33 +2,34 @@
 package layout
 
 type BaseLayoutData struct {
-    Title       string
-    CurrentPage string  // "dashboard", "products", "orders", "customers"
-    PageTitle   string
-    Breadcrumbs []Breadcrumb
+	Title       string
+	CurrentPage string // "dashboard", "products", "orders", "customers"
+	PageTitle   string
+	Breadcrumbs []Breadcrumb
 }
 
 templ BaseLayout(data BaseLayoutData) {
-    <!DOCTYPE html>
-    <html class="h-full bg-gray-100">
-    <head>
-        <meta charset="UTF-8"/>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-        <title>{ data.Title }</title>
-        // <script src="https://cdn.tailwindcss.com"></script>
-        <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
-        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-        <script src="https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js"></script>
-    </head>
-    <body class="h-full">
-        <div class="min-h-full">
-            @Navigation(data.CurrentPage)
-            @PageHeader(data.PageTitle, data.Breadcrumbs)
-            @MainContent() {
-                { children... }
-            }
-        </div>
-        @BaseLayoutScripts()
-    </body>
-    </html>
+	<!DOCTYPE html>
+	<html class="h-full bg-gray-100">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ data.Title }</title>
+			// <script src="https://cdn.tailwindcss.com"></script>
+			<link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css"/>
+			<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+			<script src="https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js"></script>
+		</head>
+		<body class="h-full">
+			<div class="min-h-full">
+				@Navigation(data.CurrentPage)
+				@PageHeader(data.PageTitle, data.Breadcrumbs)
+				@MainContent() {
+					{ children... }
+				}
+			</div>
+			<div id="modal"></div>
+			@BaseLayoutScripts()
+		</body>
+	</html>
 }

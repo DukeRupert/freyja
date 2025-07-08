@@ -1,0 +1,210 @@
+package form
+
+import (
+	"fmt"
+	"github.com/dukerupert/freyja/internal/database"
+	"github.com/dukerupert/freyja/internal/server/views/component"
+)
+// FieldError represents a validation error for a specific field
+type FieldError struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
+	Code    string `json:"code"`
+}
+
+// ErrorResponse represents the structure for error responses
+type ErrorResponse struct {
+	Success bool         `json:"success"`
+	Message string       `json:"message"`
+	Errors  []FieldError `json:"errors"`
+}
+
+templ CreateProductModal(errors []FieldError) {
+	<!-- Create Form Modal -->
+	<dialog open id="createModal" class="modal modal-bottom sm:modal-middle">
+		<div class="modal-box">
+			<h3 class="text-lg font-bold">Create New Item</h3>
+			<div class="py-4">
+				<form id="createProductForm" hx-post="/products" hx-target="#createProductForm" hx-swap="outerHTML" class="space-y-4">
+					<div class="space-y-2">
+						<label class="block">
+							<span class="text-sm font-medium text-gray-700 mb-1 block">Name</span>
+							<input
+								type="text"
+								id="name"
+								name="name"
+								required
+								maxlength="255"
+								class="input input-bordered w-full"
+								placeholder="Enter item name"
+							/>
+						</label>
+					</div>
+					<div class="space-y-2">
+						<label class="block">
+							<span class="text-sm font-medium text-gray-700 mb-1 block">Description</span>
+							<textarea
+								id="description"
+								name="description"
+								maxlength="1000"
+								rows="3"
+								class="textarea textarea-bordered w-full"
+								placeholder="Enter item description (optional)"
+							></textarea>
+						</label>
+					</div>
+					<div class="form-control">
+						<label class="label cursor-pointer justify-start gap-3">
+							<input
+								type="checkbox"
+								id="active"
+								name="active"
+								value="true"
+								class="checkbox"
+							/>
+							<span class="label-text">Active</span>
+						</label>
+					</div>
+				</form>
+			</div>
+			<div class="modal-action">
+				<form method="dialog">
+					<button class="btn">Cancel</button>
+				</form>
+				<button
+					type="submit"
+					form="createProductForm"
+					class="btn btn-primary"				
+				>
+					Create Item
+				</button>
+			</div>
+		</div>
+	</dialog>
+}
+
+templ CreateProductForm(errors []FieldError, formData map[string]interface{}) {
+	<form id="createProductForm" class="space-y-4">
+		<div class="space-y-2">
+			<label class="block">
+				<span class="text-sm font-medium text-gray-700 mb-1 block">Name</span>
+				<input
+					type="text"
+					id="name"
+					name="name"
+					required
+					maxlength="255"
+					value={ getString(formData, "name") }
+					class={ "input input-bordered w-full", templ.KV("input-error", hasFieldError(errors, "name")) }
+					placeholder="Enter item name"
+				/>
+				if nameError := getFieldError(errors, "name"); nameError != nil {
+					<div class="text-error text-sm mt-1">{ nameError.Message }</div>
+				}
+			</label>
+		</div>
+		<div class="space-y-2">
+			<label class="block">
+				<span class="text-sm font-medium text-gray-700 mb-1 block">Description</span>
+				<textarea
+					id="description"
+					name="description"
+					maxlength="1000"
+					rows="3"
+					class={ "textarea textarea-bordered w-full", templ.KV("textarea-error", hasFieldError(errors, "description")) }
+					placeholder="Enter item description (optional)"
+				>{ getString(formData, "description") }</textarea>
+				if descError := getFieldError(errors, "description"); descError != nil {
+					<div class="text-error text-sm mt-1">{ descError.Message }</div>
+				}
+			</label>
+		</div>
+		<div class="form-control">
+			<label class="label cursor-pointer justify-start gap-3">
+				<input
+					type="checkbox"
+					id="active"
+					name="active"
+					class={ "checkbox", templ.KV("checkbox-error", hasFieldError(errors, "active")) }
+					if getBool(formData, "active") {
+						checked
+					}
+				/>
+				<span class="label-text">Active</span>
+			</label>
+			if activeError := getFieldError(errors, "active"); activeError != nil {
+				<div class="text-error text-sm mt-1">{ activeError.Message }</div>
+			}
+		</div>
+	</form>
+}
+
+templ CreateProductSuccess(product database.Products) {
+	// Close modal
+	<dialog id="createModal" hx-swap-oob="outerHTML" class="modal"></dialog>
+	
+	// Add new product item
+	<li
+		class="list-row"
+		id={ fmt.Sprintf("product-%d", product.ID) }
+		hx-get={ fmt.Sprintf("/admin/products/%d", product.ID) }
+		hx-swap-oob="afterbegin:ul.list"
+	>
+		<div class="list-col-grow">
+			@component.ProductInfo(product)
+		</div>
+		<div class="flex items-center">
+			@component.ProductStatus(product.Active)
+		</div>
+	</li>
+	
+	// Success notification using DaisyUI toast
+	<div class="toast toast-top toast-end" hx-swap-oob="afterbegin:body">
+		<div class="alert alert-success">
+			<span>Product created successfully!</span>
+		</div>
+	</div>
+}
+
+// Helper functions to use in your Go code
+func hasFieldError(errors []FieldError, fieldName string) bool {
+	for _, err := range errors {
+		if err.Field == fieldName {
+			return true
+		}
+	}
+	return false
+}
+
+func getFieldError(errors []FieldError, fieldName string) *FieldError {
+	for _, err := range errors {
+		if err.Field == fieldName {
+			return &err
+		}
+	}
+	return nil
+}
+
+func getString(formData map[string]interface{}, key string) string {
+	if formData == nil {
+		return ""
+	}
+	if val, ok := formData[key]; ok {
+		if str, ok := val.(string); ok {
+			return str
+		}
+	}
+	return ""
+}
+
+func getBool(formData map[string]interface{}, key string) bool {
+	if formData == nil {
+		return false
+	}
+	if val, ok := formData[key]; ok {
+		if b, ok := val.(bool); ok {
+			return b
+		}
+	}
+	return false
+}

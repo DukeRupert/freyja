@@ -7,8 +7,9 @@ templ ProductsHeader() {
 	<div class="card-actions justify-end">
 		<button
 			type="button"
-			hx-get="/admin/products/new"
-			hx-target="#main-content"
+			 hx-get="/products/create" 
+			 hx-target="#modal" 
+			 hx-swap="innerHTML"
 			class="btn btn-primary"
 		>
 			Add Product

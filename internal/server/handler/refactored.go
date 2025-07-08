@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -10,8 +9,10 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/database"
+	"github.com/dukerupert/freyja/internal/server/views/form"
 	"github.com/dukerupert/freyja/internal/server/views/page"
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
+	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
@@ -131,58 +132,96 @@ func HandleGetProduct(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 	}
 }
 
+type CreateProductRequest struct {
+	Name        string `json:"name" form:"name" validate:"required,min=1,max=255"`
+	Description string `json:"description" form:"description" validate:"max=1000"`
+	Active      bool   `json:"active" form:"active"`
+}
+
 func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
-	type CreateProductRequest struct {
-		Name        string `json:"name" validate:"required,min=1,max=255"`
-		Description string `json:"description" validate:"max=1000"`
-		Active      bool   `json:"active"`
-	}
 
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
+		isHTMX := c.Get("htmx").(bool)
+
+		// DEBUG: Log all incoming request details
+		logger.Info().
+			Str("method", c.Request().Method).
+			Str("content_type", c.Request().Header.Get("Content-Type")).
+			Bool("is_htmx", isHTMX).
+			Int64("content_length", c.Request().ContentLength).
+			Msg("Incoming request details")
+
+		// DEBUG: Log all form values before binding
+		if err := c.Request().ParseForm(); err == nil {
+			logger.Info().Msg("Form values:")
+			for key, values := range c.Request().Form {
+				logger.Info().
+					Str("key", key).
+					Strs("values", values).
+					Msg("Form field")
+			}
+		} else {
+			logger.Error().Err(err).Msg("Failed to parse form")
+		}
+
+		// Initialize error collection
+		var fieldErrors []form.FieldError
 
 		var req CreateProductRequest
 		if err := c.Bind(&req); err != nil {
-			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": "Invalid JSON format in request body",
-				"code":  "INVALID_JSON",
+			fieldErrors = append(fieldErrors, form.FieldError{
+				Field:   "form",
+				Message: "Invalid request format",
+				Code:    "INVALID_FORMAT",
 			})
+			logger.Info().Interface("fieldErrors", fieldErrors).Msg("Validation errors")
+			return handleErrorResponse(c, req, isHTMX, fieldErrors, "Invalid request format")
 		}
 
+		// Validate request using validator tags
 		if err := c.Validate(&req); err != nil {
-			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": err.Error(),
-				"code":  "VALIDATION_ERROR",
-			})
+			validationErrors := extractValidationErrors(err)
+			fieldErrors = append(fieldErrors, validationErrors...)
 		}
 
-		// Sanitize and validate name
+		// Custom validation: sanitize and validate name
 		trimmedName := strings.TrimSpace(req.Name)
-		if trimmedName == "" {
-			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": "Product name cannot be empty or whitespace only",
-				"code":  "INVALID_NAME",
+		if trimmedName == "" && req.Name != "" {
+			fieldErrors = append(fieldErrors, form.FieldError{
+				Field:   "name",
+				Message: "Product name cannot be empty or whitespace only",
+				Code:    "INVALID_NAME",
 			})
 		}
 
 		// Check for name collision
-		_, err := db.Queries.GetProductByName(ctx, trimmedName)
-		if err != nil && err != pgx.ErrNoRows {
-			logger.Error().
-				Err(err).
-				Str("product_name", trimmedName).
-				Msg("Failed to check product name uniqueness")
-			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-				"error": "Failed to validate product name",
-				"code":  "VALIDATION_ERROR",
-			})
+		if trimmedName != "" {
+			_, err := db.Queries.GetProductByName(ctx, trimmedName)
+			if err != nil && err != pgx.ErrNoRows {
+				logger.Error().
+					Err(err).
+					Str("product_name", trimmedName).
+					Msg("Failed to check product name uniqueness")
+
+				fieldErrors = append(fieldErrors, form.FieldError{
+					Field:   "name",
+					Message: "Unable to validate product name uniqueness",
+					Code:    "VALIDATION_ERROR",
+				})
+			} else if err == nil {
+				fieldErrors = append(fieldErrors, form.FieldError{
+					Field:   "name",
+					Message: "A product with this name already exists",
+					Code:    "NAME_CONFLICT",
+				})
+			}
 		}
 
-		if err == nil {
-			return c.JSON(http.StatusConflict, map[string]interface{}{
-				"error": "A product with this name already exists",
-				"code":  "NAME_CONFLICT",
-			})
+		// Return validation errors if any exist
+		if len(fieldErrors) > 0 {
+			logger.Info().Interface("fieldErrors", fieldErrors).Msg("Validation errors")
+			return handleErrorResponse(c, req, isHTMX, fieldErrors, "Validation failed")
 		}
 
 		// Convert string to pgtype.Text for database
@@ -206,16 +245,20 @@ func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 
 			// Handle specific database errors
 			if strings.Contains(err.Error(), "duplicate key") {
-				return c.JSON(http.StatusConflict, map[string]interface{}{
-					"error": "Product name must be unique",
-					"code":  "DUPLICATE_NAME",
+				fieldErrors = append(fieldErrors, form.FieldError{
+					Field:   "name",
+					Message: "Product name must be unique",
+					Code:    "DUPLICATE_NAME",
 				})
+				return handleErrorResponse(c, req, isHTMX, fieldErrors, "Product name must be unique")
 			}
 
-			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-				"error": "Failed to create product",
-				"code":  "CREATION_FAILED",
+			fieldErrors = append(fieldErrors, form.FieldError{
+				Field:   "form",
+				Message: "Failed to create product",
+				Code:    "CREATION_FAILED",
 			})
+			return handleErrorResponse(c, req, isHTMX, fieldErrors, "Failed to create product")
 		}
 
 		logger.Info().
@@ -231,11 +274,25 @@ func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 		//     Active:    product.Active,
 		// })
 
+		// Handle successful response
+		if isHTMX {
+			component := form.CreateProductSuccess(product)
+			return component.Render(context.Background(), c.Response().Writer)
+		}
+
 		return c.JSON(http.StatusCreated, map[string]interface{}{
 			"success": true,
 			"data":    product,
 			"message": "Product created successfully",
 		})
+	}
+}
+
+func HandleGetCreateProductForm(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		errors := []form.FieldError{}
+		component := form.CreateProductModal(errors)
+		return component.Render(context.Background(), c.Response().Writer)
 	}
 }
 
@@ -1834,6 +1891,71 @@ func HandleDeleteProductVariant(db *database.DB, eventBus interfaces.EventPublis
 }
 
 // helpers
+// handleErrorResponse handles both JSON and HTMX error responses
+func handleErrorResponse(c echo.Context, req CreateProductRequest, isHTMX bool, fieldErrors []form.FieldError, message string) error {
+	if isHTMX {
+		// Set proper status code
+		c.Response().WriteHeader(http.StatusUnprocessableEntity)
+
+		formData := map[string]interface{}{
+			"name":        req.Name,
+			"description": req.Description,
+			"active":      req.Active,
+		}
+		component := form.CreateProductForm(fieldErrors, formData)
+		return component.Render(context.Background(), c.Response().Writer)
+	}
+
+	// For JSON API requests
+	return c.JSON(http.StatusBadRequest, form.ErrorResponse{
+		Success: false,
+		Message: message,
+		Errors:  fieldErrors,
+	})
+}
+
+// extractValidationErrors converts validator errors to FieldError slice
+func extractValidationErrors(err error) []form.FieldError {
+	var fieldErrors []form.FieldError
+
+	if validationErrors, ok := err.(validator.ValidationErrors); ok {
+		for _, fieldError := range validationErrors {
+			fieldErrors = append(fieldErrors, form.FieldError{
+				Field:   strings.ToLower(fieldError.Field()),
+				Message: getValidationErrorMessage(fieldError),
+				Code:    fmt.Sprintf("VALIDATION_%s", strings.ToUpper(fieldError.Tag())),
+			})
+		}
+	}
+
+	return fieldErrors
+}
+
+// getValidationErrorMessage converts validator field errors to human-readable messages
+func getValidationErrorMessage(fe validator.FieldError) string {
+	switch fe.Tag() {
+	case "required":
+		return fmt.Sprintf("%s is required", fe.Field())
+	case "min":
+		return fmt.Sprintf("%s must be at least %s characters", fe.Field(), fe.Param())
+	case "max":
+		return fmt.Sprintf("%s cannot exceed %s characters", fe.Field(), fe.Param())
+	case "email":
+		return fmt.Sprintf("%s must be a valid email address", fe.Field())
+	default:
+		return fmt.Sprintf("%s is invalid", fe.Field())
+	}
+}
+
+// getFormDataFromContext extracts form data to preserve user input on validation errors
+func getFormDataFromContext(c echo.Context) map[string]interface{} {
+	return map[string]interface{}{
+		"name":        c.FormValue("name"),
+		"description": c.FormValue("description"),
+		"active":      c.FormValue("active") == "on",
+	}
+}
+
 func convertProductVariantsToJSON(variants []database.ProductVariants) []map[string]interface{} {
 	result := make([]map[string]interface{}, len(variants))
 
@@ -1874,27 +1996,6 @@ func convertPgText(pgText pgtype.Text) *string {
 		return nil
 	}
 	return &pgText.String
-}
-
-func convertStringToPgText(s string) pgtype.Text {
-	if s == "" {
-		return pgtype.Text{Valid: false}
-	}
-	return pgtype.Text{String: s, Valid: true}
-}
-
-func convertJSONBytes(jsonBytes []byte) []map[string]interface{} {
-	if len(jsonBytes) == 0 {
-		return []map[string]interface{}{}
-	}
-
-	var options []map[string]interface{}
-	if err := json.Unmarshal(jsonBytes, &options); err != nil {
-		// If parsing fails, return empty slice instead of nil
-		return []map[string]interface{}{}
-	}
-
-	return options
 }
 
 func parseIntParam(param string, defaultValue int) int32 {

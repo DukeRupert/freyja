@@ -7,8 +7,8 @@ import (
 )
 
 templ ProductsTable(products []database.Products) {
-	<div id="products-list" class="bg-white shadow rounded-lg overflow-hidden">
-		<ul class="list bg-base-100 rounded-box shadow-md">
+	<div class="bg-white shadow rounded-lg overflow-hidden">
+		<ul id="products-list" class="list bg-base-100 rounded-box shadow-md">
 			if len(products) > 0 {
 				for _, product := range products {
 					@ProductItem(product)
@@ -36,7 +36,6 @@ templ ProductItem(product database.Products) {
 		class="list-row"
 		id={ fmt.Sprintf("product-%d", product.ID) }
 		hx-get={ fmt.Sprintf("/admin/products/%d", product.ID) }
-		hx-target="#main-content"
 	>
 		<div class="list-col-grow">
 			@ProductInfo(product)
