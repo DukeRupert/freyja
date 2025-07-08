@@ -2,18 +2,25 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	
+
 	"github.com/dukerupert/freyja/internal/backend/client"
-	"github.com/dukerupert/freyja/internal/backend/handlers"
 	"github.com/dukerupert/freyja/internal/backend/database"
+	"github.com/dukerupert/freyja/internal/backend/handlers"
 )
 
 func main() {
+		// Load .env file first
+    if err := godotenv.Load(); err != nil {
+        fmt.Println("No .env file found")
+    }
+	
 	// Load environment variables
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {

@@ -1,0 +1,24 @@
+// /internal/backend/templates/layout/navigation.templ
+package layout
+
+import "fmt"
+
+templ Navigation(currentPage string) {
+	<div class="navbar bg-base-100 shadow-sm">
+		<div class="flex-1">
+			<a class="btn btn-ghost text-xl" href="/">Freyja</a>
+		</div>
+		<div class="flex-none">
+			<ul class="menu menu-horizontal px-1">
+				{{ pages := []string{"orders", "customers", "products"} }}
+				for _, page := range pages {
+					if page == currentPage {
+						<li><a href={ fmt.Sprintf("/%s", page) } class="text-indigo-600 capitalize">{ page }</a></li>
+					} else {
+						<li><a href={ fmt.Sprintf("/%s", page) } class="capitalize">{ page }</a></li>
+					}
+				}
+			</ul>
+		</div>
+	</div>
+}

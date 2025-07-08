@@ -21,6 +21,7 @@ type Querier interface {
 	CheckOptionValueUsage(ctx context.Context, productOptionValueID int32) (int64, error)
 	CheckVariantAvailability(ctx context.Context, arg CheckVariantAvailabilityParams) (CheckVariantAvailabilityRow, error)
 	ClearCartItems(ctx context.Context, cartID int32) error
+	CountProducts(ctx context.Context) (int64, error)
 	CreateCart(ctx context.Context, arg CreateCartParams) (Carts, error)
 	// Cart item management
 	CreateCartItem(ctx context.Context, arg CreateCartItemParams) (CartItems, error)

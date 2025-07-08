@@ -1,0 +1,177 @@
+// internal/backend/templates/page/product_detail.templ
+package page
+
+import (
+	"fmt"
+	"github.com/dukerupert/freyja/internal/database"
+	"github.com/dukerupert/freyja/internal/server/views/layout"
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+type ProductDetailsPageData struct {
+	Product  database.Products
+	Variants []database.ProductVariants
+}
+
+// ProductDetailsPage renders the full product detail view
+templ ProductDetailsPage(data ProductDetailsPageData) {
+	@layout.BaseLayout(layout.BaseLayoutData{
+		Title:       "Product details",
+		CurrentPage: "products",
+		PageTitle:   "Products",
+		Breadcrumbs: []layout.Breadcrumb{
+			{Name: "Home", URL: "/"},
+			{Name: "Products", URL: "/products"},
+			{Name: data.Product.Name},
+		},
+	}) {
+		@ProductDetailsContent(data.Product, data.Variants)
+	}
+}
+
+templ ProductDetailsContent(product database.Products, variants []database.ProductVariants) {
+	<div class="space-y-6">
+		@ProductDetailHeader(product)
+		@ProductDetailCard(product)
+		@ProductVariantsSection(variants)
+	</div>
+}
+
+// ProductDetailHeader renders the product header with name, ID, price and status
+templ ProductDetailHeader(product database.Products) {
+	<div class="flex items-center justify-between">
+		<div>
+			<h1 class="text-2xl font-bold text-gray-900">{ product.Name }</h1>
+			<p class="text-sm text-gray-500">Product ID: { fmt.Sprintf("%d", product.ID) }</p>
+		</div>
+		<div class="flex items-center">
+			@ProductActions()
+		</div>
+	</div>
+}
+
+// ProductDetailCard renders the main product information card
+templ ProductDetailCard(product database.Products) {
+	<div class="bg-white shadow rounded-lg p-6">
+		<h2 class="text-lg font-medium text-gray-900 mb-4">Product Information</h2>
+		<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+			<div>
+				<label class="block text-sm font-medium text-gray-700">Name</label>
+				<p class="mt-1 text-sm text-gray-900">{ product.Name }</p>
+			</div>
+			<div>
+				<label class="block text-sm font-medium text-gray-700">Status</label>
+				@StatusBadge(product.Active)
+			</div>
+			// <div>
+			// 	<label class="block text-sm font-medium text-gray-700">Total Stock</label>
+			// 	<p class="mt-1 text-sm text-gray-900">{ fmt.Sprintf("%d", product.TotalStock) } units</p>
+			// </div>
+			// <div>
+			// 	<label class="block text-sm font-medium text-gray-700">Total Variants</label>
+			// 	<p class="mt-1 text-sm text-gray-900">{ fmt.Sprintf("%d", product.TotalVariants) }</p>
+			// </div>
+			<div class="md:col-span-2">
+				<label class="block text-sm font-medium text-gray-700">Description</label>
+				<p class="mt-1 text-sm text-gray-900">{ getDescriptionOrDefault(product.Description) }</p>
+			</div>
+		</div>
+	</div>
+}
+
+// ProductVariantsSection renders the variants table or empty state
+templ ProductVariantsSection(variants []database.ProductVariants) {
+	<div class="bg-white shadow rounded-lg p-6">
+		<h2 class="text-lg font-medium text-gray-900 mb-4">
+			Variants ({ fmt.Sprintf("%d", len(variants)) })
+		</h2>
+		if len(variants) == 0 {
+			@EmptyVariantsState()
+		} else {
+			@VariantsTable(variants)
+		}
+	</div>
+}
+
+// EmptyVariantsState renders when no variants exist
+templ EmptyVariantsState() {
+	<p class="text-gray-500">No variants available for this product.</p>
+}
+
+// VariantsTable renders the variants data table
+templ VariantsTable(variants []database.ProductVariants) {
+	<div class="overflow-x-auto">
+		<table class="min-w-full divide-y divide-gray-200">
+			<thead class="bg-gray-50">
+				<tr>
+					<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+					<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+					<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+					<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+				</tr>
+			</thead>
+			<tbody class="bg-white divide-y divide-gray-200">
+				for _, variant := range variants {
+					@VariantRow(variant)
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+// VariantRow renders a single variant table row
+templ VariantRow(variant database.ProductVariants) {
+	<tr class="hover:bg-gray-50">
+		<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{ variant.Name }</td>
+		<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{ formatPrice(variant.Price) }</td>
+		<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{ fmt.Sprintf("%d", variant.Stock) }</td>
+		<td class="px-6 py-4 whitespace-nowrap">
+			@StatusBadge(variant.Active)
+		</td>
+	</tr>
+}
+
+// StatusBadge renders active/inactive status badge
+templ StatusBadge(active bool) {
+	if active {
+		<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+			Active
+		</span>
+	} else {
+		<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+			Inactive
+		</span>
+	}
+}
+
+// ProductActions renders the action buttons
+templ ProductActions() {
+	<div class="flex space-x-3">
+		<button class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+			Edit Product
+		</button>
+		<button class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+			Manage Stock
+		</button>
+	</div>
+}
+
+// ErrorState renders error messages
+templ ErrorState(message string, statusClass string) {
+	<div class={ "p-4 border rounded-md", statusClass }>
+		<p>{ message }</p>
+	</div>
+}
+
+// formatPrice converts cents to dollar format
+func formatPrice(cents int32) string {
+	return fmt.Sprintf("$%.2f", float64(cents)/100)
+}
+
+// getDescriptionOrDefault returns description or default text
+func getDescriptionOrDefault(desc pgtype.Text) string {
+	if desc.Valid && desc.String != "" {
+		return desc.String
+	}
+	return "No description available"
+}

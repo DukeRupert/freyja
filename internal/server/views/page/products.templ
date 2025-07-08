@@ -1,0 +1,37 @@
+// /internal/backend/templates/page/products.templ
+package page
+
+import (
+	"github.com/dukerupert/freyja/internal/database"
+	"github.com/dukerupert/freyja/internal/server/views/component"
+	"github.com/dukerupert/freyja/internal/server/views/layout"
+)
+
+type ProductsPageData struct {
+	Products   []database.Products
+	Pagination component.PaginationData
+}
+
+templ ProductsPage(data ProductsPageData) {
+	@layout.BaseLayout(layout.BaseLayoutData{
+		Title:       "Products - Admin Panel",
+		CurrentPage: "products",
+		PageTitle:   "Products",
+		Breadcrumbs: []layout.Breadcrumb{
+			{Name: "Home", URL: "/"},
+			{Name: "Products"},
+		},
+	}) {
+		@ProductsContent(data)
+	}
+}
+
+templ ProductsContent(data ProductsPageData) {
+	<div class="card w-full bg-base-100 shadow-sm">
+		<div class="card-body">
+		@component.ProductsHeader()
+		@component.ProductsTable(data.Products)
+		@component.Pagination(data.Pagination, "/admin/products")
+		</div>
+	</div>
+}

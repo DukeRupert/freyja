@@ -29,7 +29,7 @@ clean: ## Clean up Docker resources
 	docker system prune -f
 
 dev: ## Start development environment
-	docker-compose -f docker-compose.dev.yml up -d
+	docker-compose -f docker-compose.yml up -d
 	@echo "✅ Development environment ready!"
 	@echo "🔗 Services:"
 	@echo "  • API: http://localhost:8080"
@@ -38,7 +38,7 @@ dev: ## Start development environment
 	@echo "  • MinIO Console: http://localhost:9001 (minioadmin/minioadmin123)"
 
 server: ## Start development server
-	go run cmd/server/main.go -log-format=console
+	templ generate --watch --cmd="go run cmd/main.go -log-format=console -log-level=info" --proxy="http://localhost:8080"
 
 server-debug: ## Start development server with flag level set to debug
 	go run cmd/server/main.go -log-format=console -log-level=debug -port=8080
@@ -48,7 +48,7 @@ dev-local: ## Run app locally with Docker services
 	docker-compose -f docker-compose.dev.yml up -d postgres valkey
 	@sleep 5
 	@echo "📡 Services started. Run with local environment:"
-	@echo "export DATABASE_URL='postgres://postgres:password@localhost:5432/coffee_ecommerce?sslmode=disable'"
+	@echo "export DATABASE_URL='postgres://postgres:password@localhost:5432/freyja_dev?sslmode=disable'"
 	@echo "export VALKEY_ADDR='localhost:6379'"
 	@echo "go run cmd/server/main.go"
 
@@ -71,15 +71,15 @@ dev-shell: ## Open shell in app container
 	docker-compose -f docker-compose.dev.yml exec app sh
 
 db-shell: ## Open PostgreSQL shell
-	docker exec -it freyja-postgres-1 psql -U postgres -d coffee_ecommerce
+	docker exec -it freyja-postgres-1 psql -U postgres -d freyja_dev
 
 # Database operations
 db-migrate: ## Run database migrations
 	@echo "🗄️  Running database migrations..."
-	goose -dir migrations postgres "postgres://postgres:password@localhost:5432/coffee_ecommerce?sslmode=disable" up
+	goose -dir migrations postgres "postgres://postgres:password@localhost:5432/freyja_dev?sslmode=disable" up
 
 db-status: ## Check migration status
-	goose -dir migrations postgres "postgres://postgres:password@localhost:5432/coffee_ecommerce?sslmode=disable" status
+	goose -dir migrations postgres "postgres://postgres:password@localhost:5432/freyja_dev?sslmode=disable" status
 
 db-create-migration: ## Create new migration (usage: make db-create-migration NAME=add_something)
 	@if [ -z "$(NAME)" ]; then \
@@ -102,7 +102,7 @@ status: ## Check status of development services
 # Seed commands
 .PHONY: seed-dev
 seed-dev:
-	DATABASE_URL=postgres://postgres:password@localhost:5432/coffee_ecommerce?sslmode=disable go run cmd/seed/main.go
+	DATABASE_URL=postgres://postgres:password@localhost:5432/freyja_dev?sslmode=disable go run cmd/seed/main.go
 
 .PHONY: seed-clean-dev
 seed-clean-dev:

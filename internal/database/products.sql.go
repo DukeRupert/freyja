@@ -38,6 +38,17 @@ func (q *Queries) ActivateProduct(ctx context.Context, id int32) (Products, erro
 	return i, err
 }
 
+const countProducts = `-- name: CountProducts :one
+SELECT COUNT(*) FROM products
+`
+
+func (q *Queries) CountProducts(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countProducts)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createProduct = `-- name: CreateProduct :one
 INSERT INTO products (
   name, description, active
@@ -319,8 +330,8 @@ func (q *Queries) GetProductWithSummary(ctx context.Context, productID int32) (P
 }
 
 const getProducts = `-- name: GetProducts :many
-SELECT id, name, description, active, created_at, updated_at FROM products p
-WHERE p.active = $1
+SELECT id, name, description, active, created_at, updated_at FROM products
+WHERE active = $1
 LIMIT $2 OFFSET $3
 `
 

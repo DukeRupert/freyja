@@ -1,0 +1,26 @@
+// /internal/backend/templates/layout/breadcrumb_navigation.templ
+package layout
+
+type Breadcrumb struct {
+	Name string
+	URL  string // Empty for current page
+}
+
+templ BreadcrumbNavigation(breadcrumbs []Breadcrumb) {
+	<nav class="mt-2 breadcrumbs text-sm">
+		<ul class="flex items-center space-x-2">
+			for _, crumb := range breadcrumbs {
+				// if i > 0 {
+				// 	<li class="text-indigo-300"><a href="/">home</a></li>
+				// }
+				<li>
+					if crumb.URL != "" {
+						<a href={ templ.URL(crumb.URL) }>{ crumb.Name }</a>
+					} else {
+						{ crumb.Name }
+					}
+				</li>
+			}
+		</ul>
+	</nav>
+}

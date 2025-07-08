@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/database"
+	"github.com/dukerupert/freyja/internal/server/views/page"
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -43,16 +45,28 @@ func HandleGetProducts(db *database.DB, logger zerolog.Logger) echo.HandlerFunc 
 				Interface("filters", filters).
 				Msg("Successfully fetched products")
 		}
+		total, err := db.Queries.CountProducts(ctx)
 
 		logger.Info().
-			Int("total_products", len(products)).
+			Int64("total_products", total).
 			Msg("Successfully completed GetProducts request")
 
-		return c.JSON(http.StatusOK, map[string]interface{}{
-			"products": products,
-			"total":    len(products),
-			"filters":  filters,
-		})
+		if c.Request().Header.Get("Accept") == "application/json" {
+			return c.JSON(http.StatusOK, map[string]interface{}{
+				"products": products,
+				"total":    total,
+				"filters":  filters,
+			})
+		}
+		pagination := CalculatePagination(filters.Limit, filters.Offset, total)
+		// Render the Templ component directly
+		data := page.ProductsPageData{
+			Products:   products,
+			Pagination: pagination,
+		}
+		component := page.ProductsPage(data)
+		return component.Render(context.Background(), c.Response().Writer)
+
 	}
 }
 
@@ -84,7 +98,7 @@ func HandleGetProduct(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 			})
 		}
 
-		rows, err := db.Queries.GetActiveVariantsByProduct(ctx, product.ID)
+		variants, err := db.Queries.GetActiveVariantsByProduct(ctx, product.ID)
 		if err != nil {
 			c.Logger().Error("Failed to get product variants: ", err)
 			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
@@ -93,19 +107,27 @@ func HandleGetProduct(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 			})
 		}
 
-		// Transform to API-friendly format
-		variants := convertProductVariantsToJSON(rows)
-
 		logger.Info().
 			Int("total_products", len(variants)).
 			Msg("Successfully completed GetProducts request")
 
-		return c.JSON(http.StatusOK, map[string]interface{}{
-			"product":  product,
-			"variants": variants,
-			"total":    len(variants),
-		})
+		if c.Request().Header.Get("Accept") == "application/json" {
+			// Transform to API-friendly format
+			v := convertProductVariantsToJSON(variants)
+			return c.JSON(http.StatusOK, map[string]interface{}{
+				"product":  product,
+				"variants": v,
+				"total":    len(v),
+			})
+		}
 
+		// Render the Templ component directly
+		data := page.ProductDetailsPageData{
+			Product:  product,
+			Variants: variants,
+		}
+		component := page.ProductDetailsPage(data)
+		return component.Render(context.Background(), c.Response().Writer)
 	}
 }
 
@@ -1536,10 +1558,10 @@ func HandleCreateProductVariant(db *database.DB, eventBus interfaces.EventPublis
 		// Create variant
 		variant, err := db.Queries.CreateVariant(ctx, database.CreateVariantParams{
 			ProductID:      productID,
-			Name:          trimmedName,
-			Price:         req.Price,
-			Stock:         req.Stock,
-			Active:        req.Active,
+			Name:           trimmedName,
+			Price:          req.Price,
+			Stock:          req.Stock,
+			Active:         req.Active,
 			IsSubscription: req.IsSubscription,
 		})
 		if err != nil {
@@ -1642,7 +1664,7 @@ func HandleCreateProductVariant(db *database.DB, eventBus interfaces.EventPublis
 		// 	},
 		// 	Timestamp: time.Now(),
 		// }
-		
+
 		// if err := eventBus.PublishEvent(ctx, event); err != nil {
 		// 	logger.Error().
 		// 		Err(err).
@@ -1788,7 +1810,7 @@ func HandleDeleteProductVariant(db *database.DB, eventBus interfaces.EventPublis
 		// 	},
 		// 	Timestamp: time.Now(),
 		// }
-		
+
 		// if err := eventBus.PublishEvent(ctx, event); err != nil {
 		// 	logger.Error().
 		// 		Err(err).

@@ -36,9 +36,12 @@ DELETE FROM products
 WHERE id = $1;
 
 -- name: GetProducts :many
-SELECT * FROM products p
-WHERE p.active = $1
+SELECT * FROM products
+WHERE active = $1
 LIMIT $2 OFFSET $3;
+
+-- name: CountProducts :one
+SELECT COUNT(*) FROM products;
 
 -- End --
 
