@@ -31,7 +31,7 @@ func ProductsHeader() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<h2 class=\"card-title\">Products</h2><p class=\"text-sm text-gray-500\">Manage your product catalog and variants</p><div class=\"card-actions justify-end\"><button type=\"button\" hx-get=\"/products/create\" hx-target=\"#modal\" hx-swap=\"innerHTML\" class=\"btn btn-primary\">Add Product</button></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"products-header\" class=\"flex flex-col sm:flex-row gap-6\"><div class=\"flex-initial\"><h2 class=\"card-title\">Products</h2><p class=\"text-sm text-gray-500\">Manage your product catalog and variants</p></div><div class=\"flex-auto card-actions sm:justify-end items-center\"><button type=\"button\" hx-get=\"/products/create\" hx-target=\"#modal\" hx-swap=\"innerHTML\" class=\"btn btn-primary\">Add Product</button></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

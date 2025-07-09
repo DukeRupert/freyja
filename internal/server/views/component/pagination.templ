@@ -16,18 +16,18 @@ type PaginationData struct {
 }
 
 templ Pagination(data PaginationData, baseURL string) {
-    <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 rounded-lg shadow">
+    <div class="mt-4 bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 rounded-lg shadow">
         <div class="flex-1 flex justify-between sm:hidden">
             if data.HasPrevious {
                 <button hx-get={ fmt.Sprintf("%s?page=%d", baseURL, data.PreviousPage) }
-                        hx-target="#products-table"
+                        hx-target="#products-content"
                         class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
                     Previous
                 </button>
             }
             if data.HasNext {
                 <button hx-get={ fmt.Sprintf("%s?page=%d", baseURL, data.NextPage) }
-                        hx-target="#products-table"
+                        hx-target="#products-content"
                         class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
                     Next
                 </button>
@@ -44,7 +44,7 @@ templ Pagination(data PaginationData, baseURL string) {
                 <nav class="join">
                     if data.HasPrevious {
                         <button hx-get={ fmt.Sprintf("%s?page=%d", baseURL, data.PreviousPage) }
-                                hx-target="#products-table"
+                                hx-target="#products-content"
                                 class="join-item btn">
                             Previous
                         </button>
@@ -53,13 +53,13 @@ templ Pagination(data PaginationData, baseURL string) {
                     for _, page := range data.Pages {
                         if page == data.CurrentPage {
                             <button hx-get={ fmt.Sprintf("%s?page=%d", baseURL, page) }
-                                    hx-target="#products-table"
+                                    hx-target="#products-content"
                                     class="join-item btn btn-active">
                                 { fmt.Sprintf("%d", page) }
                             </button>
                         } else {
                             <button hx-get={ fmt.Sprintf("%s?page=%d", baseURL, page) }
-                                    hx-target="#products-table"
+                                    hx-target="#products-content"
                                     class="join-item btn">
                                 { fmt.Sprintf("%d", page) }
                             </button>
@@ -68,7 +68,7 @@ templ Pagination(data PaginationData, baseURL string) {
                     
                     if data.HasNext {
                         <button hx-get={ fmt.Sprintf("%s?page=%d", baseURL, data.NextPage) }
-                                hx-target="#products-table"
+                                hx-target="#products-content"
                                 class="join-item btn">
                             Next
                         </button>

@@ -21,12 +21,17 @@ import (
 
 func HandleGetProducts(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		ctx := c.Request().Context()
 		logger.Info().Msg("Starting GetProducts request")
+		ctx := c.Request().Context()
+		isHTMX := c.Get("htmx").(bool)
+
+		pg := parseIntParam(c.QueryParam("page"), 1) // Default to page 1
+		limit := parseIntParam(c.QueryParam("limit"), 10)
+		offset := (pg - 1) * limit
 
 		filters := database.GetProductsParams{
-			Limit:  parseIntParam(c.QueryParam("limit"), 10),
-			Offset: parseIntParam(c.QueryParam("offset"), 0),
+			Limit:  limit,
+			Offset: offset,
 			Active: parseBoolParam(c.QueryParam("active"), true),
 		}
 
@@ -46,12 +51,13 @@ func HandleGetProducts(db *database.DB, logger zerolog.Logger) echo.HandlerFunc 
 				Interface("filters", filters).
 				Msg("Successfully fetched products")
 		}
-		total, err := db.Queries.CountProducts(ctx)
+		total, _ := db.Queries.CountProducts(ctx)
 
 		logger.Info().
 			Int64("total_products", total).
 			Msg("Successfully completed GetProducts request")
 
+		// handle JSON request
 		if c.Request().Header.Get("Accept") == "application/json" {
 			return c.JSON(http.StatusOK, map[string]interface{}{
 				"products": products,
@@ -59,12 +65,21 @@ func HandleGetProducts(db *database.DB, logger zerolog.Logger) echo.HandlerFunc 
 				"filters":  filters,
 			})
 		}
-		pagination := CalculatePagination(filters.Limit, filters.Offset, total)
+
 		// Render the Templ component directly
+		pagination := CalculatePagination(filters.Limit, filters.Offset, total)
 		data := page.ProductsPageData{
 			Products:   products,
 			Pagination: pagination,
 		}
+
+		// partial page request from htmx
+		if isHTMX {
+			component := page.ProductsContent(data)
+			return component.Render(context.Background(), c.Response().Writer)
+		}
+
+		// default full page request
 		component := page.ProductsPage(data)
 		return component.Render(context.Background(), c.Response().Writer)
 
@@ -1944,15 +1959,6 @@ func getValidationErrorMessage(fe validator.FieldError) string {
 		return fmt.Sprintf("%s must be a valid email address", fe.Field())
 	default:
 		return fmt.Sprintf("%s is invalid", fe.Field())
-	}
-}
-
-// getFormDataFromContext extracts form data to preserve user input on validation errors
-func getFormDataFromContext(c echo.Context) map[string]interface{} {
-	return map[string]interface{}{
-		"name":        c.FormValue("name"),
-		"description": c.FormValue("description"),
-		"active":      c.FormValue("active") == "on",
 	}
 }
 

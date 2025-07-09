@@ -22,7 +22,7 @@ type ErrorResponse struct {
 
 templ CreateProductModal(errors []FieldError) {
 	<!-- Create Form Modal -->
-	<dialog open id="createModal" class="modal modal-bottom sm:modal-middle">
+	<dialog open id="modal" class="modal modal-bottom sm:modal-middle">
 		<div class="modal-box">
 			<h3 class="text-lg font-bold">Create New Item</h3>
 			<div class="py-4">
@@ -142,7 +142,7 @@ templ CreateProductForm(errors []FieldError, formData map[string]interface{}) {
 
 templ CreateProductSuccess(product database.Products) {
 	// Close modal
-	<dialog id="createModal" hx-swap-oob="outerHTML" class="modal"></dialog>
+	<dialog id="modal" hx-swap-oob="outerHTML" class="modal"></dialog>
 	// Add new product item
 	<div hx-swap-oob="afterbegin:#products-list">
 		<li

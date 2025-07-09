@@ -22,7 +22,9 @@ templ ProductsPage(data ProductsPageData) {
 			{Name: "Products"},
 		},
 	}) {
-		@ProductsContent(data)
+		<div id="products-content">
+			@ProductsContent(data)
+		</div>
 	}
 }
 
@@ -31,7 +33,7 @@ templ ProductsContent(data ProductsPageData) {
 		<div class="card-body">
 			@component.ProductsHeader()
 			@component.ProductsTable(data.Products)
-			@component.Pagination(data.Pagination, "/admin/products")
+			@component.Pagination(data.Pagination, "/products")
 		</div>
 	</div>
 }
