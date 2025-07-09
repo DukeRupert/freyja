@@ -5,6 +5,7 @@ import (
 	"github.com/dukerupert/freyja/internal/database"
 	"github.com/dukerupert/freyja/internal/server/views/component"
 )
+
 // FieldError represents a validation error for a specific field
 type FieldError struct {
 	Field   string `json:"field"`
@@ -74,7 +75,7 @@ templ CreateProductModal(errors []FieldError) {
 				<button
 					type="submit"
 					form="createProductForm"
-					class="btn btn-primary"				
+					class="btn btn-primary"
 				>
 					Create Item
 				</button>
@@ -142,27 +143,20 @@ templ CreateProductForm(errors []FieldError, formData map[string]interface{}) {
 templ CreateProductSuccess(product database.Products) {
 	// Close modal
 	<dialog id="createModal" hx-swap-oob="outerHTML" class="modal"></dialog>
-	
 	// Add new product item
-	<li
-		class="list-row"
-		id={ fmt.Sprintf("product-%d", product.ID) }
-		hx-get={ fmt.Sprintf("/admin/products/%d", product.ID) }
-		hx-swap-oob="afterbegin:ul.list"
-	>
-		<div class="list-col-grow">
-			@component.ProductInfo(product)
-		</div>
-		<div class="flex items-center">
-			@component.ProductStatus(product.Active)
-		</div>
-	</li>
-	
-	// Success notification using DaisyUI toast
-	<div class="toast toast-top toast-end" hx-swap-oob="afterbegin:body">
-		<div class="alert alert-success">
-			<span>Product created successfully!</span>
-		</div>
+	<div hx-swap-oob="afterbegin:#products-list">
+		<li
+			class="list-row bg-green-50"
+			id={ fmt.Sprintf("product-%d", product.ID) }
+			hx-get={ fmt.Sprintf("/admin/products/%d", product.ID) }
+		>
+			<div class="list-col-grow">
+				@component.ProductInfo(product)
+			</div>
+			<div class="flex items-center">
+				@component.ProductStatus(product.Active)
+			</div>
+		</li>
 	</div>
 }
 

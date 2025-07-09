@@ -1895,7 +1895,7 @@ func HandleDeleteProductVariant(db *database.DB, eventBus interfaces.EventPublis
 func handleErrorResponse(c echo.Context, req CreateProductRequest, isHTMX bool, fieldErrors []form.FieldError, message string) error {
 	if isHTMX {
 		// Set proper status code
-		c.Response().WriteHeader(http.StatusUnprocessableEntity)
+		// c.Response().WriteHeader(http.StatusUnprocessableEntity)
 
 		formData := map[string]interface{}{
 			"name":        req.Name,
