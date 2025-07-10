@@ -215,6 +215,7 @@ func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 		var fieldErrors []form.FieldError
 
 		var req CreateProductRequest
+		var formData map[string]interface{}
 		if err := c.Bind(&req); err != nil {
 			fieldErrors = append(fieldErrors, form.FieldError{
 				Field:   "form",
@@ -222,7 +223,12 @@ func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 				Code:    "INVALID_FORMAT",
 			})
 			logger.Info().Interface("fieldErrors", fieldErrors).Msg("Validation errors")
-			return handleErrorResponse(c, req, isHTMX, fieldErrors, "Invalid request format")
+			formData = map[string]interface{}{
+				"name":        req.Name,
+				"description": req.Description,
+				"active":      req.Active,
+			}
+			return handleErrorResponse(c, formData, isHTMX, fieldErrors, "Invalid request format")
 		}
 
 		// Validate request using validator tags
@@ -265,9 +271,14 @@ func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 		}
 
 		// Return validation errors if any exist
+		formData = map[string]interface{}{
+			"name":        req.Name,
+			"description": req.Description,
+			"active":      req.Active,
+		}
 		if len(fieldErrors) > 0 {
 			logger.Info().Interface("fieldErrors", fieldErrors).Msg("Validation errors")
-			return handleErrorResponse(c, req, isHTMX, fieldErrors, "Validation failed")
+			return handleErrorResponse(c, formData, isHTMX, fieldErrors, "Validation failed")
 		}
 
 		// Convert string to pgtype.Text for database
@@ -296,7 +307,7 @@ func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 					Message: "Product name must be unique",
 					Code:    "DUPLICATE_NAME",
 				})
-				return handleErrorResponse(c, req, isHTMX, fieldErrors, "Product name must be unique")
+				return handleErrorResponse(c, formData, isHTMX, fieldErrors, "Product name must be unique")
 			}
 
 			fieldErrors = append(fieldErrors, form.FieldError{
@@ -304,7 +315,7 @@ func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 				Message: "Failed to create product",
 				Code:    "CREATION_FAILED",
 			})
-			return handleErrorResponse(c, req, isHTMX, fieldErrors, "Failed to create product")
+			return handleErrorResponse(c, formData, isHTMX, fieldErrors, "Failed to create product")
 		}
 
 		logger.Info().
@@ -677,98 +688,143 @@ func HandleGetProductOptions(db *database.DB, logger zerolog.Logger) echo.Handle
 
 func HandleCreateProductOption(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
 	type CreateProductOptionRequest struct {
-		OptionKey string `json:"option_key" validate:"required,min=1,max=50"`
+		OptionKey string `json:"option_key" form:"option_key" validate:"required,min=1,max=50"`
 	}
 
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
+		isHTMX := c.Get("htmx").(bool)
+
+		// DEBUG: Log all incoming request details
+		logger.Info().
+			Str("method", c.Request().Method).
+			Str("content_type", c.Request().Header.Get("Content-Type")).
+			Bool("is_htmx", isHTMX).
+			Int64("content_length", c.Request().ContentLength).
+			Msg("Incoming request details")
+
+		// Initialize error collection
+		var fieldErrors []form.FieldError
 
 		// Parse and validate product ID
 		id, err := strconv.ParseInt(c.Param("id"), 10, 32)
 		if err != nil || id <= 0 {
-			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": "Invalid product ID. Must be a positive integer",
-				"code":  "INVALID_PRODUCT_ID",
+			fieldErrors = append(fieldErrors, form.FieldError{
+				Field:   "product_id",
+				Message: "Invalid product ID. Must be a positive integer",
+				Code:    "INVALID_PRODUCT_ID",
 			})
 		}
 		productID := int32(id)
 
 		// Parse and validate request body
 		var req CreateProductOptionRequest
+		var formData map[string]interface{}
 		if err := c.Bind(&req); err != nil {
-			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": "Invalid JSON format in request body",
-				"code":  "INVALID_JSON",
+			fieldErrors = append(fieldErrors, form.FieldError{
+				Field:   "form",
+				Message: "Invalid request format",
+				Code:    "INVALID_FORMAT",
 			})
+			logger.Info().Interface("fieldErrors", fieldErrors).Msg("Validation errors")
+
+			formData = map[string]interface{}{
+				"option_key": req.OptionKey,
+			}
+
+			return handleOptionKeyErrorResponse(c, productID, formData, isHTMX, fieldErrors, "Invalid request format")
 		}
 
+		// Validate request using validator tags
 		if err := c.Validate(&req); err != nil {
-			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": err.Error(),
-				"code":  "VALIDATION_ERROR",
-			})
+			validationErrors := extractValidationErrors(err)
+			fieldErrors = append(fieldErrors, validationErrors...)
 		}
 
-		// Sanitize and validate option key
+		// Custom validation: sanitize and validate option key
 		trimmedOptionKey := strings.TrimSpace(req.OptionKey)
-		if trimmedOptionKey == "" {
-			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": "Option key cannot be empty or whitespace only",
-				"code":  "INVALID_OPTION_KEY",
+		if trimmedOptionKey == "" && req.OptionKey != "" {
+			fieldErrors = append(fieldErrors, form.FieldError{
+				Field:   "option_key",
+				Message: "Option key cannot be empty or whitespace only",
+				Code:    "INVALID_OPTION_KEY",
 			})
 		}
 
 		// Normalize option key (lowercase for consistency)
 		normalizedOptionKey := strings.ToLower(trimmedOptionKey)
 
-		// Check if product exists
-		product, err := db.Queries.GetProduct(ctx, productID)
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Int32("product_id", productID).
-				Msg("Failed to get product")
+		// Check if product exists (only if product ID is valid)
+		var product database.Products
+		if id > 0 {
+			product, err = db.Queries.GetProduct(ctx, productID)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Int32("product_id", productID).
+					Msg("Failed to get product")
 
-			if err == pgx.ErrNoRows {
-				return c.JSON(http.StatusNotFound, map[string]interface{}{
-					"error": "Product not found",
-					"code":  "PRODUCT_NOT_FOUND",
-				})
+				if err == pgx.ErrNoRows {
+					fieldErrors = append(fieldErrors, form.FieldError{
+						Field:   "product_id",
+						Message: "Product not found",
+						Code:    "PRODUCT_NOT_FOUND",
+					})
+				} else {
+					fieldErrors = append(fieldErrors, form.FieldError{
+						Field:   "form",
+						Message: "Failed to retrieve product",
+						Code:    "PRODUCT_RETRIEVAL_FAILED",
+					})
+				}
+			} else {
+				// Check if product is active (optional business rule)
+				if !product.Active {
+					fieldErrors = append(fieldErrors, form.FieldError{
+						Field:   "product_id",
+						Message: "Cannot add options to inactive product",
+						Code:    "PRODUCT_INACTIVE",
+					})
+				}
 			}
-			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-				"error": "Failed to retrieve product",
-				"code":  "PRODUCT_RETRIEVAL_FAILED",
-			})
 		}
 
-		// Check if product is active (optional business rule)
-		if !product.Active {
-			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": "Cannot add options to inactive product",
-				"code":  "PRODUCT_INACTIVE",
-			})
-		}
+		// Check for option key collision (only if we have a valid product and option key)
+		if id > 0 && normalizedOptionKey != "" && len(fieldErrors) == 0 {
+			existingOptions, err := db.Queries.GetProductOptionKeys(ctx, productID)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Int32("product_id", productID).
+					Msg("Failed to check existing options")
 
-		// Check if option key already exists for this product
-		existingOptions, err := db.Queries.GetProductOptionKeys(ctx, productID)
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Int32("product_id", productID).
-				Msg("Failed to check existing options")
-			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-				"error": "Failed to validate option uniqueness",
-				"code":  "VALIDATION_ERROR",
-			})
-		}
-
-		for _, existingOption := range existingOptions {
-			if strings.ToLower(existingOption.OptionKey) == normalizedOptionKey {
-				return c.JSON(http.StatusConflict, map[string]interface{}{
-					"error": "An option with this key already exists for this product",
-					"code":  "OPTION_KEY_CONFLICT",
+				fieldErrors = append(fieldErrors, form.FieldError{
+					Field:   "option_key",
+					Message: "Unable to validate option uniqueness",
+					Code:    "VALIDATION_ERROR",
 				})
+			} else {
+				for _, existingOption := range existingOptions {
+					if strings.ToLower(existingOption.OptionKey) == normalizedOptionKey {
+						fieldErrors = append(fieldErrors, form.FieldError{
+							Field:   "option_key",
+							Message: "An option with this key already exists for this product",
+							Code:    "OPTION_KEY_CONFLICT",
+						})
+						break
+					}
+				}
 			}
+		}
+
+		// Return validation errors if any exist
+		formData = map[string]interface{}{
+			"option_key": req.OptionKey,
+		}
+
+		if len(fieldErrors) > 0 {
+			logger.Info().Interface("fieldErrors", fieldErrors).Msg("Validation errors")
+			return handleOptionKeyErrorResponse(c, productID, formData, isHTMX, fieldErrors, "Validation failed")
 		}
 
 		// Create the option
@@ -785,16 +841,20 @@ func HandleCreateProductOption(db *database.DB, eventBus interfaces.EventPublish
 
 			// Handle specific database errors
 			if strings.Contains(err.Error(), "duplicate key") {
-				return c.JSON(http.StatusConflict, map[string]interface{}{
-					"error": "Option key must be unique for this product",
-					"code":  "DUPLICATE_OPTION_KEY",
+				fieldErrors = append(fieldErrors, form.FieldError{
+					Field:   "option_key",
+					Message: "Option key must be unique for this product",
+					Code:    "DUPLICATE_OPTION_KEY",
 				})
+				return handleOptionKeyErrorResponse(c, productID, formData, isHTMX, fieldErrors, "Option key must be unique for this product")
 			}
 
-			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-				"error": "Failed to create product option",
-				"code":  "OPTION_CREATION_FAILED",
+			fieldErrors = append(fieldErrors, form.FieldError{
+				Field:   "form",
+				Message: "Failed to create product option",
+				Code:    "OPTION_CREATION_FAILED",
 			})
+			return handleOptionKeyErrorResponse(c, productID, formData, isHTMX, fieldErrors, "Failed to create product option")
 		}
 
 		logger.Info().
@@ -809,6 +869,18 @@ func HandleCreateProductOption(db *database.DB, eventBus interfaces.EventPublish
 		//     OptionID:  option.ID,
 		//     OptionKey: option.OptionKey,
 		// })
+
+		// Get the product options
+
+		// Handle successful response
+		if isHTMX {
+			opt := page.ProductOption{
+				Key: option.OptionKey,
+				Values: []string{},
+			}
+			component := form.CreateProductOptionSuccess(opt)
+			return component.Render(context.Background(), c.Response().Writer)
+		}
 
 		return c.JSON(http.StatusCreated, map[string]interface{}{
 			"success": true,
@@ -1998,17 +2070,24 @@ func GetProductOptionsForProduct(ctx context.Context, db *database.Queries, prod
 }
 
 // handleErrorResponse handles both JSON and HTMX error responses
-func handleErrorResponse(c echo.Context, req CreateProductRequest, isHTMX bool, fieldErrors []form.FieldError, message string) error {
+func handleErrorResponse(c echo.Context, formData map[string]interface{}, isHTMX bool, fieldErrors []form.FieldError, message string) error {
 	if isHTMX {
-		// Set proper status code
-		// c.Response().WriteHeader(http.StatusUnprocessableEntity)
-
-		formData := map[string]interface{}{
-			"name":        req.Name,
-			"description": req.Description,
-			"active":      req.Active,
-		}
 		component := form.CreateProductForm(fieldErrors, formData)
+		return component.Render(context.Background(), c.Response().Writer)
+	}
+
+	// For JSON API requests
+	return c.JSON(http.StatusBadRequest, form.ErrorResponse{
+		Success: false,
+		Message: message,
+		Errors:  fieldErrors,
+	})
+}
+
+// handleErrorResponse handles both JSON and HTMX error responses
+func handleOptionKeyErrorResponse(c echo.Context, product_id int32, formData map[string]interface{}, isHTMX bool, fieldErrors []form.FieldError, message string) error {
+	if isHTMX {
+		component := form.CreateProductOptionForm(product_id, fieldErrors, formData)
 		return component.Render(context.Background(), c.Response().Writer)
 	}
 

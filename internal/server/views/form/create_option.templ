@@ -1,6 +1,9 @@
 package form
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/dukerupert/freyja/internal/server/views/page"
+)
 
 templ Create_Options_Modal(product_id int32, errors []FieldError) {
 	<!-- Create Form Modal -->
@@ -16,10 +19,11 @@ templ Create_Options_Modal(product_id int32, errors []FieldError) {
 								type="text"
 								id="option_key"
 								name="option_key"
+								class="input input-bordered w-full"
 								required
 								minlength="1"
 								maxlength="50"
-								placeholder="Enter option key (1-50 characters)"
+								placeholder="size, weight, color, etc."
 							/>
 						</label>
 					</div>
@@ -41,58 +45,49 @@ templ Create_Options_Modal(product_id int32, errors []FieldError) {
 	</dialog>
 }
 
-templ CreateOptionsForm(errors []FieldError, formData map[string]interface{}) {
-	<form id="createProductForm" class="space-y-4">
+templ CreateProductOptionForm(product_id int32, errors []FieldError, formData map[string]interface{}) {
+	<form 
+		id="create_options_form" 
+		hx-post={ fmt.Sprintf("/products/%d/options", product_id) } 
+		hx-target="#create_options_form" 
+		hx-swap="outerHTML" 
+		class="space-y-4"
+	>
 		<div class="space-y-2">
 			<label class="block">
-				<span class="text-sm font-medium text-gray-700 mb-1 block">Name</span>
+				<span class="text-sm font-medium text-gray-700 mb-1 block">Option</span>
 				<input
 					type="text"
-					id="name"
-					name="name"
+					id="option_key"
+					name="option_key"
 					required
-					maxlength="255"
-					value={ getString(formData, "name") }
-					class={ "input input-bordered w-full", templ.KV("input-error", hasFieldError(errors, "name")) }
-					placeholder="Enter item name"
+					minlength="1"
+					maxlength="50"
+					value={ getString(formData, "option_key") }
+					class={ "input input-bordered w-full", templ.KV("input-error", hasFieldError(errors, "option_key")) }
+					placeholder="size, weight, color, etc."
 				/>
-				if nameError := getFieldError(errors, "name"); nameError != nil {
-					<div class="text-error text-sm mt-1">{ nameError.Message }</div>
+				if optionKeyError := getFieldError(errors, "option_key"); optionKeyError != nil {
+					<div class="text-error text-sm mt-1">{ optionKeyError.Message }</div>
 				}
 			</label>
 		</div>
-		<div class="space-y-2">
-			<label class="block">
-				<span class="text-sm font-medium text-gray-700 mb-1 block">Description</span>
-				<textarea
-					id="description"
-					name="description"
-					maxlength="1000"
-					rows="3"
-					class={ "textarea textarea-bordered w-full", templ.KV("textarea-error", hasFieldError(errors, "description")) }
-					placeholder="Enter item description (optional)"
-				>{ getString(formData, "description") }</textarea>
-				if descError := getFieldError(errors, "description"); descError != nil {
-					<div class="text-error text-sm mt-1">{ descError.Message }</div>
-				}
-			</label>
-		</div>
-		<div class="form-control">
-			<label class="label cursor-pointer justify-start gap-3">
-				<input
-					type="checkbox"
-					id="active"
-					name="active"
-					class={ "checkbox", templ.KV("checkbox-error", hasFieldError(errors, "active")) }
-					if getBool(formData, "active") {
-						checked
-					}
-				/>
-				<span class="label-text">Active</span>
-			</label>
-			if activeError := getFieldError(errors, "active"); activeError != nil {
-				<div class="text-error text-sm mt-1">{ activeError.Message }</div>
-			}
-		</div>
+		
+		// Display general form errors (like product_id or form-level errors)
+		if productIdError := getFieldError(errors, "product_id"); productIdError != nil {
+			<div class="text-error text-sm">{ productIdError.Message }</div>
+		}
+		if formError := getFieldError(errors, "form"); formError != nil {
+			<div class="text-error text-sm">{ formError.Message }</div>
+		}
 	</form>
+}
+
+templ CreateProductOptionSuccess(option page.ProductOption) {
+	// Close modal
+	<dialog id="modal" hx-swap-oob="outerHTML" class="modal"></dialog>
+	// Add new option item
+	<div hx-swap-oob="beforeend:#product-options-list">
+		@page.ProductOptionCard(option)
+	</div>
 }
