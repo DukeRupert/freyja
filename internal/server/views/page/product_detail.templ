@@ -10,13 +10,13 @@ import (
 
 type ProductDetailsPageData struct {
 	Product  database.Products
-	Options []ProductOption
+	Options  []ProductOption
 	Variants []database.ProductVariants
 }
 
 type ProductOption struct {
-    Key    string   `json:"key"`
-    Values []string `json:"values"`
+	Key    string   `json:"key"`
+	Values []string `json:"values"`
 }
 
 // ProductDetailsPage renders the full product detail view
@@ -39,7 +39,7 @@ templ ProductDetailsContent(product database.Products, options []ProductOption, 
 	<div class="space-y-6">
 		@ProductDetailHeader(product)
 		@ProductDetailCard(product)
-		@ProductOptionsCard(options)
+		@ProductOptionsCard(product, options)
 		@ProductVariantsSection(variants)
 	</div>
 }
@@ -79,20 +79,24 @@ templ ProductDetailCard(product database.Products) {
 }
 
 // ProductOptionsCard renders the product options card for variant creation
-templ ProductOptionsCard(options []ProductOption) {
+templ ProductOptionsCard(product database.Products, options []ProductOption) {
 	<div class="bg-white shadow rounded-lg p-6">
 		<div class="flex items-center justify-between mb-4">
 			<h2 class="text-lg font-medium text-gray-900">Product Options</h2>
-			<button class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded">
+			<button
+				hx-get={ fmt.Sprintf("/products/%d/options/create", product.ID) }
+				hx-target="#modal"
+				hx-swap="innerHTML"
+				class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded"
+			>
 				Add Option
 			</button>
 		</div>
-		
 		if len(options) == 0 {
 			<div class="text-center py-8">
 				<div class="text-gray-400 mb-2">
 					<svg class="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4"/>
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4"></path>
 					</svg>
 				</div>
 				<p class="text-sm text-gray-500">No options configured</p>
@@ -116,7 +120,6 @@ templ ProductOptionsCard(options []ProductOption) {
 								</button>
 							</div>
 						</div>
-						
 						<div>
 							<label class="block text-sm font-medium text-gray-700 mb-2">Values</label>
 							<div class="flex flex-wrap gap-2">
@@ -141,10 +144,9 @@ templ ProductOptionsCard(options []ProductOption) {
 					</div>
 				}
 			</div>
-			
 			<div class="mt-6 pt-4 border-t border-gray-200">
 				<p class="text-xs text-gray-500">
-					<span class="font-medium">{ fmt.Sprintf("%d", len(options)) }</span> 
+					<span class="font-medium">{ fmt.Sprintf("%d", len(options)) }</span>
 					if len(options) == 1 {
 						option configured
 					} else {
@@ -234,7 +236,7 @@ templ ProductActions(id int32) {
 		<ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-1 w-52 p-2 shadow-sm">
 			<li><a>Edit product</a></li>
 			<li><a>Manage stock</a></li>
-			<li class="text-error"><a hx-delete={ fmt.Sprintf("/products/%d", id)} hx-confirm="Are you sure you wish to delete this product?">Delete product</a></li>
+			<li class="text-error"><a hx-delete={ fmt.Sprintf("/products/%d", id) } hx-confirm="Are you sure you wish to delete this product?">Delete product</a></li>
 		</ul>
 	</div>
 }
