@@ -38,6 +38,28 @@ func (q *Queries) ActivateProduct(ctx context.Context, id int32) (Products, erro
 	return i, err
 }
 
+const countActiveProducts = `-- name: CountActiveProducts :one
+SELECT COUNT(active) from products WHERE active = true
+`
+
+func (q *Queries) CountActiveProducts(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveProducts)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countInactiveProducts = `-- name: CountInactiveProducts :one
+SELECT COUNT(active) from products WHERE active = false
+`
+
+func (q *Queries) CountInactiveProducts(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countInactiveProducts)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countProducts = `-- name: CountProducts :one
 SELECT COUNT(*) FROM products
 `

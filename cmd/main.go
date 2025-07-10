@@ -65,7 +65,7 @@ func addRoutes(
 	// System endpoints
 	e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 	e.GET("/health", handleHealthCheck())
-	e.GET("/", handleHelloWorld())
+	e.GET("/", h.HandleGetHome())
 
 	// API routes
 	// Webhooks
@@ -79,13 +79,14 @@ func addRoutes(
 	products := e.Group("/products")
 	products.GET("", h.HandleGetProducts(db, logger))
 	products.POST("", h.HandleCreateProduct(db, eventBus, logger))
-	products.GET("/create", h.HandleGetCreateProductForm(db, eventBus, logger))
+	products.GET("/create", h.HandleGetCreateProductForm())
 	products.GET("/:id", h.HandleGetProduct(db, logger))
 	products.PUT("/:id", h.HandleUpdateProduct(db, eventBus, logger))
 	products.DELETE("/:id", h.HandleDeleteProduct(db, eventBus, logger))
 	// products.GET("/:id/variants", h.HandleGetProductVariants(db, logger))
 	products.POST("/:id/variants", h.HandleCreateProductVariant(db, eventBus, logger))
 	products.GET("/:id/options", h.HandleGetProductOptions(db, logger))
+	products.GET("/:id/options/create", h.HandleGetCreateProductOptionForm())
 	products.POST("/:id/options", h.HandleCreateProductOption(db, eventBus, logger))
 
 	// Options
@@ -104,7 +105,6 @@ func addRoutes(
 	// admin.PUT("/variants/:id", handleUpdateVariant(db, eventBus, logger))
 	// admin.POST("/variants/:id/activate", handleActivateVariant(db, eventBus, logger))
 	// admin.POST("/variants/:id/deactivate", handleDeactivateVariant(db, eventBus, logger))
-
 
 	// Cart
 	// cart := api.Group("/cart")
@@ -253,16 +253,6 @@ func handleHealthCheck() echo.HandlerFunc {
 			"status":  "healthy",
 			"service": "freyja-ecommerce-api",
 			"version": "1.0.0",
-		})
-	}
-}
-
-func handleHelloWorld() echo.HandlerFunc {
-	return func(c echo.Context) error {
-		return c.JSON(http.StatusOK, map[string]interface{}{
-			"message": "Welcome to Freyja E-commerce API!",
-			"version": "1.0.0",
-			"status":  "running",
 		})
 	}
 }

@@ -9,6 +9,9 @@ import (
 // CalculatePagination generates pagination data from limit, offset, and total count
 func CalculatePagination(limit int32, offset int32, total int64) component.PaginationData {
 	// Handle edge cases
+	if offset <= 0 {
+		offset = 0 // default offset
+	}
 	if limit <= 0 {
 		limit = 10 // default page size
 	}

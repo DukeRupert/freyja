@@ -19,6 +19,13 @@ import (
 	"github.com/rs/zerolog"
 )
 
+func HandleGetHome() echo.HandlerFunc {
+	return func(c echo.Context) error {
+		component := page.HomePage()
+		return component.Render(context.Background(), c.Response().Writer)
+	}
+}
+
 func HandleGetProducts(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		logger.Info().Msg("Starting GetProducts request")
@@ -51,7 +58,18 @@ func HandleGetProducts(db *database.DB, logger zerolog.Logger) echo.HandlerFunc 
 				Interface("filters", filters).
 				Msg("Successfully fetched products")
 		}
-		total, _ := db.Queries.CountProducts(ctx)
+
+		// Get accurate total for pagination
+		var total int64
+		if filters.Active {
+			total, err = db.Queries.CountActiveProducts(ctx)
+		} else {
+			total, err = db.Queries.CountInactiveProducts(ctx)
+		}
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to fetch product count")
+			total = int64(len(products))
+		}
 
 		logger.Info().
 			Int64("total_products", total).
@@ -91,7 +109,7 @@ func HandleGetProduct(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 		ctx := c.Request().Context()
 
 		// Parse product ID
-		id, err := strconv.Atoi(c.Param("id"))
+		product_id, err := strconv.Atoi(c.Param("id"))
 		if err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]interface{}{
 				"error": "Invalid product ID",
@@ -99,7 +117,7 @@ func HandleGetProduct(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 			})
 		}
 
-		product, err := db.Queries.GetProduct(ctx, int32(id))
+		product, err := db.Queries.GetProduct(ctx, int32(product_id))
 		if err != nil {
 			c.Logger().Error("Failed to get product: ", err)
 			if err == pgx.ErrNoRows {
@@ -110,6 +128,18 @@ func HandleGetProduct(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 			}
 			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 				"error": "Failed to retrieve product",
+				"code":  "INTERNAL_ERROR",
+			})
+		}
+
+		// Get the product options
+		options, err := GetProductOptionsForProduct(c.Request().Context(), db.Queries, int32(product_id))
+		if err != nil {
+			return c.JSON(500, map[string]string{"error": err.Error()})
+		}
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error": "Failed to retrieve product options",
 				"code":  "INTERNAL_ERROR",
 			})
 		}
@@ -140,6 +170,7 @@ func HandleGetProduct(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 		// Render the Templ component directly
 		data := page.ProductDetailsPageData{
 			Product:  product,
+			Options:  options,
 			Variants: variants,
 		}
 		component := page.ProductDetailsPage(data)
@@ -303,7 +334,7 @@ func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 	}
 }
 
-func HandleGetCreateProductForm(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
+func HandleGetCreateProductForm() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		errors := []form.FieldError{}
 		component := form.CreateProductModal(errors)
@@ -427,6 +458,7 @@ func HandleUpdateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 func HandleDeleteProduct(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
+		isHTMX := c.Get("htmx").(bool)
 
 		// Parse and validate product ID
 		id, err := strconv.ParseInt(c.Param("id"), 10, 32)
@@ -534,6 +566,12 @@ func HandleDeleteProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 		//     DeletedBy: getUserID(c),
 		// })
 
+		if isHTMX {
+			// Set proper header for redirect
+			c.Response().Header().Add("HX-Redirect", "/products")
+			return c.HTML(http.StatusOK, "<div>Product deleted.</div>")
+		}
+
 		return c.JSON(http.StatusOK, map[string]interface{}{
 			"success": true,
 			"message": "Product deleted successfully",
@@ -590,7 +628,7 @@ func HandleGetProductOptions(db *database.DB, logger zerolog.Logger) echo.Handle
 		}
 
 		// Get all options for this product
-		options, err := db.Queries.GetProductOptions(ctx, id)
+		options, err := db.Queries.GetProductOptionKeys(ctx, id)
 		if err != nil {
 			logger.Error().
 				Err(err).
@@ -712,7 +750,7 @@ func HandleCreateProductOption(db *database.DB, eventBus interfaces.EventPublish
 		}
 
 		// Check if option key already exists for this product
-		existingOptions, err := db.Queries.GetProductOptions(ctx, productID)
+		existingOptions, err := db.Queries.GetProductOptionKeys(ctx, productID)
 		if err != nil {
 			logger.Error().
 				Err(err).
@@ -777,6 +815,24 @@ func HandleCreateProductOption(db *database.DB, eventBus interfaces.EventPublish
 			"data":    option,
 			"message": "Product option created successfully",
 		})
+	}
+}
+
+func HandleGetCreateProductOptionForm() echo.HandlerFunc {
+	return func(c echo.Context) error {
+		// Parse and validate product ID
+		id, err := strconv.ParseInt(c.Param("id"), 10, 32)
+		if err != nil || id <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid product ID. Must be a positive integer",
+				"code":  "INVALID_PRODUCT_ID",
+			})
+		}
+		productID := int32(id)
+
+		errors := []form.FieldError{}
+		component := form.Create_Options_Modal(productID, errors)
+		return component.Render(context.Background(), c.Response().Writer)
 	}
 }
 
@@ -847,7 +903,7 @@ func HandleUpdateProductOption(db *database.DB, eventBus interfaces.EventPublish
 		}
 
 		// Check for option key collision within the same product (excluding current option)
-		existingOptions, err := db.Queries.GetProductOptions(ctx, existingOption.ProductID)
+		existingOptions, err := db.Queries.GetProductOptionKeys(ctx, existingOption.ProductID)
 		if err != nil {
 			logger.Error().
 				Err(err).
@@ -1906,6 +1962,41 @@ func HandleDeleteProductVariant(db *database.DB, eventBus interfaces.EventPublis
 }
 
 // helpers
+func GetProductOptionsForProduct(ctx context.Context, db *database.Queries, productID int32) ([]page.ProductOption, error) {
+	// Get all option keys for the product
+	optionKeys, err := db.GetProductOptionKeys(ctx, productID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get product option keys: %w", err)
+	}
+
+	var productOptions []page.ProductOption
+
+	// For each option key, get its values
+	for _, optionKey := range optionKeys {
+		// Get all values for this option
+		optionValues, err := db.GetProductOptionValues(ctx, optionKey.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get values for option %s: %w", optionKey.OptionKey, err)
+		}
+
+		// Convert to string slice
+		var values []string
+		for _, val := range optionValues {
+			values = append(values, val.Value)
+		}
+
+		// Create ProductOption struct
+		productOption := page.ProductOption{
+			Key:    optionKey.OptionKey,
+			Values: values,
+		}
+
+		productOptions = append(productOptions, productOption)
+	}
+
+	return productOptions, nil
+}
+
 // handleErrorResponse handles both JSON and HTMX error responses
 func handleErrorResponse(c echo.Context, req CreateProductRequest, isHTMX bool, fieldErrors []form.FieldError, message string) error {
 	if isHTMX {

@@ -23,3 +23,6 @@ sql:
             go_type: "time.Time"
           - column: "*.updated_at"
             go_type: "time.Time"
+          - column: "get_product_options.values_string"
+            go_type: "string"
+            nullable: false

@@ -21,6 +21,8 @@ type Querier interface {
 	CheckOptionValueUsage(ctx context.Context, productOptionValueID int32) (int64, error)
 	CheckVariantAvailability(ctx context.Context, arg CheckVariantAvailabilityParams) (CheckVariantAvailabilityRow, error)
 	ClearCartItems(ctx context.Context, cartID int32) error
+	CountActiveProducts(ctx context.Context) (int64, error)
+	CountInactiveProducts(ctx context.Context) (int64, error)
 	CountProducts(ctx context.Context) (int64, error)
 	CreateCart(ctx context.Context, arg CreateCartParams) (Carts, error)
 	// Cart item management
@@ -135,12 +137,13 @@ type Querier interface {
 	GetProductOption(ctx context.Context, id int32) (ProductOptions, error)
 	// END --
 	GetProductOptionByKey(ctx context.Context, arg GetProductOptionByKeyParams) (ProductOptions, error)
+	GetProductOptionKeys(ctx context.Context, productID int32) ([]ProductOptions, error)
 	// Product Option Values CRUD
 	GetProductOptionValue(ctx context.Context, id int32) (ProductOptionValues, error)
 	GetProductOptionValueByValue(ctx context.Context, arg GetProductOptionValueByValueParams) (ProductOptionValues, error)
 	GetProductOptionValues(ctx context.Context, productOptionID int32) ([]ProductOptionValues, error)
 	GetProductOptionValuesByProduct(ctx context.Context, productID int32) ([]GetProductOptionValuesByProductRow, error)
-	GetProductOptions(ctx context.Context, productID int32) ([]ProductOptions, error)
+	GetProductOptions(ctx context.Context, productID int32) ([]GetProductOptionsRow, error)
 	// Product analytics and reporting queries
 	GetProductPerformanceStats(ctx context.Context, arg GetProductPerformanceStatsParams) ([]GetProductPerformanceStatsRow, error)
 	GetProductSalesStats(ctx context.Context, arg GetProductSalesStatsParams) ([]GetProductSalesStatsRow, error)

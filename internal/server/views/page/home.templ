@@ -1,0 +1,20 @@
+package page
+
+import (
+	"github.com/dukerupert/freyja/internal/server/views/layout"
+)
+
+templ HomePage() {
+	@layout.BaseLayout(layout.BaseLayoutData{
+		Title:       "Home - Freyja Admin Panel",
+		CurrentPage: "home",
+		PageTitle:   "Home",
+		Breadcrumbs: []layout.Breadcrumb{
+			{Name: "Home"},
+		},
+	}) {
+		<div id="content">
+			<p>Dashboard coming...</p>
+		</div>
+	}
+}

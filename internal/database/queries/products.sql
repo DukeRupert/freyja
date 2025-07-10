@@ -43,6 +43,12 @@ LIMIT $2 OFFSET $3;
 -- name: CountProducts :one
 SELECT COUNT(*) FROM products;
 
+-- name: CountActiveProducts :one
+SELECT COUNT(active) from products WHERE active = true;
+
+-- name: CountInactiveProducts :one
+SELECT COUNT(active) from products WHERE active = false;
+
 -- End --
 
 

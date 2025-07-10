@@ -52,7 +52,7 @@ RETURNING *;
 DELETE FROM product_option_values
 WHERE id = $1;
 
--- name: GetProductOptions :many
+-- name: GetProductOptionKeys :many
 SELECT *
 FROM product_options
 WHERE product_id = $1
@@ -64,6 +64,18 @@ FROM product_option_values
 WHERE product_option_id = $1
 ORDER BY value ASC;
 
+-- name: GetProductOptions :many
+SELECT 
+    po.option_key as key,
+    CASE 
+        WHEN COUNT(pov.value) = 0 THEN ''
+        ELSE STRING_AGG(pov.value, ',' ORDER BY pov.created_at)
+    END as values_string
+FROM product_options po
+LEFT JOIN product_option_values pov ON po.id = pov.product_option_id
+WHERE po.product_id = $1
+GROUP BY po.option_key, po.id, po.created_at
+ORDER BY po.created_at;
 
 -- Validation and integrity queries
 

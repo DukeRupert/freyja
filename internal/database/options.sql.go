@@ -461,6 +461,38 @@ func (q *Queries) GetProductOptionByKey(ctx context.Context, arg GetProductOptio
 	return i, err
 }
 
+const getProductOptionKeys = `-- name: GetProductOptionKeys :many
+SELECT id, product_id, option_key, created_at
+FROM product_options
+WHERE product_id = $1
+ORDER BY option_key ASC
+`
+
+func (q *Queries) GetProductOptionKeys(ctx context.Context, productID int32) ([]ProductOptions, error) {
+	rows, err := q.db.Query(ctx, getProductOptionKeys, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProductOptions{}
+	for rows.Next() {
+		var i ProductOptions
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProductID,
+			&i.OptionKey,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getProductOptionValue = `-- name: GetProductOptionValue :one
 
 SELECT id, product_option_id, value, created_at
@@ -581,27 +613,34 @@ func (q *Queries) GetProductOptionValuesByProduct(ctx context.Context, productID
 }
 
 const getProductOptions = `-- name: GetProductOptions :many
-SELECT id, product_id, option_key, created_at
-FROM product_options
-WHERE product_id = $1
-ORDER BY option_key ASC
+SELECT 
+    po.option_key as key,
+    CASE 
+        WHEN COUNT(pov.value) = 0 THEN ''
+        ELSE STRING_AGG(pov.value, ',' ORDER BY pov.created_at)
+    END as values_string
+FROM product_options po
+LEFT JOIN product_option_values pov ON po.id = pov.product_option_id
+WHERE po.product_id = $1
+GROUP BY po.option_key, po.id, po.created_at
+ORDER BY po.created_at
 `
 
-func (q *Queries) GetProductOptions(ctx context.Context, productID int32) ([]ProductOptions, error) {
+type GetProductOptionsRow struct {
+	Key          string      `db:"key" json:"key"`
+	ValuesString interface{} `db:"values_string" json:"values_string"`
+}
+
+func (q *Queries) GetProductOptions(ctx context.Context, productID int32) ([]GetProductOptionsRow, error) {
 	rows, err := q.db.Query(ctx, getProductOptions, productID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ProductOptions{}
+	items := []GetProductOptionsRow{}
 	for rows.Next() {
-		var i ProductOptions
-		if err := rows.Scan(
-			&i.ID,
-			&i.ProductID,
-			&i.OptionKey,
-			&i.CreatedAt,
-		); err != nil {
+		var i GetProductOptionsRow
+		if err := rows.Scan(&i.Key, &i.ValuesString); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
