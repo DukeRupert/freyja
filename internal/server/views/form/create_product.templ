@@ -144,7 +144,7 @@ templ CreateProductSuccess(product database.Products) {
 	// Close modal
 	<dialog id="modal" hx-swap-oob="outerHTML" class="modal"></dialog>
 	// Add new product item
-	<div hx-swap-oob="afterbegin:#product-options-list">
+	<div hx-swap-oob="afterbegin:#products-list">
 		<li
 			class="list-row bg-green-50"
 			id={ fmt.Sprintf("product-%d", product.ID) }

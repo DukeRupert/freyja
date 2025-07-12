@@ -354,6 +354,7 @@ func (q *Queries) GetProductWithSummary(ctx context.Context, productID int32) (P
 const getProducts = `-- name: GetProducts :many
 SELECT id, name, description, active, created_at, updated_at FROM products
 WHERE active = $1
+ORDER BY id DESC
 LIMIT $2 OFFSET $3
 `
 

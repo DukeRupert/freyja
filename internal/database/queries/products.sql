@@ -38,6 +38,7 @@ WHERE id = $1;
 -- name: GetProducts :many
 SELECT * FROM products
 WHERE active = $1
+ORDER BY id DESC
 LIMIT $2 OFFSET $3;
 
 -- name: CountProducts :one
