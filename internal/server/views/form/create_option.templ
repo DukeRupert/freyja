@@ -11,7 +11,13 @@ templ Create_Options_Modal(product_id int32, errors []FieldError) {
 		<div class="modal-box">
 			<h3 class="text-lg font-bold">Create New Options</h3>
 			<div class="py-4">
-				<form id="create_options_form" hx-post={ fmt.Sprintf("/products/%d/options", product_id) } hx-target="#create_options_form" hx-swap="outerHTML" class="space-y-4">
+				<form
+					id="create_options_form"
+					hx-post={ fmt.Sprintf("/products/%d/options", product_id) }
+					hx-target="#product-options-card"
+					hx-swap="outerHTML"
+					class="space-y-4"
+				>
 					<div class="space-y-2">
 						<label class="option_key">
 							<span class="text-sm font-medium text-gray-700 mb-1 block">Option</span>
@@ -33,11 +39,7 @@ templ Create_Options_Modal(product_id int32, errors []FieldError) {
 				<form method="dialog">
 					<button class="btn">Cancel</button>
 				</form>
-				<button
-					type="submit"
-					form="create_options_form"
-					class="btn btn-primary"
-				>
+				<button type="submit" form="create_options_form" class="btn btn-primary">
 					Create Item
 				</button>
 			</div>
@@ -46,11 +48,11 @@ templ Create_Options_Modal(product_id int32, errors []FieldError) {
 }
 
 templ CreateProductOptionForm(product_id int32, errors []FieldError, formData map[string]interface{}) {
-	<form 
-		id="create_options_form" 
-		hx-post={ fmt.Sprintf("/products/%d/options", product_id) } 
-		hx-target="#create_options_form" 
-		hx-swap="outerHTML" 
+	<form
+		id="create_options_form"
+		hx-post={ fmt.Sprintf("/products/%d/options", product_id) }
+		hx-target="#product-options-card"
+		hx-swap="outerHTML"
 		class="space-y-4"
 	>
 		<div class="space-y-2">
@@ -64,7 +66,8 @@ templ CreateProductOptionForm(product_id int32, errors []FieldError, formData ma
 					minlength="1"
 					maxlength="50"
 					value={ getString(formData, "option_key") }
-					class={ "input input-bordered w-full", templ.KV("input-error", hasFieldError(errors, "option_key")) }
+					class={ "input input-bordered w-full" , templ.KV("input-error",
+        hasFieldError(errors, "option_key" )) }
 					placeholder="size, weight, color, etc."
 				/>
 				if optionKeyError := getFieldError(errors, "option_key"); optionKeyError != nil {
@@ -72,7 +75,6 @@ templ CreateProductOptionForm(product_id int32, errors []FieldError, formData ma
 				}
 			</label>
 		</div>
-		
 		// Display general form errors (like product_id or form-level errors)
 		if productIdError := getFieldError(errors, "product_id"); productIdError != nil {
 			<div class="text-error text-sm">{ productIdError.Message }</div>
@@ -83,11 +85,12 @@ templ CreateProductOptionForm(product_id int32, errors []FieldError, formData ma
 	</form>
 }
 
-templ CreateProductOptionSuccess(option page.ProductOption) {
+templ CreateProductOptionSuccess(productID int32, options []page.ProductOption) {
+	@page.ProductOptionsCard(productID, options)
 	// Close modal
 	<dialog id="modal" hx-swap-oob="outerHTML" class="modal"></dialog>
-	// Add new option item
-	<div hx-swap-oob="beforeend:#product-options-list">
-		@page.ProductOptionCard(option)
-	</div>
+}
+
+templ DeleteProductOption(id int32) {
+	<div id={ fmt.Sprintf("option-%d", id) }></div>
 }

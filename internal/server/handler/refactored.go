@@ -100,7 +100,6 @@ func HandleGetProducts(db *database.DB, logger zerolog.Logger) echo.HandlerFunc 
 		// default full page request
 		component := page.ProductsPage(data)
 		return component.Render(context.Background(), c.Response().Writer)
-
 	}
 }
 
@@ -109,7 +108,7 @@ func HandleGetProduct(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 		ctx := c.Request().Context()
 
 		// Parse product ID
-		product_id, err := strconv.Atoi(c.Param("id"))
+		productID, err := strconv.Atoi(c.Param("id"))
 		if err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]interface{}{
 				"error": "Invalid product ID",
@@ -117,7 +116,7 @@ func HandleGetProduct(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 			})
 		}
 
-		product, err := db.Queries.GetProduct(ctx, int32(product_id))
+		product, err := db.Queries.GetProduct(ctx, int32(productID))
 		if err != nil {
 			c.Logger().Error("Failed to get product: ", err)
 			if err == pgx.ErrNoRows {
@@ -133,7 +132,7 @@ func HandleGetProduct(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 		}
 
 		// Get the product options
-		options, err := GetProductOptionsForProduct(c.Request().Context(), db.Queries, int32(product_id))
+		options, err := GetProductOptionsForProduct(c.Request().Context(), db.Queries, int32(productID))
 		if err != nil {
 			return c.JSON(500, map[string]string{"error": err.Error()})
 		}
@@ -185,7 +184,6 @@ type CreateProductRequest struct {
 }
 
 func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
-
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
 		isHTMX := c.Get("htmx").(bool)
@@ -870,19 +868,21 @@ func HandleCreateProductOption(db *database.DB, eventBus interfaces.EventPublish
 		//     OptionKey: option.OptionKey,
 		// })
 
-		// Get the product options
-
 		// Handle successful response
 		if isHTMX {
-			opt := page.ProductOption{
-				Key: option.OptionKey,
-				Values: []string{},
+			// Get the product options
+			options, err := GetProductOptionsForProduct(ctx, db.Queries, productID)
+			if err != nil {
+				return c.JSON(http.StatusInternalServerError, map[string]any{
+					"error": "Failed to retrieve product options",
+					"code":  "INTERNAL_ERROR",
+				})
 			}
-			component := form.CreateProductOptionSuccess(opt)
+			component := form.CreateProductOptionSuccess(productID, options)
 			return component.Render(context.Background(), c.Response().Writer)
 		}
 
-		return c.JSON(http.StatusCreated, map[string]interface{}{
+		return c.JSON(http.StatusCreated, map[string]any{
 			"success": true,
 			"data":    option,
 			"message": "Product option created successfully",
@@ -1050,6 +1050,7 @@ func HandleUpdateProductOption(db *database.DB, eventBus interfaces.EventPublish
 func HandleDeleteProductOption(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
+		isHTMX := c.Get("htmx").(bool)
 
 		// Parse and validate option ID
 		id, err := strconv.ParseInt(c.Param("id"), 10, 32)
@@ -1139,11 +1140,28 @@ func HandleDeleteProductOption(db *database.DB, eventBus interfaces.EventPublish
 		//     DeletedBy: getUserID(c),
 		// })
 
-		return c.JSON(http.StatusOK, map[string]interface{}{
+		if isHTMX {
+
+			// Get the product options
+			options, err := GetProductOptionsForProduct(ctx, db.Queries, option.ProductID)
+			if err != nil {
+				return c.JSON(500, map[string]string{"error": err.Error()})
+			}
+			if err != nil {
+				return c.JSON(http.StatusInternalServerError, map[string]any{
+					"error": "Failed to retrieve product options",
+					"code":  "INTERNAL_ERROR",
+				})
+			}
+			component := page.ProductOptionsCard(option.ProductID, options)
+			return component.Render(ctx, c.Response().Writer)
+		}
+
+		return c.JSON(http.StatusOK, map[string]any{
 			"success": true,
 			"message": "Product option deleted successfully",
-			"data": map[string]interface{}{
-				"deleted_option": map[string]interface{}{
+			"data": map[string]any{
+				"deleted_option": map[string]any{
 					"id":         option.ID,
 					"product_id": option.ProductID,
 					"option_key": option.OptionKey,
@@ -2059,6 +2077,7 @@ func GetProductOptionsForProduct(ctx context.Context, db *database.Queries, prod
 
 		// Create ProductOption struct
 		productOption := page.ProductOption{
+			ID:     optionKey.ID,
 			Key:    optionKey.OptionKey,
 			Values: values,
 		}

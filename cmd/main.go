@@ -9,14 +9,15 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/dukerupert/freyja/internal/shared/config"
+	"github.com/go-playground/validator/v10"
+
 	"github.com/dukerupert/freyja/internal/database"
 	h "github.com/dukerupert/freyja/internal/server/handler"
 	customMiddleware "github.com/dukerupert/freyja/internal/server/middleware"
 	"github.com/dukerupert/freyja/internal/server/provider"
-	"github.com/dukerupert/freyja/internal/shared/config"
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -90,7 +91,7 @@ func addRoutes(
 	products.POST("/:id/options", h.HandleCreateProductOption(db, eventBus, logger))
 
 	// Options
-	options := api.Group("/options")
+	options := e.Group("/options")
 	options.PUT("/:id", h.HandleUpdateProductOption(db, eventBus, logger))
 	options.DELETE("/:id", h.HandleDeleteProductOption(db, eventBus, logger))
 	options.POST("/:id/values", h.HandleCreateProductOptionValue(db, eventBus, logger))
