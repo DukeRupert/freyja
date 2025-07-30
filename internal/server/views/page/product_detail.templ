@@ -107,7 +107,7 @@ templ ProductOptionCard(option ProductOption) {
 		<div class="flex items-center justify-between">
 			<div class="flex items-center space-x-3">
 				<span class="text-sm font-medium text-gray-900">{ option.Key }</span>
-				<div class="flex flex-wrap gap-1">
+				<ul id={ fmt.Sprintf("option-%s-values", option.Key)} class="flex flex-wrap gap-1">
 					for _, value := range option.Values {
 						if value != "" {
 							<span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700">
@@ -115,10 +115,10 @@ templ ProductOptionCard(option ProductOption) {
 							</span>
 						}
 					}
-					<button class="inline-flex items-center px-2 py-0.5 rounded text-xs text-blue-600 hover:bg-blue-50 border border-dashed border-blue-300">
+					<button hx-get={ fmt.Sprintf("/options/%d/values/create", option.ID) } hx-target="closest ul" hx-swap="afterbegin" class="inline-flex items-center px-2 py-0.5 rounded text-xs text-blue-600 hover:bg-blue-50 border border-dashed border-blue-300">
 						+ Add
 					</button>
-				</div>
+				</ul>
 			</div>
 			<button 
 				hx-delete={ fmt.Sprintf("/options/%d", option.ID) } 

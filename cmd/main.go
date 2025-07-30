@@ -95,6 +95,7 @@ func addRoutes(
 	options.PUT("/:id", h.HandleUpdateProductOption(db, eventBus, logger))
 	options.DELETE("/:id", h.HandleDeleteProductOption(db, eventBus, logger))
 	options.POST("/:id/values", h.HandleCreateProductOptionValue(db, eventBus, logger))
+	options.GET("/:id/values/create", h.HandleGetCreateProductOptionValueForm())
 	options.POST("/:id/values/:value_id", h.HandleGetProductOptionValue(db, logger))
 	options.PUT("/:id/values/:value_id", h.HandleUpdateProductOptionValue(db, eventBus, logger))
 	options.DELETE("/:id/values/:value_id", h.HandleDeleteProductOptionValue(db, eventBus, logger))

@@ -1,50 +1,6 @@
 package form
 
-import (
-	"fmt"
-)
-
-templ Create_Options_Modal(product_id int32, errors []FieldError) {
-	<!-- Create Form Modal -->
-	<dialog open id="modal" class="modal modal-bottom sm:modal-middle">
-		<div class="modal-box">
-			<h3 class="text-lg font-bold">Create New Options</h3>
-			<div class="py-4">
-				<form
-					id="create_options_form"
-					hx-post={ fmt.Sprintf("/products/%d/options", product_id) }
-					hx-target="#product-options-card"
-					hx-swap="outerHTML"
-					class="space-y-4"
-				>
-					<div class="space-y-2">
-						<label class="option_key">
-							<span class="text-sm font-medium text-gray-700 mb-1 block">Option</span>
-							<input
-								type="text"
-								id="option_key"
-								name="option_key"
-								class="input input-bordered w-full"
-								required
-								minlength="1"
-								maxlength="50"
-								placeholder="size, weight, color, etc."
-							/>
-						</label>
-					</div>
-				</form>
-			</div>
-			<div class="modal-action">
-				<form method="dialog">
-					<button class="btn">Cancel</button>
-				</form>
-				<button type="submit" form="create_options_form" class="btn btn-primary">
-					Create Item
-				</button>
-			</div>
-		</div>
-	</dialog>
-}
+import "fmt"
 
 templ CreateProductOptionForm(product_id int32, errors []FieldError, formData map[string]interface{}) {
 	<li id="create-option-form">
@@ -72,8 +28,8 @@ templ CreateProductOptionForm(product_id int32, errors []FieldError, formData ma
 						/>
 						<div class="absolute inset-y-0 right-2 flex items-center space-x-1">
 							<!-- Cancel Button -->
-							<button 
-								type="button" 
+							<button
+								type="button"
 								class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors duration-200"
 								onclick="document.getElementById('create-option-form').remove()"
 								title="Cancel"
@@ -110,5 +66,89 @@ templ CreateProductOptionForm(product_id int32, errors []FieldError, formData ma
 				<div class="text-error text-sm">{ formError.Message }</div>
 			}
 		</form>
+		<script>
+        // Listen for escape key only while this form exists
+        function handleEscape(e) {
+            if (e.key === 'Escape') {
+                document.getElementById('create-option-form').remove();
+                document.removeEventListener('keydown', handleEscape);
+            }
+        }
+        document.addEventListener('keydown', handleEscape);
+        </script>
+	</li>
+}
+
+templ CreateProductOptionValueForm(option_id int32, errors []FieldError, formData map[string]interface{}) {
+	<li id="create-option-value-form">
+		<form
+			id="create_options_value_form"
+			hx-post={ fmt.Sprintf("/options/%d/values", option_id) }
+			hx-target="#create_options_value_form"
+			hx-swap="outerHTML"
+			class="space-y-4"
+		>
+			<div class="relative">
+				<input
+					type="text"
+					id="option_key"
+					name="option_key"
+					required
+					minlength="1"
+					maxlength="50"
+					value={ getString(formData, "option_key") }
+					class={ "input input-bordered w-full pr-20", templ.KV("input-error", hasFieldError(errors, "option_key")) }
+					placeholder="Enter value"
+					aria-label="Option"
+				/>
+				<div class="absolute inset-y-0 right-2 flex items-center space-x-1">
+					<!-- Cancel Button -->
+					<button
+						type="button"
+						class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors duration-200"
+						onclick="document.getElementById('create_options_value_form').remove()"
+						title="Cancel"
+					>
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+						</svg>
+					</button>
+					<!-- Submit Button -->
+					<button
+						type="submit"
+						form="create_options_value_form"
+						class="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded transition-colors duration-200"
+						title="Submit"
+						hx-target="closest li"
+						hx-swap="outerHTML swap:1s"
+					>
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+						</svg>
+					</button>
+				</div>
+			</div>
+			<!-- Error messages -->
+			if optionKeyError := getFieldError(errors, "option_key"); optionKeyError != nil {
+				<div class="text-error text-sm mt-1">{ optionKeyError.Message }</div>
+			}
+			// Display general form errors
+			if productIdError := getFieldError(errors, "product_id"); productIdError != nil {
+				<div class="text-error text-sm">{ productIdError.Message }</div>
+			}
+			if formError := getFieldError(errors, "form"); formError != nil {
+				<div class="text-error text-sm">{ formError.Message }</div>
+			}
+		</form>
+		<script>
+		// Listen for escape key only while this form exists
+        function handleEscape(e) {
+            if (e.key === 'Escape') {
+                document.getElementById('create-option-value-form').remove();
+                document.removeEventListener('keydown', handleEscape);
+            }
+        }
+        document.addEventListener('keydown', handleEscape);
+        </script>
 	</li>
 }

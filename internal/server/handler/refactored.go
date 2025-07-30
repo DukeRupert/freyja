@@ -1299,6 +1299,24 @@ func HandleCreateProductOptionValue(db *database.DB, eventBus interfaces.EventPu
 	}
 }
 
+func HandleGetCreateProductOptionValueForm() echo.HandlerFunc {
+	return func(c echo.Context) error {
+		// Parse and validate option ID
+		id, err := strconv.ParseInt(c.Param("id"), 10, 32)
+		if err != nil || id <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid product ID. Must be a positive integer",
+				"code":  "INVALID_PRODUCT_ID",
+			})
+		}
+		optionID := int32(id)
+
+		errors := []form.FieldError{}
+		component := form.CreateProductOptionValueForm(optionID, errors, map[string]any{})
+		return component.Render(context.Background(), c.Response().Writer)
+	}
+}
+
 func HandleGetProductOptionValue(db *database.DB, logger zerolog.Logger) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
