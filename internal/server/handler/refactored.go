@@ -1176,88 +1176,129 @@ func HandleDeleteProductOption(db *database.DB, eventBus interfaces.EventPublish
 
 func HandleCreateProductOptionValue(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
 	type CreateProductOptionValueRequest struct {
-		Value string `json:"value" validate:"required,min=1,max=100"`
+		Value string `json:"value_key" form:"value_key" validate:"required,min=1,max=100"`
 	}
 
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
+		isHTMX := c.Get("htmx").(bool)
+
+		// DEBUG: Log all incoming request details
+		logger.Info().
+			Str("method", c.Request().Method).
+			Str("content_type", c.Request().Header.Get("Content-Type")).
+			Bool("is_htmx", isHTMX).
+			Int64("content_length", c.Request().ContentLength).
+			Msg("Incoming request details")
+
+		// Initialize error collection
+		var fieldErrors []form.FieldError
 
 		// Parse and validate option ID
 		id, err := strconv.ParseInt(c.Param("id"), 10, 32)
 		if err != nil || id <= 0 {
-			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": "Invalid option ID. Must be a positive integer",
-				"code":  "INVALID_OPTION_ID",
+			fieldErrors = append(fieldErrors, form.FieldError{
+				Field:   "option_id",
+				Message: "Invalid option ID. Must be a positive integer",
+				Code:    "INVALID_OPTION_ID",
 			})
 		}
 		optionID := int32(id)
 
 		// Parse and validate request body
 		var req CreateProductOptionValueRequest
+		var formData map[string]interface{}
 		if err := c.Bind(&req); err != nil {
-			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": "Invalid JSON format in request body",
-				"code":  "INVALID_JSON",
+			fieldErrors = append(fieldErrors, form.FieldError{
+				Field:   "form",
+				Message: "Invalid request format",
+				Code:    "INVALID_FORMAT",
 			})
+			logger.Info().Interface("fieldErrors", fieldErrors).Msg("Validation errors")
+
+			formData = map[string]interface{}{
+				"value_key": req.Value,
+			}
+
+			return handleOptionValueErrorResponse(c, optionID, formData, isHTMX, fieldErrors, "Invalid request format")
 		}
 
+		// Validate request using validator tags
 		if err := c.Validate(&req); err != nil {
-			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": err.Error(),
-				"code":  "VALIDATION_ERROR",
-			})
+			validationErrors := extractValidationErrors(err)
+			fieldErrors = append(fieldErrors, validationErrors...)
 		}
 
-		// Sanitize and validate value
+		// Custom validation: sanitize and validate value
 		trimmedValue := strings.TrimSpace(req.Value)
-		if trimmedValue == "" {
-			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": "Option value cannot be empty or whitespace only",
-				"code":  "INVALID_OPTION_VALUE",
+		if trimmedValue == "" && req.Value != "" {
+			fieldErrors = append(fieldErrors, form.FieldError{
+				Field:   "value_key",
+				Message: "Option value cannot be empty or whitespace only",
+				Code:    "INVALID_OPTION_VALUE",
 			})
 		}
 
-		// Check if option exists
-		_, err = db.Queries.GetProductOption(ctx, optionID)
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Int32("option_id", optionID).
-				Msg("Failed to get option")
+		// Check if option exists (only if option ID is valid)
+		if id > 0 {
+			_, err := db.Queries.GetProductOption(ctx, optionID)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Int32("option_id", optionID).
+					Msg("Failed to get option")
 
-			if err == pgx.ErrNoRows {
-				return c.JSON(http.StatusNotFound, map[string]interface{}{
-					"error": "Option not found",
-					"code":  "OPTION_NOT_FOUND",
+				if err == pgx.ErrNoRows {
+					fieldErrors = append(fieldErrors, form.FieldError{
+						Field:   "option_id",
+						Message: "Option not found",
+						Code:    "OPTION_NOT_FOUND",
+					})
+				} else {
+					fieldErrors = append(fieldErrors, form.FieldError{
+						Field:   "form",
+						Message: "Failed to retrieve option",
+						Code:    "OPTION_RETRIEVAL_FAILED",
+					})
+				}
+			}
+		}
+
+		// Check for value collision (only if we have a valid option and value)
+		if id > 0 && trimmedValue != "" && len(fieldErrors) == 0 {
+			_, err = db.Queries.GetProductOptionValueByValue(ctx, database.GetProductOptionValueByValueParams{
+				ProductOptionID: optionID,
+				Value:           trimmedValue,
+			})
+			if err == nil {
+				fieldErrors = append(fieldErrors, form.FieldError{
+					Field:   "value_key",
+					Message: "An option value with this name already exists for this option",
+					Code:    "OPTION_VALUE_CONFLICT",
+				})
+			} else if err != pgx.ErrNoRows {
+				logger.Error().
+					Err(err).
+					Int32("option_id", optionID).
+					Str("value", trimmedValue).
+					Msg("Failed to check existing option values")
+				
+				fieldErrors = append(fieldErrors, form.FieldError{
+					Field:   "value_key",
+					Message: "Unable to validate option value uniqueness",
+					Code:    "VALIDATION_ERROR",
 				})
 			}
-			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-				"error": "Failed to retrieve option",
-				"code":  "OPTION_RETRIEVAL_FAILED",
-			})
 		}
 
-		// Check if value already exists for this option
-		_, err = db.Queries.GetProductOptionValueByValue(ctx, database.GetProductOptionValueByValueParams{
-			ProductOptionID: optionID,
-			Value:           trimmedValue,
-		})
-		if err == nil {
-			return c.JSON(http.StatusConflict, map[string]interface{}{
-				"error": "An option value with this name already exists for this option",
-				"code":  "OPTION_VALUE_CONFLICT",
-			})
+		// Return validation errors if any exist
+		formData = map[string]interface{}{
+			"value_key": req.Value,
 		}
-		if err != pgx.ErrNoRows {
-			logger.Error().
-				Err(err).
-				Int32("option_id", optionID).
-				Str("value", trimmedValue).
-				Msg("Failed to check existing option values")
-			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-				"error": "Failed to validate option value uniqueness",
-				"code":  "VALIDATION_ERROR",
-			})
+
+		if len(fieldErrors) > 0 {
+			logger.Info().Interface("fieldErrors", fieldErrors).Msg("Validation errors")
+			return handleOptionValueErrorResponse(c, optionID, formData, isHTMX, fieldErrors, "Validation failed")
 		}
 
 		// Create the option value
@@ -1272,10 +1313,22 @@ func HandleCreateProductOptionValue(db *database.DB, eventBus interfaces.EventPu
 				Str("value", trimmedValue).
 				Msg("Failed to create option value")
 
-			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-				"error": "Failed to create option value",
-				"code":  "OPTION_VALUE_CREATION_FAILED",
+			// Handle specific database errors
+			if strings.Contains(err.Error(), "duplicate key") {
+				fieldErrors = append(fieldErrors, form.FieldError{
+					Field:   "value_key",
+					Message: "Option value must be unique for this option",
+					Code:    "DUPLICATE_OPTION_VALUE",
+				})
+				return handleOptionValueErrorResponse(c, optionID, formData, isHTMX, fieldErrors, "Option value must be unique for this option")
+			}
+
+			fieldErrors = append(fieldErrors, form.FieldError{
+				Field:   "form",
+				Message: "Failed to create option value",
+				Code:    "OPTION_VALUE_CREATION_FAILED",
 			})
+			return handleOptionValueErrorResponse(c, optionID, formData, isHTMX, fieldErrors, "Failed to create option value")
 		}
 
 		logger.Info().
@@ -1290,6 +1343,14 @@ func HandleCreateProductOptionValue(db *database.DB, eventBus interfaces.EventPu
 		//     OptionValueID: optionValue.ID,
 		//     Value:         optionValue.Value,
 		// })
+
+		// Handle successful response
+		if isHTMX {
+			// Return updated option card or value component
+			// You'll need to implement this component
+			component := page.ProductOptionValue(optionValue.Value)
+			return component.Render(context.Background(), c.Response().Writer)
+		}
 
 		return c.JSON(http.StatusCreated, map[string]interface{}{
 			"success": true,
@@ -2129,6 +2190,20 @@ func handleCreateProductErrorResponse(c echo.Context, formData map[string]interf
 func handleOptionKeyErrorResponse(c echo.Context, product_id int32, formData map[string]interface{}, isHTMX bool, fieldErrors []form.FieldError, message string) error {
 	if isHTMX {
 		component := form.CreateProductOptionForm(product_id, fieldErrors, formData)
+		return component.Render(context.Background(), c.Response().Writer)
+	}
+
+	// For JSON API requests
+	return c.JSON(http.StatusBadRequest, form.ErrorResponse{
+		Success: false,
+		Message: message,
+		Errors:  fieldErrors,
+	})
+}
+
+func handleOptionValueErrorResponse(c echo.Context, option_id int32, formData map[string]interface{}, isHTMX bool, fieldErrors []form.FieldError, message string) error {
+	if isHTMX {
+		component := form.CreateProductOptionValueForm(option_id, fieldErrors, formData)
 		return component.Render(context.Background(), c.Response().Writer)
 	}
 

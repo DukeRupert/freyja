@@ -190,19 +190,19 @@ func CreateProductOptionValueForm(option_id int32, errors []FieldError, formData
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var11 = []any{"input input-bordered w-full pr-20", templ.KV("input-error", hasFieldError(errors, "option_key"))}
+		var templ_7745c5c3_Var11 = []any{"input input-bordered w-full pr-20", templ.KV("input-error", hasFieldError(errors, "value_key"))}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var11...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<input type=\"text\" id=\"option_key\" name=\"option_key\" required minlength=\"1\" maxlength=\"50\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<input type=\"text\" id=\"value_key\" name=\"value_key\" required minlength=\"1\" maxlength=\"50\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var12 string
-		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(getString(formData, "option_key"))
+		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(getString(formData, "value_key"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/views/form/create_option.templ`, Line: 99, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/views/form/create_option.templ`, Line: 99, Col: 45}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -225,7 +225,7 @@ func CreateProductOptionValueForm(option_id int32, errors []FieldError, formData
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		if optionKeyError := getFieldError(errors, "option_key"); optionKeyError != nil {
+		if optionKeyError := getFieldError(errors, "value_key"); optionKeyError != nil {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<div class=\"text-error text-sm mt-1\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

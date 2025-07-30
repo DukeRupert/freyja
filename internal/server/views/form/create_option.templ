@@ -91,13 +91,13 @@ templ CreateProductOptionValueForm(option_id int32, errors []FieldError, formDat
 			<div class="relative">
 				<input
 					type="text"
-					id="option_key"
-					name="option_key"
+					id="value_key"
+					name="value_key"
 					required
 					minlength="1"
 					maxlength="50"
-					value={ getString(formData, "option_key") }
-					class={ "input input-bordered w-full pr-20", templ.KV("input-error", hasFieldError(errors, "option_key")) }
+					value={ getString(formData, "value_key") }
+					class={ "input input-bordered w-full pr-20", templ.KV("input-error", hasFieldError(errors, "value_key")) }
 					placeholder="Enter value"
 					aria-label="Option"
 				/>
@@ -129,7 +129,7 @@ templ CreateProductOptionValueForm(option_id int32, errors []FieldError, formDat
 				</div>
 			</div>
 			<!-- Error messages -->
-			if optionKeyError := getFieldError(errors, "option_key"); optionKeyError != nil {
+			if optionKeyError := getFieldError(errors, "value_key"); optionKeyError != nil {
 				<div class="text-error text-sm mt-1">{ optionKeyError.Message }</div>
 			}
 			// Display general form errors

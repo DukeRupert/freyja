@@ -107,12 +107,10 @@ templ ProductOptionCard(option ProductOption) {
 		<div class="flex items-center justify-between">
 			<div class="flex items-center space-x-3">
 				<span class="text-sm font-medium text-gray-900">{ option.Key }</span>
-				<ul id={ fmt.Sprintf("option-%s-values", option.Key)} class="flex flex-wrap gap-1">
+				<ul id={ fmt.Sprintf("option-%s-values", option.Key) } class="flex flex-wrap gap-1">
 					for _, value := range option.Values {
 						if value != "" {
-							<span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700">
-								{ value }
-							</span>
+							@ProductOptionValue(value)
 						}
 					}
 					<button hx-get={ fmt.Sprintf("/options/%d/values/create", option.ID) } hx-target="closest ul" hx-swap="afterbegin" class="inline-flex items-center px-2 py-0.5 rounded text-xs text-blue-600 hover:bg-blue-50 border border-dashed border-blue-300">
@@ -120,10 +118,10 @@ templ ProductOptionCard(option ProductOption) {
 					</button>
 				</ul>
 			</div>
-			<button 
-				hx-delete={ fmt.Sprintf("/options/%d", option.ID) } 
-				hx-target="closest li" 
-				hx-swap="outerHTML" 
+			<button
+				hx-delete={ fmt.Sprintf("/options/%d", option.ID) }
+				hx-target="closest li"
+				hx-swap="outerHTML"
 				class="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors duration-200"
 				title="Delete option"
 			>
@@ -132,6 +130,12 @@ templ ProductOptionCard(option ProductOption) {
 				</svg>
 			</button>
 		</div>
+	</li>
+}
+
+templ ProductOptionValue(value string) {
+	<li class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700">
+		{ value }
 	</li>
 }
 
