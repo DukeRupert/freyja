@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/database"
+	"github.com/dukerupert/freyja/internal/server/views/component"
 	"github.com/dukerupert/freyja/internal/server/views/form"
 	"github.com/dukerupert/freyja/internal/server/views/page"
 	"github.com/dukerupert/freyja/internal/shared/interfaces"
@@ -226,7 +227,7 @@ func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 				"description": req.Description,
 				"active":      req.Active,
 			}
-			return handleErrorResponse(c, formData, isHTMX, fieldErrors, "Invalid request format")
+			return handleCreateProductErrorResponse(c, formData, isHTMX, fieldErrors, "Invalid request format")
 		}
 
 		// Validate request using validator tags
@@ -276,7 +277,7 @@ func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 		}
 		if len(fieldErrors) > 0 {
 			logger.Info().Interface("fieldErrors", fieldErrors).Msg("Validation errors")
-			return handleErrorResponse(c, formData, isHTMX, fieldErrors, "Validation failed")
+			return handleCreateProductErrorResponse(c, formData, isHTMX, fieldErrors, "Validation failed")
 		}
 
 		// Convert string to pgtype.Text for database
@@ -305,7 +306,7 @@ func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 					Message: "Product name must be unique",
 					Code:    "DUPLICATE_NAME",
 				})
-				return handleErrorResponse(c, formData, isHTMX, fieldErrors, "Product name must be unique")
+				return handleCreateProductErrorResponse(c, formData, isHTMX, fieldErrors, "Product name must be unique")
 			}
 
 			fieldErrors = append(fieldErrors, form.FieldError{
@@ -313,7 +314,7 @@ func HandleCreateProduct(db *database.DB, eventBus interfaces.EventPublisher, lo
 				Message: "Failed to create product",
 				Code:    "CREATION_FAILED",
 			})
-			return handleErrorResponse(c, formData, isHTMX, fieldErrors, "Failed to create product")
+			return handleCreateProductErrorResponse(c, formData, isHTMX, fieldErrors, "Failed to create product")
 		}
 
 		logger.Info().
@@ -870,15 +871,13 @@ func HandleCreateProductOption(db *database.DB, eventBus interfaces.EventPublish
 
 		// Handle successful response
 		if isHTMX {
-			// Get the product options
-			options, err := GetProductOptionsForProduct(ctx, db.Queries, productID)
-			if err != nil {
-				return c.JSON(http.StatusInternalServerError, map[string]any{
-					"error": "Failed to retrieve product options",
-					"code":  "INTERNAL_ERROR",
-				})
+			opt := page.ProductOption{
+				ID:        option.ID,
+				Key:       option.OptionKey,
+				ProductID: option.ProductID,
+				Values:    []string{},
 			}
-			component := form.CreateProductOptionSuccess(productID, options)
+			component := page.ProductOptionCard(opt)
 			return component.Render(context.Background(), c.Response().Writer)
 		}
 
@@ -903,7 +902,7 @@ func HandleGetCreateProductOptionForm() echo.HandlerFunc {
 		productID := int32(id)
 
 		errors := []form.FieldError{}
-		component := form.Create_Options_Modal(productID, errors)
+		component := form.CreateProductOptionForm(productID, errors, map[string]any{})
 		return component.Render(context.Background(), c.Response().Writer)
 	}
 }
@@ -1047,6 +1046,37 @@ func HandleUpdateProductOption(db *database.DB, eventBus interfaces.EventPublish
 	}
 }
 
+// ErrorResponse represents a structured error response
+type ErrorResponse struct {
+	Error string `json:"error"`
+	Code  string `json:"code"`
+}
+
+// SuccessResponse represents a structured success response
+type SuccessResponse struct {
+	Success bool        `json:"success"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data,omitempty"`
+}
+
+// handleErrorResponse returns either a toast component or JSON based on request type
+func handleErrorResponse(c echo.Context, ctx context.Context, statusCode int, errorMsg, errorCode string) error {
+	isHtmx := c.Get("htmx").(bool)
+
+	if isHtmx {
+		// Create toast with error message
+		toast := component.ToastError(errorMsg) // Assuming you have a ToastError component
+		c.Response().Header().Set("Content-Type", "text/html")
+		c.Response().WriteHeader(statusCode)
+		return toast.Render(ctx, c.Response().Writer)
+	}
+
+	return c.JSON(statusCode, ErrorResponse{
+		Error: errorMsg,
+		Code:  errorCode,
+	})
+}
+
 func HandleDeleteProductOption(db *database.DB, eventBus interfaces.EventPublisher, logger zerolog.Logger) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
@@ -1055,10 +1085,8 @@ func HandleDeleteProductOption(db *database.DB, eventBus interfaces.EventPublish
 		// Parse and validate option ID
 		id, err := strconv.ParseInt(c.Param("id"), 10, 32)
 		if err != nil || id <= 0 {
-			return c.JSON(http.StatusBadRequest, map[string]interface{}{
-				"error": "Invalid option ID. Must be a positive integer",
-				"code":  "INVALID_OPTION_ID",
-			})
+			return handleErrorResponse(c, ctx, http.StatusBadRequest,
+				"Invalid option ID. Must be a positive integer", "INVALID_OPTION_ID")
 		}
 		optionID := int32(id)
 
@@ -1071,15 +1099,11 @@ func HandleDeleteProductOption(db *database.DB, eventBus interfaces.EventPublish
 				Msg("Failed to get product option for deletion")
 
 			if err == pgx.ErrNoRows {
-				return c.JSON(http.StatusNotFound, map[string]interface{}{
-					"error": "Product option not found",
-					"code":  "OPTION_NOT_FOUND",
-				})
+				return handleErrorResponse(c, ctx, http.StatusNotFound,
+					"Product option not found", "OPTION_NOT_FOUND")
 			}
-			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-				"error": "Failed to retrieve product option",
-				"code":  "OPTION_RETRIEVAL_FAILED",
-			})
+			return handleErrorResponse(c, ctx, http.StatusInternalServerError,
+				"Failed to retrieve product option", "OPTION_RETRIEVAL_FAILED")
 		}
 
 		// Check if option has values (business rule - prevent deletion if values exist)
@@ -1089,17 +1113,13 @@ func HandleDeleteProductOption(db *database.DB, eventBus interfaces.EventPublish
 				Err(err).
 				Int32("option_id", optionID).
 				Msg("Failed to check option values")
-			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-				"error": "Failed to validate option deletion",
-				"code":  "VALIDATION_ERROR",
-			})
+			return handleErrorResponse(c, ctx, http.StatusInternalServerError,
+				"Failed to validate option deletion", "VALIDATION_ERROR")
 		}
 
 		if len(optionValues) > 0 {
-			return c.JSON(http.StatusConflict, map[string]interface{}{
-				"error": "Cannot delete option with existing values. Delete option values first",
-				"code":  "HAS_OPTION_VALUES",
-			})
+			return handleErrorResponse(c, ctx, http.StatusConflict,
+				"Cannot delete option with existing values. Delete option values first", "HAS_OPTION_VALUES")
 		}
 
 		// Perform the deletion
@@ -1114,16 +1134,12 @@ func HandleDeleteProductOption(db *database.DB, eventBus interfaces.EventPublish
 
 			// Check for foreign key constraints
 			if strings.Contains(err.Error(), "foreign key") {
-				return c.JSON(http.StatusConflict, map[string]interface{}{
-					"error": "Cannot delete option due to existing references",
-					"code":  "FOREIGN_KEY_CONSTRAINT",
-				})
+				return handleErrorResponse(c, ctx, http.StatusConflict,
+					"Cannot delete option due to existing references", "FOREIGN_KEY_CONSTRAINT")
 			}
 
-			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-				"error": "Failed to delete product option",
-				"code":  "DELETION_FAILED",
-			})
+			return handleErrorResponse(c, ctx, http.StatusInternalServerError,
+				"Failed to delete product option", "DELETION_FAILED")
 		}
 
 		logger.Info().
@@ -1141,27 +1157,14 @@ func HandleDeleteProductOption(db *database.DB, eventBus interfaces.EventPublish
 		// })
 
 		if isHTMX {
-
-			// Get the product options
-			options, err := GetProductOptionsForProduct(ctx, db.Queries, option.ProductID)
-			if err != nil {
-				return c.JSON(500, map[string]string{"error": err.Error()})
-			}
-			if err != nil {
-				return c.JSON(http.StatusInternalServerError, map[string]any{
-					"error": "Failed to retrieve product options",
-					"code":  "INTERNAL_ERROR",
-				})
-			}
-			component := page.ProductOptionsCard(option.ProductID, options)
-			return component.Render(ctx, c.Response().Writer)
+			return c.String(http.StatusOK, "")
 		}
 
-		return c.JSON(http.StatusOK, map[string]any{
-			"success": true,
-			"message": "Product option deleted successfully",
-			"data": map[string]any{
-				"deleted_option": map[string]any{
+		return c.JSON(http.StatusOK, SuccessResponse{
+			Success: true,
+			Message: "Product option deleted successfully",
+			Data: map[string]interface{}{
+				"deleted_option": map[string]interface{}{
 					"id":         option.ID,
 					"product_id": option.ProductID,
 					"option_key": option.OptionKey,
@@ -2077,9 +2080,10 @@ func GetProductOptionsForProduct(ctx context.Context, db *database.Queries, prod
 
 		// Create ProductOption struct
 		productOption := page.ProductOption{
-			ID:     optionKey.ID,
-			Key:    optionKey.OptionKey,
-			Values: values,
+			ID:        optionKey.ID,
+			ProductID: optionKey.ProductID,
+			Key:       optionKey.OptionKey,
+			Values:    values,
 		}
 
 		productOptions = append(productOptions, productOption)
@@ -2089,7 +2093,7 @@ func GetProductOptionsForProduct(ctx context.Context, db *database.Queries, prod
 }
 
 // handleErrorResponse handles both JSON and HTMX error responses
-func handleErrorResponse(c echo.Context, formData map[string]interface{}, isHTMX bool, fieldErrors []form.FieldError, message string) error {
+func handleCreateProductErrorResponse(c echo.Context, formData map[string]interface{}, isHTMX bool, fieldErrors []form.FieldError, message string) error {
 	if isHTMX {
 		component := form.CreateProductForm(fieldErrors, formData)
 		return component.Render(context.Background(), c.Response().Writer)

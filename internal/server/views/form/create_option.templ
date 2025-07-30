@@ -2,7 +2,6 @@ package form
 
 import (
 	"fmt"
-	"github.com/dukerupert/freyja/internal/server/views/page"
 )
 
 templ Create_Options_Modal(product_id int32, errors []FieldError) {
@@ -48,49 +47,68 @@ templ Create_Options_Modal(product_id int32, errors []FieldError) {
 }
 
 templ CreateProductOptionForm(product_id int32, errors []FieldError, formData map[string]interface{}) {
-	<form
-		id="create_options_form"
-		hx-post={ fmt.Sprintf("/products/%d/options", product_id) }
-		hx-target="#product-options-card"
-		hx-swap="outerHTML"
-		class="space-y-4"
-	>
-		<div class="space-y-2">
-			<label class="block">
-				<span class="text-sm font-medium text-gray-700 mb-1 block">Option</span>
-				<input
-					type="text"
-					id="option_key"
-					name="option_key"
-					required
-					minlength="1"
-					maxlength="50"
-					value={ getString(formData, "option_key") }
-					class={ "input input-bordered w-full" , templ.KV("input-error",
-        hasFieldError(errors, "option_key" )) }
-					placeholder="size, weight, color, etc."
-				/>
-				if optionKeyError := getFieldError(errors, "option_key"); optionKeyError != nil {
-					<div class="text-error text-sm mt-1">{ optionKeyError.Message }</div>
-				}
-			</label>
-		</div>
-		// Display general form errors (like product_id or form-level errors)
-		if productIdError := getFieldError(errors, "product_id"); productIdError != nil {
-			<div class="text-error text-sm">{ productIdError.Message }</div>
-		}
-		if formError := getFieldError(errors, "form"); formError != nil {
-			<div class="text-error text-sm">{ formError.Message }</div>
-		}
-	</form>
-}
-
-templ CreateProductOptionSuccess(productID int32, options []page.ProductOption) {
-	@page.ProductOptionsCard(productID, options)
-	// Close modal
-	<dialog id="modal" hx-swap-oob="outerHTML" class="modal"></dialog>
-}
-
-templ DeleteProductOption(id int32) {
-	<div id={ fmt.Sprintf("option-%d", id) }></div>
+	<li id="create-option-form">
+		<form
+			id="create_options_form"
+			hx-post={ fmt.Sprintf("/products/%d/options", product_id) }
+			hx-target="#create_options_form"
+			hx-swap="outerHTML"
+			class="space-y-4"
+		>
+			<div class="space-y-2">
+				<label class="block">
+					<span class="text-sm font-medium text-gray-700 mb-1 block">Option</span>
+					<div class="relative">
+						<input
+							type="text"
+							id="option_key"
+							name="option_key"
+							required
+							minlength="1"
+							maxlength="50"
+							value={ getString(formData, "option_key") }
+							class={ "input input-bordered w-full pr-20", templ.KV("input-error", hasFieldError(errors, "option_key")) }
+							placeholder="size, weight, color, etc."
+						/>
+						<div class="absolute inset-y-0 right-2 flex items-center space-x-1">
+							<!-- Cancel Button -->
+							<button 
+								type="button" 
+								class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors duration-200"
+								onclick="document.getElementById('create-option-form').remove()"
+								title="Cancel"
+							>
+								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+								</svg>
+							</button>
+							<!-- Submit Button -->
+							<button
+								type="submit"
+								form="create_options_form"
+								class="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded transition-colors duration-200"
+								title="Submit"
+								hx-target="closest li"
+								hx-swap="outerHTML swap:1s"
+							>
+								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+								</svg>
+							</button>
+						</div>
+					</div>
+					if optionKeyError := getFieldError(errors, "option_key"); optionKeyError != nil {
+						<div class="text-error text-sm mt-1">{ optionKeyError.Message }</div>
+					}
+				</label>
+			</div>
+			// Display general form errors (like product_id or form-level errors)
+			if productIdError := getFieldError(errors, "product_id"); productIdError != nil {
+				<div class="text-error text-sm">{ productIdError.Message }</div>
+			}
+			if formError := getFieldError(errors, "form"); formError != nil {
+				<div class="text-error text-sm">{ formError.Message }</div>
+			}
+		</form>
+	</li>
 }
