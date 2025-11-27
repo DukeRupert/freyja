@@ -8,10 +8,46 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type Cart struct {
+// Shipping and billing addresses
+type Address struct {
+	ID                 pgtype.UUID        `json:"id"`
+	TenantID           pgtype.UUID        `json:"tenant_id"`
+	FullName           pgtype.Text        `json:"full_name"`
+	Company            pgtype.Text        `json:"company"`
+	AddressLine1       string             `json:"address_line1"`
+	AddressLine2       pgtype.Text        `json:"address_line2"`
+	City               string             `json:"city"`
+	State              string             `json:"state"`
+	PostalCode         string             `json:"postal_code"`
+	Country            string             `json:"country"`
+	Phone              pgtype.Text        `json:"phone"`
+	Email              pgtype.Text        `json:"email"`
+	AddressType        string             `json:"address_type"`
+	IsValidated        bool               `json:"is_validated"`
+	ValidationMetadata []byte             `json:"validation_metadata"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Maps users to payment provider customer IDs
+type BillingCustomer struct {
 	ID                 pgtype.UUID        `json:"id"`
 	TenantID           pgtype.UUID        `json:"tenant_id"`
 	UserID             pgtype.UUID        `json:"user_id"`
+	Provider           string             `json:"provider"`
+	ProviderCustomerID string             `json:"provider_customer_id"`
+	Metadata           []byte             `json:"metadata"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Shopping carts for guests and authenticated users
+type Cart struct {
+	ID       pgtype.UUID `json:"id"`
+	TenantID pgtype.UUID `json:"tenant_id"`
+	// NULL for guest carts, set for authenticated users
+	UserID pgtype.UUID `json:"user_id"`
+	// Links guest carts to sessions for persistence
 	SessionID          pgtype.UUID        `json:"session_id"`
 	Status             string             `json:"status"`
 	Notes              pgtype.Text        `json:"notes"`
@@ -23,6 +59,7 @@ type Cart struct {
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
+// Line items in shopping carts
 type CartItem struct {
 	ID             pgtype.UUID        `json:"id"`
 	TenantID       pgtype.UUID        `json:"tenant_id"`
@@ -35,17 +72,309 @@ type CartItem struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
-type PriceList struct {
-	ID          pgtype.UUID        `json:"id"`
-	TenantID    pgtype.UUID        `json:"tenant_id"`
-	Name        string             `json:"name"`
-	Description pgtype.Text        `json:"description"`
-	ListType    string             `json:"list_type"`
-	IsActive    bool               `json:"is_active"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+// Links users to their saved addresses
+type CustomerAddress struct {
+	ID                pgtype.UUID        `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	UserID            pgtype.UUID        `json:"user_id"`
+	AddressID         pgtype.UUID        `json:"address_id"`
+	IsDefaultShipping bool               `json:"is_default_shipping"`
+	IsDefaultBilling  bool               `json:"is_default_billing"`
+	Label             pgtype.Text        `json:"label"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 }
 
+// Promotional discount codes
+type DiscountCode struct {
+	ID                    pgtype.UUID        `json:"id"`
+	TenantID              pgtype.UUID        `json:"tenant_id"`
+	Code                  string             `json:"code"`
+	Description           pgtype.Text        `json:"description"`
+	DiscountType          string             `json:"discount_type"`
+	DiscountValue         int32              `json:"discount_value"`
+	AppliesTo             string             `json:"applies_to"`
+	MinimumOrderCents     pgtype.Int4        `json:"minimum_order_cents"`
+	UsageLimit            pgtype.Int4        `json:"usage_limit"`
+	UsageCount            int32              `json:"usage_count"`
+	UsageLimitPerCustomer pgtype.Int4        `json:"usage_limit_per_customer"`
+	StartsAt              pgtype.Timestamptz `json:"starts_at"`
+	ExpiresAt             pgtype.Timestamptz `json:"expires_at"`
+	IsActive              bool               `json:"is_active"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Tracking of discount code redemptions
+type DiscountCodeUsage struct {
+	ID                  pgtype.UUID        `json:"id"`
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	DiscountCodeID      pgtype.UUID        `json:"discount_code_id"`
+	UserID              pgtype.UUID        `json:"user_id"`
+	OrderID             pgtype.UUID        `json:"order_id"`
+	DiscountAmountCents int32              `json:"discount_amount_cents"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+}
+
+// Customizable transactional email templates
+type EmailTemplate struct {
+	ID           pgtype.UUID        `json:"id"`
+	TenantID     pgtype.UUID        `json:"tenant_id"`
+	TemplateType string             `json:"template_type"`
+	Name         string             `json:"name"`
+	Subject      string             `json:"subject"`
+	BodyHtml     string             `json:"body_html"`
+	BodyText     pgtype.Text        `json:"body_text"`
+	IsActive     bool               `json:"is_active"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Wholesale billing invoices
+type Invoice struct {
+	ID            pgtype.UUID `json:"id"`
+	TenantID      pgtype.UUID `json:"tenant_id"`
+	UserID        pgtype.UUID `json:"user_id"`
+	InvoiceNumber string      `json:"invoice_number"`
+	Status        string      `json:"status"`
+	SubtotalCents int32       `json:"subtotal_cents"`
+	TaxCents      int32       `json:"tax_cents"`
+	ShippingCents int32       `json:"shipping_cents"`
+	DiscountCents int32       `json:"discount_cents"`
+	TotalCents    int32       `json:"total_cents"`
+	PaidCents     int32       `json:"paid_cents"`
+	BalanceCents  int32       `json:"balance_cents"`
+	Currency      string      `json:"currency"`
+	// Payment terms: net_15, net_30, net_60, due_on_receipt
+	PaymentTerms      string             `json:"payment_terms"`
+	DueDate           pgtype.Date        `json:"due_date"`
+	BillingCustomerID pgtype.UUID        `json:"billing_customer_id"`
+	Provider          pgtype.Text        `json:"provider"`
+	ProviderInvoiceID pgtype.Text        `json:"provider_invoice_id"`
+	BillingAddressID  pgtype.UUID        `json:"billing_address_id"`
+	CustomerNotes     pgtype.Text        `json:"customer_notes"`
+	InternalNotes     pgtype.Text        `json:"internal_notes"`
+	Metadata          []byte             `json:"metadata"`
+	SentAt            pgtype.Timestamptz `json:"sent_at"`
+	ViewedAt          pgtype.Timestamptz `json:"viewed_at"`
+	PaidAt            pgtype.Timestamptz `json:"paid_at"`
+	VoidedAt          pgtype.Timestamptz `json:"voided_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Line items on invoices
+type InvoiceItem struct {
+	ID              pgtype.UUID        `json:"id"`
+	TenantID        pgtype.UUID        `json:"tenant_id"`
+	InvoiceID       pgtype.UUID        `json:"invoice_id"`
+	ItemType        string             `json:"item_type"`
+	ProductSkuID    pgtype.UUID        `json:"product_sku_id"`
+	OrderID         pgtype.UUID        `json:"order_id"`
+	Description     string             `json:"description"`
+	Quantity        pgtype.Numeric     `json:"quantity"`
+	UnitPriceCents  int32              `json:"unit_price_cents"`
+	TotalPriceCents int32              `json:"total_price_cents"`
+	Metadata        []byte             `json:"metadata"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Payments applied to invoices
+type InvoicePayment struct {
+	ID               pgtype.UUID        `json:"id"`
+	TenantID         pgtype.UUID        `json:"tenant_id"`
+	InvoiceID        pgtype.UUID        `json:"invoice_id"`
+	PaymentID        pgtype.UUID        `json:"payment_id"`
+	AmountCents      int32              `json:"amount_cents"`
+	PaymentMethod    pgtype.Text        `json:"payment_method"`
+	PaymentReference pgtype.Text        `json:"payment_reference"`
+	Notes            pgtype.Text        `json:"notes"`
+	Metadata         []byte             `json:"metadata"`
+	PaymentDate      pgtype.Date        `json:"payment_date"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Audit trail for invoice status changes
+type InvoiceStatusHistory struct {
+	ID              pgtype.UUID        `json:"id"`
+	TenantID        pgtype.UUID        `json:"tenant_id"`
+	InvoiceID       pgtype.UUID        `json:"invoice_id"`
+	FromStatus      pgtype.Text        `json:"from_status"`
+	ToStatus        string             `json:"to_status"`
+	ChangedByUserID pgtype.UUID        `json:"changed_by_user_id"`
+	ChangeReason    pgtype.Text        `json:"change_reason"`
+	Metadata        []byte             `json:"metadata"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+// Background job queue
+type Job struct {
+	ID       pgtype.UUID `json:"id"`
+	TenantID pgtype.UUID `json:"tenant_id"`
+	JobType  string      `json:"job_type"`
+	// Job queue name for parallel processing
+	Queue   string `json:"queue"`
+	Status  string `json:"status"`
+	Payload []byte `json:"payload"`
+	// Lower number = higher priority (default 100)
+	Priority              int32              `json:"priority"`
+	MaxRetries            int32              `json:"max_retries"`
+	RetryCount            int32              `json:"retry_count"`
+	RetryBackoffSeconds   int32              `json:"retry_backoff_seconds"`
+	ScheduledAt           pgtype.Timestamptz `json:"scheduled_at"`
+	ProcessingStartedAt   pgtype.Timestamptz `json:"processing_started_at"`
+	ProcessingCompletedAt pgtype.Timestamptz `json:"processing_completed_at"`
+	WorkerID              pgtype.Text        `json:"worker_id"`
+	ErrorMessage          pgtype.Text        `json:"error_message"`
+	ErrorDetails          []byte             `json:"error_details"`
+	TimeoutSeconds        int32              `json:"timeout_seconds"`
+	Metadata              []byte             `json:"metadata"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Completed and failed jobs for analysis
+type JobHistory struct {
+	ID                    pgtype.UUID        `json:"id"`
+	TenantID              pgtype.UUID        `json:"tenant_id"`
+	JobID                 pgtype.UUID        `json:"job_id"`
+	JobType               string             `json:"job_type"`
+	Queue                 string             `json:"queue"`
+	Status                string             `json:"status"`
+	Payload               []byte             `json:"payload"`
+	RetryCount            int32              `json:"retry_count"`
+	DurationMs            pgtype.Int4        `json:"duration_ms"`
+	ErrorMessage          pgtype.Text        `json:"error_message"`
+	ErrorDetails          []byte             `json:"error_details"`
+	WorkerID              pgtype.Text        `json:"worker_id"`
+	ScheduledAt           pgtype.Timestamptz `json:"scheduled_at"`
+	ProcessingStartedAt   pgtype.Timestamptz `json:"processing_started_at"`
+	ProcessingCompletedAt pgtype.Timestamptz `json:"processing_completed_at"`
+	Metadata              []byte             `json:"metadata"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+}
+
+// Customer orders (retail, wholesale, subscription)
+type Order struct {
+	ID          pgtype.UUID `json:"id"`
+	TenantID    pgtype.UUID `json:"tenant_id"`
+	UserID      pgtype.UUID `json:"user_id"`
+	OrderNumber string      `json:"order_number"`
+	// retail: one-time order, wholesale: invoice-based, subscription: recurring
+	OrderType         string             `json:"order_type"`
+	Status            string             `json:"status"`
+	SubtotalCents     int32              `json:"subtotal_cents"`
+	TaxCents          int32              `json:"tax_cents"`
+	ShippingCents     int32              `json:"shipping_cents"`
+	DiscountCents     int32              `json:"discount_cents"`
+	TotalCents        int32              `json:"total_cents"`
+	Currency          string             `json:"currency"`
+	PaymentID         pgtype.UUID        `json:"payment_id"`
+	PaymentStatus     string             `json:"payment_status"`
+	ShippingAddressID pgtype.UUID        `json:"shipping_address_id"`
+	BillingAddressID  pgtype.UUID        `json:"billing_address_id"`
+	ShippingMethod    pgtype.Text        `json:"shipping_method"`
+	ShippingCarrier   pgtype.Text        `json:"shipping_carrier"`
+	CustomerNotes     pgtype.Text        `json:"customer_notes"`
+	InternalNotes     pgtype.Text        `json:"internal_notes"`
+	FulfillmentStatus string             `json:"fulfillment_status"`
+	CartID            pgtype.UUID        `json:"cart_id"`
+	SubscriptionID    pgtype.UUID        `json:"subscription_id"`
+	Metadata          []byte             `json:"metadata"`
+	PaidAt            pgtype.Timestamptz `json:"paid_at"`
+	ShippedAt         pgtype.Timestamptz `json:"shipped_at"`
+	DeliveredAt       pgtype.Timestamptz `json:"delivered_at"`
+	CancelledAt       pgtype.Timestamptz `json:"cancelled_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Line items in orders
+type OrderItem struct {
+	ID                 pgtype.UUID        `json:"id"`
+	TenantID           pgtype.UUID        `json:"tenant_id"`
+	OrderID            pgtype.UUID        `json:"order_id"`
+	ProductSkuID       pgtype.UUID        `json:"product_sku_id"`
+	ProductName        string             `json:"product_name"`
+	Sku                string             `json:"sku"`
+	VariantDescription pgtype.Text        `json:"variant_description"`
+	Quantity           int32              `json:"quantity"`
+	UnitPriceCents     int32              `json:"unit_price_cents"`
+	TotalPriceCents    int32              `json:"total_price_cents"`
+	FulfillmentStatus  string             `json:"fulfillment_status"`
+	Metadata           []byte             `json:"metadata"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Audit trail for order status changes
+type OrderStatusHistory struct {
+	ID              pgtype.UUID        `json:"id"`
+	TenantID        pgtype.UUID        `json:"tenant_id"`
+	OrderID         pgtype.UUID        `json:"order_id"`
+	FromStatus      pgtype.Text        `json:"from_status"`
+	ToStatus        string             `json:"to_status"`
+	ChangedByUserID pgtype.UUID        `json:"changed_by_user_id"`
+	ChangeReason    pgtype.Text        `json:"change_reason"`
+	Metadata        []byte             `json:"metadata"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+// Payment transactions and status tracking
+type Payment struct {
+	ID                  pgtype.UUID        `json:"id"`
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	BillingCustomerID   pgtype.UUID        `json:"billing_customer_id"`
+	Provider            string             `json:"provider"`
+	ProviderPaymentID   string             `json:"provider_payment_id"`
+	AmountCents         int32              `json:"amount_cents"`
+	Currency            string             `json:"currency"`
+	Status              string             `json:"status"`
+	PaymentMethodID     pgtype.UUID        `json:"payment_method_id"`
+	FailureCode         pgtype.Text        `json:"failure_code"`
+	FailureMessage      pgtype.Text        `json:"failure_message"`
+	RefundedAmountCents int32              `json:"refunded_amount_cents"`
+	Metadata            []byte             `json:"metadata"`
+	SucceededAt         pgtype.Timestamptz `json:"succeeded_at"`
+	FailedAt            pgtype.Timestamptz `json:"failed_at"`
+	RefundedAt          pgtype.Timestamptz `json:"refunded_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Stored payment methods for customers
+type PaymentMethod struct {
+	ID                      pgtype.UUID        `json:"id"`
+	TenantID                pgtype.UUID        `json:"tenant_id"`
+	BillingCustomerID       pgtype.UUID        `json:"billing_customer_id"`
+	Provider                string             `json:"provider"`
+	ProviderPaymentMethodID string             `json:"provider_payment_method_id"`
+	MethodType              string             `json:"method_type"`
+	DisplayBrand            pgtype.Text        `json:"display_brand"`
+	DisplayLast4            pgtype.Text        `json:"display_last4"`
+	DisplayExpMonth         pgtype.Int4        `json:"display_exp_month"`
+	DisplayExpYear          pgtype.Int4        `json:"display_exp_year"`
+	IsDefault               bool               `json:"is_default"`
+	Metadata                []byte             `json:"metadata"`
+	CreatedAt               pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Named pricing tiers (retail, wholesale, custom)
+type PriceList struct {
+	ID          pgtype.UUID `json:"id"`
+	TenantID    pgtype.UUID `json:"tenant_id"`
+	Name        string      `json:"name"`
+	Description pgtype.Text `json:"description"`
+	// default: used for guests/unassigned, wholesale: for wholesale accounts, custom: special pricing
+	ListType  string             `json:"list_type"`
+	IsActive  bool               `json:"is_active"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Per-SKU pricing for each price list
 type PriceListEntry struct {
 	ID                  pgtype.UUID        `json:"id"`
 	TenantID            pgtype.UUID        `json:"tenant_id"`
@@ -58,32 +387,59 @@ type PriceListEntry struct {
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 }
 
+// Coffee products (base offerings)
 type Product struct {
-	ID               pgtype.UUID        `json:"id"`
-	TenantID         pgtype.UUID        `json:"tenant_id"`
-	Name             string             `json:"name"`
-	Slug             string             `json:"slug"`
-	Description      pgtype.Text        `json:"description"`
-	ShortDescription pgtype.Text        `json:"short_description"`
-	Origin           pgtype.Text        `json:"origin"`
-	Region           pgtype.Text        `json:"region"`
-	Producer         pgtype.Text        `json:"producer"`
-	Process          pgtype.Text        `json:"process"`
-	RoastLevel       pgtype.Text        `json:"roast_level"`
-	ElevationMin     pgtype.Int4        `json:"elevation_min"`
-	ElevationMax     pgtype.Int4        `json:"elevation_max"`
-	Variety          pgtype.Text        `json:"variety"`
-	HarvestYear      pgtype.Int4        `json:"harvest_year"`
-	TastingNotes     []string           `json:"tasting_notes"`
-	Status           string             `json:"status"`
-	Visibility       string             `json:"visibility"`
-	MetaTitle        pgtype.Text        `json:"meta_title"`
-	MetaDescription  pgtype.Text        `json:"meta_description"`
-	SortOrder        int32              `json:"sort_order"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	ID               pgtype.UUID `json:"id"`
+	TenantID         pgtype.UUID `json:"tenant_id"`
+	Name             string      `json:"name"`
+	Slug             string      `json:"slug"`
+	Description      pgtype.Text `json:"description"`
+	ShortDescription pgtype.Text `json:"short_description"`
+	Origin           pgtype.Text `json:"origin"`
+	Region           pgtype.Text `json:"region"`
+	Producer         pgtype.Text `json:"producer"`
+	Process          pgtype.Text `json:"process"`
+	RoastLevel       pgtype.Text `json:"roast_level"`
+	ElevationMin     pgtype.Int4 `json:"elevation_min"`
+	ElevationMax     pgtype.Int4 `json:"elevation_max"`
+	Variety          pgtype.Text `json:"variety"`
+	HarvestYear      pgtype.Int4 `json:"harvest_year"`
+	TastingNotes     []string    `json:"tasting_notes"`
+	Status           string      `json:"status"`
+	// public: all customers, wholesale_only: wholesale accounts only, hidden: not shown
+	Visibility      string             `json:"visibility"`
+	MetaTitle       pgtype.Text        `json:"meta_title"`
+	MetaDescription pgtype.Text        `json:"meta_description"`
+	SortOrder       int32              `json:"sort_order"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
+// Hierarchical product categories
+type ProductCategory struct {
+	ID              pgtype.UUID        `json:"id"`
+	TenantID        pgtype.UUID        `json:"tenant_id"`
+	Name            string             `json:"name"`
+	Slug            string             `json:"slug"`
+	Description     pgtype.Text        `json:"description"`
+	ParentID        pgtype.UUID        `json:"parent_id"`
+	SortOrder       int32              `json:"sort_order"`
+	IsActive        bool               `json:"is_active"`
+	MetaTitle       pgtype.Text        `json:"meta_title"`
+	MetaDescription pgtype.Text        `json:"meta_description"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ProductCategoryAssignment struct {
+	ID         pgtype.UUID        `json:"id"`
+	TenantID   pgtype.UUID        `json:"tenant_id"`
+	ProductID  pgtype.UUID        `json:"product_id"`
+	CategoryID pgtype.UUID        `json:"category_id"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+// Product images with ordering
 type ProductImage struct {
 	ID        pgtype.UUID        `json:"id"`
 	TenantID  pgtype.UUID        `json:"tenant_id"`
@@ -98,16 +454,39 @@ type ProductImage struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+// Customer product reviews with moderation
+type ProductReview struct {
+	ID                 pgtype.UUID        `json:"id"`
+	TenantID           pgtype.UUID        `json:"tenant_id"`
+	ProductID          pgtype.UUID        `json:"product_id"`
+	UserID             pgtype.UUID        `json:"user_id"`
+	OrderID            pgtype.UUID        `json:"order_id"`
+	Rating             int32              `json:"rating"`
+	Title              pgtype.Text        `json:"title"`
+	ReviewText         pgtype.Text        `json:"review_text"`
+	Status             string             `json:"status"`
+	ModeratedBy        pgtype.UUID        `json:"moderated_by"`
+	ModeratedAt        pgtype.Timestamptz `json:"moderated_at"`
+	ModerationNotes    pgtype.Text        `json:"moderation_notes"`
+	HelpfulCount       int32              `json:"helpful_count"`
+	NotHelpfulCount    int32              `json:"not_helpful_count"`
+	IsVerifiedPurchase bool               `json:"is_verified_purchase"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Product variants by weight and grind
 type ProductSku struct {
-	ID                pgtype.UUID        `json:"id"`
-	TenantID          pgtype.UUID        `json:"tenant_id"`
-	ProductID         pgtype.UUID        `json:"product_id"`
-	Sku               string             `json:"sku"`
-	WeightValue       pgtype.Numeric     `json:"weight_value"`
-	WeightUnit        string             `json:"weight_unit"`
-	Grind             string             `json:"grind"`
-	BasePriceCents    int32              `json:"base_price_cents"`
-	InventoryQuantity int32              `json:"inventory_quantity"`
+	ID                pgtype.UUID    `json:"id"`
+	TenantID          pgtype.UUID    `json:"tenant_id"`
+	ProductID         pgtype.UUID    `json:"product_id"`
+	Sku               string         `json:"sku"`
+	WeightValue       pgtype.Numeric `json:"weight_value"`
+	WeightUnit        string         `json:"weight_unit"`
+	Grind             string         `json:"grind"`
+	BasePriceCents    int32          `json:"base_price_cents"`
+	InventoryQuantity int32          `json:"inventory_quantity"`
+	// deny: prevent orders when out of stock, allow: allow backorders
 	InventoryPolicy   string             `json:"inventory_policy"`
 	LowStockThreshold pgtype.Int4        `json:"low_stock_threshold"`
 	IsActive          bool               `json:"is_active"`
@@ -117,8 +496,37 @@ type ProductSku struct {
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
-type Session struct {
+// Flexible product tags
+type ProductTag struct {
 	ID        pgtype.UUID        `json:"id"`
+	TenantID  pgtype.UUID        `json:"tenant_id"`
+	Name      string             `json:"name"`
+	Slug      string             `json:"slug"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type ProductTagAssignment struct {
+	ID        pgtype.UUID        `json:"id"`
+	TenantID  pgtype.UUID        `json:"tenant_id"`
+	ProductID pgtype.UUID        `json:"product_id"`
+	TagID     pgtype.UUID        `json:"tag_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+// User votes on review helpfulness
+type ReviewHelpfulness struct {
+	ID        pgtype.UUID        `json:"id"`
+	TenantID  pgtype.UUID        `json:"tenant_id"`
+	ReviewID  pgtype.UUID        `json:"review_id"`
+	UserID    pgtype.UUID        `json:"user_id"`
+	IsHelpful bool               `json:"is_helpful"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+// Sessions for cart persistence and user authentication
+type Session struct {
+	ID pgtype.UUID `json:"id"`
+	// Session token (should be cryptographically secure)
 	Token     string             `json:"token"`
 	Data      []byte             `json:"data"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
@@ -126,6 +534,179 @@ type Session struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
+// Shipment tracking for orders
+type Shipment struct {
+	ID                 pgtype.UUID        `json:"id"`
+	TenantID           pgtype.UUID        `json:"tenant_id"`
+	OrderID            pgtype.UUID        `json:"order_id"`
+	ShipmentNumber     string             `json:"shipment_number"`
+	ShippingMethodID   pgtype.UUID        `json:"shipping_method_id"`
+	Carrier            pgtype.Text        `json:"carrier"`
+	ServiceName        pgtype.Text        `json:"service_name"`
+	TrackingNumber     pgtype.Text        `json:"tracking_number"`
+	TrackingUrl        pgtype.Text        `json:"tracking_url"`
+	Status             string             `json:"status"`
+	ShippingCostCents  int32              `json:"shipping_cost_cents"`
+	LabelCostCents     pgtype.Int4        `json:"label_cost_cents"`
+	WeightGrams        pgtype.Int4        `json:"weight_grams"`
+	LengthCm           pgtype.Numeric     `json:"length_cm"`
+	WidthCm            pgtype.Numeric     `json:"width_cm"`
+	HeightCm           pgtype.Numeric     `json:"height_cm"`
+	Provider           pgtype.Text        `json:"provider"`
+	ProviderShipmentID pgtype.Text        `json:"provider_shipment_id"`
+	ProviderLabelID    pgtype.Text        `json:"provider_label_id"`
+	LabelUrl           pgtype.Text        `json:"label_url"`
+	Metadata           []byte             `json:"metadata"`
+	LabelCreatedAt     pgtype.Timestamptz `json:"label_created_at"`
+	ShippedAt          pgtype.Timestamptz `json:"shipped_at"`
+	DeliveredAt        pgtype.Timestamptz `json:"delivered_at"`
+	FailedAt           pgtype.Timestamptz `json:"failed_at"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Links order items to shipments (supports partial shipments)
+type ShipmentItem struct {
+	ID          pgtype.UUID        `json:"id"`
+	TenantID    pgtype.UUID        `json:"tenant_id"`
+	ShipmentID  pgtype.UUID        `json:"shipment_id"`
+	OrderItemID pgtype.UUID        `json:"order_item_id"`
+	Quantity    int32              `json:"quantity"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+// History of tracking status updates
+type ShipmentTrackingEvent struct {
+	ID              pgtype.UUID        `json:"id"`
+	TenantID        pgtype.UUID        `json:"tenant_id"`
+	ShipmentID      pgtype.UUID        `json:"shipment_id"`
+	Status          string             `json:"status"`
+	Message         pgtype.Text        `json:"message"`
+	Location        pgtype.Text        `json:"location"`
+	ProviderEventID pgtype.Text        `json:"provider_event_id"`
+	Metadata        []byte             `json:"metadata"`
+	EventAt         pgtype.Timestamptz `json:"event_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+// Available shipping options (manual and provider-integrated)
+type ShippingMethod struct {
+	ID                         pgtype.UUID        `json:"id"`
+	TenantID                   pgtype.UUID        `json:"tenant_id"`
+	Name                       string             `json:"name"`
+	Code                       string             `json:"code"`
+	Description                pgtype.Text        `json:"description"`
+	Provider                   string             `json:"provider"`
+	ProviderServiceCode        pgtype.Text        `json:"provider_service_code"`
+	FlatRateCents              pgtype.Int4        `json:"flat_rate_cents"`
+	FreeShippingThresholdCents pgtype.Int4        `json:"free_shipping_threshold_cents"`
+	IsActive                   bool               `json:"is_active"`
+	SortOrder                  int32              `json:"sort_order"`
+	EstimatedDaysMin           pgtype.Int4        `json:"estimated_days_min"`
+	EstimatedDaysMax           pgtype.Int4        `json:"estimated_days_max"`
+	Metadata                   []byte             `json:"metadata"`
+	CreatedAt                  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                  pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Cached shipping rates from providers
+type ShippingRate struct {
+	ID                    pgtype.UUID        `json:"id"`
+	TenantID              pgtype.UUID        `json:"tenant_id"`
+	ShippingMethodID      pgtype.UUID        `json:"shipping_method_id"`
+	OriginPostalCode      pgtype.Text        `json:"origin_postal_code"`
+	DestinationPostalCode string             `json:"destination_postal_code"`
+	WeightGrams           int32              `json:"weight_grams"`
+	RateCents             int32              `json:"rate_cents"`
+	Currency              string             `json:"currency"`
+	ValidUntil            pgtype.Timestamptz `json:"valid_until"`
+	ProviderRateID        pgtype.Text        `json:"provider_rate_id"`
+	Metadata              []byte             `json:"metadata"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+}
+
+// Customer subscription instances
+type Subscription struct {
+	ID                 pgtype.UUID `json:"id"`
+	TenantID           pgtype.UUID `json:"tenant_id"`
+	UserID             pgtype.UUID `json:"user_id"`
+	SubscriptionPlanID pgtype.UUID `json:"subscription_plan_id"`
+	// weekly, biweekly, monthly, every_6_weeks, every_2_months
+	BillingInterval        string             `json:"billing_interval"`
+	Status                 string             `json:"status"`
+	BillingCustomerID      pgtype.UUID        `json:"billing_customer_id"`
+	Provider               string             `json:"provider"`
+	ProviderSubscriptionID pgtype.Text        `json:"provider_subscription_id"`
+	SubtotalCents          int32              `json:"subtotal_cents"`
+	TaxCents               int32              `json:"tax_cents"`
+	TotalCents             int32              `json:"total_cents"`
+	Currency               string             `json:"currency"`
+	ShippingAddressID      pgtype.UUID        `json:"shipping_address_id"`
+	ShippingMethodID       pgtype.UUID        `json:"shipping_method_id"`
+	ShippingCents          int32              `json:"shipping_cents"`
+	PaymentMethodID        pgtype.UUID        `json:"payment_method_id"`
+	TrialEndsAt            pgtype.Timestamptz `json:"trial_ends_at"`
+	CurrentPeriodStart     pgtype.Timestamptz `json:"current_period_start"`
+	CurrentPeriodEnd       pgtype.Timestamptz `json:"current_period_end"`
+	NextBillingDate        pgtype.Timestamptz `json:"next_billing_date"`
+	CancelAtPeriodEnd      bool               `json:"cancel_at_period_end"`
+	CancelledAt            pgtype.Timestamptz `json:"cancelled_at"`
+	CancellationReason     pgtype.Text        `json:"cancellation_reason"`
+	Metadata               []byte             `json:"metadata"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Products included in subscriptions
+type SubscriptionItem struct {
+	ID             pgtype.UUID        `json:"id"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	SubscriptionID pgtype.UUID        `json:"subscription_id"`
+	ProductSkuID   pgtype.UUID        `json:"product_sku_id"`
+	Quantity       int32              `json:"quantity"`
+	UnitPriceCents int32              `json:"unit_price_cents"`
+	Metadata       []byte             `json:"metadata"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Templates for recurring subscriptions
+type SubscriptionPlan struct {
+	ID                  pgtype.UUID        `json:"id"`
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	Name                string             `json:"name"`
+	Description         pgtype.Text        `json:"description"`
+	BillingInterval     string             `json:"billing_interval"`
+	DefaultProductSkuID pgtype.UUID        `json:"default_product_sku_id"`
+	DefaultQuantity     pgtype.Int4        `json:"default_quantity"`
+	PriceCents          pgtype.Int4        `json:"price_cents"`
+	IsActive            bool               `json:"is_active"`
+	TrialPeriodDays     pgtype.Int4        `json:"trial_period_days"`
+	Metadata            []byte             `json:"metadata"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Upcoming and past subscription events
+type SubscriptionSchedule struct {
+	ID             pgtype.UUID        `json:"id"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	SubscriptionID pgtype.UUID        `json:"subscription_id"`
+	EventType      string             `json:"event_type"`
+	Status         string             `json:"status"`
+	OrderID        pgtype.UUID        `json:"order_id"`
+	PaymentID      pgtype.UUID        `json:"payment_id"`
+	ErrorMessage   pgtype.Text        `json:"error_message"`
+	RetryCount     int32              `json:"retry_count"`
+	ScheduledAt    pgtype.Timestamptz `json:"scheduled_at"`
+	ProcessedAt    pgtype.Timestamptz `json:"processed_at"`
+	FailedAt       pgtype.Timestamptz `json:"failed_at"`
+	Metadata       []byte             `json:"metadata"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Coffee roasters using the platform (multi-tenant root)
 type Tenant struct {
 	ID           pgtype.UUID        `json:"id"`
 	Name         string             `json:"name"`
@@ -140,4 +721,58 @@ type Tenant struct {
 	TrialEndsAt  pgtype.Timestamptz `json:"trial_ends_at"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Customer accounts (retail and wholesale)
+type User struct {
+	ID            pgtype.UUID `json:"id"`
+	TenantID      pgtype.UUID `json:"tenant_id"`
+	Email         string      `json:"email"`
+	PasswordHash  pgtype.Text `json:"password_hash"`
+	EmailVerified bool        `json:"email_verified"`
+	// Account type: retail (default), wholesale (approved), admin (internal)
+	AccountType                string             `json:"account_type"`
+	FirstName                  pgtype.Text        `json:"first_name"`
+	LastName                   pgtype.Text        `json:"last_name"`
+	Phone                      pgtype.Text        `json:"phone"`
+	CompanyName                pgtype.Text        `json:"company_name"`
+	TaxID                      pgtype.Text        `json:"tax_id"`
+	BusinessType               pgtype.Text        `json:"business_type"`
+	Status                     string             `json:"status"`
+	WholesaleApplicationStatus pgtype.Text        `json:"wholesale_application_status"`
+	WholesaleApplicationNotes  pgtype.Text        `json:"wholesale_application_notes"`
+	WholesaleApprovedAt        pgtype.Timestamptz `json:"wholesale_approved_at"`
+	WholesaleApprovedBy        pgtype.UUID        `json:"wholesale_approved_by"`
+	// Wholesale payment terms: net_15, net_30, net_60, etc.
+	PaymentTerms pgtype.Text        `json:"payment_terms"`
+	Metadata     []byte             `json:"metadata"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Price list assignment to users
+type UserPriceList struct {
+	ID          pgtype.UUID        `json:"id"`
+	TenantID    pgtype.UUID        `json:"tenant_id"`
+	UserID      pgtype.UUID        `json:"user_id"`
+	PriceListID pgtype.UUID        `json:"price_list_id"`
+	AssignedAt  pgtype.Timestamptz `json:"assigned_at"`
+	AssignedBy  pgtype.UUID        `json:"assigned_by"`
+	Notes       pgtype.Text        `json:"notes"`
+}
+
+// Incoming webhook events for idempotent processing
+type WebhookEvent struct {
+	ID              pgtype.UUID        `json:"id"`
+	TenantID        pgtype.UUID        `json:"tenant_id"`
+	Provider        string             `json:"provider"`
+	ProviderEventID string             `json:"provider_event_id"`
+	EventType       string             `json:"event_type"`
+	Status          string             `json:"status"`
+	Payload         []byte             `json:"payload"`
+	ProcessedAt     pgtype.Timestamptz `json:"processed_at"`
+	ErrorMessage    pgtype.Text        `json:"error_message"`
+	RetryCount      int32              `json:"retry_count"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }

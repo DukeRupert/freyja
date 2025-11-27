@@ -164,8 +164,8 @@ CREATE INDEX idx_shipping_methods_code ON shipping_methods(tenant_id, code);
 
 CREATE INDEX idx_shipping_rates_tenant_id ON shipping_rates(tenant_id);
 CREATE INDEX idx_shipping_rates_method_id ON shipping_rates(shipping_method_id);
-CREATE INDEX idx_shipping_rates_valid ON shipping_rates(destination_postal_code, weight_grams, valid_until)
-    WHERE valid_until > NOW();
+-- Note: Index without predicate - valid rates can be found via query
+CREATE INDEX idx_shipping_rates_valid ON shipping_rates(destination_postal_code, weight_grams, valid_until);
 
 CREATE INDEX idx_shipments_tenant_id ON shipments(tenant_id);
 CREATE INDEX idx_shipments_order_id ON shipments(order_id);

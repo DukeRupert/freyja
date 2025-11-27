@@ -14,6 +14,7 @@ type Config struct {
 	LogLevel      string
 	Port          uint16
 	DatabaseUrl   string
+	TenantID      string
 	SessionSecret string
 	Stripe        StripeConfig
 	Email         EmailConfig
@@ -56,6 +57,7 @@ func NewConfig() (*Config, error) {
 		LogLevel:      getEnv("LOG_LEVEL", "info"),
 		Port:          getEnvInt("PORT", 3000),
 		DatabaseUrl:   getEnv("DATABASE_URL", "postgres://freyja:password@localhost:5432/freyja?sslmode=disable"),
+		TenantID:      getEnv("TENANT_ID", "00000000-0000-0000-0000-000000000001"),
 		SessionSecret: getEnv("SESSION_SECRET", "dev-secret-change-in-production"),
 		Stripe: StripeConfig{
 			SecretKey:     getEnv("STRIPE_SECRET_KEY", "sk_test_your_key_here"),

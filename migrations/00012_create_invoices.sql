@@ -144,8 +144,8 @@ CREATE INDEX idx_invoices_user_id ON invoices(user_id);
 CREATE INDEX idx_invoices_invoice_number ON invoices(tenant_id, invoice_number);
 CREATE INDEX idx_invoices_status ON invoices(tenant_id, status);
 CREATE INDEX idx_invoices_due_date ON invoices(due_date);
-CREATE INDEX idx_invoices_overdue ON invoices(tenant_id, status, due_date)
-    WHERE status NOT IN ('paid', 'cancelled', 'void') AND due_date < CURRENT_DATE;
+-- Note: Index without predicate - overdue invoices can be found via query
+CREATE INDEX idx_invoices_overdue ON invoices(tenant_id, status, due_date);
 CREATE INDEX idx_invoices_provider ON invoices(provider, provider_invoice_id);
 CREATE INDEX idx_invoices_created_at ON invoices(created_at);
 

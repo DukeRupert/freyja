@@ -1,18 +1,15 @@
 -- +goose Up
 -- +goose StatementBegin
 
--- Sessions table: authentication sessions
+-- Sessions table: for cart persistence and authentication
 CREATE TABLE sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
 
-    -- Session token (hashed for security)
-    token_hash VARCHAR(255) NOT NULL UNIQUE,
+    -- Session token
+    token VARCHAR(255) NOT NULL UNIQUE,
 
-    -- Session metadata
-    ip_address INET,
-    user_agent TEXT,
+    -- Session data (JSONB for flexibility)
+    data JSONB NOT NULL DEFAULT '{}',
 
     -- Expiration
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -22,10 +19,8 @@ CREATE TABLE sessions (
 );
 
 -- Indexes
-CREATE INDEX idx_sessions_tenant_id ON sessions(tenant_id);
-CREATE INDEX idx_sessions_user_id ON sessions(user_id);
-CREATE INDEX idx_sessions_token_hash ON sessions(token_hash);
-CREATE INDEX idx_sessions_expires_at ON sessions(expires_at) WHERE expires_at > NOW();
+CREATE INDEX idx_sessions_token ON sessions(token);
+CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
 
 -- Auto-update trigger
 CREATE TRIGGER update_sessions_updated_at
@@ -33,8 +28,8 @@ CREATE TRIGGER update_sessions_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-COMMENT ON TABLE sessions IS 'Authentication sessions for users';
-COMMENT ON COLUMN sessions.token_hash IS 'SHA-256 hash of session token';
+COMMENT ON TABLE sessions IS 'Sessions for cart persistence and user authentication';
+COMMENT ON COLUMN sessions.token IS 'Session token (should be cryptographically secure)';
 -- +goose StatementEnd
 
 -- +goose Down

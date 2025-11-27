@@ -57,8 +57,9 @@ CREATE INDEX idx_carts_user_id ON carts(user_id);
 CREATE INDEX idx_carts_session_id ON carts(session_id);
 CREATE INDEX idx_carts_status ON carts(tenant_id, status) WHERE status = 'active';
 CREATE INDEX idx_carts_last_activity ON carts(last_activity_at);
+-- Note: Index without predicate - abandoned carts can be found via query
 CREATE INDEX idx_carts_abandoned ON carts(tenant_id, status, last_activity_at)
-    WHERE status = 'active' AND last_activity_at < NOW() - INTERVAL '1 hour';
+    WHERE status = 'active';
 
 CREATE INDEX idx_cart_items_tenant_id ON cart_items(tenant_id);
 CREATE INDEX idx_cart_items_cart_id ON cart_items(cart_id);
