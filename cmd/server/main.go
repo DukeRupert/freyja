@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"slices"
 
 	"github.com/dukerupert/freyja/internal"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 type (
@@ -85,34 +87,66 @@ func someHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "Hello world of", r.URL.Path)
 }
 
-func run() {
+func run() error {
 	// Load configuration
 	cfg, err := internal.NewConfig()
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("config initialization failed: %w", err)
 	}
 
 	// Configure logger
 	logger := internal.NewLogger(os.Stdout, cfg.Env, cfg.LogLevel)
-}
 
-func main() {
+	// Initialize database connection
+	logger.Info("Connecting to database...")
+	db, err := sql.Open("pgx", cfg.DatabaseUrl)
+	if err != nil {
+		return fmt.Errorf("database connection failed: %w", err)
+	}
+	defer db.Close()
+
+	// Verify database connection
+	if err := db.Ping(); err != nil {
+		return fmt.Errorf("database ping failed: %w", err)
+	}
+	logger.Info("Database connection established")
+
+	// Run migrations
+	logger.Info("Running database migrations...")
+	if err := internal.RunMigrations(db); err != nil {
+		return fmt.Errorf("migration failed: %w", err)
+	}
+	logger.Info("Database migrations completed successfully")
+
+	// Initialize router
 	r := NewRouter(mid(0))
 
 	r.Group(func(r *Router) {
 		r.Use(mid(1), mid(2))
-
 		r.Get("/foo", someHandler)
 	})
 
 	r.Group(func(r *Router) {
 		r.Use(mid(3))
-
 		r.Get("/bar", someHandler, mid(4))
 		r.Get("/baz", someHandler, mid(5))
 	})
 
 	r.Post("/foobar", someHandler)
 
-	log.Fatal(http.ListenAndServe(":3000", r))
+	// Start server
+	addr := fmt.Sprintf(":%d", cfg.Port)
+	logger.Info("Starting server", "address", addr)
+
+	if err := http.ListenAndServe(addr, r); err != nil {
+		return fmt.Errorf("server failed: %w", err)
+	}
+
+	return nil
+}
+
+func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
 }
