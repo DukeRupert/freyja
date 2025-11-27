@@ -10,45 +10,26 @@ import (
 )
 
 type Config struct {
-	env           string
-	logLevel      string
-	port          uint16
-	databaseUrl   string
-	sessionSecret string
-	stripe        StripeConfig
-	email         EmailConfig
+	Env           string
+	LogLevel      string
+	Port          uint16
+	DatabaseUrl   string
+	SessionSecret string
+	Stripe        StripeConfig
+	Email         EmailConfig
 }
 
 type StripeConfig struct {
-	secretKey     string
-	webhookSecret string
+	SecretKey     string
+	WebhookSecret string
 }
 
 type EmailConfig struct {
-	host     string
-	port     uint16
-	username string
-	password string
-	from     string
-}
-
-var defaultConfig = Config{
-	env:           "dev",
-	logLevel:      "info",
-	port:          3000,
-	databaseUrl:   "postgres://freyja:password@localhost:5432/freyja?sslmode=disable",
-	sessionSecret: "dev-secret-change-in-production",
-	stripe: StripeConfig{
-		secretKey:     "sk_test_your_key_here",
-		webhookSecret: "whsec_your_webhook_secret_here",
-	},
-	email: EmailConfig{
-		host:     "localhost",
-		port:     1025,
-		username: "",
-		password: "",
-		from:     "noreply@freyja.local",
-	},
+	Host     string
+	Port     uint16
+	Username string
+	Password string
+	From     string
 }
 
 func NewConfig() (*Config, error) {
@@ -71,40 +52,40 @@ func NewConfig() (*Config, error) {
 	}
 
 	cfg := &Config{
-		env:           getEnv("ENV", "dev"),
-		logLevel:      getEnv("LOG_LEVEL", "info"),
-		port:          getEnvInt("PORT", 3000),
-		databaseUrl:   getEnv("DATABASE_URL", "postgres://freyja:password@localhost:5432/freyja?sslmode=disable"),
-		sessionSecret: getEnv("SESSION_SECRET", "dev-secret-change-in-production"),
-		stripe: StripeConfig{
-			secretKey:     getEnv("STRIPE_SECRET_KEY", "sk_test_your_key_here"),
-			webhookSecret: getEnv("STRIPE_WEBHOOK_SECRET", "whsec_your_webhook_secret_here"),
+		Env:           getEnv("ENV", "dev"),
+		LogLevel:      getEnv("LOG_LEVEL", "info"),
+		Port:          getEnvInt("PORT", 3000),
+		DatabaseUrl:   getEnv("DATABASE_URL", "postgres://freyja:password@localhost:5432/freyja?sslmode=disable"),
+		SessionSecret: getEnv("SESSION_SECRET", "dev-secret-change-in-production"),
+		Stripe: StripeConfig{
+			SecretKey:     getEnv("STRIPE_SECRET_KEY", "sk_test_your_key_here"),
+			WebhookSecret: getEnv("STRIPE_WEBHOOK_SECRET", "whsec_your_webhook_secret_here"),
 		},
-		email: EmailConfig{
-			host:     getEnv("SMTP_HOST", "localhost"),
-			port:     getEnvInt("SMTP_PORT", 1025),
-			username: getEnv("SMTP_USERNAME", ""),
-			password: getEnv("SMTP_PASSWORD", ""),
-			from:     getEnv("SMTP_FROM", "noreply@freyja.local"),
+		Email: EmailConfig{
+			Host:     getEnv("SMTP_HOST", "localhost"),
+			Port:     getEnvInt("SMTP_PORT", 1025),
+			Username: getEnv("SMTP_USERNAME", ""),
+			Password: getEnv("SMTP_PASSWORD", ""),
+			From:     getEnv("SMTP_FROM", "noreply@freyja.local"),
 		},
 	}
 
 	// Validate env
-	validEnv := cfg.env == "dev" || cfg.env == "prod"
+	validEnv := cfg.Env == "dev" || cfg.Env == "prod"
 	if !validEnv {
-		slog.Default().Warn("Invalid environment. Using default: prod", slog.String("env", cfg.env))
-		cfg.env = "prod"
+		slog.Default().Warn("Invalid environment. Using default: prod", slog.String("env", cfg.Env))
+		cfg.Env = "prod"
 	}
-	
+
 	// Validate log level
-	validLevel := cfg.logLevel == "info" || cfg.logLevel == "debug" || cfg.logLevel == "warn" || cfg.logLevel == "error"
+	validLevel := cfg.LogLevel == "info" || cfg.LogLevel == "debug" || cfg.LogLevel == "warn" || cfg.LogLevel == "error"
 	if !validLevel {
-		slog.Default().Warn("Invalid log level. Using default: info", slog.String("value", cfg.logLevel))
-		cfg.logLevel = "info"
+		slog.Default().Warn("Invalid log level. Using default: info", slog.String("value", cfg.LogLevel))
+		cfg.LogLevel = "info"
 	}
 
 	// Validate JWT secret in production
-	if (cfg.env == "prod" || cfg.env == "production") && cfg.sessionSecret == "your-secret-key-change-in-production" {
+	if (cfg.Env == "prod" || cfg.Env == "production") && cfg.SessionSecret == "your-secret-key-change-in-production" {
 		return nil, fmt.Errorf("SESSION_SECRET must be set in production environment")
 	}
 

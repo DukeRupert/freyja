@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"slices"
 
-	"github.com/dukerupert/freyja/internal/config"
+	"github.com/dukerupert/freyja/internal"
 )
 
 type (
@@ -86,10 +87,13 @@ func someHandler(w http.ResponseWriter, r *http.Request) {
 
 func run() {
 	// Load configuration
-	_, err := config.New()
+	cfg, err := internal.NewConfig()
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Configure logger
+	logger := internal.NewLogger(os.Stdout, cfg.Env, cfg.LogLevel)
 }
 
 func main() {
