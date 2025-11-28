@@ -2,7 +2,6 @@ package storefront
 
 import (
 	"errors"
-	"fmt"
 	"html/template"
 	"net/http"
 	"strconv"
@@ -31,83 +30,35 @@ func (h *CartViewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	sessionID := GetSessionIDFromCookie(r)
-	if sessionID == "" {
-		// No session = empty cart
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, `
-			<!DOCTYPE html>
-			<html>
-			<head><title>Cart - Freyja Coffee</title></head>
-			<body>
-				<h1>Your Cart</h1>
-				<p>Your cart is empty.</p>
-				<a href="/products">Continue Shopping</a>
-			</body>
-			</html>
-		`)
-		return
-	}
+	var summary *service.CartSummary
 
-	cart, err := h.cartService.GetCart(ctx, sessionID)
-	if err != nil {
-		if errors.Is(err, service.ErrCartNotFound) {
-			// Session exists but no cart, show empty
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			fmt.Fprint(w, `
-				<!DOCTYPE html>
-				<html>
-				<head><title>Cart - Freyja Coffee</title></head>
-				<body>
-					<h1>Your Cart</h1>
-					<p>Your cart is empty.</p>
-					<a href="/products">Continue Shopping</a>
-				</body>
-				</html>
-			`)
+	if sessionID != "" {
+		cart, err := h.cartService.GetCart(ctx, sessionID)
+		if err != nil && !errors.Is(err, service.ErrCartNotFound) {
+			http.Error(w, "Failed to load cart", http.StatusInternalServerError)
 			return
 		}
-		// TODO: Log error
-		http.Error(w, "Failed to load cart", http.StatusInternalServerError)
-		return
+
+		if cart != nil {
+			cartSummary, err := h.cartService.GetCartSummary(ctx, cart.ID.String())
+			if err != nil {
+				http.Error(w, "Failed to load cart details", http.StatusInternalServerError)
+				return
+			}
+			summary = cartSummary
+		}
 	}
 
-	summary, err := h.cartService.GetCartSummary(ctx, cart.ID.String())
-	if err != nil {
-		// TODO: Log error
-		http.Error(w, "Failed to load cart details", http.StatusInternalServerError)
-		return
+	data := map[string]interface{}{
+		"Summary": summary,
+		"Year":    2024,
 	}
 
-	// TODO: Render template with cart summary
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, `
-		<!DOCTYPE html>
-		<html>
-		<head><title>Cart - Freyja Coffee</title></head>
-		<body>
-			<h1>Your Cart</h1>
-			<p>%d items</p>
-			<ul>
-	`, summary.ItemCount)
-
-	for _, item := range summary.Items {
-		fmt.Fprintf(w, `<li>%s - %s %s (%s) x %d = $%.2f</li>`,
-			item.ProductName,
-			item.WeightValue,
-			item.Grind,
-			item.SKU,
-			item.Quantity,
-			float64(item.LineSubtotal)/100.0,
-		)
+	if err := h.templates.ExecuteTemplate(w, "layout", data); err != nil {
+		http.Error(w, "Failed to render template", http.StatusInternalServerError)
+		return
 	}
-
-	fmt.Fprintf(w, `
-			</ul>
-			<p><strong>Subtotal: $%.2f</strong></p>
-			<a href="/products">Continue Shopping</a>
-		</body>
-		</html>
-	`, float64(summary.Subtotal)/100.0)
 }
 
 // AddToCartHandler handles adding items to cart
@@ -159,28 +110,43 @@ func (h *AddToCartHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add item to cart
-	summary, err := h.cartService.AddItem(ctx, cart.ID.String(), skuID, quantity)
+	_, err = h.cartService.AddItem(ctx, cart.ID.String(), skuID, quantity)
 	if err != nil {
 		if errors.Is(err, service.ErrSKUNotFound) {
-			http.Error(w, "Product not found", http.StatusNotFound)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			data := map[string]interface{}{
+				"Message": "Product not found",
+			}
+			if err := h.templates.ExecuteTemplate(w, "cart_error", data); err != nil {
+				http.Error(w, "Failed to render template", http.StatusInternalServerError)
+			}
 			return
 		}
 		if errors.Is(err, service.ErrInvalidQuantity) {
-			http.Error(w, "Invalid quantity", http.StatusBadRequest)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			data := map[string]interface{}{
+				"Message": "Invalid quantity",
+			}
+			if err := h.templates.ExecuteTemplate(w, "cart_error", data); err != nil {
+				http.Error(w, "Failed to render template", http.StatusInternalServerError)
+			}
 			return
 		}
-		// TODO: Log error
-		http.Error(w, "Failed to add item", http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		data := map[string]interface{}{
+			"Message": "Failed to add item",
+		}
+		if err := h.templates.ExecuteTemplate(w, "cart_error", data); err != nil {
+			http.Error(w, "Failed to render template", http.StatusInternalServerError)
+		}
 		return
 	}
 
-	// TODO: Return htmx partial with updated cart summary
-	// For now, return simple HTML response
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, `<div>Item added! Cart has %d items ($%.2f)</div>`,
-		summary.ItemCount,
-		float64(summary.Subtotal)/100.0,
-	)
+	if err := h.templates.ExecuteTemplate(w, "cart_added", nil); err != nil {
+		http.Error(w, "Failed to render template", http.StatusInternalServerError)
+		return
+	}
 }
 
 // UpdateCartItemHandler handles updating cart item quantities
@@ -230,17 +196,25 @@ func (h *UpdateCartItemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 
 	summary, err := h.cartService.UpdateItemQuantity(ctx, cart.ID.String(), skuID, quantity)
 	if err != nil {
-		// TODO: Log error
-		http.Error(w, "Failed to update item", http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		data := map[string]interface{}{
+			"Message": "Failed to update item",
+		}
+		if err := h.templates.ExecuteTemplate(w, "cart_error", data); err != nil {
+			http.Error(w, "Failed to render template", http.StatusInternalServerError)
+		}
 		return
 	}
 
-	// TODO: Return htmx partial with updated cart
+	data := map[string]interface{}{
+		"Summary": summary,
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, `<div>Cart updated! %d items ($%.2f)</div>`,
-		summary.ItemCount,
-		float64(summary.Subtotal)/100.0,
-	)
+	if err := h.templates.ExecuteTemplate(w, "cart_summary", data); err != nil {
+		http.Error(w, "Failed to render template", http.StatusInternalServerError)
+		return
+	}
 }
 
 // RemoveCartItemHandler handles removing items from cart
@@ -281,17 +255,19 @@ func (h *RemoveCartItemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	summary, err := h.cartService.RemoveItem(ctx, cart.ID.String(), skuID)
+	_, err = h.cartService.RemoveItem(ctx, cart.ID.String(), skuID)
 	if err != nil {
-		// TODO: Log error
-		http.Error(w, "Failed to remove item", http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		data := map[string]interface{}{
+			"Message": "Failed to remove item",
+		}
+		if err := h.templates.ExecuteTemplate(w, "cart_error", data); err != nil {
+			http.Error(w, "Failed to render template", http.StatusInternalServerError)
+		}
 		return
 	}
 
-	// TODO: Return htmx partial with updated cart
+	// Return empty response - htmx will remove the element via swap
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, `<div>Item removed! %d items ($%.2f)</div>`,
-		summary.ItemCount,
-		float64(summary.Subtotal)/100.0,
-	)
+	w.WriteHeader(http.StatusOK)
 }

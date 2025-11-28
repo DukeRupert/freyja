@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"os"
 	"slices"
 
 	"github.com/dukerupert/freyja/internal"
+	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/handler/storefront"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/service"
@@ -131,17 +133,28 @@ func run() error {
 		return fmt.Errorf("failed to initialize cart service: %w", err)
 	}
 
+	// Load templates
+	logger.Info("Loading templates...")
+	tmpl, err := template.New("").Funcs(handler.TemplateFuncs()).ParseGlob("web/templates/*.html")
+	if err != nil {
+		return fmt.Errorf("failed to parse templates: %w", err)
+	}
+	logger.Info("Templates loaded successfully")
+
 	// Initialize handlers
-	// Note: templates will be nil for now (will be added when we create templates)
-	productListHandler := storefront.NewProductListHandler(productService, nil)
-	productDetailHandler := storefront.NewProductDetailHandler(productService, nil)
-	cartViewHandler := storefront.NewCartViewHandler(cartService, nil, cfg.Env != "development")
-	addToCartHandler := storefront.NewAddToCartHandler(cartService, nil, cfg.Env != "development")
-	updateCartItemHandler := storefront.NewUpdateCartItemHandler(cartService, nil)
-	removeCartItemHandler := storefront.NewRemoveCartItemHandler(cartService, nil)
+	productListHandler := storefront.NewProductListHandler(productService, tmpl)
+	productDetailHandler := storefront.NewProductDetailHandler(productService, tmpl)
+	cartViewHandler := storefront.NewCartViewHandler(cartService, tmpl, cfg.Env != "development")
+	addToCartHandler := storefront.NewAddToCartHandler(cartService, tmpl, cfg.Env != "development")
+	updateCartItemHandler := storefront.NewUpdateCartItemHandler(cartService, tmpl)
+	removeCartItemHandler := storefront.NewRemoveCartItemHandler(cartService, tmpl)
 
 	// Initialize router
 	r := NewRouter()
+
+	// Static files
+	fs := http.FileServer(http.Dir("web/static"))
+	r.Handle("GET /static/", http.StripPrefix("/static/", fs))
 
 	// Storefront routes
 	r.Get("/products", productListHandler.ServeHTTP)

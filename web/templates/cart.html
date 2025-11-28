@@ -1,0 +1,166 @@
+{{define "title"}}Cart - Freyja Coffee{{end}}
+
+{{define "content"}}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+  <!-- Page Header -->
+  <h1 class="text-2xl font-semibold text-neutral-900 mb-8">Your Cart</h1>
+
+  {{if .Summary}}
+  {{if gt .Summary.ItemCount 0}}
+  <!-- Cart Content -->
+  <div class="lg:grid lg:grid-cols-3 lg:gap-8">
+
+    <!-- Cart Items (2/3 width) -->
+    <div class="lg:col-span-2">
+      <div class="card divide-y divide-neutral-200">
+
+        {{range .Summary.Items}}
+        <!-- Cart Item -->
+        <article class="p-6" id="cart-item-{{.SKUID}}">
+          <div class="flex gap-4">
+
+            <!-- Product Image Placeholder -->
+            <div class="w-24 h-24 flex-shrink-0 bg-neutral-100 rounded overflow-hidden flex items-center justify-center">
+              <svg class="w-8 h-8 text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+            </div>
+
+            <!-- Item Details -->
+            <div class="flex-1 min-w-0">
+              <h3 class="text-base font-medium text-neutral-900">
+                {{.ProductName}}
+              </h3>
+              <p class="mt-1 text-sm text-neutral-600">
+                {{.WeightValue}} {{if ne .Grind "whole_bean"}}- {{.Grind}}{{end}}
+              </p>
+              <p class="mt-1 text-xs text-neutral-500">SKU: {{.SKU}}</p>
+              <p class="mt-2 text-base font-medium text-neutral-900">
+                ${{printf "%.2f" (divf .UnitPriceCents 100.0)}}
+              </p>
+
+              <!-- Quantity Controls -->
+              <div class="mt-4 flex items-center gap-4">
+                <div class="flex items-center gap-2">
+                  <button type="button"
+                          hx-post="/cart/update"
+                          hx-vals='{"sku_id": "{{.SKUID}}", "quantity": "{{sub .Quantity 1}}"}'
+                          hx-target="#cart-summary"
+                          hx-swap="outerHTML"
+                          class="w-8 h-8 border border-neutral-300 rounded hover:bg-neutral-50 text-sm">
+                    −
+                  </button>
+                  <input type="number"
+                         value="{{.Quantity}}"
+                         min="1"
+                         name="quantity"
+                         class="w-16 text-center px-2 py-1 border border-neutral-300 rounded text-sm"
+                         hx-post="/cart/update"
+                          hx-vals='{"sku_id": "{{.SKUID}}"}'
+                         hx-include="this"
+                         hx-trigger="change"
+                         hx-target="#cart-summary"
+                         hx-swap="outerHTML">
+                  <button type="button"
+                          hx-post="/cart/update"
+                          hx-vals='{"sku_id": "{{.SKUID}}", "quantity": "{{add .Quantity 1}}"}'
+                          hx-target="#cart-summary"
+                          hx-swap="outerHTML"
+                          class="w-8 h-8 border border-neutral-300 rounded hover:bg-neutral-50 text-sm">
+                    +
+                  </button>
+                </div>
+
+                <button type="button"
+                        hx-post="/cart/remove"
+                        hx-vals='{"sku_id": "{{.SKUID}}"}'
+                        hx-target="#cart-item-{{.SKUID}}"
+                        hx-swap="outerHTML swap:0.3s"
+                        class="text-sm text-red-700 hover:text-red-800">
+                  Remove
+                </button>
+              </div>
+            </div>
+
+            <!-- Line Total -->
+            <div class="text-right flex-shrink-0">
+              <p class="text-base font-medium text-neutral-900">
+                ${{printf "%.2f" (divf .LineSubtotal 100.0)}}
+              </p>
+            </div>
+
+          </div>
+        </article>
+        {{end}}
+
+      </div>
+
+      <!-- Continue Shopping Link -->
+      <div class="mt-6">
+        <a href="/products" class="text-sm text-teal-700 hover:text-teal-800">
+          ← Continue Shopping
+        </a>
+      </div>
+
+    </div>
+
+    <!-- Order Summary (1/3 width, sticky) -->
+    <aside class="mt-8 lg:mt-0">
+      {{template "cart_summary" .}}
+    </aside>
+
+  </div>
+
+  {{else}}
+  <!-- Empty Cart State -->
+  {{template "empty_cart" .}}
+  {{end}}
+  {{else}}
+  <!-- Empty Cart State -->
+  {{template "empty_cart" .}}
+  {{end}}
+
+</div>
+{{end}}
+
+{{define "cart_summary"}}
+<div class="card p-6 lg:sticky lg:top-24" id="cart-summary">
+  <h2 class="text-base font-medium text-neutral-900 mb-4">Order Summary</h2>
+
+  <div class="space-y-3 border-b border-neutral-200 pb-4 mb-4">
+    <div class="flex justify-between text-sm">
+      <span class="text-neutral-600">Subtotal ({{.Summary.ItemCount}} items)</span>
+      <span class="text-neutral-900">${{printf "%.2f" (divf .Summary.Subtotal 100.0)}}</span>
+    </div>
+    <div class="flex justify-between text-sm">
+      <span class="text-neutral-600">Shipping</span>
+      <span class="text-neutral-900 text-xs">Calculated at checkout</span>
+    </div>
+  </div>
+
+  <div class="flex justify-between mb-6">
+    <span class="text-base font-medium text-neutral-900">Total</span>
+    <span class="text-base font-semibold text-neutral-900">${{printf "%.2f" (divf .Summary.Subtotal 100.0)}}</span>
+  </div>
+
+  <a href="/checkout" class="btn-primary w-full block text-center">
+    Proceed to Checkout
+  </a>
+
+  <p class="mt-4 text-xs text-neutral-600 text-center">
+    Shipping and taxes calculated at checkout
+  </p>
+</div>
+{{end}}
+
+{{define "empty_cart"}}
+<div class="text-center py-16">
+  <p class="text-base font-medium text-neutral-900">Your cart is empty</p>
+  <p class="mt-2 text-sm text-neutral-600">Add some coffee to get started</p>
+  <a href="/products" class="inline-block mt-6 btn-primary">
+    Browse Coffee
+  </a>
+</div>
+{{end}}

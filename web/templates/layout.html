@@ -1,0 +1,106 @@
+{{define "layout"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{block "title" .}}Freyja Coffee{{end}}</title>
+  <link rel="stylesheet" href="/static/css/output.css">
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body>
+
+  <!-- Header/Navigation -->
+  <header class="border-b border-neutral-200 bg-white sticky top-0 z-50">
+    <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+
+        <!-- Logo -->
+        <div class="flex-shrink-0">
+          <a href="/" class="text-xl font-semibold text-neutral-900">
+            Freyja Coffee
+          </a>
+        </div>
+
+        <!-- Main Navigation -->
+        <div class="hidden md:block">
+          <div class="flex items-center space-x-8">
+            <a href="/products" class="text-sm font-medium text-neutral-700 hover:text-teal-700">
+              Coffee
+            </a>
+            <a href="/about" class="text-sm font-medium text-neutral-700 hover:text-teal-700">
+              About
+            </a>
+            <a href="/contact" class="text-sm font-medium text-neutral-700 hover:text-teal-700">
+              Contact
+            </a>
+          </div>
+        </div>
+
+        <!-- Cart Icon -->
+        <div class="flex items-center">
+          <a href="/cart" class="relative p-2 text-neutral-700 hover:text-teal-700">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+            </svg>
+            {{if .CartCount}}
+            <span class="absolute top-0 right-0 inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-white bg-teal-700 rounded-full">
+              {{.CartCount}}
+            </span>
+            {{end}}
+          </a>
+        </div>
+
+      </div>
+    </nav>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+    {{block "content" .}}{{end}}
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-neutral-200 bg-neutral-900 text-neutral-400 mt-16">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+
+        <!-- About -->
+        <div>
+          <h3 class="text-sm font-medium text-white mb-4">Freyja Coffee</h3>
+          <p class="text-sm text-neutral-500">
+            Fresh-roasted specialty coffee, delivered to your door.
+          </p>
+        </div>
+
+        <!-- Quick Links -->
+        <div>
+          <h3 class="text-sm font-medium text-white mb-4">Quick Links</h3>
+          <ul class="space-y-2 text-sm">
+            <li><a href="/products" class="hover:text-white">Coffee</a></li>
+            <li><a href="/about" class="hover:text-white">About</a></li>
+            <li><a href="/contact" class="hover:text-white">Contact</a></li>
+          </ul>
+        </div>
+
+        <!-- Contact -->
+        <div>
+          <h3 class="text-sm font-medium text-white mb-4">Contact</h3>
+          <p class="text-sm text-neutral-500">
+            hello@freyjacoffee.com
+          </p>
+        </div>
+
+      </div>
+
+      <div class="mt-8 pt-8 border-t border-neutral-800 text-center text-sm text-neutral-500">
+        <p>&copy; {{.Year}} Freyja Coffee. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
+{{end}}

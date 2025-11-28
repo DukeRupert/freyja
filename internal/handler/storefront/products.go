@@ -2,7 +2,6 @@ package storefront
 
 import (
 	"errors"
-	"fmt"
 	"html/template"
 	"net/http"
 
@@ -34,28 +33,15 @@ func (h *ProductListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Render template with products
-	// For now, return simple HTML stub
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, `
-		<!DOCTYPE html>
-		<html>
-		<head><title>Products - Freyja Coffee</title></head>
-		<body>
-			<h1>Products</h1>
-			<p>Found %d products</p>
-			<ul>
-	`, len(products))
-
-	for _, p := range products {
-		fmt.Fprintf(w, `<li><a href="/products/%s">%s</a> - %s</li>`, p.Slug, p.Name, p.Origin.String)
+	data := map[string]interface{}{
+		"Products": products,
+		"Year":     2024,
 	}
 
-	fmt.Fprint(w, `
-			</ul>
-		</body>
-		</html>
-	`)
+	if err := h.templates.ExecuteTemplate(w, "layout", data); err != nil {
+		http.Error(w, "Failed to render template", http.StatusInternalServerError)
+		return
+	}
 }
 
 // ProductDetailHandler handles the product detail page
@@ -93,35 +79,15 @@ func (h *ProductDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// TODO: Render template with product detail
-	// For now, return simple HTML stub
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, `
-		<!DOCTYPE html>
-		<html>
-		<head><title>%s - Freyja Coffee</title></head>
-		<body>
-			<h1>%s</h1>
-			<p>Origin: %s</p>
-			<p>Roast Level: %s</p>
-			<p>%s</p>
-			<h2>Available Options</h2>
-			<ul>
-	`, detail.Product.Name, detail.Product.Name, detail.Product.Origin.String, detail.Product.RoastLevel.String, detail.Product.Description.String)
-
-	for _, sku := range detail.SKUs {
-		fmt.Fprintf(w, `<li>%s %s - %s - $%.2f - %s</li>`,
-			sku.SKU.WeightValue.Int.String(),
-			sku.SKU.WeightUnit,
-			sku.SKU.Grind,
-			float64(sku.PriceCents)/100.0,
-			sku.InventoryMessage,
-		)
+	data := map[string]interface{}{
+		"Product": detail.Product,
+		"SKUs":    detail.SKUs,
+		"Images":  detail.Images,
+		"Year":    2024,
 	}
 
-	fmt.Fprint(w, `
-			</ul>
-		</body>
-		</html>
-	`)
+	if err := h.templates.ExecuteTemplate(w, "layout", data); err != nil {
+		http.Error(w, "Failed to render template", http.StatusInternalServerError)
+		return
+	}
 }
