@@ -2,25 +2,25 @@ package storefront
 
 import (
 	"errors"
-	"html/template"
 	"net/http"
 	"strconv"
 
+	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/service"
 )
 
 // CartViewHandler handles the cart view page
 type CartViewHandler struct {
 	cartService service.CartService
-	templates   *template.Template
+	renderer    *handler.Renderer
 	secure      bool // For cookie security (HTTPS)
 }
 
 // NewCartViewHandler creates a new cart view handler
-func NewCartViewHandler(cartService service.CartService, templates *template.Template, secure bool) *CartViewHandler {
+func NewCartViewHandler(cartService service.CartService, renderer *handler.Renderer, secure bool) *CartViewHandler {
 	return &CartViewHandler{
 		cartService: cartService,
-		templates:   templates,
+		renderer:    renderer,
 		secure:      secure,
 	}
 }
@@ -54,8 +54,14 @@ func (h *CartViewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"Year":    2024,
 	}
 
+	tmpl, err := h.renderer.Execute("cart")
+	if err != nil {
+		http.Error(w, "Failed to load template", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := h.templates.ExecuteTemplate(w, "layout", data); err != nil {
+	if err := tmpl.ExecuteTemplate(w, "layout", data); err != nil {
 		http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		return
 	}
@@ -64,15 +70,15 @@ func (h *CartViewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // AddToCartHandler handles adding items to cart
 type AddToCartHandler struct {
 	cartService service.CartService
-	templates   *template.Template
+	renderer    *handler.Renderer
 	secure      bool
 }
 
 // NewAddToCartHandler creates a new add to cart handler
-func NewAddToCartHandler(cartService service.CartService, templates *template.Template, secure bool) *AddToCartHandler {
+func NewAddToCartHandler(cartService service.CartService, renderer *handler.Renderer, secure bool) *AddToCartHandler {
 	return &AddToCartHandler{
 		cartService: cartService,
-		templates:   templates,
+		renderer:    renderer,
 		secure:      secure,
 	}
 }
@@ -113,37 +119,58 @@ func (h *AddToCartHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, err = h.cartService.AddItem(ctx, cart.ID.String(), skuID, quantity)
 	if err != nil {
 		if errors.Is(err, service.ErrSKUNotFound) {
+			tmpl, err := h.renderer.Execute("cart_error")
+			if err != nil {
+				http.Error(w, "Failed to load template", http.StatusInternalServerError)
+				return
+			}
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			data := map[string]interface{}{
 				"Message": "Product not found",
 			}
-			if err := h.templates.ExecuteTemplate(w, "cart_error", data); err != nil {
+			if err := tmpl.ExecuteTemplate(w, "cart_error", data); err != nil {
 				http.Error(w, "Failed to render template", http.StatusInternalServerError)
 			}
 			return
 		}
 		if errors.Is(err, service.ErrInvalidQuantity) {
+			tmpl, err := h.renderer.Execute("cart_error")
+			if err != nil {
+				http.Error(w, "Failed to load template", http.StatusInternalServerError)
+				return
+			}
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			data := map[string]interface{}{
 				"Message": "Invalid quantity",
 			}
-			if err := h.templates.ExecuteTemplate(w, "cart_error", data); err != nil {
+			if err := tmpl.ExecuteTemplate(w, "cart_error", data); err != nil {
 				http.Error(w, "Failed to render template", http.StatusInternalServerError)
 			}
+			return
+		}
+		tmpl, err := h.renderer.Execute("cart_error")
+		if err != nil {
+			http.Error(w, "Failed to load template", http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		data := map[string]interface{}{
 			"Message": "Failed to add item",
 		}
-		if err := h.templates.ExecuteTemplate(w, "cart_error", data); err != nil {
+		if err := tmpl.ExecuteTemplate(w, "cart_error", data); err != nil {
 			http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		}
 		return
 	}
 
+	tmpl, err := h.renderer.Execute("cart_added")
+	if err != nil {
+		http.Error(w, "Failed to load template", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := h.templates.ExecuteTemplate(w, "cart_added", nil); err != nil {
+	if err := tmpl.ExecuteTemplate(w, "cart_added", nil); err != nil {
 		http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		return
 	}
@@ -152,14 +179,14 @@ func (h *AddToCartHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // UpdateCartItemHandler handles updating cart item quantities
 type UpdateCartItemHandler struct {
 	cartService service.CartService
-	templates   *template.Template
+	renderer    *handler.Renderer
 }
 
 // NewUpdateCartItemHandler creates a new update cart item handler
-func NewUpdateCartItemHandler(cartService service.CartService, templates *template.Template) *UpdateCartItemHandler {
+func NewUpdateCartItemHandler(cartService service.CartService, renderer *handler.Renderer) *UpdateCartItemHandler {
 	return &UpdateCartItemHandler{
 		cartService: cartService,
-		templates:   templates,
+		renderer:    renderer,
 	}
 }
 
@@ -196,13 +223,24 @@ func (h *UpdateCartItemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 
 	summary, err := h.cartService.UpdateItemQuantity(ctx, cart.ID.String(), skuID, quantity)
 	if err != nil {
+		tmpl, err := h.renderer.Execute("cart_error")
+		if err != nil {
+			http.Error(w, "Failed to load template", http.StatusInternalServerError)
+			return
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		data := map[string]interface{}{
 			"Message": "Failed to update item",
 		}
-		if err := h.templates.ExecuteTemplate(w, "cart_error", data); err != nil {
+		if err := tmpl.ExecuteTemplate(w, "cart_error", data); err != nil {
 			http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		}
+		return
+	}
+
+	tmpl, err := h.renderer.Execute("cart_summary")
+	if err != nil {
+		http.Error(w, "Failed to load template", http.StatusInternalServerError)
 		return
 	}
 
@@ -211,7 +249,7 @@ func (h *UpdateCartItemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := h.templates.ExecuteTemplate(w, "cart_summary", data); err != nil {
+	if err := tmpl.ExecuteTemplate(w, "cart_summary", data); err != nil {
 		http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		return
 	}
@@ -220,14 +258,14 @@ func (h *UpdateCartItemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 // RemoveCartItemHandler handles removing items from cart
 type RemoveCartItemHandler struct {
 	cartService service.CartService
-	templates   *template.Template
+	renderer    *handler.Renderer
 }
 
 // NewRemoveCartItemHandler creates a new remove cart item handler
-func NewRemoveCartItemHandler(cartService service.CartService, templates *template.Template) *RemoveCartItemHandler {
+func NewRemoveCartItemHandler(cartService service.CartService, renderer *handler.Renderer) *RemoveCartItemHandler {
 	return &RemoveCartItemHandler{
 		cartService: cartService,
-		templates:   templates,
+		renderer:    renderer,
 	}
 }
 
@@ -257,11 +295,16 @@ func (h *RemoveCartItemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 
 	_, err = h.cartService.RemoveItem(ctx, cart.ID.String(), skuID)
 	if err != nil {
+		tmpl, err := h.renderer.Execute("cart_error")
+		if err != nil {
+			http.Error(w, "Failed to load template", http.StatusInternalServerError)
+			return
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		data := map[string]interface{}{
 			"Message": "Failed to remove item",
 		}
-		if err := h.templates.ExecuteTemplate(w, "cart_error", data); err != nil {
+		if err := tmpl.ExecuteTemplate(w, "cart_error", data); err != nil {
 			http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		}
 		return

@@ -2,23 +2,23 @@ package storefront
 
 import (
 	"errors"
-	"html/template"
 	"net/http"
 
+	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/service"
 )
 
 // ProductListHandler handles the product listing page
 type ProductListHandler struct {
 	productService service.ProductService
-	templates      *template.Template
+	renderer       *handler.Renderer
 }
 
 // NewProductListHandler creates a new product list handler
-func NewProductListHandler(productService service.ProductService, templates *template.Template) *ProductListHandler {
+func NewProductListHandler(productService service.ProductService, renderer *handler.Renderer) *ProductListHandler {
 	return &ProductListHandler{
 		productService: productService,
-		templates:      templates,
+		renderer:       renderer,
 	}
 }
 
@@ -38,7 +38,13 @@ func (h *ProductListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"Year":     2024,
 	}
 
-	if err := h.templates.ExecuteTemplate(w, "layout", data); err != nil {
+	tmpl, err := h.renderer.Execute("products")
+	if err != nil {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
+
+	if err := tmpl.ExecuteTemplate(w, "layout", data); err != nil {
 		http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		return
 	}
@@ -47,14 +53,14 @@ func (h *ProductListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // ProductDetailHandler handles the product detail page
 type ProductDetailHandler struct {
 	productService service.ProductService
-	templates      *template.Template
+	renderer       *handler.Renderer
 }
 
 // NewProductDetailHandler creates a new product detail handler
-func NewProductDetailHandler(productService service.ProductService, templates *template.Template) *ProductDetailHandler {
+func NewProductDetailHandler(productService service.ProductService, renderer *handler.Renderer) *ProductDetailHandler {
 	return &ProductDetailHandler{
 		productService: productService,
-		templates:      templates,
+		renderer:       renderer,
 	}
 }
 
@@ -86,7 +92,13 @@ func (h *ProductDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		"Year":    2024,
 	}
 
-	if err := h.templates.ExecuteTemplate(w, "layout", data); err != nil {
+	tmpl, err := h.renderer.Execute("product_detail")
+	if err != nil {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
+
+	if err := tmpl.ExecuteTemplate(w, "layout", data); err != nil {
 		http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		return
 	}

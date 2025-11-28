@@ -71,11 +71,11 @@
       {{end}}
 
       <!-- Tasting Notes -->
-      {{if .Product.TastingNotes.Valid}}
+      {{if .Product.TastingNotes}}
       <div class="mt-6 border-t border-neutral-200 pt-6">
         <h2 class="text-sm font-medium text-neutral-700">Tasting Notes</h2>
         <p class="mt-2 text-sm text-neutral-900">
-          {{.Product.TastingNotes.String}}
+          {{range $i, $note := .Product.TastingNotes}}{{if $i}}, {{end}}{{$note}}{{end}}
         </p>
       </div>
       {{end}}

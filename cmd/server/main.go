@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"html/template"
 	"log"
 	"net/http"
 	"os"
@@ -133,21 +132,21 @@ func run() error {
 		return fmt.Errorf("failed to initialize cart service: %w", err)
 	}
 
-	// Load templates
+	// Load templates with renderer
 	logger.Info("Loading templates...")
-	tmpl, err := template.New("").Funcs(handler.TemplateFuncs()).ParseGlob("web/templates/*.html")
+	renderer, err := handler.NewRenderer("web/templates")
 	if err != nil {
-		return fmt.Errorf("failed to parse templates: %w", err)
+		return fmt.Errorf("failed to initialize renderer: %w", err)
 	}
 	logger.Info("Templates loaded successfully")
 
 	// Initialize handlers
-	productListHandler := storefront.NewProductListHandler(productService, tmpl)
-	productDetailHandler := storefront.NewProductDetailHandler(productService, tmpl)
-	cartViewHandler := storefront.NewCartViewHandler(cartService, tmpl, cfg.Env != "development")
-	addToCartHandler := storefront.NewAddToCartHandler(cartService, tmpl, cfg.Env != "development")
-	updateCartItemHandler := storefront.NewUpdateCartItemHandler(cartService, tmpl)
-	removeCartItemHandler := storefront.NewRemoveCartItemHandler(cartService, tmpl)
+	productListHandler := storefront.NewProductListHandler(productService, renderer)
+	productDetailHandler := storefront.NewProductDetailHandler(productService, renderer)
+	cartViewHandler := storefront.NewCartViewHandler(cartService, renderer, cfg.Env != "development")
+	addToCartHandler := storefront.NewAddToCartHandler(cartService, renderer, cfg.Env != "development")
+	updateCartItemHandler := storefront.NewUpdateCartItemHandler(cartService, renderer)
+	removeCartItemHandler := storefront.NewRemoveCartItemHandler(cartService, renderer)
 
 	// Initialize router
 	r := NewRouter()
