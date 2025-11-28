@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -9,6 +10,10 @@ import (
 	"slices"
 
 	"github.com/dukerupert/freyja/internal"
+	"github.com/dukerupert/freyja/internal/handler/storefront"
+	"github.com/dukerupert/freyja/internal/repository"
+	"github.com/dukerupert/freyja/internal/service"
+	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -72,22 +77,9 @@ func (r *Router) wrap(fn http.HandlerFunc, mx []Middleware) (out http.Handler) {
 	return
 }
 
-func mid(i int) Middleware {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Println("mid", i, "start")
-			next.ServeHTTP(w, r)
-			fmt.Println("mid", i, "done")
-		})
-	}
-}
-
-func someHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("[the handler ran here]")
-	fmt.Fprintln(w, "Hello world of", r.URL.Path)
-}
-
 func run() error {
+	ctx := context.Background()
+
 	// Load configuration
 	cfg, err := internal.NewConfig()
 	if err != nil {
@@ -97,42 +89,67 @@ func run() error {
 	// Configure logger
 	logger := internal.NewLogger(os.Stdout, cfg.Env, cfg.LogLevel)
 
-	// Initialize database connection
+	// Initialize database/sql connection for migrations
 	logger.Info("Connecting to database...")
-	db, err := sql.Open("pgx", cfg.DatabaseUrl)
+	sqlDB, err := sql.Open("pgx", cfg.DatabaseUrl)
 	if err != nil {
 		return fmt.Errorf("database connection failed: %w", err)
 	}
-	defer db.Close()
+	defer sqlDB.Close()
 
 	// Verify database connection
-	if err := db.Ping(); err != nil {
+	if err := sqlDB.Ping(); err != nil {
 		return fmt.Errorf("database ping failed: %w", err)
 	}
 	logger.Info("Database connection established")
 
 	// Run migrations
 	logger.Info("Running database migrations...")
-	if err := internal.RunMigrations(db); err != nil {
+	if err := internal.RunMigrations(sqlDB); err != nil {
 		return fmt.Errorf("migration failed: %w", err)
 	}
 	logger.Info("Database migrations completed successfully")
 
+	// Initialize pgx connection pool for application
+	pool, err := pgxpool.New(ctx, cfg.DatabaseUrl)
+	if err != nil {
+		return fmt.Errorf("failed to create connection pool: %w", err)
+	}
+	defer pool.Close()
+
+	// Initialize repository
+	repo := repository.New(pool)
+
+	// Initialize services
+	productService, err := service.NewProductService(repo, cfg.TenantID)
+	if err != nil {
+		return fmt.Errorf("failed to initialize product service: %w", err)
+	}
+
+	cartService, err := service.NewCartService(repo, cfg.TenantID)
+	if err != nil {
+		return fmt.Errorf("failed to initialize cart service: %w", err)
+	}
+
+	// Initialize handlers
+	// Note: templates will be nil for now (will be added when we create templates)
+	productListHandler := storefront.NewProductListHandler(productService, nil)
+	productDetailHandler := storefront.NewProductDetailHandler(productService, nil)
+	cartViewHandler := storefront.NewCartViewHandler(cartService, nil, cfg.Env != "development")
+	addToCartHandler := storefront.NewAddToCartHandler(cartService, nil, cfg.Env != "development")
+	updateCartItemHandler := storefront.NewUpdateCartItemHandler(cartService, nil)
+	removeCartItemHandler := storefront.NewRemoveCartItemHandler(cartService, nil)
+
 	// Initialize router
-	r := NewRouter(mid(0))
+	r := NewRouter()
 
-	r.Group(func(r *Router) {
-		r.Use(mid(1), mid(2))
-		r.Get("/foo", someHandler)
-	})
-
-	r.Group(func(r *Router) {
-		r.Use(mid(3))
-		r.Get("/bar", someHandler, mid(4))
-		r.Get("/baz", someHandler, mid(5))
-	})
-
-	r.Post("/foobar", someHandler)
+	// Storefront routes
+	r.Get("/products", productListHandler.ServeHTTP)
+	r.Get("/products/{slug}", productDetailHandler.ServeHTTP)
+	r.Get("/cart", cartViewHandler.ServeHTTP)
+	r.Post("/cart/add", addToCartHandler.ServeHTTP)
+	r.Post("/cart/update", updateCartItemHandler.ServeHTTP)
+	r.Post("/cart/remove", removeCartItemHandler.ServeHTTP)
 
 	// Start server
 	addr := fmt.Sprintf(":%d", cfg.Port)
