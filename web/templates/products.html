@@ -15,7 +15,7 @@
     {{range .Products}}
     <!-- Product Card -->
     <article class="card overflow-hidden hover:shadow-md transition-shadow">
-      <a href="/products/{{.Slug}}" class="block">
+      <a href="/products/{{.Slug}}" class="block group">
 
         <!-- Image Placeholder -->
         <div class="aspect-square bg-neutral-100 flex items-center justify-center">
@@ -27,7 +27,7 @@
 
         <!-- Card Content -->
         <div class="p-4">
-          <h3 class="text-base font-medium text-neutral-900">{{.Name}}</h3>
+          <h3 class="text-base font-medium text-neutral-900 group-hover:text-teal-700 transition-colors">{{.Name}}</h3>
 
           {{if .Origin.Valid}}
           <p class="mt-1 text-sm text-neutral-600">{{.Origin.String}}</p>
@@ -46,6 +46,11 @@
             {{range $i, $note := .TastingNotes}}{{if $i}}, {{end}}{{$note}}{{end}}
           </p>
           {{end}}
+
+          <!-- View Details Link -->
+          <div class="mt-4 text-sm font-medium text-teal-700 group-hover:text-teal-800">
+            View Details →
+          </div>
 
         </div>
 
