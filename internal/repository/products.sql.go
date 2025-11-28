@@ -11,6 +11,49 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getBaseProductForWhiteLabel = `-- name: GetBaseProductForWhiteLabel :one
+SELECT base.id, base.tenant_id, base.name, base.slug, base.description, base.short_description, base.origin, base.region, base.producer, base.process, base.roast_level, base.elevation_min, base.elevation_max, base.variety, base.harvest_year, base.tasting_notes, base.status, base.visibility, base.meta_title, base.meta_description, base.sort_order, base.created_at, base.updated_at, base.is_white_label, base.base_product_id, base.white_label_customer_id
+FROM products p
+INNER JOIN products base ON base.id = p.base_product_id
+WHERE p.id = $1
+  AND p.is_white_label = TRUE
+`
+
+// Get the base product for a white-label product
+func (q *Queries) GetBaseProductForWhiteLabel(ctx context.Context, id pgtype.UUID) (Product, error) {
+	row := q.db.QueryRow(ctx, getBaseProductForWhiteLabel, id)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.ShortDescription,
+		&i.Origin,
+		&i.Region,
+		&i.Producer,
+		&i.Process,
+		&i.RoastLevel,
+		&i.ElevationMin,
+		&i.ElevationMax,
+		&i.Variety,
+		&i.HarvestYear,
+		&i.TastingNotes,
+		&i.Status,
+		&i.Visibility,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsWhiteLabel,
+		&i.BaseProductID,
+		&i.WhiteLabelCustomerID,
+	)
+	return i, err
+}
+
 const getPrimaryImage = `-- name: GetPrimaryImage :one
 SELECT
     id,
@@ -51,30 +94,7 @@ func (q *Queries) GetPrimaryImage(ctx context.Context, productID pgtype.UUID) (P
 }
 
 const getProductBySlug = `-- name: GetProductBySlug :one
-SELECT
-    id,
-    tenant_id,
-    name,
-    slug,
-    description,
-    short_description,
-    origin,
-    region,
-    producer,
-    process,
-    roast_level,
-    elevation_min,
-    elevation_max,
-    variety,
-    harvest_year,
-    tasting_notes,
-    status,
-    visibility,
-    meta_title,
-    meta_description,
-    sort_order,
-    created_at,
-    updated_at
+SELECT id, tenant_id, name, slug, description, short_description, origin, region, producer, process, roast_level, elevation_min, elevation_max, variety, harvest_year, tasting_notes, status, visibility, meta_title, meta_description, sort_order, created_at, updated_at, is_white_label, base_product_id, white_label_customer_id
 FROM products
 WHERE tenant_id = $1
   AND slug = $2
@@ -115,6 +135,9 @@ func (q *Queries) GetProductBySlug(ctx context.Context, arg GetProductBySlugPara
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsWhiteLabel,
+		&i.BaseProductID,
+		&i.WhiteLabelCustomerID,
 	)
 	return i, err
 }
@@ -235,6 +258,74 @@ func (q *Queries) GetProductSKUs(ctx context.Context, productID pgtype.UUID) ([]
 	return items, nil
 }
 
+const getProductsForCustomer = `-- name: GetProductsForCustomer :many
+SELECT p.id, p.tenant_id, p.name, p.slug, p.description, p.short_description, p.origin, p.region, p.producer, p.process, p.roast_level, p.elevation_min, p.elevation_max, p.variety, p.harvest_year, p.tasting_notes, p.status, p.visibility, p.meta_title, p.meta_description, p.sort_order, p.created_at, p.updated_at, p.is_white_label, p.base_product_id, p.white_label_customer_id
+FROM products p
+WHERE p.tenant_id = $1
+  AND p.status = 'active'
+  AND (
+    -- Standard products visible to this customer's price list
+    (p.is_white_label = FALSE AND p.visibility != 'hidden')
+    OR
+    -- White-label products specifically for this customer
+    (p.is_white_label = TRUE AND p.white_label_customer_id = $2)
+  )
+ORDER BY p.name
+`
+
+type GetProductsForCustomerParams struct {
+	TenantID             pgtype.UUID `json:"tenant_id"`
+	WhiteLabelCustomerID pgtype.UUID `json:"white_label_customer_id"`
+}
+
+// Get all products available to a specific customer
+func (q *Queries) GetProductsForCustomer(ctx context.Context, arg GetProductsForCustomerParams) ([]Product, error) {
+	rows, err := q.db.Query(ctx, getProductsForCustomer, arg.TenantID, arg.WhiteLabelCustomerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Product{}
+	for rows.Next() {
+		var i Product
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Name,
+			&i.Slug,
+			&i.Description,
+			&i.ShortDescription,
+			&i.Origin,
+			&i.Region,
+			&i.Producer,
+			&i.Process,
+			&i.RoastLevel,
+			&i.ElevationMin,
+			&i.ElevationMax,
+			&i.Variety,
+			&i.HarvestYear,
+			&i.TastingNotes,
+			&i.Status,
+			&i.Visibility,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.SortOrder,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.IsWhiteLabel,
+			&i.BaseProductID,
+			&i.WhiteLabelCustomerID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getSKUByID = `-- name: GetSKUByID :one
 SELECT
     id,
@@ -282,6 +373,69 @@ func (q *Queries) GetSKUByID(ctx context.Context, id pgtype.UUID) (ProductSku, e
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getWhiteLabelProductsForCustomer = `-- name: GetWhiteLabelProductsForCustomer :many
+SELECT p.id, p.tenant_id, p.name, p.slug, p.description, p.short_description, p.origin, p.region, p.producer, p.process, p.roast_level, p.elevation_min, p.elevation_max, p.variety, p.harvest_year, p.tasting_notes, p.status, p.visibility, p.meta_title, p.meta_description, p.sort_order, p.created_at, p.updated_at, p.is_white_label, p.base_product_id, p.white_label_customer_id
+FROM products p
+WHERE p.tenant_id = $1
+  AND p.is_white_label = TRUE
+  AND p.white_label_customer_id = $2
+  AND p.status = 'active'
+ORDER BY p.name
+`
+
+type GetWhiteLabelProductsForCustomerParams struct {
+	TenantID             pgtype.UUID `json:"tenant_id"`
+	WhiteLabelCustomerID pgtype.UUID `json:"white_label_customer_id"`
+}
+
+// Get all white-label products for a specific customer
+func (q *Queries) GetWhiteLabelProductsForCustomer(ctx context.Context, arg GetWhiteLabelProductsForCustomerParams) ([]Product, error) {
+	rows, err := q.db.Query(ctx, getWhiteLabelProductsForCustomer, arg.TenantID, arg.WhiteLabelCustomerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Product{}
+	for rows.Next() {
+		var i Product
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Name,
+			&i.Slug,
+			&i.Description,
+			&i.ShortDescription,
+			&i.Origin,
+			&i.Region,
+			&i.Producer,
+			&i.Process,
+			&i.RoastLevel,
+			&i.ElevationMin,
+			&i.ElevationMax,
+			&i.Variety,
+			&i.HarvestYear,
+			&i.TastingNotes,
+			&i.Status,
+			&i.Visibility,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.SortOrder,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.IsWhiteLabel,
+			&i.BaseProductID,
+			&i.WhiteLabelCustomerID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listActiveProducts = `-- name: ListActiveProducts :many

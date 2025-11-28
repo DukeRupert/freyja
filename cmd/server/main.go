@@ -7,76 +7,16 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"slices"
 
 	"github.com/dukerupert/freyja/internal"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/handler/storefront"
+	"github.com/dukerupert/freyja/internal/router"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
-
-type (
-	Middleware func(http.Handler) http.Handler
-	Router     struct {
-		*http.ServeMux
-		chain []Middleware
-	}
-)
-
-func NewRouter(mx ...Middleware) *Router {
-	return &Router{ServeMux: &http.ServeMux{}, chain: mx}
-}
-
-func (r *Router) Use(mx ...Middleware) {
-	r.chain = append(r.chain, mx...)
-}
-
-func (r *Router) Group(fn func(r *Router)) {
-	fn(&Router{ServeMux: r.ServeMux, chain: slices.Clone(r.chain)})
-}
-
-func (r *Router) Get(path string, fn http.HandlerFunc, mx ...Middleware) {
-	r.handle(http.MethodGet, path, fn, mx)
-}
-
-func (r *Router) Post(path string, fn http.HandlerFunc, mx ...Middleware) {
-	r.handle(http.MethodPost, path, fn, mx)
-}
-
-func (r *Router) Put(path string, fn http.HandlerFunc, mx ...Middleware) {
-	r.handle(http.MethodPut, path, fn, mx)
-}
-
-func (r *Router) Delete(path string, fn http.HandlerFunc, mx ...Middleware) {
-	r.handle(http.MethodDelete, path, fn, mx)
-}
-
-func (r *Router) Head(path string, fn http.HandlerFunc, mx ...Middleware) {
-	r.handle(http.MethodHead, path, fn, mx)
-}
-
-func (r *Router) Options(path string, fn http.HandlerFunc, mx ...Middleware) {
-	r.handle(http.MethodOptions, path, fn, mx)
-}
-
-func (r *Router) handle(method, path string, fn http.HandlerFunc, mx []Middleware) {
-	r.Handle(method+" "+path, r.wrap(fn, mx))
-}
-
-func (r *Router) wrap(fn http.HandlerFunc, mx []Middleware) (out http.Handler) {
-	out, mx = http.Handler(fn), append(slices.Clone(r.chain), mx...)
-
-	slices.Reverse(mx)
-
-	for _, m := range mx {
-		out = m(out)
-	}
-
-	return
-}
 
 func run() error {
 	ctx := context.Background()
@@ -148,12 +88,14 @@ func run() error {
 	updateCartItemHandler := storefront.NewUpdateCartItemHandler(cartService, renderer)
 	removeCartItemHandler := storefront.NewRemoveCartItemHandler(cartService, renderer)
 
-	// Initialize router
-	r := NewRouter()
+	// Create router with global middleware
+	r := router.New(
+		router.Recovery(logger),
+		router.Logger(logger),
+	)
 
 	// Static files
-	fs := http.FileServer(http.Dir("web/static"))
-	r.Handle("GET /static/", http.StripPrefix("/static/", fs))
+	r.Static("/static/", "./web/static")
 
 	// Storefront routes
 	r.Get("/products", productListHandler.ServeHTTP)

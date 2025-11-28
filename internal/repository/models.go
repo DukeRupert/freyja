@@ -413,6 +413,12 @@ type Product struct {
 	SortOrder       int32              `json:"sort_order"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	// TRUE if this product is a white-label variant of a base product
+	IsWhiteLabel bool `json:"is_white_label"`
+	// References the base product this white-label is derived from
+	BaseProductID pgtype.UUID `json:"base_product_id"`
+	// The specific customer (user) this white-label product is restricted to
+	WhiteLabelCustomerID pgtype.UUID `json:"white_label_customer_id"`
 }
 
 // Hierarchical product categories

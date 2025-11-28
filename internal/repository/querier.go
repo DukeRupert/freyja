@@ -23,6 +23,8 @@ type Querier interface {
 	DeleteExpiredSessions(ctx context.Context) error
 	// Delete a session
 	DeleteSession(ctx context.Context, token string) error
+	// Get the base product for a white-label product
+	GetBaseProductForWhiteLabel(ctx context.Context, id pgtype.UUID) (Product, error)
 	// Get cart by ID
 	GetCartByID(ctx context.Context, id pgtype.UUID) (Cart, error)
 	// Get active cart for a session
@@ -49,10 +51,14 @@ type Querier interface {
 	GetProductImages(ctx context.Context, productID pgtype.UUID) ([]ProductImage, error)
 	// Get all active SKUs for a product
 	GetProductSKUs(ctx context.Context, productID pgtype.UUID) ([]ProductSku, error)
+	// Get all products available to a specific customer
+	GetProductsForCustomer(ctx context.Context, arg GetProductsForCustomerParams) ([]Product, error)
 	// Get a single SKU by ID
 	GetSKUByID(ctx context.Context, id pgtype.UUID) (ProductSku, error)
 	// Get session by token
 	GetSessionByToken(ctx context.Context, token string) (Session, error)
+	// Get all white-label products for a specific customer
+	GetWhiteLabelProductsForCustomer(ctx context.Context, arg GetWhiteLabelProductsForCustomerParams) ([]Product, error)
 	// List all active products for a tenant with their primary image
 	ListActiveProducts(ctx context.Context, tenantID pgtype.UUID) ([]ListActiveProductsRow, error)
 	// Remove an item from cart

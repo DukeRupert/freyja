@@ -73,6 +73,7 @@ func (s *productService) GetProductDetail(ctx context.Context, slug string) (*Pr
 		TenantID: s.tenantID,
 		Slug:     slug,
 	})
+	
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrProductNotFound
