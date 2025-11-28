@@ -35,15 +35,15 @@
 
           <!-- Roast Level Badge -->
           {{if .RoastLevel.Valid}}
-          <span class="badge-amber mt-2">
+          <span class="inline-block badge-amber mt-2">
             {{.RoastLevel.String}}
           </span>
           {{end}}
 
           <!-- Tasting Notes Preview -->
-          {{if .TastingNotes.Valid}}
+          {{if .TastingNotes}}
           <p class="mt-2 text-xs text-neutral-500 line-clamp-2">
-            {{.TastingNotes.String}}
+            {{range $i, $note := .TastingNotes}}{{if $i}}, {{end}}{{$note}}{{end}}
           </p>
           {{end}}
 
