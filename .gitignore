@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Environment variables
+.env
+
 # Build outputs
 web/static/css/output.css
 
