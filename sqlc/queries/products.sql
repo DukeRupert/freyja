@@ -21,30 +21,7 @@ ORDER BY p.sort_order ASC, p.created_at DESC;
 
 -- name: GetProductBySlug :one
 -- Get a single product by slug with all details
-SELECT
-    id,
-    tenant_id,
-    name,
-    slug,
-    description,
-    short_description,
-    origin,
-    region,
-    producer,
-    process,
-    roast_level,
-    elevation_min,
-    elevation_max,
-    variety,
-    harvest_year,
-    tasting_notes,
-    status,
-    visibility,
-    meta_title,
-    meta_description,
-    sort_order,
-    created_at,
-    updated_at
+SELECT *
 FROM products
 WHERE tenant_id = $1
   AND slug = $2
@@ -138,3 +115,36 @@ FROM product_skus
 WHERE id = $1
   AND is_active = TRUE
 LIMIT 1;
+
+-- name: GetProductsForCustomer :many
+-- Get all products available to a specific customer
+SELECT p.*
+FROM products p
+WHERE p.tenant_id = $1
+  AND p.status = 'active'
+  AND (
+    -- Standard products visible to this customer's price list
+    (p.is_white_label = FALSE AND p.visibility != 'hidden')
+    OR
+    -- White-label products specifically for this customer
+    (p.is_white_label = TRUE AND p.white_label_customer_id = $2)
+  )
+ORDER BY p.name;
+
+-- name: GetWhiteLabelProductsForCustomer :many
+-- Get all white-label products for a specific customer
+SELECT p.*
+FROM products p
+WHERE p.tenant_id = $1
+  AND p.is_white_label = TRUE
+  AND p.white_label_customer_id = $2
+  AND p.status = 'active'
+ORDER BY p.name;
+
+-- name: GetBaseProductForWhiteLabel :one
+-- Get the base product for a white-label product
+SELECT base.*
+FROM products p
+INNER JOIN products base ON base.id = p.base_product_id
+WHERE p.id = $1
+  AND p.is_white_label = TRUE;
