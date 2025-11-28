@@ -2,7 +2,9 @@ package storefront
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/service"
@@ -85,9 +87,38 @@ func (h *ProductDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Extract unique weights and grinds for option selectors
+	weightSet := make(map[string]bool)
+	grindSet := make(map[string]bool)
+	for _, sku := range detail.SKUs {
+		if sku.SKU.WeightValue.Valid {
+			// Convert pgtype.Numeric to float64 for display
+			f, err := sku.SKU.WeightValue.Float64Value()
+			if err == nil && f.Valid {
+				// Format without unnecessary decimal places
+				weightStr := strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.2f", f.Float64), "0"), ".")
+				weight := weightStr + sku.SKU.WeightUnit
+				weightSet[weight] = true
+			}
+		}
+		grindSet[sku.SKU.Grind] = true
+	}
+
+	weights := make([]string, 0, len(weightSet))
+	for w := range weightSet {
+		weights = append(weights, w)
+	}
+
+	grinds := make([]string, 0, len(grindSet))
+	for g := range grindSet {
+		grinds = append(grinds, g)
+	}
+
 	data := map[string]interface{}{
 		"Product": detail.Product,
 		"SKUs":    detail.SKUs,
+		"Weights": weights,
+		"Grinds":  grinds,
 		"Images":  detail.Images,
 		"Year":    2024,
 	}

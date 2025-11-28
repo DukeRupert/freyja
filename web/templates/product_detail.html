@@ -101,38 +101,46 @@
               hx-swap="innerHTML"
               x-data="productForm()">
 
+          <!-- Hidden SKU ID field -->
+          <input type="hidden" name="sku_id" x-model="selectedSKUID">
+
+          <!-- Size Selection -->
           <div class="mb-6">
-            <h2 class="text-sm font-medium text-neutral-700 mb-3">Select Options</h2>
-
-            <div class="space-y-3">
-              {{range $index, $sku := .SKUs}}
-              <label class="flex items-center p-4 border-2 rounded cursor-pointer transition-colors"
-                     :class="selectedSKU === '{{$sku.SKU.ID}}' ? 'border-teal-700 bg-teal-50' : 'border-neutral-300 hover:border-neutral-400'">
-                <input type="radio"
-                       name="sku_id"
-                       value="{{$sku.SKU.ID}}"
-                       class="sr-only"
-                       @change="selectSKU('{{$sku.SKU.ID}}', {{$sku.PriceCents}}, '{{$sku.InventoryMessage}}')">
-
-                <div class="flex-1">
-                  <div class="flex items-center justify-between">
-                    <span class="text-sm font-medium text-neutral-900">
-                      {{if $sku.SKU.WeightValue.Valid}}{{$sku.SKU.WeightValue.String}}{{end}}
-                      {{if $sku.SKU.WeightUnit.Valid}}{{$sku.SKU.WeightUnit.String}}{{end}}
-                      {{if ne $sku.SKU.Grind "whole_bean"}} - {{$sku.SKU.Grind}}{{end}}
-                    </span>
-                    <span class="text-sm font-medium text-neutral-900">
-                      ${{printf "%.2f" (divf $sku.PriceCents 100.0)}}
-                    </span>
-                  </div>
-                  <p class="mt-1 text-xs"
-                     :class="'{{$sku.InventoryMessage}}' === 'In stock' ? 'text-green-700' : 'text-amber-700'">
-                    {{$sku.InventoryMessage}}
-                  </p>
-                </div>
-              </label>
+            <label class="block text-sm font-medium text-neutral-700 mb-3">Size</label>
+            <div class="flex gap-2 flex-wrap">
+              {{range .Weights}}
+              <button type="button"
+                      @click="selectWeight('{{.}}')"
+                      :class="selectedWeight === '{{.}}' ? 'bg-teal-700 text-white border-teal-700' : 'bg-white text-neutral-900 border-neutral-300 hover:border-neutral-400'"
+                      class="px-4 py-2 border-2 rounded font-medium text-sm transition-colors">
+                {{.}}
+              </button>
               {{end}}
             </div>
+          </div>
+
+          <!-- Grind Selection -->
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-neutral-700 mb-3">Grind</label>
+            <div class="flex gap-2 flex-wrap">
+              {{range .Grinds}}
+              <button type="button"
+                      @click="selectGrind('{{.}}')"
+                      :class="selectedGrind === '{{.}}' ? 'bg-teal-700 text-white border-teal-700' : 'bg-white text-neutral-900 border-neutral-300 hover:border-neutral-400'"
+                      class="px-4 py-2 border-2 rounded font-medium text-sm transition-colors capitalize">
+                {{if eq . "whole_bean"}}Whole Bean{{else}}{{.}}{{end}}
+              </button>
+              {{end}}
+            </div>
+          </div>
+
+          <!-- Price & Stock Display -->
+          <div class="mb-6 p-4 bg-neutral-50 rounded" x-show="selectedSKU">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-sm text-neutral-600">Price</span>
+              <span class="text-lg font-semibold text-neutral-900" x-text="formatPrice(price)"></span>
+            </div>
+            <p class="text-xs" :class="inventoryMessage === 'In stock' ? 'text-green-700' : 'text-amber-700'" x-text="inventoryMessage"></p>
           </div>
 
           <!-- Quantity -->
@@ -171,16 +179,56 @@
 
         <script>
           function productForm() {
+            // Build SKU lookup map
+            const skuMap = {};
+            {{range $sku := .SKUs -}}
+            skuMap['{{if $sku.SKU.WeightValue.Valid}}{{formatWeight $sku.SKU.WeightValue}}{{$sku.SKU.WeightUnit}}{{end}}|{{$sku.SKU.Grind}}'] = {
+              id: '{{$sku.SKU.ID}}',
+              price: {{$sku.PriceCents}},
+              inventory: '{{$sku.InventoryMessage}}'
+            };
+            {{- end}}
+
             return {
-              selectedSKU: '',
+              selectedWeight: '',
+              selectedGrind: '',
+              selectedSKU: null,
+              selectedSKUID: '',
               quantity: 1,
               price: 0,
               inventoryMessage: '',
+              skuMap: skuMap,
 
-              selectSKU(skuID, price, inventoryMsg) {
-                this.selectedSKU = skuID;
-                this.price = price;
-                this.inventoryMessage = inventoryMsg;
+              selectWeight(weight) {
+                this.selectedWeight = weight;
+                this.updateSKU();
+              },
+
+              selectGrind(grind) {
+                this.selectedGrind = grind;
+                this.updateSKU();
+              },
+
+              updateSKU() {
+                if (this.selectedWeight && this.selectedGrind) {
+                  const key = this.selectedWeight + '|' + this.selectedGrind;
+                  const sku = this.skuMap[key];
+                  if (sku) {
+                    this.selectedSKU = sku;
+                    this.selectedSKUID = sku.id;
+                    this.price = sku.price;
+                    this.inventoryMessage = sku.inventory;
+                  } else {
+                    this.selectedSKU = null;
+                    this.selectedSKUID = '';
+                    this.price = 0;
+                    this.inventoryMessage = 'Not available';
+                  }
+                }
+              },
+
+              formatPrice(cents) {
+                return '$' + (cents / 100).toFixed(2);
               },
 
               increaseQty() {
