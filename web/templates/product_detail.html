@@ -61,10 +61,12 @@
         </div>
         {{end}}
 
-        {{if .Product.Elevation.Valid}}
+        {{if or .Product.ElevationMin.Valid .Product.ElevationMax.Valid}}
         <div class="flex justify-between text-sm">
           <span class="text-neutral-600">Elevation</span>
-          <span class="text-neutral-900 font-medium">{{.Product.Elevation.String}}</span>
+          <span class="text-neutral-900 font-medium">
+            {{if .Product.ElevationMin.Valid}}{{.Product.ElevationMin.Int32}}{{end}}{{if and .Product.ElevationMin.Valid .Product.ElevationMax.Valid}}-{{end}}{{if .Product.ElevationMax.Valid}}{{.Product.ElevationMax.Int32}}{{end}}m
+          </span>
         </div>
         {{end}}
       </div>

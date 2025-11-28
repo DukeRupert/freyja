@@ -99,7 +99,9 @@ func (h *ProductDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := tmpl.ExecuteTemplate(w, "layout", data); err != nil {
-		http.Error(w, "Failed to render template", http.StatusInternalServerError)
+		// Log the actual error (template has already started writing, so we can't send headers)
+		// TODO: Use structured logging
+		println("Template execution error:", err.Error())
 		return
 	}
 }
