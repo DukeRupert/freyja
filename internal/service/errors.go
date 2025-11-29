@@ -23,4 +23,13 @@ var (
 
 	// ErrSessionNotFound is returned when a session cannot be found
 	ErrSessionNotFound = errors.New("session not found")
+
+	// Order-related errors
+	ErrOrderNotFound         = errors.New("order not found")
+	ErrPaymentNotSucceeded   = errors.New("payment has not succeeded")
+	ErrTenantMismatch        = errors.New("tenant ID mismatch")
+	ErrCartAlreadyConverted  = errors.New("cart already converted to order")
+	ErrInsufficientStock     = errors.New("insufficient stock for one or more items")
+	ErrMissingCartID         = errors.New("cart_id missing from payment metadata")
+	ErrPaymentAlreadyProcessed = errors.New("payment intent already processed")
 )

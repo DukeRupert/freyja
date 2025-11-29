@@ -15,12 +15,30 @@ type Querier interface {
 	AddCartItem(ctx context.Context, arg AddCartItemParams) (CartItem, error)
 	// Remove all items from a cart
 	ClearCart(ctx context.Context, cartID pgtype.UUID) error
+	// Creates a new address record for shipping or billing
+	// Returns complete address with generated ID
+	CreateAddress(ctx context.Context, arg CreateAddressParams) (Address, error)
+	// Creates a billing customer record (links to Stripe customer)
+	// This is for tracking payment method details
+	CreateBillingCustomer(ctx context.Context, arg CreateBillingCustomerParams) (BillingCustomer, error)
 	// Create a new cart for a session
 	CreateCart(ctx context.Context, arg CreateCartParams) (Cart, error)
+	// Creates a new order record with all required fields
+	// Returns the complete order with generated ID and timestamps
+	CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error)
+	// Creates an order line item linked to a specific order
+	// Captures product state at time of purchase
+	CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItem, error)
+	// Records a payment transaction linked to an order
+	// Includes Stripe payment intent ID for reconciliation
+	CreatePayment(ctx context.Context, arg CreatePaymentParams) (Payment, error)
 	// Create a new session
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	// Create a new user (retail account by default)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	// Decrements inventory for a SKU after order placement
+	// Uses optimistic locking to prevent overselling
+	DecrementSKUStock(ctx context.Context, arg DecrementSKUStockParams) error
 	// Clean up expired sessions (for background job)
 	DeleteExpiredSessions(ctx context.Context) error
 	// Delete a session
@@ -37,6 +55,14 @@ type Querier interface {
 	GetCartItems(ctx context.Context, cartID pgtype.UUID) ([]GetCartItemsRow, error)
 	// Get the default price list for a tenant (used for guests and unassigned users)
 	GetDefaultPriceList(ctx context.Context, tenantID pgtype.UUID) (PriceList, error)
+	// Retrieves a single order by ID with tenant scoping
+	GetOrder(ctx context.Context, arg GetOrderParams) (Order, error)
+	// Retrieves a single order by order number with tenant scoping
+	// Order numbers are unique per tenant
+	GetOrderByNumber(ctx context.Context, arg GetOrderByNumberParams) (Order, error)
+	// Idempotency check: Returns existing order if payment intent was already processed
+	// This prevents duplicate order creation from webhook retries
+	GetOrderByPaymentIntentID(ctx context.Context, arg GetOrderByPaymentIntentIDParams) (Order, error)
 	// Get the price for a specific SKU on a price list
 	GetPriceForSKU(ctx context.Context, arg GetPriceForSKUParams) (PriceListEntry, error)
 	// Get a price list by ID
@@ -73,6 +99,10 @@ type Querier interface {
 	RemoveCartItem(ctx context.Context, arg RemoveCartItemParams) error
 	// Update quantity of a cart item
 	UpdateCartItemQuantity(ctx context.Context, arg UpdateCartItemQuantityParams) error
+	// Ensures sufficient stock
+	// Marks cart as converted to order
+	// Prevents duplicate order creation from same cart
+	UpdateCartStatus(ctx context.Context, arg UpdateCartStatusParams) error
 	// Update session data and extend expiration
 	UpdateSessionData(ctx context.Context, arg UpdateSessionDataParams) error
 	// Update user password
