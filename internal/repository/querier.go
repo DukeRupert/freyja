@@ -37,6 +37,9 @@ type Querier interface {
 	// Records a payment transaction linked to an order
 	// Includes Stripe payment intent ID for reconciliation
 	CreatePayment(ctx context.Context, arg CreatePaymentParams) (Payment, error)
+	// Admin queries
+	// Create a new price list entry for a SKU
+	CreatePriceListEntry(ctx context.Context, arg CreatePriceListEntryParams) (PriceListEntry, error)
 	// Create a new product
 	CreateProduct(ctx context.Context, arg CreateProductParams) (Product, error)
 	// Create a new product image
@@ -122,6 +125,8 @@ type Querier interface {
 	GetWhiteLabelProductsForCustomer(ctx context.Context, arg GetWhiteLabelProductsForCustomerParams) ([]Product, error)
 	// List all active products for a tenant with their primary image
 	ListActiveProducts(ctx context.Context, tenantID pgtype.UUID) ([]ListActiveProductsRow, error)
+	// List all price lists for a tenant
+	ListAllPriceLists(ctx context.Context, tenantID pgtype.UUID) ([]PriceList, error)
 	// Admin queries
 	// List all products for admin (includes inactive and all visibility levels)
 	ListAllProducts(ctx context.Context, tenantID pgtype.UUID) ([]ListAllProductsRow, error)
@@ -152,6 +157,8 @@ type Querier interface {
 	UpdateOrderPaymentID(ctx context.Context, arg UpdateOrderPaymentIDParams) error
 	// Update order status
 	UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) error
+	// Update an existing price list entry
+	UpdatePriceListEntry(ctx context.Context, arg UpdatePriceListEntryParams) (PriceListEntry, error)
 	// Update an existing product
 	UpdateProduct(ctx context.Context, arg UpdateProductParams) (Product, error)
 	// Update an existing product image

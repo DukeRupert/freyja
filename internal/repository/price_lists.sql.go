@@ -11,6 +11,56 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createPriceListEntry = `-- name: CreatePriceListEntry :one
+
+INSERT INTO price_list_entries (
+    tenant_id,
+    price_list_id,
+    product_sku_id,
+    price_cents,
+    compare_at_price_cents,
+    is_available
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+)
+RETURNING id, tenant_id, price_list_id, product_sku_id, price_cents, compare_at_price_cents, is_available, created_at, updated_at
+`
+
+type CreatePriceListEntryParams struct {
+	TenantID            pgtype.UUID `json:"tenant_id"`
+	PriceListID         pgtype.UUID `json:"price_list_id"`
+	ProductSkuID        pgtype.UUID `json:"product_sku_id"`
+	PriceCents          int32       `json:"price_cents"`
+	CompareAtPriceCents pgtype.Int4 `json:"compare_at_price_cents"`
+	IsAvailable         bool        `json:"is_available"`
+}
+
+// Admin queries
+// Create a new price list entry for a SKU
+func (q *Queries) CreatePriceListEntry(ctx context.Context, arg CreatePriceListEntryParams) (PriceListEntry, error) {
+	row := q.db.QueryRow(ctx, createPriceListEntry,
+		arg.TenantID,
+		arg.PriceListID,
+		arg.ProductSkuID,
+		arg.PriceCents,
+		arg.CompareAtPriceCents,
+		arg.IsAvailable,
+	)
+	var i PriceListEntry
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.PriceListID,
+		&i.ProductSkuID,
+		&i.PriceCents,
+		&i.CompareAtPriceCents,
+		&i.IsAvailable,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getDefaultPriceList = `-- name: GetDefaultPriceList :one
 SELECT
     id,
@@ -234,4 +284,86 @@ func (q *Queries) GetPricesForSKUs(ctx context.Context, arg GetPricesForSKUsPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const listAllPriceLists = `-- name: ListAllPriceLists :many
+SELECT id, tenant_id, name, description, list_type, is_active, created_at, updated_at
+FROM price_lists
+WHERE tenant_id = $1
+  AND is_active = TRUE
+ORDER BY list_type DESC, name ASC
+`
+
+// List all price lists for a tenant
+func (q *Queries) ListAllPriceLists(ctx context.Context, tenantID pgtype.UUID) ([]PriceList, error) {
+	rows, err := q.db.Query(ctx, listAllPriceLists, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PriceList{}
+	for rows.Next() {
+		var i PriceList
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Name,
+			&i.Description,
+			&i.ListType,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updatePriceListEntry = `-- name: UpdatePriceListEntry :one
+UPDATE price_list_entries
+SET
+    price_cents = $3,
+    compare_at_price_cents = $4,
+    is_available = $5,
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2
+RETURNING id, tenant_id, price_list_id, product_sku_id, price_cents, compare_at_price_cents, is_available, created_at, updated_at
+`
+
+type UpdatePriceListEntryParams struct {
+	TenantID            pgtype.UUID `json:"tenant_id"`
+	ID                  pgtype.UUID `json:"id"`
+	PriceCents          int32       `json:"price_cents"`
+	CompareAtPriceCents pgtype.Int4 `json:"compare_at_price_cents"`
+	IsAvailable         bool        `json:"is_available"`
+}
+
+// Update an existing price list entry
+func (q *Queries) UpdatePriceListEntry(ctx context.Context, arg UpdatePriceListEntryParams) (PriceListEntry, error) {
+	row := q.db.QueryRow(ctx, updatePriceListEntry,
+		arg.TenantID,
+		arg.ID,
+		arg.PriceCents,
+		arg.CompareAtPriceCents,
+		arg.IsAvailable,
+	)
+	var i PriceListEntry
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.PriceListID,
+		&i.ProductSkuID,
+		&i.PriceCents,
+		&i.CompareAtPriceCents,
+		&i.IsAvailable,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

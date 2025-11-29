@@ -81,3 +81,39 @@ WHERE ple.price_list_id = $1
   AND ple.is_available = TRUE
   AND ps.is_active = TRUE
 ORDER BY ps.weight_value ASC, ps.grind ASC;
+
+-- Admin queries
+
+-- name: CreatePriceListEntry :one
+-- Create a new price list entry for a SKU
+INSERT INTO price_list_entries (
+    tenant_id,
+    price_list_id,
+    product_sku_id,
+    price_cents,
+    compare_at_price_cents,
+    is_available
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+)
+RETURNING *;
+
+-- name: UpdatePriceListEntry :one
+-- Update an existing price list entry
+UPDATE price_list_entries
+SET
+    price_cents = $3,
+    compare_at_price_cents = $4,
+    is_available = $5,
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2
+RETURNING *;
+
+-- name: ListAllPriceLists :many
+-- List all price lists for a tenant
+SELECT *
+FROM price_lists
+WHERE tenant_id = $1
+  AND is_active = TRUE
+ORDER BY list_type DESC, name ASC;
