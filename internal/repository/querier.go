@@ -121,6 +121,10 @@ type Querier interface {
 	GetSessionByToken(ctx context.Context, token string) (Session, error)
 	// Get all shipments for an order
 	GetShipmentsByOrderID(ctx context.Context, orderID pgtype.UUID) ([]Shipment, error)
+	// Checkout queries
+	// Get the primary warehouse address for a tenant (for shipping origin calculations)
+	// Used by CheckoutService.GetShippingRates to determine shipping origin
+	GetTenantWarehouseAddress(ctx context.Context, tenantID pgtype.UUID) (GetTenantWarehouseAddressRow, error)
 	// Get user by email within a tenant
 	GetUserByEmail(ctx context.Context, arg GetUserByEmailParams) (User, error)
 	// Get user by ID

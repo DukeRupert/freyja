@@ -318,3 +318,26 @@ WHERE tenant_id = $1
 SELECT * FROM shipments
 WHERE order_id = $1
 ORDER BY created_at DESC;
+
+-- Checkout queries
+
+-- name: GetTenantWarehouseAddress :one
+-- Get the primary warehouse address for a tenant (for shipping origin calculations)
+-- Used by CheckoutService.GetShippingRates to determine shipping origin
+SELECT
+    id,
+    tenant_id,
+    address_type,
+    full_name,
+    company,
+    address_line1,
+    address_line2,
+    city,
+    state,
+    postal_code,
+    country,
+    phone
+FROM addresses
+WHERE tenant_id = $1
+  AND address_type = 'warehouse'
+LIMIT 1;

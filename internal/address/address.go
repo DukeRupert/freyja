@@ -4,34 +4,38 @@ import "context"
 
 // Validator defines the interface for address validation.
 // Implementations can use external APIs like Google, USPS, Lob, SmartyStreets, etc.
+// For MVP, use MockValidator for basic validation.
 type Validator interface {
 	// Validate checks if an address is valid and deliverable.
 	// Returns normalized address if validation succeeds.
+	// Even if IsValid is false, NormalizedAddress may contain corrections.
 	Validate(ctx context.Context, addr Address) (*ValidationResult, error)
 }
 
-// Address represents a physical address to be validated.
+// Address represents a physical address for shipping or billing.
 type Address struct {
-	Line1      string
-	Line2      string
-	City       string
-	State      string
-	PostalCode string
-	Country    string
+	Type         string // "shipping" or "billing"
+	FullName     string
+	Company      string
+	AddressLine1 string
+	AddressLine2 string
+	City         string
+	State        string
+	PostalCode   string
+	Country      string
+	Phone        string
 }
 
 // ValidationResult contains the outcome of address validation.
 type ValidationResult struct {
 	IsValid           bool
-	IsNormalized      bool
-	NormalizedAddress Address
-	Messages          []ValidationMessage
+	NormalizedAddress *Address
+	Errors            []ValidationError
+	Warnings          []string
 }
 
-// ValidationMessage represents a single validation error, warning, or info message.
-type ValidationMessage struct {
-	Severity string // "error", "warning", "info"
-	Code     string // Machine-readable error code
-	Message  string // Human-readable message
-	Field    string // Affected field name
+// ValidationError represents a specific validation error.
+type ValidationError struct {
+	Field   string
+	Message string
 }

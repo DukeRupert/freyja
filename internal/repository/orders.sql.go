@@ -939,6 +939,65 @@ func (q *Queries) GetShipmentsByOrderID(ctx context.Context, orderID pgtype.UUID
 	return items, nil
 }
 
+const getTenantWarehouseAddress = `-- name: GetTenantWarehouseAddress :one
+
+SELECT
+    id,
+    tenant_id,
+    address_type,
+    full_name,
+    company,
+    address_line1,
+    address_line2,
+    city,
+    state,
+    postal_code,
+    country,
+    phone
+FROM addresses
+WHERE tenant_id = $1
+  AND address_type = 'warehouse'
+LIMIT 1
+`
+
+type GetTenantWarehouseAddressRow struct {
+	ID           pgtype.UUID `json:"id"`
+	TenantID     pgtype.UUID `json:"tenant_id"`
+	AddressType  string      `json:"address_type"`
+	FullName     pgtype.Text `json:"full_name"`
+	Company      pgtype.Text `json:"company"`
+	AddressLine1 string      `json:"address_line1"`
+	AddressLine2 pgtype.Text `json:"address_line2"`
+	City         string      `json:"city"`
+	State        string      `json:"state"`
+	PostalCode   string      `json:"postal_code"`
+	Country      string      `json:"country"`
+	Phone        pgtype.Text `json:"phone"`
+}
+
+// Checkout queries
+// Get the primary warehouse address for a tenant (for shipping origin calculations)
+// Used by CheckoutService.GetShippingRates to determine shipping origin
+func (q *Queries) GetTenantWarehouseAddress(ctx context.Context, tenantID pgtype.UUID) (GetTenantWarehouseAddressRow, error) {
+	row := q.db.QueryRow(ctx, getTenantWarehouseAddress, tenantID)
+	var i GetTenantWarehouseAddressRow
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.AddressType,
+		&i.FullName,
+		&i.Company,
+		&i.AddressLine1,
+		&i.AddressLine2,
+		&i.City,
+		&i.State,
+		&i.PostalCode,
+		&i.Country,
+		&i.Phone,
+	)
+	return i, err
+}
+
 const listOrders = `-- name: ListOrders :many
 
 SELECT
