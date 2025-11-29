@@ -3,10 +3,12 @@ package billing
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/stripe/stripe-go/v83"
-	_ "github.com/stripe/stripe-go/v83/paymentintent"
-	_ "github.com/stripe/stripe-go/v83/webhook"
+	"github.com/stripe/stripe-go/v83/paymentintent"
+	"github.com/stripe/stripe-go/v83/webhook"
 )
 
 // StripeProvider implements Provider using Stripe.
@@ -74,36 +76,65 @@ func NewStripeProvider(config StripeConfig) (*StripeProvider, error) {
 //   - Tax amount included in PaymentIntent.AmountCents
 //   - Tax breakdown available in PaymentIntent.TaxCents
 func (s *StripeProvider) CreatePaymentIntent(ctx context.Context, params CreatePaymentIntentParams) (*PaymentIntent, error) {
-	// TODO: Implementation
-	//
-	// Steps:
-	// 1. Validate params (amount >= 50 cents, currency supported, required metadata)
-	// 2. Build stripe.PaymentIntentParams:
-	//    - Amount: params.AmountCents
-	//    - Currency: params.Currency
-	//    - AutomaticPaymentMethods.Enabled: true (supports card, ideal, etc.)
-	//    - Metadata: params.Metadata (ensure tenant_id, cart_id present)
-	//    - Description: params.Description
-	//    - ReceiptEmail: params.CustomerEmail
-	//    - SetupFutureUsage: params.SetupFutureUsage (if saving payment method)
-	// 3. If params.CustomerID set:
-	//    - Customer: params.CustomerID
-	// 4. If params.EnableStripeTax:
-	//    - Configure automatic tax calculation
-	//    - Include params.ShippingAddress
-	//    - Include params.LineItems with tax codes
-	// 5. Set idempotency key: params.IdempotencyKey
-	// 6. Call paymentintent.New()
-	// 7. Handle errors (wrap in StripeError)
-	// 8. Map Stripe response to PaymentIntent
-	// 9. Return PaymentIntent with ClientSecret
-	//
-	// Error handling:
-	// - Invalid amount -> ErrAmountTooSmall
-	// - Invalid API key -> ErrInvalidAPIKey
-	// - Idempotency conflict -> ErrIdempotencyConflict
-	// - Stripe API errors -> StripeError
-	panic("not implemented")
+	if err := validateAmount(params.AmountCents, params.Currency); err != nil {
+		return nil, err
+	}
+
+	piParams := &stripe.PaymentIntentParams{
+		Amount:   stripe.Int64(int64(params.AmountCents)),
+		Currency: stripe.String(strings.ToLower(params.Currency)),
+		AutomaticPaymentMethods: &stripe.PaymentIntentAutomaticPaymentMethodsParams{
+			Enabled: stripe.Bool(true),
+		},
+	}
+
+	if params.Description != "" {
+		piParams.Description = stripe.String(params.Description)
+	}
+
+	if params.CustomerEmail != "" {
+		piParams.ReceiptEmail = stripe.String(params.CustomerEmail)
+	}
+
+	if params.CustomerID != "" {
+		piParams.Customer = stripe.String(params.CustomerID)
+	}
+
+	if params.SetupFutureUsage != "" {
+		piParams.SetupFutureUsage = stripe.String(params.SetupFutureUsage)
+	}
+
+	if params.CaptureMethod != "" {
+		piParams.CaptureMethod = stripe.String(params.CaptureMethod)
+	}
+
+	if params.Metadata != nil {
+		piParams.Metadata = params.Metadata
+	}
+
+	if params.EnableStripeTax && params.ShippingAddress != nil {
+		piParams.Shipping = &stripe.ShippingDetailsParams{
+			Address: &stripe.AddressParams{
+				Line1:      stripe.String(params.ShippingAddress.Line1),
+				Line2:      stripe.String(params.ShippingAddress.Line2),
+				City:       stripe.String(params.ShippingAddress.City),
+				State:      stripe.String(params.ShippingAddress.State),
+				PostalCode: stripe.String(params.ShippingAddress.PostalCode),
+				Country:    stripe.String(params.ShippingAddress.Country),
+			},
+		}
+	}
+
+	if params.IdempotencyKey != "" {
+		piParams.IdempotencyKey = stripe.String(params.IdempotencyKey)
+	}
+
+	stripePI, err := paymentintent.New(piParams)
+	if err != nil {
+		return nil, wrapStripeError(err)
+	}
+
+	return buildPaymentIntent(stripePI), nil
 }
 
 // GetPaymentIntent retrieves an existing payment intent.
@@ -131,24 +162,30 @@ func (s *StripeProvider) CreatePaymentIntent(ctx context.Context, params CreateP
 //   - Metadata: Includes tenant_id, cart_id from creation
 //   - LastPaymentError: Details if payment failed
 func (s *StripeProvider) GetPaymentIntent(ctx context.Context, params GetPaymentIntentParams) (*PaymentIntent, error) {
-	// TODO: Implementation
-	//
-	// Steps:
-	// 1. Validate params.PaymentIntentID is not empty
-	// 2. Build stripe.PaymentIntentParams for Get:
-	//    - Expand: params.Expand (e.g., ["latest_charge"])
-	// 3. Call paymentintent.Get(params.PaymentIntentID, getParams)
-	// 4. Handle errors:
-	//    - Not found -> ErrPaymentIntentNotFound
-	//    - Invalid API key -> ErrInvalidAPIKey
-	//    - Other errors -> StripeError
-	// 5. Map Stripe response to PaymentIntent:
-	//    - Extract tax amount from charges.data[0].amount_tax (if Stripe Tax)
-	//    - Extract shipping from metadata or charges
-	//    - Map status
-	//    - Extract last payment error if present
-	// 6. Return PaymentIntent
-	panic("not implemented")
+	if params.PaymentIntentID == "" {
+		return nil, fmt.Errorf("payment intent ID is required")
+	}
+
+	piParams := &stripe.PaymentIntentParams{}
+
+	if len(params.Expand) > 0 {
+		for _, expand := range params.Expand {
+			piParams.AddExpand(expand)
+		}
+	} else {
+		piParams.AddExpand("latest_charge")
+	}
+
+	stripePI, err := paymentintent.Get(params.PaymentIntentID, piParams)
+	if err != nil {
+		stripeErr, ok := err.(*stripe.Error)
+		if ok && stripeErr.Code == stripe.ErrorCodeResourceMissing {
+			return nil, ErrPaymentIntentNotFound
+		}
+		return nil, wrapStripeError(err)
+	}
+
+	return buildPaymentIntent(stripePI), nil
 }
 
 // UpdatePaymentIntent updates a payment intent before confirmation.
@@ -163,22 +200,36 @@ func (s *StripeProvider) GetPaymentIntent(ctx context.Context, params GetPayment
 //
 // Returns the updated PaymentIntent.
 func (s *StripeProvider) UpdatePaymentIntent(ctx context.Context, params UpdatePaymentIntentParams) (*PaymentIntent, error) {
-	// TODO: Implementation
-	//
-	// Steps:
-	// 1. Validate params.PaymentIntentID
-	// 2. Build stripe.PaymentIntentParams for Update:
-	//    - Amount: params.AmountCents (if changed)
-	//    - Metadata: params.Metadata (merge with existing)
-	//    - Description: params.Description (if changed)
-	// 3. Call paymentintent.Update(params.PaymentIntentID, updateParams)
-	// 4. Handle errors:
-	//    - Already confirmed -> return error
-	//    - Not found -> ErrPaymentIntentNotFound
-	//    - Other errors -> StripeError
-	// 5. Map response to PaymentIntent
-	// 6. Return updated PaymentIntent
-	panic("not implemented")
+	if params.PaymentIntentID == "" {
+		return nil, fmt.Errorf("payment intent ID is required")
+	}
+
+	piParams := &stripe.PaymentIntentParams{}
+
+	if params.AmountCents > 0 {
+		piParams.Amount = stripe.Int64(int64(params.AmountCents))
+	}
+
+	if params.Description != "" {
+		piParams.Description = stripe.String(params.Description)
+	}
+
+	if params.Metadata != nil {
+		for k, v := range params.Metadata {
+			piParams.AddMetadata(k, v)
+		}
+	}
+
+	stripePI, err := paymentintent.Update(params.PaymentIntentID, piParams)
+	if err != nil {
+		stripeErr, ok := err.(*stripe.Error)
+		if ok && stripeErr.Code == stripe.ErrorCodeResourceMissing {
+			return nil, ErrPaymentIntentNotFound
+		}
+		return nil, wrapStripeError(err)
+	}
+
+	return buildPaymentIntent(stripePI), nil
 }
 
 // CancelPaymentIntent cancels a payment intent that hasn't been confirmed.
@@ -190,19 +241,27 @@ func (s *StripeProvider) UpdatePaymentIntent(ctx context.Context, params UpdateP
 //
 // Returns error if payment intent is already succeeded or canceled.
 func (s *StripeProvider) CancelPaymentIntent(ctx context.Context, paymentIntentID string) error {
-	// TODO: Implementation
-	//
-	// Steps:
-	// 1. Validate paymentIntentID not empty
-	// 2. Build stripe.PaymentIntentCancelParams
-	// 3. Call paymentintent.Cancel(paymentIntentID, cancelParams)
-	// 4. Handle errors:
-	//    - Already succeeded -> return error
-	//    - Already canceled -> return nil (idempotent)
-	//    - Not found -> ErrPaymentIntentNotFound
-	//    - Other errors -> StripeError
-	// 5. Return nil on success
-	panic("not implemented")
+	if paymentIntentID == "" {
+		return fmt.Errorf("payment intent ID is required")
+	}
+
+	cancelParams := &stripe.PaymentIntentCancelParams{}
+
+	_, err := paymentintent.Cancel(paymentIntentID, cancelParams)
+	if err != nil {
+		stripeErr, ok := err.(*stripe.Error)
+		if ok {
+			if stripeErr.Code == stripe.ErrorCodeResourceMissing {
+				return ErrPaymentIntentNotFound
+			}
+			if stripeErr.Code == "payment_intent_unexpected_state" && strings.Contains(stripeErr.Msg, "canceled") {
+				return nil
+			}
+		}
+		return wrapStripeError(err)
+	}
+
+	return nil
 }
 
 // VerifyWebhookSignature verifies that a webhook request is authentic.
@@ -226,18 +285,24 @@ func (s *StripeProvider) CancelPaymentIntent(ctx context.Context, paymentIntentI
 // The secret parameter should be the webhook signing secret (whsec_...)
 // from Stripe dashboard, not the API key.
 func (s *StripeProvider) VerifyWebhookSignature(payload []byte, signature string, secret string) error {
-	// TODO: Implementation
-	//
-	// Steps:
-	// 1. Validate inputs (payload, signature, secret not empty)
-	// 2. Call webhook.ConstructEvent(payload, signature, secret)
-	// 3. If error (invalid signature, timestamp too old):
-	//    - Return ErrInvalidWebhookSignature
-	// 4. Return nil if valid
-	//
-	// Note: ConstructEvent also parses the event, but we only care about
-	// signature verification here. Webhook handler will parse event separately.
-	panic("not implemented")
+	if len(payload) == 0 {
+		return ErrInvalidWebhookSignature
+	}
+
+	if signature == "" {
+		return ErrInvalidWebhookSignature
+	}
+
+	if secret == "" {
+		return ErrInvalidWebhookSignature
+	}
+
+	_, err := webhook.ConstructEvent(payload, signature, secret)
+	if err != nil {
+		return ErrInvalidWebhookSignature
+	}
+
+	return nil
 }
 
 // CreateCustomer creates a Stripe customer.
@@ -397,51 +462,92 @@ func (s *StripeProvider) RefundPayment(ctx context.Context, params RefundParams)
 // buildPaymentIntent maps Stripe PaymentIntent to our PaymentIntent type.
 // Centralizes mapping logic used by Create, Get, and Update methods.
 func buildPaymentIntent(stripePI *stripe.PaymentIntent) *PaymentIntent {
-	// TODO: Implementation
-	//
-	// Map fields:
-	// - ID
-	// - ClientSecret
-	// - Amount (as AmountCents int32)
-	// - Currency
-	// - Status
-	// - Metadata
-	// - Created (as CreatedAt time.Time)
-	//
-	// Extract tax and shipping:
-	// - If charges exist, extract from latest_charge
-	// - Check metadata for shipping amount
-	//
+	if stripePI == nil {
+		return nil
+	}
+
+	pi := &PaymentIntent{
+		ID:           stripePI.ID,
+		ClientSecret: stripePI.ClientSecret,
+		AmountCents:  int32(stripePI.Amount),
+		Currency:     string(stripePI.Currency),
+		Status:       string(stripePI.Status),
+		Metadata:     stripePI.Metadata,
+		CreatedAt:    time.Unix(stripePI.Created, 0),
+	}
+
+	// Extract tax amount from latest charge if available
+	if stripePI.LatestCharge != nil {
+		charge := stripePI.LatestCharge
+		if charge.Metadata != nil {
+			if taxStr, ok := charge.Metadata["tax_amount"]; ok {
+				var taxAmount int64
+				fmt.Sscanf(taxStr, "%d", &taxAmount)
+				pi.TaxCents = int32(taxAmount)
+			}
+		}
+	}
+
+	// Extract shipping amount from metadata if available
+	if stripePI.Metadata != nil {
+		if shippingStr, ok := stripePI.Metadata["shipping_amount"]; ok {
+			var shippingAmount int64
+			fmt.Sscanf(shippingStr, "%d", &shippingAmount)
+			pi.ShippingCents = int32(shippingAmount)
+		}
+	}
+
 	// Map last payment error if present
-	panic("not implemented")
+	if stripePI.LastPaymentError != nil {
+		pi.LastPaymentError = &PaymentError{
+			Code:        string(stripePI.LastPaymentError.Code),
+			Message:     stripePI.LastPaymentError.Msg,
+			DeclineCode: string(stripePI.LastPaymentError.DeclineCode),
+		}
+	}
+
+	return pi
 }
 
 // wrapStripeError converts a Stripe SDK error to our StripeError type.
 // Provides consistent error handling across all methods.
 func wrapStripeError(err error) error {
-	// TODO: Implementation
-	//
-	// Steps:
-	// 1. Type assert to *stripe.Error
-	// 2. Extract fields:
-	//    - Msg -> Message
-	//    - Code -> Code
-	//    - DeclineCode -> DeclineCode
-	//    - HTTPStatusCode -> StripeCode
-	//    - RequestID -> RequestID
-	// 3. Return &StripeError{...}
-	panic("not implemented")
+	if err == nil {
+		return nil
+	}
+
+	stripeErr, ok := err.(*stripe.Error)
+	if !ok {
+		return err
+	}
+
+	return &StripeError{
+		Message:       stripeErr.Msg,
+		Code:          string(stripeErr.Code),
+		DeclineCode:   string(stripeErr.DeclineCode),
+		StripeCode:    fmt.Sprintf("%d", stripeErr.HTTPStatusCode),
+		RequestID:     stripeErr.RequestID,
+		OriginalError: err,
+	}
 }
 
 // validateAmount checks if amount meets Stripe's minimum requirements.
 func validateAmount(amountCents int32, currency string) error {
-	// TODO: Implementation
-	//
-	// Stripe minimum amounts by currency:
-	// - USD: 50 cents ($0.50)
-	// - EUR: 50 cents (€0.50)
-	// - GBP: 30 pence (£0.30)
-	//
-	// Return ErrAmountTooSmall if below minimum
-	panic("not implemented")
+	currencyLower := strings.ToLower(currency)
+
+	var minAmount int32
+	switch currencyLower {
+	case "usd", "eur":
+		minAmount = 50
+	case "gbp":
+		minAmount = 30
+	default:
+		minAmount = 50
+	}
+
+	if amountCents < minAmount {
+		return ErrAmountTooSmall
+	}
+
+	return nil
 }
