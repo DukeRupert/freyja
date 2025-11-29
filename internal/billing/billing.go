@@ -23,7 +23,7 @@ type Provider interface {
 
 	// CancelPaymentIntent cancels a payment intent that hasn't been confirmed.
 	// Required for MVP to clean up abandoned checkouts.
-	CancelPaymentIntent(ctx context.Context, paymentIntentID string) error
+	CancelPaymentIntent(ctx context.Context, paymentIntentID string, tenantID string) error
 
 	// VerifyWebhookSignature verifies that a webhook request is authentic.
 	// Required for MVP to process async payment confirmations.
@@ -192,6 +192,10 @@ type GetPaymentIntentParams struct {
 	// PaymentIntentID is the Stripe payment intent ID
 	PaymentIntentID string
 
+	// TenantID is required for multi-tenant isolation
+	// Must match the tenant_id in payment intent metadata
+	TenantID string
+
 	// Expand specifies related objects to include in response
 	// Example: []string{"latest_charge", "customer"}
 	Expand []string
@@ -202,6 +206,10 @@ type GetPaymentIntentParams struct {
 type UpdatePaymentIntentParams struct {
 	// PaymentIntentID is the Stripe payment intent ID
 	PaymentIntentID string
+
+	// TenantID is required for multi-tenant isolation
+	// Must match the tenant_id in payment intent metadata
+	TenantID string
 
 	// AmountCents updates the amount (must be before confirmation)
 	AmountCents int32

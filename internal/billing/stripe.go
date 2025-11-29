@@ -80,6 +80,11 @@ func (s *StripeProvider) CreatePaymentIntent(ctx context.Context, params CreateP
 		return nil, err
 	}
 
+	// CRITICAL: Validate tenant_id is present for multi-tenant isolation
+	if params.Metadata == nil || params.Metadata["tenant_id"] == "" {
+		return nil, fmt.Errorf("tenant_id is required in metadata for multi-tenant isolation")
+	}
+
 	piParams := &stripe.PaymentIntentParams{
 		Amount:   stripe.Int64(int64(params.AmountCents)),
 		Currency: stripe.String(strings.ToLower(params.Currency)),
@@ -112,7 +117,18 @@ func (s *StripeProvider) CreatePaymentIntent(ctx context.Context, params CreateP
 		piParams.Metadata = params.Metadata
 	}
 
-	if params.EnableStripeTax && params.ShippingAddress != nil {
+	// Validate shipping address when Stripe Tax is enabled
+	if params.EnableStripeTax {
+		if params.ShippingAddress == nil {
+			return nil, fmt.Errorf("shipping address is required when EnableStripeTax is true")
+		}
+		if params.ShippingAddress.Country == "" {
+			return nil, fmt.Errorf("shipping address country is required for tax calculation")
+		}
+		if params.ShippingAddress.PostalCode == "" {
+			return nil, fmt.Errorf("shipping address postal code is required for tax calculation")
+		}
+
 		piParams.Shipping = &stripe.ShippingDetailsParams{
 			Address: &stripe.AddressParams{
 				Line1:      stripe.String(params.ShippingAddress.Line1),
@@ -139,13 +155,21 @@ func (s *StripeProvider) CreatePaymentIntent(ctx context.Context, params CreateP
 
 // GetPaymentIntent retrieves an existing payment intent.
 //
+// SECURITY: In multi-tenant systems, this method validates that the payment
+// intent belongs to the requesting tenant via metadata.tenant_id. Always
+// provide TenantID in GetPaymentIntentParams.
+//
 // This is called during checkout completion to verify payment succeeded
 // before creating an order in the database.
+//
+// By default, expands "latest_charge" to include charge details (tax breakdown).
+// Override by providing custom Expand values in params.
 //
 // Usage:
 //
 //	intent, err := provider.GetPaymentIntent(ctx, GetPaymentIntentParams{
 //	    PaymentIntentID: "pi_...",
+//	    TenantID: "tenant_123",
 //	})
 //	if err != nil {
 //	    return err
@@ -164,6 +188,11 @@ func (s *StripeProvider) CreatePaymentIntent(ctx context.Context, params CreateP
 func (s *StripeProvider) GetPaymentIntent(ctx context.Context, params GetPaymentIntentParams) (*PaymentIntent, error) {
 	if params.PaymentIntentID == "" {
 		return nil, fmt.Errorf("payment intent ID is required")
+	}
+
+	// CRITICAL: Validate tenant_id is provided for multi-tenant isolation
+	if params.TenantID == "" {
+		return nil, fmt.Errorf("tenant_id is required for multi-tenant isolation")
 	}
 
 	piParams := &stripe.PaymentIntentParams{}
@@ -185,10 +214,18 @@ func (s *StripeProvider) GetPaymentIntent(ctx context.Context, params GetPayment
 		return nil, wrapStripeError(err)
 	}
 
+	// CRITICAL: Verify the payment intent belongs to the requesting tenant
+	if stripePI.Metadata == nil || stripePI.Metadata["tenant_id"] != params.TenantID {
+		return nil, ErrPaymentIntentNotFound // Don't leak existence to other tenants
+	}
+
 	return buildPaymentIntent(stripePI), nil
 }
 
 // UpdatePaymentIntent updates a payment intent before confirmation.
+//
+// SECURITY: In multi-tenant systems, this method validates that the payment
+// intent belongs to the requesting tenant before allowing updates.
 //
 // Used when customer modifies cart during checkout (changes quantity, adds item).
 // Can only update payment intents that haven't been confirmed yet.
@@ -204,6 +241,21 @@ func (s *StripeProvider) UpdatePaymentIntent(ctx context.Context, params UpdateP
 		return nil, fmt.Errorf("payment intent ID is required")
 	}
 
+	// CRITICAL: Validate tenant_id is provided for multi-tenant isolation
+	if params.TenantID == "" {
+		return nil, fmt.Errorf("tenant_id is required for multi-tenant isolation")
+	}
+
+	// First, verify the payment intent belongs to the requesting tenant
+	_, err := s.GetPaymentIntent(ctx, GetPaymentIntentParams{
+		PaymentIntentID: params.PaymentIntentID,
+		TenantID:        params.TenantID,
+	})
+	if err != nil {
+		return nil, err // Returns ErrPaymentIntentNotFound if tenant mismatch
+	}
+
+	// Verified tenant ownership, safe to proceed with update
 	piParams := &stripe.PaymentIntentParams{}
 
 	if params.AmountCents > 0 {
@@ -229,10 +281,21 @@ func (s *StripeProvider) UpdatePaymentIntent(ctx context.Context, params UpdateP
 		return nil, wrapStripeError(err)
 	}
 
-	return buildPaymentIntent(stripePI), nil
+	// Build the updated payment intent, preserving tenant validation
+	updated := buildPaymentIntent(stripePI)
+
+	// Defensive: Ensure tenant_id still matches after update
+	if updated.Metadata["tenant_id"] != params.TenantID {
+		return nil, fmt.Errorf("tenant_id mismatch after update")
+	}
+
+	return updated, nil
 }
 
 // CancelPaymentIntent cancels a payment intent that hasn't been confirmed.
+//
+// SECURITY: In multi-tenant systems, this method validates that the payment
+// intent belongs to the requesting tenant before allowing cancellation.
 //
 // Used for:
 //   - Abandoned checkouts (cleanup via background job)
@@ -240,20 +303,36 @@ func (s *StripeProvider) UpdatePaymentIntent(ctx context.Context, params UpdateP
 //   - Cart expires during checkout
 //
 // Returns error if payment intent is already succeeded or canceled.
-func (s *StripeProvider) CancelPaymentIntent(ctx context.Context, paymentIntentID string) error {
+func (s *StripeProvider) CancelPaymentIntent(ctx context.Context, paymentIntentID string, tenantID string) error {
 	if paymentIntentID == "" {
 		return fmt.Errorf("payment intent ID is required")
 	}
 
+	// CRITICAL: Validate tenant_id is provided for multi-tenant isolation
+	if tenantID == "" {
+		return fmt.Errorf("tenant_id is required for multi-tenant isolation")
+	}
+
+	// Verify the payment intent belongs to the requesting tenant before canceling
+	_, err := s.GetPaymentIntent(ctx, GetPaymentIntentParams{
+		PaymentIntentID: paymentIntentID,
+		TenantID:        tenantID,
+	})
+	if err != nil {
+		return err // Returns ErrPaymentIntentNotFound if tenant mismatch
+	}
+
+	// Verified tenant ownership, safe to proceed with cancellation
 	cancelParams := &stripe.PaymentIntentCancelParams{}
 
-	_, err := paymentintent.Cancel(paymentIntentID, cancelParams)
+	_, err = paymentintent.Cancel(paymentIntentID, cancelParams)
 	if err != nil {
 		stripeErr, ok := err.(*stripe.Error)
 		if ok {
 			if stripeErr.Code == stripe.ErrorCodeResourceMissing {
 				return ErrPaymentIntentNotFound
 			}
+			// Idempotent: Already canceled is success
 			if stripeErr.Code == "payment_intent_unexpected_state" && strings.Contains(stripeErr.Msg, "canceled") {
 				return nil
 			}

@@ -98,11 +98,16 @@ func (m *MockProvider) UpdatePaymentIntent(ctx context.Context, params UpdatePay
 }
 
 // CancelPaymentIntent cancels a mock payment intent.
-func (m *MockProvider) CancelPaymentIntent(ctx context.Context, paymentIntentID string) error {
-	m.CallLog = append(m.CallLog, fmt.Sprintf("CancelPaymentIntent(%s)", paymentIntentID))
+func (m *MockProvider) CancelPaymentIntent(ctx context.Context, paymentIntentID string, tenantID string) error {
+	m.CallLog = append(m.CallLog, fmt.Sprintf("CancelPaymentIntent(%s, %s)", paymentIntentID, tenantID))
 
 	pi, exists := m.PaymentIntents[paymentIntentID]
 	if !exists {
+		return ErrPaymentIntentNotFound
+	}
+
+	// Validate tenant ownership
+	if pi.Metadata == nil || pi.Metadata["tenant_id"] != tenantID {
 		return ErrPaymentIntentNotFound
 	}
 
