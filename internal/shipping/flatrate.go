@@ -2,6 +2,7 @@ package shipping
 
 import (
 	"context"
+	"time"
 )
 
 // FlatRateProvider returns predefined flat-rate shipping options.
@@ -21,25 +22,38 @@ type FlatRate struct {
 
 // NewFlatRateProvider creates a new flat-rate shipping provider.
 func NewFlatRateProvider(rates []FlatRate) Provider {
-	panic("not implemented")
+	return &FlatRateProvider{rates: rates}
 }
 
 // GetRates converts flat rates to Rate objects.
 func (p *FlatRateProvider) GetRates(ctx context.Context, params RateParams) ([]Rate, error) {
-	panic("not implemented")
+	result := make([]Rate, len(p.rates))
+	for i, fr := range p.rates {
+		result[i] = Rate{
+			RateID:                fr.ServiceCode,
+			Carrier:               "Flat Rate",
+			ServiceName:           fr.ServiceName,
+			ServiceCode:           fr.ServiceCode,
+			CostCents:             fr.CostCents,
+			EstimatedDaysMin:      fr.DaysMin,
+			EstimatedDaysMax:      fr.DaysMax,
+			EstimatedDeliveryDate: time.Now().AddDate(0, 0, fr.DaysMax),
+		}
+	}
+	return result, nil
 }
 
 // CreateLabel is not supported for flat-rate provider.
 func (p *FlatRateProvider) CreateLabel(ctx context.Context, params LabelParams) (*Label, error) {
-	panic("not implemented")
+	return nil, ErrNotImplemented
 }
 
 // VoidLabel is not supported for flat-rate provider.
 func (p *FlatRateProvider) VoidLabel(ctx context.Context, labelID string) error {
-	panic("not implemented")
+	return ErrNotImplemented
 }
 
 // TrackShipment is not supported for flat-rate provider.
 func (p *FlatRateProvider) TrackShipment(ctx context.Context, trackingNumber string) (*TrackingInfo, error) {
-	panic("not implemented")
+	return nil, ErrNotImplemented
 }
