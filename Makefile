@@ -1,4 +1,4 @@
-.PHONY: help dev build run test clean migrate migrate-down migrate-status sqlc-gen docker-up docker-down
+.PHONY: help dev build run test clean migrate migrate-down migrate-status sqlc-gen docker-up docker-down css-build css-watch css-clean
 
 # Load environment variables from .env file
 ifneq (,$(wildcard ./.env))
@@ -15,7 +15,21 @@ help: ## Show this help message
 dev: ## Start development server with Air live reload
 	@air
 
-build: ## Build the application binary
+css-build: ## Build CSS with Tailwind
+	@echo "Building CSS..."
+	@./tailwind -i ./web/static/css/input.css -o ./web/static/css/output.css --minify
+	@echo "CSS build complete"
+
+css-watch: ## Watch and rebuild CSS on changes
+	@echo "Watching CSS files..."
+	@./tailwind -i ./web/static/css/input.css -o ./web/static/css/output.css --watch
+
+css-clean: ## Remove generated CSS file
+	@echo "Cleaning CSS..."
+	@rm -f web/static/css/output.css
+	@echo "CSS cleaned"
+
+build: css-build ## Build the application binary and CSS
 	@echo "Building application..."
 	@go build -o bin/server cmd/server/main.go
 	@echo "Build complete: bin/server"
@@ -35,7 +49,7 @@ test-coverage: ## Run tests with coverage report
 
 clean: ## Clean build artifacts and temporary files
 	@echo "Cleaning..."
-	@rm -rf bin/ tmp/ coverage.out coverage.html
+	@rm -rf bin/ tmp/ coverage.out coverage.html web/static/css/output.css
 	@echo "Clean complete"
 
 migrate: ## Run database migrations up

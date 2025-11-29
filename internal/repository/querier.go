@@ -19,6 +19,8 @@ type Querier interface {
 	CreateCart(ctx context.Context, arg CreateCartParams) (Cart, error)
 	// Create a new session
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
+	// Create a new user (retail account by default)
+	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	// Clean up expired sessions (for background job)
 	DeleteExpiredSessions(ctx context.Context) error
 	// Delete a session
@@ -57,16 +59,32 @@ type Querier interface {
 	GetSKUByID(ctx context.Context, id pgtype.UUID) (ProductSku, error)
 	// Get session by token
 	GetSessionByToken(ctx context.Context, token string) (Session, error)
+	// Get user by email within a tenant
+	GetUserByEmail(ctx context.Context, arg GetUserByEmailParams) (User, error)
+	// Get user by ID
+	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	// Get all white-label products for a specific customer
 	GetWhiteLabelProductsForCustomer(ctx context.Context, arg GetWhiteLabelProductsForCustomerParams) ([]Product, error)
 	// List all active products for a tenant with their primary image
 	ListActiveProducts(ctx context.Context, tenantID pgtype.UUID) ([]ListActiveProductsRow, error)
+	// List all users for a tenant (admin only)
+	ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error)
 	// Remove an item from cart
 	RemoveCartItem(ctx context.Context, arg RemoveCartItemParams) error
 	// Update quantity of a cart item
 	UpdateCartItemQuantity(ctx context.Context, arg UpdateCartItemQuantityParams) error
 	// Update session data and extend expiration
 	UpdateSessionData(ctx context.Context, arg UpdateSessionDataParams) error
+	// Update user password
+	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
+	// Update user profile information
+	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) error
+	// Update user status (active, suspended, closed)
+	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) error
+	// Update wholesale application status
+	UpdateWholesaleApplication(ctx context.Context, arg UpdateWholesaleApplicationParams) error
+	// Mark user email as verified
+	VerifyUserEmail(ctx context.Context, id pgtype.UUID) error
 }
 
 var _ Querier = (*Queries)(nil)

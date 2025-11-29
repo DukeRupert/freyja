@@ -11,6 +11,7 @@ import (
 	"github.com/dukerupert/freyja/internal"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/handler/storefront"
+	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/router"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/service"
@@ -72,6 +73,11 @@ func run() error {
 		return fmt.Errorf("failed to initialize cart service: %w", err)
 	}
 
+	userService, err := service.NewUserService(repo, cfg.TenantID)
+	if err != nil {
+		return fmt.Errorf("failed to initialize user service: %w", err)
+	}
+
 	// Load templates with renderer
 	logger.Info("Loading templates...")
 	renderer, err := handler.NewRenderer("web/templates")
@@ -88,14 +94,27 @@ func run() error {
 	updateCartItemHandler := storefront.NewUpdateCartItemHandler(cartService, renderer)
 	removeCartItemHandler := storefront.NewRemoveCartItemHandler(cartService, renderer)
 
+	// Auth handlers
+	signupHandler := storefront.NewSignupHandler(userService, renderer)
+	loginHandler := storefront.NewLoginHandler(userService, renderer)
+	logoutHandler := storefront.NewLogoutHandler(userService)
+
 	// Create router with global middleware
 	r := router.New(
 		router.Recovery(logger),
 		router.Logger(logger),
+		middleware.WithUser(userService),
 	)
 
 	// Static files
 	r.Static("/static/", "./web/static")
+
+	// Auth routes
+	r.Get("/signup", signupHandler.ServeHTTP)
+	r.Post("/signup", signupHandler.ServeHTTP)
+	r.Get("/login", loginHandler.ServeHTTP)
+	r.Post("/login", loginHandler.ServeHTTP)
+	r.Post("/logout", logoutHandler.ServeHTTP)
 
 	// Storefront routes
 	r.Get("/products", productListHandler.ServeHTTP)

@@ -3,6 +3,7 @@ package router
 import (
 	"net/http"
 	"slices"
+	"strings"
 )
 
 // Router wraps http.ServeMux with middleware chaining
@@ -89,10 +90,13 @@ func (r *Router) Group(middleware ...Middleware) *Router {
 // Static serves files from a directory under the given route prefix
 func (r *Router) Static(prefix, dir string) {
 	fileServer := http.FileServer(http.Dir(dir))
-	
+
+	// Ensure prefix doesn't end with slash for pattern matching
+	cleanPrefix := strings.TrimSuffix(prefix, "/")
+
 	// Strip the prefix before serving
-	handler := http.StripPrefix(prefix, fileServer)
-	
+	handler := http.StripPrefix(cleanPrefix, fileServer)
+
 	// Register with GET method and wildcard pattern
-	r.mux.Handle("GET "+prefix+"/{file...}", r.wrap(handler, nil))
+	r.mux.Handle("GET "+cleanPrefix+"/{file...}", r.wrap(handler, nil))
 }
