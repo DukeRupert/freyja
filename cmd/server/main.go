@@ -14,9 +14,10 @@ import (
 	"github.com/dukerupert/freyja/internal/handler/storefront"
 	"github.com/dukerupert/freyja/internal/handler/webhook"
 	"github.com/dukerupert/freyja/internal/middleware"
-	"github.com/dukerupert/freyja/internal/router"
 	"github.com/dukerupert/freyja/internal/repository"
+	"github.com/dukerupert/freyja/internal/router"
 	"github.com/dukerupert/freyja/internal/service"
+	"github.com/dukerupert/freyja/internal/shipping"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -116,8 +117,24 @@ func run() error {
 	}
 	logger.Info("Stripe billing provider initialized", "test_mode", stripeConfig.IsTestMode())
 
+	// Initialize shipping provider (flat rate for MVP)
+	logger.Info("Initializing shipping provider...")
+	shippingProvider := shipping.NewFlatRateProvider([]shipping.FlatRate{
+		{ServiceName: "Standard Shipping", ServiceCode: "standard", CostCents: 795, DaysMin: 5, DaysMax: 7},
+		{ServiceName: "Express Shipping", ServiceCode: "express", CostCents: 1495, DaysMin: 2, DaysMax: 3},
+	})
+	logger.Info("Shipping provider initialized")
+
+	// Initialize order service
+	logger.Info("Initializing order service...")
+	orderService, err := service.NewOrderService(repo, cfg.TenantID, billingProvider, shippingProvider)
+	if err != nil {
+		return fmt.Errorf("failed to initialize order service: %w", err)
+	}
+	logger.Info("Order service initialized")
+
 	// Initialize webhook handler
-	stripeWebhookHandler := webhook.NewStripeHandler(billingProvider, webhook.StripeWebhookConfig{
+	stripeWebhookHandler := webhook.NewStripeHandler(billingProvider, orderService, webhook.StripeWebhookConfig{
 		WebhookSecret: cfg.Stripe.WebhookSecret,
 		TenantID:      cfg.TenantID,
 	})

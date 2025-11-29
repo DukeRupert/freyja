@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -1252,12 +1251,4 @@ func (m *mockShippingProvider) TrackShipment(ctx context.Context, trackingNumber
 	return nil, shipping.ErrNotImplemented
 }
 
-// uuidToString converts pgtype.UUID to string (hex format)
-func uuidToString(u pgtype.UUID) string {
-	if !u.Valid {
-		return ""
-	}
-	// Format as UUID string: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-	b := u.Bytes
-	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
-}
+// uuidToString is now defined in order.go and shared between implementation and tests

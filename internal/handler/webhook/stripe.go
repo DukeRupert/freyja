@@ -1,19 +1,23 @@
 package webhook
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
 
 	"github.com/dukerupert/freyja/internal/billing"
+	"github.com/dukerupert/freyja/internal/service"
 	"github.com/stripe/stripe-go/v83"
 )
 
 // StripeHandler handles Stripe webhook events
 type StripeHandler struct {
-	provider billing.Provider
-	config   StripeWebhookConfig
+	provider     billing.Provider
+	orderService service.OrderService
+	config       StripeWebhookConfig
 }
 
 // StripeWebhookConfig contains configuration for Stripe webhook handling
@@ -27,10 +31,11 @@ type StripeWebhookConfig struct {
 }
 
 // NewStripeHandler creates a new Stripe webhook handler
-func NewStripeHandler(provider billing.Provider, config StripeWebhookConfig) *StripeHandler {
+func NewStripeHandler(provider billing.Provider, orderService service.OrderService, config StripeWebhookConfig) *StripeHandler {
 	return &StripeHandler{
-		provider: provider,
-		config:   config,
+		provider:     provider,
+		orderService: orderService,
+		config:       config,
 	}
 }
 
@@ -117,23 +122,8 @@ func (h *StripeHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePaymentIntentSucceeded processes successful payment events
+// Creates an order from a successful Stripe payment intent
 func (h *StripeHandler) handlePaymentIntentSucceeded(event stripe.Event) {
-	// TODO: Implement order creation logic
-	//
-	// Steps:
-	// 1. Parse payment intent from event data
-	// 2. Extract payment_intent_id from event
-	// 3. Use GetPaymentIntent to retrieve full details with tenant validation
-	// 4. Verify tenant_id matches expected tenant
-	// 5. Check if order already exists (idempotency)
-	// 6. Create order in database with:
-	//    - Order items from metadata
-	//    - Payment amount
-	//    - Customer info
-	//    - Mark as "paid"
-	// 7. Send order confirmation email
-	// 8. Trigger fulfillment workflow
-
 	var paymentIntent stripe.PaymentIntent
 	if err := json.Unmarshal(event.Data.Raw, &paymentIntent); err != nil {
 		log.Printf("Error parsing payment intent from webhook: %v", err)
@@ -145,7 +135,7 @@ func (h *StripeHandler) handlePaymentIntentSucceeded(event stripe.Event) {
 		paymentIntent.Amount,
 		paymentIntent.Currency)
 
-	// Extract metadata
+	// Extract metadata for logging
 	tenantID := paymentIntent.Metadata["tenant_id"]
 	cartID := paymentIntent.Metadata["cart_id"]
 	orderType := paymentIntent.Metadata["order_type"]
@@ -153,15 +143,40 @@ func (h *StripeHandler) handlePaymentIntentSucceeded(event stripe.Event) {
 	log.Printf("Creating order - tenant: %s, cart: %s, type: %s",
 		tenantID, cartID, orderType)
 
-	// IMPORTANT: Verify this payment intent belongs to our tenant
+	// Verify this payment intent belongs to our tenant
 	if tenantID != h.config.TenantID {
 		log.Printf("WARNING: Payment intent belongs to different tenant (expected: %s, got: %s)",
 			h.config.TenantID, tenantID)
 		return
 	}
 
-	// TODO: Call order service to create order
-	// orderService.CreateOrderFromPaymentIntent(ctx, paymentIntent.ID, tenantID)
+	// Create order from successful payment
+	ctx := context.Background()
+	order, err := h.orderService.CreateOrderFromPaymentIntent(ctx, paymentIntent.ID)
+	if err != nil {
+		// Check if this is an idempotency case (order already exists)
+		if errors.Is(err, service.ErrPaymentAlreadyProcessed) {
+			log.Printf("Order already exists for payment intent %s (idempotent retry)", paymentIntent.ID)
+			return
+		}
+
+		// Log error for investigation - this is a critical failure
+		log.Printf("CRITICAL: Failed to create order from payment %s: %v", paymentIntent.ID, err)
+
+		// TODO: Send alert to operations team
+		// TODO: Queue for manual review
+		return
+	}
+
+	log.Printf("Order created successfully: %s (payment: %s, total: %d %s)",
+		order.Order.OrderNumber,
+		paymentIntent.ID,
+		order.Order.TotalCents,
+		order.Order.Currency)
+
+	// TODO: Send order confirmation email to customer
+	// TODO: Trigger fulfillment workflow (send to warehouse system)
+	// TODO: Update analytics/reporting
 }
 
 // handlePaymentIntentFailed processes failed payment events
