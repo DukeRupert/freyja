@@ -9,8 +9,10 @@ import (
 	"os"
 
 	"github.com/dukerupert/freyja/internal"
+	"github.com/dukerupert/freyja/internal/billing"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/handler/storefront"
+	"github.com/dukerupert/freyja/internal/handler/webhook"
 	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/router"
 	"github.com/dukerupert/freyja/internal/repository"
@@ -99,6 +101,27 @@ func run() error {
 	loginHandler := storefront.NewLoginHandler(userService, renderer)
 	logoutHandler := storefront.NewLogoutHandler(userService)
 
+	// Initialize Stripe billing provider
+	logger.Info("Initializing Stripe billing provider...")
+	stripeConfig := billing.StripeConfig{
+		APIKey:          cfg.Stripe.SecretKey,
+		WebhookSecret:   cfg.Stripe.WebhookSecret,
+		EnableStripeTax: false, // Set to true if Stripe Tax is enabled
+		MaxRetries:      3,
+		TimeoutSeconds:  30,
+	}
+	billingProvider, err := billing.NewStripeProvider(stripeConfig)
+	if err != nil {
+		return fmt.Errorf("failed to initialize Stripe provider: %w", err)
+	}
+	logger.Info("Stripe billing provider initialized", "test_mode", stripeConfig.IsTestMode())
+
+	// Initialize webhook handler
+	stripeWebhookHandler := webhook.NewStripeHandler(billingProvider, webhook.StripeWebhookConfig{
+		WebhookSecret: cfg.Stripe.WebhookSecret,
+		TenantID:      cfg.TenantID,
+	})
+
 	// Create router with global middleware
 	r := router.New(
 		router.Recovery(logger),
@@ -123,6 +146,9 @@ func run() error {
 	r.Post("/cart/add", addToCartHandler.ServeHTTP)
 	r.Post("/cart/update", updateCartItemHandler.ServeHTTP)
 	r.Post("/cart/remove", removeCartItemHandler.ServeHTTP)
+
+	// Webhook routes (no authentication - Stripe handles signature verification)
+	r.Post("/webhooks/stripe", stripeWebhookHandler.HandleWebhook)
 
 	// Start server
 	addr := fmt.Sprintf(":%d", cfg.Port)
