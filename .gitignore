@@ -20,3 +20,6 @@ web/static/css/output.css
 # OS
 .DS_Store
 Thumbs.db
+
+# Tailwindcss binary
+tailwind
