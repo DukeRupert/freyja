@@ -11,6 +11,7 @@ import (
 	"github.com/dukerupert/freyja/internal"
 	"github.com/dukerupert/freyja/internal/billing"
 	"github.com/dukerupert/freyja/internal/handler"
+	"github.com/dukerupert/freyja/internal/handler/admin"
 	"github.com/dukerupert/freyja/internal/handler/storefront"
 	"github.com/dukerupert/freyja/internal/handler/webhook"
 	"github.com/dukerupert/freyja/internal/middleware"
@@ -139,6 +140,10 @@ func run() error {
 		TenantID:      cfg.TenantID,
 	})
 
+	// Initialize admin handlers
+	adminDashboardHandler := admin.NewDashboardHandler(repo, renderer, cfg.TenantID)
+	adminProductListHandler := admin.NewProductListHandler(repo, renderer, cfg.TenantID)
+
 	// Create router with global middleware
 	r := router.New(
 		router.Recovery(logger),
@@ -166,6 +171,11 @@ func run() error {
 
 	// Webhook routes (no authentication - Stripe handles signature verification)
 	r.Post("/webhooks/stripe", stripeWebhookHandler.HandleWebhook)
+
+	// Admin routes (require admin authentication)
+	adminRouter := r.Group(middleware.RequireAdmin)
+	adminRouter.Get("/admin", adminDashboardHandler.ServeHTTP)
+	adminRouter.Get("/admin/products", adminProductListHandler.ServeHTTP)
 
 	// Start server
 	addr := fmt.Sprintf(":%d", cfg.Port)

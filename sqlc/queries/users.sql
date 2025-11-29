@@ -86,3 +86,58 @@ WHERE id = $1;
 UPDATE users
 SET status = $2
 WHERE id = $1;
+
+-- Admin queries
+
+-- name: CountUsers :one
+-- Count total users for pagination
+SELECT COUNT(*)
+FROM users
+WHERE tenant_id = $1
+  AND status != 'closed';
+
+-- name: ListUsersByAccountType :many
+-- List users filtered by account type
+SELECT
+    id,
+    email,
+    email_verified,
+    account_type,
+    first_name,
+    last_name,
+    company_name,
+    status,
+    wholesale_application_status,
+    created_at
+FROM users
+WHERE tenant_id = $1
+  AND account_type = $2
+  AND status != 'closed'
+ORDER BY created_at DESC;
+
+-- name: ListWholesaleApplications :many
+-- List pending wholesale applications
+SELECT
+    id,
+    email,
+    first_name,
+    last_name,
+    company_name,
+    wholesale_application_status,
+    wholesale_application_notes,
+    created_at
+FROM users
+WHERE tenant_id = $1
+  AND wholesale_application_status = 'pending'
+ORDER BY created_at ASC;
+
+-- name: GetUserStats :one
+-- Get user statistics for dashboard
+SELECT
+    COUNT(*) as total_users,
+    COUNT(*) FILTER (WHERE account_type = 'retail') as retail_users,
+    COUNT(*) FILTER (WHERE account_type = 'wholesale') as wholesale_users,
+    COUNT(*) FILTER (WHERE wholesale_application_status = 'pending') as pending_applications
+FROM users
+WHERE tenant_id = $1
+  AND status != 'closed';

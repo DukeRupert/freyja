@@ -159,3 +159,84 @@ SET payment_id = $3,
     updated_at = NOW()
 WHERE tenant_id = $1
   AND id = $2;
+
+-- Admin queries
+
+-- name: ListOrders :many
+-- List all orders for admin with pagination
+SELECT
+    o.id,
+    o.tenant_id,
+    o.order_number,
+    o.order_type,
+    o.status,
+    o.total_cents,
+    o.currency,
+    o.created_at,
+    o.updated_at,
+    u.email as customer_email,
+    CONCAT(u.first_name, ' ', u.last_name) as customer_name,
+    sa.address_line1 as shipping_address_line1,
+    sa.city as shipping_city,
+    sa.state as shipping_state
+FROM orders o
+LEFT JOIN users u ON u.id = o.user_id
+LEFT JOIN addresses sa ON sa.id = o.shipping_address_id
+WHERE o.tenant_id = $1
+ORDER BY o.created_at DESC
+LIMIT $2 OFFSET $3;
+
+-- name: CountOrders :one
+-- Count total orders for pagination
+SELECT COUNT(*)
+FROM orders
+WHERE tenant_id = $1;
+
+-- name: ListOrdersByStatus :many
+-- List orders filtered by status
+SELECT
+    o.id,
+    o.tenant_id,
+    o.order_number,
+    o.order_type,
+    o.status,
+    o.total_cents,
+    o.currency,
+    o.created_at,
+    u.email as customer_email,
+    CONCAT(u.first_name, ' ', u.last_name) as customer_name
+FROM orders o
+LEFT JOIN users u ON u.id = o.user_id
+WHERE o.tenant_id = $1
+  AND o.status = $2
+ORDER BY o.created_at DESC;
+
+-- name: UpdateOrderStatus :exec
+-- Update order status
+UPDATE orders
+SET
+    status = $3,
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2;
+
+-- name: UpdateOrderFulfillmentStatus :exec
+-- Update order fulfillment status
+UPDATE orders
+SET
+    fulfillment_status = $3,
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2;
+
+-- name: GetOrderStats :one
+-- Get order statistics for dashboard
+SELECT
+    COUNT(*) as total_orders,
+    COUNT(*) FILTER (WHERE status = 'pending') as pending_orders,
+    COUNT(*) FILTER (WHERE status = 'processing') as processing_orders,
+    COUNT(*) FILTER (WHERE status = 'shipped') as shipped_orders,
+    COALESCE(SUM(total_cents), 0) as total_revenue_cents
+FROM orders
+WHERE tenant_id = $1
+  AND created_at >= $2;

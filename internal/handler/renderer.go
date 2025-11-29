@@ -3,6 +3,9 @@ package handler
 import (
 	"fmt"
 	"html/template"
+	"io"
+	"net/http"
+	"os"
 	"path/filepath"
 )
 
@@ -15,14 +18,21 @@ type Renderer struct {
 func NewRenderer(templatesDir string) (*Renderer, error) {
 	templates := make(map[string]*template.Template)
 
-	// Parse layout once as base template
+	// Parse storefront layout once as base template
 	layoutPattern := filepath.Join(templatesDir, "layout.html")
 	baseTmpl, err := template.New("base").Funcs(TemplateFuncs()).ParseFiles(layoutPattern)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse layout: %w", err)
 	}
 
-	// Get list of page templates
+	// Parse admin layout
+	adminLayoutPattern := filepath.Join(templatesDir, "admin", "layout.html")
+	adminBaseTmpl, err := template.New("admin_base").Funcs(TemplateFuncs()).ParseFiles(adminLayoutPattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse admin layout: %w", err)
+	}
+
+	// Get list of page templates (root level)
 	pages, err := filepath.Glob(filepath.Join(templatesDir, "*.html"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to glob templates: %w", err)
@@ -53,6 +63,36 @@ func NewRenderer(templatesDir string) (*Renderer, error) {
 		templates[pageName] = pageTmpl
 	}
 
+	// Get admin templates
+	adminPages, err := filepath.Glob(filepath.Join(templatesDir, "admin", "*.html"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to glob admin templates: %w", err)
+	}
+
+	for _, page := range adminPages {
+		// Skip admin layout itself
+		if filepath.Base(page) == "layout.html" {
+			continue
+		}
+
+		// Clone the admin base template
+		pageTmpl, err := adminBaseTmpl.Clone()
+		if err != nil {
+			return nil, fmt.Errorf("failed to clone template for %s: %w", page, err)
+		}
+
+		// Parse page-specific content into the clone
+		pageTmpl, err = pageTmpl.ParseFiles(page)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse page %s: %w", page, err)
+		}
+
+		// Store with "admin/pagename" as key
+		pageName := filepath.Base(page)
+		pageName = pageName[:len(pageName)-len(filepath.Ext(pageName))]
+		templates["admin/"+pageName] = pageTmpl
+	}
+
 	return &Renderer{
 		templates: templates,
 	}, nil
@@ -65,4 +105,29 @@ func (r *Renderer) Execute(name string) (*template.Template, error) {
 		return nil, fmt.Errorf("template %q not found", name)
 	}
 	return tmpl, nil
+}
+
+// Render is a convenience method that executes a template and writes to an io.Writer
+func (r *Renderer) Render(w io.Writer, name string, data interface{}) error {
+	tmpl, err := r.Execute(name)
+	if err != nil {
+		return err
+	}
+	return tmpl.Execute(w, data)
+}
+
+// RenderHTTP is a convenience method that renders to an http.ResponseWriter with error handling
+func (r *Renderer) RenderHTTP(w http.ResponseWriter, name string, data interface{}) {
+	tmpl, err := r.Execute(name)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "template error: %v\n", err)
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
+
+	if err := tmpl.Execute(w, data); err != nil {
+		fmt.Fprintf(os.Stderr, "render error: %v\n", err)
+		http.Error(w, "Failed to render template", http.StatusInternalServerError)
+		return
+	}
 }

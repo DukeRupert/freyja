@@ -11,6 +11,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countUsers = `-- name: CountUsers :one
+
+SELECT COUNT(*)
+FROM users
+WHERE tenant_id = $1
+  AND status != 'closed'
+`
+
+// Admin queries
+// Count total users for pagination
+func (q *Queries) CountUsers(ctx context.Context, tenantID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsers, tenantID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
     tenant_id,
@@ -151,6 +168,37 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	return i, err
 }
 
+const getUserStats = `-- name: GetUserStats :one
+SELECT
+    COUNT(*) as total_users,
+    COUNT(*) FILTER (WHERE account_type = 'retail') as retail_users,
+    COUNT(*) FILTER (WHERE account_type = 'wholesale') as wholesale_users,
+    COUNT(*) FILTER (WHERE wholesale_application_status = 'pending') as pending_applications
+FROM users
+WHERE tenant_id = $1
+  AND status != 'closed'
+`
+
+type GetUserStatsRow struct {
+	TotalUsers          int64 `json:"total_users"`
+	RetailUsers         int64 `json:"retail_users"`
+	WholesaleUsers      int64 `json:"wholesale_users"`
+	PendingApplications int64 `json:"pending_applications"`
+}
+
+// Get user statistics for dashboard
+func (q *Queries) GetUserStats(ctx context.Context, tenantID pgtype.UUID) (GetUserStatsRow, error) {
+	row := q.db.QueryRow(ctx, getUserStats, tenantID)
+	var i GetUserStatsRow
+	err := row.Scan(
+		&i.TotalUsers,
+		&i.RetailUsers,
+		&i.WholesaleUsers,
+		&i.PendingApplications,
+	)
+	return i, err
+}
+
 const listUsers = `-- name: ListUsers :many
 SELECT
     id,
@@ -209,6 +257,132 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUse
 			&i.CompanyName,
 			&i.Status,
 			&i.WholesaleApplicationStatus,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUsersByAccountType = `-- name: ListUsersByAccountType :many
+SELECT
+    id,
+    email,
+    email_verified,
+    account_type,
+    first_name,
+    last_name,
+    company_name,
+    status,
+    wholesale_application_status,
+    created_at
+FROM users
+WHERE tenant_id = $1
+  AND account_type = $2
+  AND status != 'closed'
+ORDER BY created_at DESC
+`
+
+type ListUsersByAccountTypeParams struct {
+	TenantID    pgtype.UUID `json:"tenant_id"`
+	AccountType string      `json:"account_type"`
+}
+
+type ListUsersByAccountTypeRow struct {
+	ID                         pgtype.UUID        `json:"id"`
+	Email                      string             `json:"email"`
+	EmailVerified              bool               `json:"email_verified"`
+	AccountType                string             `json:"account_type"`
+	FirstName                  pgtype.Text        `json:"first_name"`
+	LastName                   pgtype.Text        `json:"last_name"`
+	CompanyName                pgtype.Text        `json:"company_name"`
+	Status                     string             `json:"status"`
+	WholesaleApplicationStatus pgtype.Text        `json:"wholesale_application_status"`
+	CreatedAt                  pgtype.Timestamptz `json:"created_at"`
+}
+
+// List users filtered by account type
+func (q *Queries) ListUsersByAccountType(ctx context.Context, arg ListUsersByAccountTypeParams) ([]ListUsersByAccountTypeRow, error) {
+	rows, err := q.db.Query(ctx, listUsersByAccountType, arg.TenantID, arg.AccountType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUsersByAccountTypeRow{}
+	for rows.Next() {
+		var i ListUsersByAccountTypeRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.EmailVerified,
+			&i.AccountType,
+			&i.FirstName,
+			&i.LastName,
+			&i.CompanyName,
+			&i.Status,
+			&i.WholesaleApplicationStatus,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWholesaleApplications = `-- name: ListWholesaleApplications :many
+SELECT
+    id,
+    email,
+    first_name,
+    last_name,
+    company_name,
+    wholesale_application_status,
+    wholesale_application_notes,
+    created_at
+FROM users
+WHERE tenant_id = $1
+  AND wholesale_application_status = 'pending'
+ORDER BY created_at ASC
+`
+
+type ListWholesaleApplicationsRow struct {
+	ID                         pgtype.UUID        `json:"id"`
+	Email                      string             `json:"email"`
+	FirstName                  pgtype.Text        `json:"first_name"`
+	LastName                   pgtype.Text        `json:"last_name"`
+	CompanyName                pgtype.Text        `json:"company_name"`
+	WholesaleApplicationStatus pgtype.Text        `json:"wholesale_application_status"`
+	WholesaleApplicationNotes  pgtype.Text        `json:"wholesale_application_notes"`
+	CreatedAt                  pgtype.Timestamptz `json:"created_at"`
+}
+
+// List pending wholesale applications
+func (q *Queries) ListWholesaleApplications(ctx context.Context, tenantID pgtype.UUID) ([]ListWholesaleApplicationsRow, error) {
+	rows, err := q.db.Query(ctx, listWholesaleApplications, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWholesaleApplicationsRow{}
+	for rows.Next() {
+		var i ListWholesaleApplicationsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.FirstName,
+			&i.LastName,
+			&i.CompanyName,
+			&i.WholesaleApplicationStatus,
+			&i.WholesaleApplicationNotes,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

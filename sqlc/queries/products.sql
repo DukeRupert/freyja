@@ -148,3 +148,190 @@ FROM products p
 INNER JOIN products base ON base.id = p.base_product_id
 WHERE p.id = $1
   AND p.is_white_label = TRUE;
+
+-- Admin queries
+
+-- name: ListAllProducts :many
+-- List all products for admin (includes inactive and all visibility levels)
+SELECT
+    p.id,
+    p.tenant_id,
+    p.name,
+    p.slug,
+    p.short_description,
+    p.status,
+    p.visibility,
+    p.origin,
+    p.roast_level,
+    p.sort_order,
+    p.created_at,
+    p.updated_at,
+    pi.url as primary_image_url,
+    pi.alt_text as primary_image_alt
+FROM products p
+LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = TRUE
+WHERE p.tenant_id = $1
+ORDER BY p.created_at DESC;
+
+-- name: GetProductByID :one
+-- Get a single product by ID (admin - no status filter)
+SELECT *
+FROM products
+WHERE tenant_id = $1
+  AND id = $2
+LIMIT 1;
+
+-- name: CreateProduct :one
+-- Create a new product
+INSERT INTO products (
+    tenant_id,
+    name,
+    slug,
+    short_description,
+    description,
+    status,
+    visibility,
+    origin,
+    region,
+    producer,
+    process,
+    roast_level,
+    tasting_notes,
+    elevation_min,
+    elevation_max,
+    is_white_label,
+    base_product_id,
+    white_label_customer_id,
+    sort_order
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+)
+RETURNING *;
+
+-- name: UpdateProduct :one
+-- Update an existing product
+UPDATE products
+SET
+    name = $3,
+    slug = $4,
+    short_description = $5,
+    description = $6,
+    status = $7,
+    visibility = $8,
+    origin = $9,
+    region = $10,
+    producer = $11,
+    process = $12,
+    roast_level = $13,
+    tasting_notes = $14,
+    elevation_min = $15,
+    elevation_max = $16,
+    sort_order = $17,
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2
+RETURNING *;
+
+-- name: DeleteProduct :exec
+-- Soft delete a product (set status to 'archived')
+UPDATE products
+SET
+    status = 'archived',
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2;
+
+-- name: CreateProductSKU :one
+-- Create a new product SKU
+INSERT INTO product_skus (
+    tenant_id,
+    product_id,
+    sku,
+    weight_value,
+    weight_unit,
+    grind,
+    base_price_cents,
+    inventory_quantity,
+    inventory_policy,
+    low_stock_threshold,
+    is_active,
+    weight_grams,
+    requires_shipping
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+)
+RETURNING *;
+
+-- name: UpdateProductSKU :one
+-- Update an existing product SKU
+UPDATE product_skus
+SET
+    sku = $3,
+    weight_value = $4,
+    weight_unit = $5,
+    grind = $6,
+    base_price_cents = $7,
+    inventory_quantity = $8,
+    inventory_policy = $9,
+    low_stock_threshold = $10,
+    is_active = $11,
+    weight_grams = $12,
+    requires_shipping = $13,
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2
+RETURNING *;
+
+-- name: DeleteProductSKU :exec
+-- Soft delete a product SKU (set is_active to false)
+UPDATE product_skus
+SET
+    is_active = FALSE,
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2;
+
+-- name: CreateProductImage :one
+-- Create a new product image
+INSERT INTO product_images (
+    tenant_id,
+    product_id,
+    url,
+    alt_text,
+    width,
+    height,
+    file_size,
+    sort_order,
+    is_primary
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9
+)
+RETURNING *;
+
+-- name: UpdateProductImage :one
+-- Update an existing product image
+UPDATE product_images
+SET
+    url = $3,
+    alt_text = $4,
+    width = $5,
+    height = $6,
+    file_size = $7,
+    sort_order = $8,
+    is_primary = $9
+WHERE tenant_id = $1
+  AND id = $2
+RETURNING *;
+
+-- name: DeleteProductImage :exec
+-- Delete a product image
+DELETE FROM product_images
+WHERE tenant_id = $1
+  AND id = $2;
+
+-- name: SetPrimaryImage :exec
+-- Set a product image as primary (and unset others)
+UPDATE product_images pi
+SET is_primary = (pi.id = $2)
+WHERE pi.tenant_id = $1
+  AND pi.product_id = (SELECT product_id FROM product_images WHERE id = $2);

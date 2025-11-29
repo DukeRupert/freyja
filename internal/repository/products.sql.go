@@ -11,6 +11,302 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createProduct = `-- name: CreateProduct :one
+INSERT INTO products (
+    tenant_id,
+    name,
+    slug,
+    short_description,
+    description,
+    status,
+    visibility,
+    origin,
+    region,
+    producer,
+    process,
+    roast_level,
+    tasting_notes,
+    elevation_min,
+    elevation_max,
+    is_white_label,
+    base_product_id,
+    white_label_customer_id,
+    sort_order
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+)
+RETURNING id, tenant_id, name, slug, description, short_description, origin, region, producer, process, roast_level, elevation_min, elevation_max, variety, harvest_year, tasting_notes, status, visibility, meta_title, meta_description, sort_order, created_at, updated_at, is_white_label, base_product_id, white_label_customer_id
+`
+
+type CreateProductParams struct {
+	TenantID             pgtype.UUID `json:"tenant_id"`
+	Name                 string      `json:"name"`
+	Slug                 string      `json:"slug"`
+	ShortDescription     pgtype.Text `json:"short_description"`
+	Description          pgtype.Text `json:"description"`
+	Status               string      `json:"status"`
+	Visibility           string      `json:"visibility"`
+	Origin               pgtype.Text `json:"origin"`
+	Region               pgtype.Text `json:"region"`
+	Producer             pgtype.Text `json:"producer"`
+	Process              pgtype.Text `json:"process"`
+	RoastLevel           pgtype.Text `json:"roast_level"`
+	TastingNotes         []string    `json:"tasting_notes"`
+	ElevationMin         pgtype.Int4 `json:"elevation_min"`
+	ElevationMax         pgtype.Int4 `json:"elevation_max"`
+	IsWhiteLabel         bool        `json:"is_white_label"`
+	BaseProductID        pgtype.UUID `json:"base_product_id"`
+	WhiteLabelCustomerID pgtype.UUID `json:"white_label_customer_id"`
+	SortOrder            int32       `json:"sort_order"`
+}
+
+// Create a new product
+func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (Product, error) {
+	row := q.db.QueryRow(ctx, createProduct,
+		arg.TenantID,
+		arg.Name,
+		arg.Slug,
+		arg.ShortDescription,
+		arg.Description,
+		arg.Status,
+		arg.Visibility,
+		arg.Origin,
+		arg.Region,
+		arg.Producer,
+		arg.Process,
+		arg.RoastLevel,
+		arg.TastingNotes,
+		arg.ElevationMin,
+		arg.ElevationMax,
+		arg.IsWhiteLabel,
+		arg.BaseProductID,
+		arg.WhiteLabelCustomerID,
+		arg.SortOrder,
+	)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.ShortDescription,
+		&i.Origin,
+		&i.Region,
+		&i.Producer,
+		&i.Process,
+		&i.RoastLevel,
+		&i.ElevationMin,
+		&i.ElevationMax,
+		&i.Variety,
+		&i.HarvestYear,
+		&i.TastingNotes,
+		&i.Status,
+		&i.Visibility,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsWhiteLabel,
+		&i.BaseProductID,
+		&i.WhiteLabelCustomerID,
+	)
+	return i, err
+}
+
+const createProductImage = `-- name: CreateProductImage :one
+INSERT INTO product_images (
+    tenant_id,
+    product_id,
+    url,
+    alt_text,
+    width,
+    height,
+    file_size,
+    sort_order,
+    is_primary
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9
+)
+RETURNING id, tenant_id, product_id, url, alt_text, width, height, file_size, sort_order, is_primary, created_at
+`
+
+type CreateProductImageParams struct {
+	TenantID  pgtype.UUID `json:"tenant_id"`
+	ProductID pgtype.UUID `json:"product_id"`
+	Url       string      `json:"url"`
+	AltText   pgtype.Text `json:"alt_text"`
+	Width     pgtype.Int4 `json:"width"`
+	Height    pgtype.Int4 `json:"height"`
+	FileSize  pgtype.Int4 `json:"file_size"`
+	SortOrder int32       `json:"sort_order"`
+	IsPrimary bool        `json:"is_primary"`
+}
+
+// Create a new product image
+func (q *Queries) CreateProductImage(ctx context.Context, arg CreateProductImageParams) (ProductImage, error) {
+	row := q.db.QueryRow(ctx, createProductImage,
+		arg.TenantID,
+		arg.ProductID,
+		arg.Url,
+		arg.AltText,
+		arg.Width,
+		arg.Height,
+		arg.FileSize,
+		arg.SortOrder,
+		arg.IsPrimary,
+	)
+	var i ProductImage
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.ProductID,
+		&i.Url,
+		&i.AltText,
+		&i.Width,
+		&i.Height,
+		&i.FileSize,
+		&i.SortOrder,
+		&i.IsPrimary,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createProductSKU = `-- name: CreateProductSKU :one
+INSERT INTO product_skus (
+    tenant_id,
+    product_id,
+    sku,
+    weight_value,
+    weight_unit,
+    grind,
+    base_price_cents,
+    inventory_quantity,
+    inventory_policy,
+    low_stock_threshold,
+    is_active,
+    weight_grams,
+    requires_shipping
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+)
+RETURNING id, tenant_id, product_id, sku, weight_value, weight_unit, grind, base_price_cents, inventory_quantity, inventory_policy, low_stock_threshold, is_active, weight_grams, requires_shipping, created_at, updated_at
+`
+
+type CreateProductSKUParams struct {
+	TenantID          pgtype.UUID    `json:"tenant_id"`
+	ProductID         pgtype.UUID    `json:"product_id"`
+	Sku               string         `json:"sku"`
+	WeightValue       pgtype.Numeric `json:"weight_value"`
+	WeightUnit        string         `json:"weight_unit"`
+	Grind             string         `json:"grind"`
+	BasePriceCents    int32          `json:"base_price_cents"`
+	InventoryQuantity int32          `json:"inventory_quantity"`
+	InventoryPolicy   string         `json:"inventory_policy"`
+	LowStockThreshold pgtype.Int4    `json:"low_stock_threshold"`
+	IsActive          bool           `json:"is_active"`
+	WeightGrams       pgtype.Int4    `json:"weight_grams"`
+	RequiresShipping  bool           `json:"requires_shipping"`
+}
+
+// Create a new product SKU
+func (q *Queries) CreateProductSKU(ctx context.Context, arg CreateProductSKUParams) (ProductSku, error) {
+	row := q.db.QueryRow(ctx, createProductSKU,
+		arg.TenantID,
+		arg.ProductID,
+		arg.Sku,
+		arg.WeightValue,
+		arg.WeightUnit,
+		arg.Grind,
+		arg.BasePriceCents,
+		arg.InventoryQuantity,
+		arg.InventoryPolicy,
+		arg.LowStockThreshold,
+		arg.IsActive,
+		arg.WeightGrams,
+		arg.RequiresShipping,
+	)
+	var i ProductSku
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.ProductID,
+		&i.Sku,
+		&i.WeightValue,
+		&i.WeightUnit,
+		&i.Grind,
+		&i.BasePriceCents,
+		&i.InventoryQuantity,
+		&i.InventoryPolicy,
+		&i.LowStockThreshold,
+		&i.IsActive,
+		&i.WeightGrams,
+		&i.RequiresShipping,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteProduct = `-- name: DeleteProduct :exec
+UPDATE products
+SET
+    status = 'archived',
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2
+`
+
+type DeleteProductParams struct {
+	TenantID pgtype.UUID `json:"tenant_id"`
+	ID       pgtype.UUID `json:"id"`
+}
+
+// Soft delete a product (set status to 'archived')
+func (q *Queries) DeleteProduct(ctx context.Context, arg DeleteProductParams) error {
+	_, err := q.db.Exec(ctx, deleteProduct, arg.TenantID, arg.ID)
+	return err
+}
+
+const deleteProductImage = `-- name: DeleteProductImage :exec
+DELETE FROM product_images
+WHERE tenant_id = $1
+  AND id = $2
+`
+
+type DeleteProductImageParams struct {
+	TenantID pgtype.UUID `json:"tenant_id"`
+	ID       pgtype.UUID `json:"id"`
+}
+
+// Delete a product image
+func (q *Queries) DeleteProductImage(ctx context.Context, arg DeleteProductImageParams) error {
+	_, err := q.db.Exec(ctx, deleteProductImage, arg.TenantID, arg.ID)
+	return err
+}
+
+const deleteProductSKU = `-- name: DeleteProductSKU :exec
+UPDATE product_skus
+SET
+    is_active = FALSE,
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2
+`
+
+type DeleteProductSKUParams struct {
+	TenantID pgtype.UUID `json:"tenant_id"`
+	ID       pgtype.UUID `json:"id"`
+}
+
+// Soft delete a product SKU (set is_active to false)
+func (q *Queries) DeleteProductSKU(ctx context.Context, arg DeleteProductSKUParams) error {
+	_, err := q.db.Exec(ctx, deleteProductSKU, arg.TenantID, arg.ID)
+	return err
+}
+
 const getBaseProductForWhiteLabel = `-- name: GetBaseProductForWhiteLabel :one
 SELECT base.id, base.tenant_id, base.name, base.slug, base.description, base.short_description, base.origin, base.region, base.producer, base.process, base.roast_level, base.elevation_min, base.elevation_max, base.variety, base.harvest_year, base.tasting_notes, base.status, base.visibility, base.meta_title, base.meta_description, base.sort_order, base.created_at, base.updated_at, base.is_white_label, base.base_product_id, base.white_label_customer_id
 FROM products p
@@ -89,6 +385,54 @@ func (q *Queries) GetPrimaryImage(ctx context.Context, productID pgtype.UUID) (P
 		&i.SortOrder,
 		&i.IsPrimary,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getProductByID = `-- name: GetProductByID :one
+SELECT id, tenant_id, name, slug, description, short_description, origin, region, producer, process, roast_level, elevation_min, elevation_max, variety, harvest_year, tasting_notes, status, visibility, meta_title, meta_description, sort_order, created_at, updated_at, is_white_label, base_product_id, white_label_customer_id
+FROM products
+WHERE tenant_id = $1
+  AND id = $2
+LIMIT 1
+`
+
+type GetProductByIDParams struct {
+	TenantID pgtype.UUID `json:"tenant_id"`
+	ID       pgtype.UUID `json:"id"`
+}
+
+// Get a single product by ID (admin - no status filter)
+func (q *Queries) GetProductByID(ctx context.Context, arg GetProductByIDParams) (Product, error) {
+	row := q.db.QueryRow(ctx, getProductByID, arg.TenantID, arg.ID)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.ShortDescription,
+		&i.Origin,
+		&i.Region,
+		&i.Producer,
+		&i.Process,
+		&i.RoastLevel,
+		&i.ElevationMin,
+		&i.ElevationMax,
+		&i.Variety,
+		&i.HarvestYear,
+		&i.TastingNotes,
+		&i.Status,
+		&i.Visibility,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsWhiteLabel,
+		&i.BaseProductID,
+		&i.WhiteLabelCustomerID,
 	)
 	return i, err
 }
@@ -504,4 +848,328 @@ func (q *Queries) ListActiveProducts(ctx context.Context, tenantID pgtype.UUID) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const listAllProducts = `-- name: ListAllProducts :many
+
+SELECT
+    p.id,
+    p.tenant_id,
+    p.name,
+    p.slug,
+    p.short_description,
+    p.status,
+    p.visibility,
+    p.origin,
+    p.roast_level,
+    p.sort_order,
+    p.created_at,
+    p.updated_at,
+    pi.url as primary_image_url,
+    pi.alt_text as primary_image_alt
+FROM products p
+LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = TRUE
+WHERE p.tenant_id = $1
+ORDER BY p.created_at DESC
+`
+
+type ListAllProductsRow struct {
+	ID               pgtype.UUID        `json:"id"`
+	TenantID         pgtype.UUID        `json:"tenant_id"`
+	Name             string             `json:"name"`
+	Slug             string             `json:"slug"`
+	ShortDescription pgtype.Text        `json:"short_description"`
+	Status           string             `json:"status"`
+	Visibility       string             `json:"visibility"`
+	Origin           pgtype.Text        `json:"origin"`
+	RoastLevel       pgtype.Text        `json:"roast_level"`
+	SortOrder        int32              `json:"sort_order"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	PrimaryImageUrl  pgtype.Text        `json:"primary_image_url"`
+	PrimaryImageAlt  pgtype.Text        `json:"primary_image_alt"`
+}
+
+// Admin queries
+// List all products for admin (includes inactive and all visibility levels)
+func (q *Queries) ListAllProducts(ctx context.Context, tenantID pgtype.UUID) ([]ListAllProductsRow, error) {
+	rows, err := q.db.Query(ctx, listAllProducts, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAllProductsRow{}
+	for rows.Next() {
+		var i ListAllProductsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Name,
+			&i.Slug,
+			&i.ShortDescription,
+			&i.Status,
+			&i.Visibility,
+			&i.Origin,
+			&i.RoastLevel,
+			&i.SortOrder,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.PrimaryImageUrl,
+			&i.PrimaryImageAlt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setPrimaryImage = `-- name: SetPrimaryImage :exec
+UPDATE product_images pi
+SET is_primary = (pi.id = $2)
+WHERE pi.tenant_id = $1
+  AND pi.product_id = (SELECT product_id FROM product_images WHERE id = $2)
+`
+
+type SetPrimaryImageParams struct {
+	TenantID pgtype.UUID `json:"tenant_id"`
+	ID       pgtype.UUID `json:"id"`
+}
+
+// Set a product image as primary (and unset others)
+func (q *Queries) SetPrimaryImage(ctx context.Context, arg SetPrimaryImageParams) error {
+	_, err := q.db.Exec(ctx, setPrimaryImage, arg.TenantID, arg.ID)
+	return err
+}
+
+const updateProduct = `-- name: UpdateProduct :one
+UPDATE products
+SET
+    name = $3,
+    slug = $4,
+    short_description = $5,
+    description = $6,
+    status = $7,
+    visibility = $8,
+    origin = $9,
+    region = $10,
+    producer = $11,
+    process = $12,
+    roast_level = $13,
+    tasting_notes = $14,
+    elevation_min = $15,
+    elevation_max = $16,
+    sort_order = $17,
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2
+RETURNING id, tenant_id, name, slug, description, short_description, origin, region, producer, process, roast_level, elevation_min, elevation_max, variety, harvest_year, tasting_notes, status, visibility, meta_title, meta_description, sort_order, created_at, updated_at, is_white_label, base_product_id, white_label_customer_id
+`
+
+type UpdateProductParams struct {
+	TenantID         pgtype.UUID `json:"tenant_id"`
+	ID               pgtype.UUID `json:"id"`
+	Name             string      `json:"name"`
+	Slug             string      `json:"slug"`
+	ShortDescription pgtype.Text `json:"short_description"`
+	Description      pgtype.Text `json:"description"`
+	Status           string      `json:"status"`
+	Visibility       string      `json:"visibility"`
+	Origin           pgtype.Text `json:"origin"`
+	Region           pgtype.Text `json:"region"`
+	Producer         pgtype.Text `json:"producer"`
+	Process          pgtype.Text `json:"process"`
+	RoastLevel       pgtype.Text `json:"roast_level"`
+	TastingNotes     []string    `json:"tasting_notes"`
+	ElevationMin     pgtype.Int4 `json:"elevation_min"`
+	ElevationMax     pgtype.Int4 `json:"elevation_max"`
+	SortOrder        int32       `json:"sort_order"`
+}
+
+// Update an existing product
+func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) (Product, error) {
+	row := q.db.QueryRow(ctx, updateProduct,
+		arg.TenantID,
+		arg.ID,
+		arg.Name,
+		arg.Slug,
+		arg.ShortDescription,
+		arg.Description,
+		arg.Status,
+		arg.Visibility,
+		arg.Origin,
+		arg.Region,
+		arg.Producer,
+		arg.Process,
+		arg.RoastLevel,
+		arg.TastingNotes,
+		arg.ElevationMin,
+		arg.ElevationMax,
+		arg.SortOrder,
+	)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.ShortDescription,
+		&i.Origin,
+		&i.Region,
+		&i.Producer,
+		&i.Process,
+		&i.RoastLevel,
+		&i.ElevationMin,
+		&i.ElevationMax,
+		&i.Variety,
+		&i.HarvestYear,
+		&i.TastingNotes,
+		&i.Status,
+		&i.Visibility,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsWhiteLabel,
+		&i.BaseProductID,
+		&i.WhiteLabelCustomerID,
+	)
+	return i, err
+}
+
+const updateProductImage = `-- name: UpdateProductImage :one
+UPDATE product_images
+SET
+    url = $3,
+    alt_text = $4,
+    width = $5,
+    height = $6,
+    file_size = $7,
+    sort_order = $8,
+    is_primary = $9
+WHERE tenant_id = $1
+  AND id = $2
+RETURNING id, tenant_id, product_id, url, alt_text, width, height, file_size, sort_order, is_primary, created_at
+`
+
+type UpdateProductImageParams struct {
+	TenantID  pgtype.UUID `json:"tenant_id"`
+	ID        pgtype.UUID `json:"id"`
+	Url       string      `json:"url"`
+	AltText   pgtype.Text `json:"alt_text"`
+	Width     pgtype.Int4 `json:"width"`
+	Height    pgtype.Int4 `json:"height"`
+	FileSize  pgtype.Int4 `json:"file_size"`
+	SortOrder int32       `json:"sort_order"`
+	IsPrimary bool        `json:"is_primary"`
+}
+
+// Update an existing product image
+func (q *Queries) UpdateProductImage(ctx context.Context, arg UpdateProductImageParams) (ProductImage, error) {
+	row := q.db.QueryRow(ctx, updateProductImage,
+		arg.TenantID,
+		arg.ID,
+		arg.Url,
+		arg.AltText,
+		arg.Width,
+		arg.Height,
+		arg.FileSize,
+		arg.SortOrder,
+		arg.IsPrimary,
+	)
+	var i ProductImage
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.ProductID,
+		&i.Url,
+		&i.AltText,
+		&i.Width,
+		&i.Height,
+		&i.FileSize,
+		&i.SortOrder,
+		&i.IsPrimary,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateProductSKU = `-- name: UpdateProductSKU :one
+UPDATE product_skus
+SET
+    sku = $3,
+    weight_value = $4,
+    weight_unit = $5,
+    grind = $6,
+    base_price_cents = $7,
+    inventory_quantity = $8,
+    inventory_policy = $9,
+    low_stock_threshold = $10,
+    is_active = $11,
+    weight_grams = $12,
+    requires_shipping = $13,
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2
+RETURNING id, tenant_id, product_id, sku, weight_value, weight_unit, grind, base_price_cents, inventory_quantity, inventory_policy, low_stock_threshold, is_active, weight_grams, requires_shipping, created_at, updated_at
+`
+
+type UpdateProductSKUParams struct {
+	TenantID          pgtype.UUID    `json:"tenant_id"`
+	ID                pgtype.UUID    `json:"id"`
+	Sku               string         `json:"sku"`
+	WeightValue       pgtype.Numeric `json:"weight_value"`
+	WeightUnit        string         `json:"weight_unit"`
+	Grind             string         `json:"grind"`
+	BasePriceCents    int32          `json:"base_price_cents"`
+	InventoryQuantity int32          `json:"inventory_quantity"`
+	InventoryPolicy   string         `json:"inventory_policy"`
+	LowStockThreshold pgtype.Int4    `json:"low_stock_threshold"`
+	IsActive          bool           `json:"is_active"`
+	WeightGrams       pgtype.Int4    `json:"weight_grams"`
+	RequiresShipping  bool           `json:"requires_shipping"`
+}
+
+// Update an existing product SKU
+func (q *Queries) UpdateProductSKU(ctx context.Context, arg UpdateProductSKUParams) (ProductSku, error) {
+	row := q.db.QueryRow(ctx, updateProductSKU,
+		arg.TenantID,
+		arg.ID,
+		arg.Sku,
+		arg.WeightValue,
+		arg.WeightUnit,
+		arg.Grind,
+		arg.BasePriceCents,
+		arg.InventoryQuantity,
+		arg.InventoryPolicy,
+		arg.LowStockThreshold,
+		arg.IsActive,
+		arg.WeightGrams,
+		arg.RequiresShipping,
+	)
+	var i ProductSku
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.ProductID,
+		&i.Sku,
+		&i.WeightValue,
+		&i.WeightUnit,
+		&i.Grind,
+		&i.BasePriceCents,
+		&i.InventoryQuantity,
+		&i.InventoryPolicy,
+		&i.LowStockThreshold,
+		&i.IsActive,
+		&i.WeightGrams,
+		&i.RequiresShipping,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

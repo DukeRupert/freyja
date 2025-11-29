@@ -11,6 +11,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countOrders = `-- name: CountOrders :one
+SELECT COUNT(*)
+FROM orders
+WHERE tenant_id = $1
+`
+
+// Count total orders for pagination
+func (q *Queries) CountOrders(ctx context.Context, tenantID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countOrders, tenantID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAddress = `-- name: CreateAddress :one
 INSERT INTO addresses (
     tenant_id,
@@ -600,6 +614,45 @@ func (q *Queries) GetOrderItems(ctx context.Context, orderID pgtype.UUID) ([]Ord
 	return items, nil
 }
 
+const getOrderStats = `-- name: GetOrderStats :one
+SELECT
+    COUNT(*) as total_orders,
+    COUNT(*) FILTER (WHERE status = 'pending') as pending_orders,
+    COUNT(*) FILTER (WHERE status = 'processing') as processing_orders,
+    COUNT(*) FILTER (WHERE status = 'shipped') as shipped_orders,
+    COALESCE(SUM(total_cents), 0) as total_revenue_cents
+FROM orders
+WHERE tenant_id = $1
+  AND created_at >= $2
+`
+
+type GetOrderStatsParams struct {
+	TenantID  pgtype.UUID        `json:"tenant_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type GetOrderStatsRow struct {
+	TotalOrders       int64       `json:"total_orders"`
+	PendingOrders     int64       `json:"pending_orders"`
+	ProcessingOrders  int64       `json:"processing_orders"`
+	ShippedOrders     int64       `json:"shipped_orders"`
+	TotalRevenueCents interface{} `json:"total_revenue_cents"`
+}
+
+// Get order statistics for dashboard
+func (q *Queries) GetOrderStats(ctx context.Context, arg GetOrderStatsParams) (GetOrderStatsRow, error) {
+	row := q.db.QueryRow(ctx, getOrderStats, arg.TenantID, arg.CreatedAt)
+	var i GetOrderStatsRow
+	err := row.Scan(
+		&i.TotalOrders,
+		&i.PendingOrders,
+		&i.ProcessingOrders,
+		&i.ShippedOrders,
+		&i.TotalRevenueCents,
+	)
+	return i, err
+}
+
 const getPaymentByID = `-- name: GetPaymentByID :one
 SELECT id, tenant_id, billing_customer_id, provider, provider_payment_id, amount_cents, currency, status, payment_method_id, failure_code, failure_message, refunded_amount_cents, metadata, succeeded_at, failed_at, refunded_at, created_at, updated_at FROM payments
 WHERE id = $1
@@ -633,6 +686,160 @@ func (q *Queries) GetPaymentByID(ctx context.Context, id pgtype.UUID) (Payment, 
 	return i, err
 }
 
+const listOrders = `-- name: ListOrders :many
+
+SELECT
+    o.id,
+    o.tenant_id,
+    o.order_number,
+    o.order_type,
+    o.status,
+    o.total_cents,
+    o.currency,
+    o.created_at,
+    o.updated_at,
+    u.email as customer_email,
+    CONCAT(u.first_name, ' ', u.last_name) as customer_name,
+    sa.address_line1 as shipping_address_line1,
+    sa.city as shipping_city,
+    sa.state as shipping_state
+FROM orders o
+LEFT JOIN users u ON u.id = o.user_id
+LEFT JOIN addresses sa ON sa.id = o.shipping_address_id
+WHERE o.tenant_id = $1
+ORDER BY o.created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListOrdersParams struct {
+	TenantID pgtype.UUID `json:"tenant_id"`
+	Limit    int32       `json:"limit"`
+	Offset   int32       `json:"offset"`
+}
+
+type ListOrdersRow struct {
+	ID                   pgtype.UUID        `json:"id"`
+	TenantID             pgtype.UUID        `json:"tenant_id"`
+	OrderNumber          string             `json:"order_number"`
+	OrderType            string             `json:"order_type"`
+	Status               string             `json:"status"`
+	TotalCents           int32              `json:"total_cents"`
+	Currency             string             `json:"currency"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	CustomerEmail        pgtype.Text        `json:"customer_email"`
+	CustomerName         interface{}        `json:"customer_name"`
+	ShippingAddressLine1 pgtype.Text        `json:"shipping_address_line1"`
+	ShippingCity         pgtype.Text        `json:"shipping_city"`
+	ShippingState        pgtype.Text        `json:"shipping_state"`
+}
+
+// Admin queries
+// List all orders for admin with pagination
+func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]ListOrdersRow, error) {
+	rows, err := q.db.Query(ctx, listOrders, arg.TenantID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOrdersRow{}
+	for rows.Next() {
+		var i ListOrdersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.OrderNumber,
+			&i.OrderType,
+			&i.Status,
+			&i.TotalCents,
+			&i.Currency,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CustomerEmail,
+			&i.CustomerName,
+			&i.ShippingAddressLine1,
+			&i.ShippingCity,
+			&i.ShippingState,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrdersByStatus = `-- name: ListOrdersByStatus :many
+SELECT
+    o.id,
+    o.tenant_id,
+    o.order_number,
+    o.order_type,
+    o.status,
+    o.total_cents,
+    o.currency,
+    o.created_at,
+    u.email as customer_email,
+    CONCAT(u.first_name, ' ', u.last_name) as customer_name
+FROM orders o
+LEFT JOIN users u ON u.id = o.user_id
+WHERE o.tenant_id = $1
+  AND o.status = $2
+ORDER BY o.created_at DESC
+`
+
+type ListOrdersByStatusParams struct {
+	TenantID pgtype.UUID `json:"tenant_id"`
+	Status   string      `json:"status"`
+}
+
+type ListOrdersByStatusRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	TenantID      pgtype.UUID        `json:"tenant_id"`
+	OrderNumber   string             `json:"order_number"`
+	OrderType     string             `json:"order_type"`
+	Status        string             `json:"status"`
+	TotalCents    int32              `json:"total_cents"`
+	Currency      string             `json:"currency"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	CustomerEmail pgtype.Text        `json:"customer_email"`
+	CustomerName  interface{}        `json:"customer_name"`
+}
+
+// List orders filtered by status
+func (q *Queries) ListOrdersByStatus(ctx context.Context, arg ListOrdersByStatusParams) ([]ListOrdersByStatusRow, error) {
+	rows, err := q.db.Query(ctx, listOrdersByStatus, arg.TenantID, arg.Status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOrdersByStatusRow{}
+	for rows.Next() {
+		var i ListOrdersByStatusRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.OrderNumber,
+			&i.OrderType,
+			&i.Status,
+			&i.TotalCents,
+			&i.Currency,
+			&i.CreatedAt,
+			&i.CustomerEmail,
+			&i.CustomerName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateCartStatus = `-- name: UpdateCartStatus :exec
 
 UPDATE carts
@@ -656,6 +863,27 @@ func (q *Queries) UpdateCartStatus(ctx context.Context, arg UpdateCartStatusPara
 	return err
 }
 
+const updateOrderFulfillmentStatus = `-- name: UpdateOrderFulfillmentStatus :exec
+UPDATE orders
+SET
+    fulfillment_status = $3,
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2
+`
+
+type UpdateOrderFulfillmentStatusParams struct {
+	TenantID          pgtype.UUID `json:"tenant_id"`
+	ID                pgtype.UUID `json:"id"`
+	FulfillmentStatus string      `json:"fulfillment_status"`
+}
+
+// Update order fulfillment status
+func (q *Queries) UpdateOrderFulfillmentStatus(ctx context.Context, arg UpdateOrderFulfillmentStatusParams) error {
+	_, err := q.db.Exec(ctx, updateOrderFulfillmentStatus, arg.TenantID, arg.ID, arg.FulfillmentStatus)
+	return err
+}
+
 const updateOrderPaymentID = `-- name: UpdateOrderPaymentID :exec
 UPDATE orders
 SET payment_id = $3,
@@ -673,5 +901,26 @@ type UpdateOrderPaymentIDParams struct {
 // Links a payment to an order after both are created
 func (q *Queries) UpdateOrderPaymentID(ctx context.Context, arg UpdateOrderPaymentIDParams) error {
 	_, err := q.db.Exec(ctx, updateOrderPaymentID, arg.TenantID, arg.ID, arg.PaymentID)
+	return err
+}
+
+const updateOrderStatus = `-- name: UpdateOrderStatus :exec
+UPDATE orders
+SET
+    status = $3,
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2
+`
+
+type UpdateOrderStatusParams struct {
+	TenantID pgtype.UUID `json:"tenant_id"`
+	ID       pgtype.UUID `json:"id"`
+	Status   string      `json:"status"`
+}
+
+// Update order status
+func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) error {
+	_, err := q.db.Exec(ctx, updateOrderStatus, arg.TenantID, arg.ID, arg.Status)
 	return err
 }

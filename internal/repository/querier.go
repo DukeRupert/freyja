@@ -15,6 +15,11 @@ type Querier interface {
 	AddCartItem(ctx context.Context, arg AddCartItemParams) (CartItem, error)
 	// Remove all items from a cart
 	ClearCart(ctx context.Context, cartID pgtype.UUID) error
+	// Count total orders for pagination
+	CountOrders(ctx context.Context, tenantID pgtype.UUID) (int64, error)
+	// Admin queries
+	// Count total users for pagination
+	CountUsers(ctx context.Context, tenantID pgtype.UUID) (int64, error)
 	// Creates a new address record for shipping or billing
 	// Returns complete address with generated ID
 	CreateAddress(ctx context.Context, arg CreateAddressParams) (Address, error)
@@ -32,6 +37,12 @@ type Querier interface {
 	// Records a payment transaction linked to an order
 	// Includes Stripe payment intent ID for reconciliation
 	CreatePayment(ctx context.Context, arg CreatePaymentParams) (Payment, error)
+	// Create a new product
+	CreateProduct(ctx context.Context, arg CreateProductParams) (Product, error)
+	// Create a new product image
+	CreateProductImage(ctx context.Context, arg CreateProductImageParams) (ProductImage, error)
+	// Create a new product SKU
+	CreateProductSKU(ctx context.Context, arg CreateProductSKUParams) (ProductSku, error)
 	// Create a new session
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	// Create a new user (retail account by default)
@@ -41,6 +52,12 @@ type Querier interface {
 	DecrementSKUStock(ctx context.Context, arg DecrementSKUStockParams) error
 	// Clean up expired sessions (for background job)
 	DeleteExpiredSessions(ctx context.Context) error
+	// Soft delete a product (set status to 'archived')
+	DeleteProduct(ctx context.Context, arg DeleteProductParams) error
+	// Delete a product image
+	DeleteProductImage(ctx context.Context, arg DeleteProductImageParams) error
+	// Soft delete a product SKU (set is_active to false)
+	DeleteProductSKU(ctx context.Context, arg DeleteProductSKUParams) error
 	// Delete a session
 	DeleteSession(ctx context.Context, token string) error
 	// Retrieves a single address by ID
@@ -67,6 +84,8 @@ type Querier interface {
 	GetOrderByPaymentIntentID(ctx context.Context, arg GetOrderByPaymentIntentIDParams) (Order, error)
 	// Retrieves all line items for a specific order
 	GetOrderItems(ctx context.Context, orderID pgtype.UUID) ([]OrderItem, error)
+	// Get order statistics for dashboard
+	GetOrderStats(ctx context.Context, arg GetOrderStatsParams) (GetOrderStatsRow, error)
 	// Retrieves a single payment by ID
 	GetPaymentByID(ctx context.Context, id pgtype.UUID) (Payment, error)
 	// Get the price for a specific SKU on a price list
@@ -79,6 +98,8 @@ type Querier interface {
 	GetPricesForSKUs(ctx context.Context, arg GetPricesForSKUsParams) ([]GetPricesForSKUsRow, error)
 	// Get the primary image for a product
 	GetPrimaryImage(ctx context.Context, productID pgtype.UUID) (ProductImage, error)
+	// Get a single product by ID (admin - no status filter)
+	GetProductByID(ctx context.Context, arg GetProductByIDParams) (Product, error)
 	// Get a single product by slug with all details
 	GetProductBySlug(ctx context.Context, arg GetProductBySlugParams) (Product, error)
 	// Get all images for a product
@@ -95,22 +116,48 @@ type Querier interface {
 	GetUserByEmail(ctx context.Context, arg GetUserByEmailParams) (User, error)
 	// Get user by ID
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
+	// Get user statistics for dashboard
+	GetUserStats(ctx context.Context, tenantID pgtype.UUID) (GetUserStatsRow, error)
 	// Get all white-label products for a specific customer
 	GetWhiteLabelProductsForCustomer(ctx context.Context, arg GetWhiteLabelProductsForCustomerParams) ([]Product, error)
 	// List all active products for a tenant with their primary image
 	ListActiveProducts(ctx context.Context, tenantID pgtype.UUID) ([]ListActiveProductsRow, error)
+	// Admin queries
+	// List all products for admin (includes inactive and all visibility levels)
+	ListAllProducts(ctx context.Context, tenantID pgtype.UUID) ([]ListAllProductsRow, error)
+	// Admin queries
+	// List all orders for admin with pagination
+	ListOrders(ctx context.Context, arg ListOrdersParams) ([]ListOrdersRow, error)
+	// List orders filtered by status
+	ListOrdersByStatus(ctx context.Context, arg ListOrdersByStatusParams) ([]ListOrdersByStatusRow, error)
 	// List all users for a tenant (admin only)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error)
+	// List users filtered by account type
+	ListUsersByAccountType(ctx context.Context, arg ListUsersByAccountTypeParams) ([]ListUsersByAccountTypeRow, error)
+	// List pending wholesale applications
+	ListWholesaleApplications(ctx context.Context, tenantID pgtype.UUID) ([]ListWholesaleApplicationsRow, error)
 	// Remove an item from cart
 	RemoveCartItem(ctx context.Context, arg RemoveCartItemParams) error
+	// Set a product image as primary (and unset others)
+	SetPrimaryImage(ctx context.Context, arg SetPrimaryImageParams) error
 	// Update quantity of a cart item
 	UpdateCartItemQuantity(ctx context.Context, arg UpdateCartItemQuantityParams) error
 	// Ensures sufficient stock
 	// Marks cart as converted to order
 	// Prevents duplicate order creation from same cart
 	UpdateCartStatus(ctx context.Context, arg UpdateCartStatusParams) error
+	// Update order fulfillment status
+	UpdateOrderFulfillmentStatus(ctx context.Context, arg UpdateOrderFulfillmentStatusParams) error
 	// Links a payment to an order after both are created
 	UpdateOrderPaymentID(ctx context.Context, arg UpdateOrderPaymentIDParams) error
+	// Update order status
+	UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) error
+	// Update an existing product
+	UpdateProduct(ctx context.Context, arg UpdateProductParams) (Product, error)
+	// Update an existing product image
+	UpdateProductImage(ctx context.Context, arg UpdateProductImageParams) (ProductImage, error)
+	// Update an existing product SKU
+	UpdateProductSKU(ctx context.Context, arg UpdateProductSKUParams) (ProductSku, error)
 	// Update session data and extend expiration
 	UpdateSessionData(ctx context.Context, arg UpdateSessionDataParams) error
 	// Update user password
