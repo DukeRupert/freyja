@@ -143,6 +143,7 @@ func run() error {
 	// Initialize admin handlers
 	adminDashboardHandler := admin.NewDashboardHandler(repo, renderer, cfg.TenantID)
 	adminProductListHandler := admin.NewProductListHandler(repo, renderer, cfg.TenantID)
+	adminProductFormHandler := admin.NewProductFormHandler(repo, renderer, cfg.TenantID)
 
 	// Create router with global middleware
 	r := router.New(
@@ -176,6 +177,10 @@ func run() error {
 	adminRouter := r.Group(middleware.RequireAdmin)
 	adminRouter.Get("/admin", adminDashboardHandler.ServeHTTP)
 	adminRouter.Get("/admin/products", adminProductListHandler.ServeHTTP)
+	adminRouter.Get("/admin/products/new", adminProductFormHandler.ServeHTTP)
+	adminRouter.Post("/admin/products/new", adminProductFormHandler.ServeHTTP)
+	adminRouter.Get("/admin/products/{id}/edit", adminProductFormHandler.ServeHTTP)
+	adminRouter.Post("/admin/products/{id}/edit", adminProductFormHandler.ServeHTTP)
 
 	// Start server
 	addr := fmt.Sprintf(":%d", cfg.Port)
