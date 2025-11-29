@@ -8,10 +8,15 @@ type NoTaxCalculator struct{}
 
 // NewNoTaxCalculator creates a new no-tax calculator.
 func NewNoTaxCalculator() Calculator {
-	panic("not implemented")
+	return &NoTaxCalculator{}
 }
 
 // CalculateTax always returns zero tax.
 func (c *NoTaxCalculator) CalculateTax(ctx context.Context, params TaxParams) (*TaxResult, error) {
-	panic("not implemented")
+	return &TaxResult{
+		TotalTaxCents: 0,
+		Breakdown:     []TaxBreakdown{},
+		ProviderTxID:  "",
+		IsEstimate:    false,
+	}, nil
 }
