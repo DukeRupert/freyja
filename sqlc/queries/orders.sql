@@ -2,7 +2,7 @@
 -- Idempotency check: Returns existing order if payment intent was already processed
 -- This prevents duplicate order creation from webhook retries
 SELECT o.* FROM orders o
-INNER JOIN payments p ON p.order_id = o.id AND p.tenant_id = o.tenant_id
+INNER JOIN payments p ON p.id = o.payment_id AND p.tenant_id = o.tenant_id
 WHERE o.tenant_id = $1
   AND p.provider_payment_id = $2
 LIMIT 1;
@@ -133,3 +133,29 @@ SELECT * FROM orders
 WHERE tenant_id = $1
   AND order_number = $2
 LIMIT 1;
+
+-- name: GetOrderItems :many
+-- Retrieves all line items for a specific order
+SELECT * FROM order_items
+WHERE order_id = $1
+ORDER BY created_at ASC;
+
+-- name: GetAddressByID :one
+-- Retrieves a single address by ID
+SELECT * FROM addresses
+WHERE id = $1
+LIMIT 1;
+
+-- name: GetPaymentByID :one
+-- Retrieves a single payment by ID
+SELECT * FROM payments
+WHERE id = $1
+LIMIT 1;
+
+-- name: UpdateOrderPaymentID :exec
+-- Links a payment to an order after both are created
+UPDATE orders
+SET payment_id = $3,
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2;

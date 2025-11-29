@@ -43,6 +43,8 @@ type Querier interface {
 	DeleteExpiredSessions(ctx context.Context) error
 	// Delete a session
 	DeleteSession(ctx context.Context, token string) error
+	// Retrieves a single address by ID
+	GetAddressByID(ctx context.Context, id pgtype.UUID) (Address, error)
 	// Get the base product for a white-label product
 	GetBaseProductForWhiteLabel(ctx context.Context, id pgtype.UUID) (Product, error)
 	// Get cart by ID
@@ -63,6 +65,10 @@ type Querier interface {
 	// Idempotency check: Returns existing order if payment intent was already processed
 	// This prevents duplicate order creation from webhook retries
 	GetOrderByPaymentIntentID(ctx context.Context, arg GetOrderByPaymentIntentIDParams) (Order, error)
+	// Retrieves all line items for a specific order
+	GetOrderItems(ctx context.Context, orderID pgtype.UUID) ([]OrderItem, error)
+	// Retrieves a single payment by ID
+	GetPaymentByID(ctx context.Context, id pgtype.UUID) (Payment, error)
 	// Get the price for a specific SKU on a price list
 	GetPriceForSKU(ctx context.Context, arg GetPriceForSKUParams) (PriceListEntry, error)
 	// Get a price list by ID
@@ -103,6 +109,8 @@ type Querier interface {
 	// Marks cart as converted to order
 	// Prevents duplicate order creation from same cart
 	UpdateCartStatus(ctx context.Context, arg UpdateCartStatusParams) error
+	// Links a payment to an order after both are created
+	UpdateOrderPaymentID(ctx context.Context, arg UpdateOrderPaymentIDParams) error
 	// Update session data and extend expiration
 	UpdateSessionData(ctx context.Context, arg UpdateSessionDataParams) error
 	// Update user password

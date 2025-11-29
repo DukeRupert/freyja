@@ -370,6 +370,38 @@ func (q *Queries) DecrementSKUStock(ctx context.Context, arg DecrementSKUStockPa
 	return err
 }
 
+const getAddressByID = `-- name: GetAddressByID :one
+SELECT id, tenant_id, full_name, company, address_line1, address_line2, city, state, postal_code, country, phone, email, address_type, is_validated, validation_metadata, created_at, updated_at FROM addresses
+WHERE id = $1
+LIMIT 1
+`
+
+// Retrieves a single address by ID
+func (q *Queries) GetAddressByID(ctx context.Context, id pgtype.UUID) (Address, error) {
+	row := q.db.QueryRow(ctx, getAddressByID, id)
+	var i Address
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.FullName,
+		&i.Company,
+		&i.AddressLine1,
+		&i.AddressLine2,
+		&i.City,
+		&i.State,
+		&i.PostalCode,
+		&i.Country,
+		&i.Phone,
+		&i.Email,
+		&i.AddressType,
+		&i.IsValidated,
+		&i.ValidationMetadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getOrder = `-- name: GetOrder :one
 SELECT id, tenant_id, user_id, order_number, order_type, status, subtotal_cents, tax_cents, shipping_cents, discount_cents, total_cents, currency, payment_id, payment_status, shipping_address_id, billing_address_id, shipping_method, shipping_carrier, customer_notes, internal_notes, fulfillment_status, cart_id, subscription_id, metadata, paid_at, shipped_at, delivered_at, cancelled_at, created_at, updated_at FROM orders
 WHERE tenant_id = $1
@@ -475,7 +507,7 @@ func (q *Queries) GetOrderByNumber(ctx context.Context, arg GetOrderByNumberPara
 
 const getOrderByPaymentIntentID = `-- name: GetOrderByPaymentIntentID :one
 SELECT o.id, o.tenant_id, o.user_id, o.order_number, o.order_type, o.status, o.subtotal_cents, o.tax_cents, o.shipping_cents, o.discount_cents, o.total_cents, o.currency, o.payment_id, o.payment_status, o.shipping_address_id, o.billing_address_id, o.shipping_method, o.shipping_carrier, o.customer_notes, o.internal_notes, o.fulfillment_status, o.cart_id, o.subscription_id, o.metadata, o.paid_at, o.shipped_at, o.delivered_at, o.cancelled_at, o.created_at, o.updated_at FROM orders o
-INNER JOIN payments p ON p.order_id = o.id AND p.tenant_id = o.tenant_id
+INNER JOIN payments p ON p.id = o.payment_id AND p.tenant_id = o.tenant_id
 WHERE o.tenant_id = $1
   AND p.provider_payment_id = $2
 LIMIT 1
@@ -526,6 +558,81 @@ func (q *Queries) GetOrderByPaymentIntentID(ctx context.Context, arg GetOrderByP
 	return i, err
 }
 
+const getOrderItems = `-- name: GetOrderItems :many
+SELECT id, tenant_id, order_id, product_sku_id, product_name, sku, variant_description, quantity, unit_price_cents, total_price_cents, fulfillment_status, metadata, created_at, updated_at FROM order_items
+WHERE order_id = $1
+ORDER BY created_at ASC
+`
+
+// Retrieves all line items for a specific order
+func (q *Queries) GetOrderItems(ctx context.Context, orderID pgtype.UUID) ([]OrderItem, error) {
+	rows, err := q.db.Query(ctx, getOrderItems, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OrderItem{}
+	for rows.Next() {
+		var i OrderItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.OrderID,
+			&i.ProductSkuID,
+			&i.ProductName,
+			&i.Sku,
+			&i.VariantDescription,
+			&i.Quantity,
+			&i.UnitPriceCents,
+			&i.TotalPriceCents,
+			&i.FulfillmentStatus,
+			&i.Metadata,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPaymentByID = `-- name: GetPaymentByID :one
+SELECT id, tenant_id, billing_customer_id, provider, provider_payment_id, amount_cents, currency, status, payment_method_id, failure_code, failure_message, refunded_amount_cents, metadata, succeeded_at, failed_at, refunded_at, created_at, updated_at FROM payments
+WHERE id = $1
+LIMIT 1
+`
+
+// Retrieves a single payment by ID
+func (q *Queries) GetPaymentByID(ctx context.Context, id pgtype.UUID) (Payment, error) {
+	row := q.db.QueryRow(ctx, getPaymentByID, id)
+	var i Payment
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.BillingCustomerID,
+		&i.Provider,
+		&i.ProviderPaymentID,
+		&i.AmountCents,
+		&i.Currency,
+		&i.Status,
+		&i.PaymentMethodID,
+		&i.FailureCode,
+		&i.FailureMessage,
+		&i.RefundedAmountCents,
+		&i.Metadata,
+		&i.SucceededAt,
+		&i.FailedAt,
+		&i.RefundedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updateCartStatus = `-- name: UpdateCartStatus :exec
 
 UPDATE carts
@@ -546,5 +653,25 @@ type UpdateCartStatusParams struct {
 // Prevents duplicate order creation from same cart
 func (q *Queries) UpdateCartStatus(ctx context.Context, arg UpdateCartStatusParams) error {
 	_, err := q.db.Exec(ctx, updateCartStatus, arg.TenantID, arg.ID, arg.Status)
+	return err
+}
+
+const updateOrderPaymentID = `-- name: UpdateOrderPaymentID :exec
+UPDATE orders
+SET payment_id = $3,
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2
+`
+
+type UpdateOrderPaymentIDParams struct {
+	TenantID  pgtype.UUID `json:"tenant_id"`
+	ID        pgtype.UUID `json:"id"`
+	PaymentID pgtype.UUID `json:"payment_id"`
+}
+
+// Links a payment to an order after both are created
+func (q *Queries) UpdateOrderPaymentID(ctx context.Context, arg UpdateOrderPaymentIDParams) error {
+	_, err := q.db.Exec(ctx, updateOrderPaymentID, arg.TenantID, arg.ID, arg.PaymentID)
 	return err
 }
