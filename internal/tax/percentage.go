@@ -2,6 +2,7 @@ package tax
 
 import (
 	"context"
+	"math"
 )
 
 // PercentageCalculator calculates tax using a simple percentage rate.
@@ -11,10 +12,30 @@ type PercentageCalculator struct {
 
 // NewPercentageCalculator creates a new percentage-based tax calculator.
 func NewPercentageCalculator(rate float64) Calculator {
-	panic("not implemented")
+	return &PercentageCalculator{defaultRate: rate}
 }
 
 // CalculateTax computes tax on subtotal + shipping using the configured rate.
 func (c *PercentageCalculator) CalculateTax(ctx context.Context, params TaxParams) (*TaxResult, error) {
-	panic("not implemented")
+	subtotal := int32(0)
+	for _, item := range params.LineItems {
+		subtotal += item.TotalPrice
+	}
+
+	taxableAmount := subtotal + params.ShippingCents
+	taxAmount := int32(math.Round(float64(taxableAmount) * c.defaultRate))
+
+	return &TaxResult{
+		TotalTaxCents: taxAmount,
+		Breakdown: []TaxBreakdown{
+			{
+				Jurisdiction: "state",
+				Name:         "Default Sales Tax",
+				Rate:         c.defaultRate,
+				AmountCents:  taxAmount,
+			},
+		},
+		ProviderTxID: "",
+		IsEstimate:   false,
+	}, nil
 }
