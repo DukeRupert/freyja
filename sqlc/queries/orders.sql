@@ -240,3 +240,81 @@ SELECT
 FROM orders
 WHERE tenant_id = $1
   AND created_at >= $2;
+
+-- name: GetOrderWithDetails :one
+-- Get complete order details including addresses and payment info
+SELECT
+    o.id,
+    o.tenant_id,
+    o.order_number,
+    o.order_type,
+    o.status,
+    o.fulfillment_status,
+    o.subtotal_cents,
+    o.shipping_cents,
+    o.tax_cents,
+    o.total_cents,
+    o.currency,
+    o.customer_notes,
+    o.created_at,
+    o.updated_at,
+    u.email as customer_email,
+    u.first_name as customer_first_name,
+    u.last_name as customer_last_name,
+    sa.full_name as shipping_name,
+    sa.company as shipping_company,
+    sa.address_line1 as shipping_address_line1,
+    sa.address_line2 as shipping_address_line2,
+    sa.city as shipping_city,
+    sa.state as shipping_state,
+    sa.postal_code as shipping_postal_code,
+    sa.country as shipping_country,
+    sa.phone as shipping_phone,
+    ba.full_name as billing_name,
+    ba.address_line1 as billing_address_line1,
+    ba.address_line2 as billing_address_line2,
+    ba.city as billing_city,
+    ba.state as billing_state,
+    ba.postal_code as billing_postal_code,
+    ba.country as billing_country,
+    p.status as payment_status,
+    p.provider_payment_id
+FROM orders o
+LEFT JOIN users u ON u.id = o.user_id
+LEFT JOIN addresses sa ON sa.id = o.shipping_address_id
+LEFT JOIN addresses ba ON ba.id = o.billing_address_id
+LEFT JOIN payments p ON p.id = o.payment_id
+WHERE o.tenant_id = $1
+  AND o.id = $2
+LIMIT 1;
+
+-- name: CreateShipment :one
+-- Create a shipment record for an order
+INSERT INTO shipments (
+    tenant_id,
+    order_id,
+    carrier,
+    tracking_number,
+    shipping_method_id,
+    status
+) VALUES (
+    $1, $2, $3, $4, $5, 'pending'
+)
+RETURNING *;
+
+-- name: UpdateShipmentStatus :exec
+-- Update shipment status
+UPDATE shipments
+SET
+    status = $3,
+    shipped_at = CASE WHEN $3 = 'shipped' THEN NOW() ELSE shipped_at END,
+    delivered_at = CASE WHEN $3 = 'delivered' THEN NOW() ELSE delivered_at END,
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2;
+
+-- name: GetShipmentsByOrderID :many
+-- Get all shipments for an order
+SELECT * FROM shipments
+WHERE order_id = $1
+ORDER BY created_at DESC;

@@ -1,0 +1,232 @@
+{{define "title"}}Order {{.Order.OrderNumber}} - Admin{{end}}
+
+{{define "content"}}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+    <div class="sm:flex sm:items-center sm:justify-between">
+        <div>
+            <nav class="flex" aria-label="Breadcrumb">
+                <ol class="flex items-center space-x-4">
+                    <li>
+                        <a href="/admin/orders" class="text-gray-400 hover:text-gray-500">
+                            <span>Orders</span>
+                        </a>
+                    </li>
+                    <li>
+                        <div class="flex items-center">
+                            <svg class="h-5 w-5 flex-shrink-0 text-gray-300" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M5.555 17.776l8-16 .894.448-8 16-.894-.448z" />
+                            </svg>
+                            <span class="ml-4 text-sm font-medium text-gray-500">{{.Order.OrderNumber}}</span>
+                        </div>
+                    </li>
+                </ol>
+            </nav>
+            <h1 class="mt-2 text-2xl font-semibold text-gray-900">Order {{.Order.OrderNumber}}</h1>
+        </div>
+        <div class="mt-4 sm:mt-0 flex gap-3">
+            {{if eq .Order.Status "pending"}}
+            <form method="POST" action="/admin/orders/{{.Order.ID}}/status">
+                <input type="hidden" name="status" value="processing">
+                <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
+                    Mark Processing
+                </button>
+            </form>
+            {{end}}
+        </div>
+    </div>
+
+    <div class="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <!-- Main Content -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Order Items -->
+            <div class="bg-white shadow sm:rounded-lg">
+                <div class="px-4 py-5 sm:p-6">
+                    <h3 class="text-lg font-medium leading-6 text-gray-900">Order Items</h3>
+                    <div class="mt-4">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead>
+                                <tr>
+                                    <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                                    <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                                    <th class="text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
+                                    <th class="text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                                    <th class="text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                {{range .OrderItems}}
+                                <tr>
+                                    <td class="py-3 text-sm text-gray-900">
+                                        <div class="font-medium">{{.ProductName}}</div>
+                                        {{if .VariantDescription.Valid}}
+                                        <div class="text-gray-500 text-xs">{{.VariantDescription.String}}</div>
+                                        {{end}}
+                                    </td>
+                                    <td class="py-3 text-sm text-gray-500">{{.Sku}}</td>
+                                    <td class="py-3 text-sm text-gray-900 text-right">{{.Quantity}}</td>
+                                    <td class="py-3 text-sm text-gray-900 text-right">${{printf "%.2f" (div .UnitPriceCents 100.0)}}</td>
+                                    <td class="py-3 text-sm text-gray-900 text-right font-medium">${{printf "%.2f" (div .TotalPriceCents 100.0)}}</td>
+                                </tr>
+                                {{end}}
+                            </tbody>
+                            <tfoot class="border-t-2 border-gray-200">
+                                <tr>
+                                    <td colspan="4" class="py-2 text-sm text-gray-500 text-right">Subtotal</td>
+                                    <td class="py-2 text-sm text-gray-900 text-right">${{printf "%.2f" (div .Order.SubtotalCents 100.0)}}</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="4" class="py-2 text-sm text-gray-500 text-right">Shipping</td>
+                                    <td class="py-2 text-sm text-gray-900 text-right">${{printf "%.2f" (div .Order.ShippingCents 100.0)}}</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="4" class="py-2 text-sm text-gray-500 text-right">Tax</td>
+                                    <td class="py-2 text-sm text-gray-900 text-right">${{printf "%.2f" (div .Order.TaxCents 100.0)}}</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="4" class="py-2 text-base font-semibold text-gray-900 text-right">Total</td>
+                                    <td class="py-2 text-base font-semibold text-gray-900 text-right">${{printf "%.2f" (div .Order.TotalCents 100.0)}}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Shipment Info -->
+            <div class="bg-white shadow sm:rounded-lg">
+                <div class="px-4 py-5 sm:p-6">
+                    <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">Fulfillment</h3>
+
+                    {{if .Shipments}}
+                        {{range .Shipments}}
+                        <div class="border-t pt-4 first:border-0 first:pt-0">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-900">{{.Carrier}} - {{.TrackingNumber.String}}</p>
+                                    <p class="text-sm text-gray-500 mt-1">
+                                        Status: <span class="font-medium">{{.Status}}</span>
+                                    </p>
+                                    {{if .ShippedAt.Valid}}
+                                    <p class="text-sm text-gray-500">Shipped: {{.ShippedAt.Time.Format "Jan 2, 2006 3:04 PM"}}</p>
+                                    {{end}}
+                                    {{if .DeliveredAt.Valid}}
+                                    <p class="text-sm text-gray-500">Delivered: {{.DeliveredAt.Time.Format "Jan 2, 2006 3:04 PM"}}</p>
+                                    {{end}}
+                                </div>
+                            </div>
+                        </div>
+                        {{end}}
+                    {{else}}
+                        <div class="text-center py-6">
+                            <p class="text-sm text-gray-500 mb-4">No shipments created yet</p>
+                            <button onclick="document.getElementById('shipment-form').classList.toggle('hidden')" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
+                                Create Shipment
+                            </button>
+                        </div>
+
+                        <form id="shipment-form" method="POST" action="/admin/orders/{{.Order.ID}}/shipments" class="hidden mt-4 space-y-4">
+                            <div>
+                                <label for="carrier" class="block text-sm font-medium text-gray-700">Carrier</label>
+                                <input type="text" name="carrier" id="carrier" required placeholder="e.g., USPS, FedEx, UPS" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm">
+                            </div>
+                            <div>
+                                <label for="tracking_number" class="block text-sm font-medium text-gray-700">Tracking Number</label>
+                                <input type="text" name="tracking_number" id="tracking_number" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm">
+                            </div>
+                            <div class="flex gap-3">
+                                <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
+                                    Create Shipment
+                                </button>
+                                <button type="button" onclick="document.getElementById('shipment-form').classList.add('hidden')" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    {{end}}
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="space-y-6">
+            <!-- Customer Info -->
+            <div class="bg-white shadow sm:rounded-lg">
+                <div class="px-4 py-5 sm:p-6">
+                    <h3 class="text-lg font-medium leading-6 text-gray-900">Customer</h3>
+                    <dl class="mt-4 space-y-3">
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Name</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{.Order.CustomerFirstName.String}} {{.Order.CustomerLastName.String}}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Email</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{.Order.CustomerEmail.String}}</dd>
+                        </div>
+                    </dl>
+                </div>
+            </div>
+
+            <!-- Shipping Address -->
+            <div class="bg-white shadow sm:rounded-lg">
+                <div class="px-4 py-5 sm:p-6">
+                    <h3 class="text-lg font-medium leading-6 text-gray-900">Shipping Address</h3>
+                    <address class="mt-4 text-sm text-gray-900 not-italic">
+                        {{if .Order.ShippingName.Valid}}{{.Order.ShippingName.String}}<br>{{end}}
+                        {{if .Order.ShippingCompany.Valid}}{{.Order.ShippingCompany.String}}<br>{{end}}
+                        {{if .Order.ShippingAddressLine1.Valid}}{{.Order.ShippingAddressLine1.String}}<br>{{end}}
+                        {{if .Order.ShippingAddressLine2.Valid}}{{.Order.ShippingAddressLine2.String}}<br>{{end}}
+                        {{if .Order.ShippingCity.Valid}}{{.Order.ShippingCity.String}}, {{end}}
+                        {{if .Order.ShippingState.Valid}}{{.Order.ShippingState.String}} {{end}}
+                        {{if .Order.ShippingPostalCode.Valid}}{{.Order.ShippingPostalCode.String}}{{end}}<br>
+                        {{if .Order.ShippingCountry.Valid}}{{.Order.ShippingCountry.String}}{{end}}
+                        {{if .Order.ShippingPhone.Valid}}<br>{{.Order.ShippingPhone.String}}{{end}}
+                    </address>
+                </div>
+            </div>
+
+            <!-- Payment Info -->
+            <div class="bg-white shadow sm:rounded-lg">
+                <div class="px-4 py-5 sm:p-6">
+                    <h3 class="text-lg font-medium leading-6 text-gray-900">Payment</h3>
+                    <dl class="mt-4 space-y-3">
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Status</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{.Order.PaymentStatus.String}}</dd>
+                        </div>
+                        {{if .Order.ProviderPaymentID.Valid}}
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Payment ID</dt>
+                            <dd class="mt-1 text-sm text-gray-900 font-mono text-xs">{{.Order.ProviderPaymentID.String}}</dd>
+                        </div>
+                        {{end}}
+                    </dl>
+                </div>
+            </div>
+
+            <!-- Order Info -->
+            <div class="bg-white shadow sm:rounded-lg">
+                <div class="px-4 py-5 sm:p-6">
+                    <h3 class="text-lg font-medium leading-6 text-gray-900">Order Info</h3>
+                    <dl class="mt-4 space-y-3">
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Date</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{.Order.CreatedAt.Time.Format "Jan 2, 2006 3:04 PM"}}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Type</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{.Order.OrderType}}</dd>
+                        </div>
+                        {{if .Order.CustomerNotes.Valid}}
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Customer Notes</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{.Order.CustomerNotes.String}}</dd>
+                        </div>
+                        {{end}}
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{{end}}

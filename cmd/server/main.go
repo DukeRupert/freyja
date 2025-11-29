@@ -146,6 +146,10 @@ func run() error {
 	adminProductFormHandler := admin.NewProductFormHandler(repo, renderer, cfg.TenantID)
 	adminProductDetailHandler := admin.NewProductDetailHandler(repo, renderer, cfg.TenantID)
 	adminSKUFormHandler := admin.NewSKUFormHandler(repo, renderer, cfg.TenantID)
+	adminOrderListHandler := admin.NewOrderListHandler(repo, renderer, cfg.TenantID)
+	adminOrderDetailHandler := admin.NewOrderDetailHandler(repo, renderer, cfg.TenantID)
+	updateOrderStatusHandler := admin.NewUpdateOrderStatusHandler(repo, cfg.TenantID)
+	createShipmentHandler := admin.NewCreateShipmentHandler(repo, cfg.TenantID)
 
 	// Create router with global middleware
 	r := router.New(
@@ -178,6 +182,8 @@ func run() error {
 	// Admin routes (require admin authentication)
 	adminRouter := r.Group(middleware.RequireAdmin)
 	adminRouter.Get("/admin", adminDashboardHandler.ServeHTTP)
+
+	// Product routes
 	adminRouter.Get("/admin/products", adminProductListHandler.ServeHTTP)
 	adminRouter.Get("/admin/products/new", adminProductFormHandler.ServeHTTP)
 	adminRouter.Post("/admin/products/new", adminProductFormHandler.ServeHTTP)
@@ -188,6 +194,12 @@ func run() error {
 	adminRouter.Post("/admin/products/{product_id}/skus/new", adminSKUFormHandler.ServeHTTP)
 	adminRouter.Get("/admin/products/{product_id}/skus/{sku_id}/edit", adminSKUFormHandler.ServeHTTP)
 	adminRouter.Post("/admin/products/{product_id}/skus/{sku_id}/edit", adminSKUFormHandler.ServeHTTP)
+
+	// Order routes
+	adminRouter.Get("/admin/orders", adminOrderListHandler.ServeHTTP)
+	adminRouter.Get("/admin/orders/{id}", adminOrderDetailHandler.ServeHTTP)
+	adminRouter.Post("/admin/orders/{id}/status", updateOrderStatusHandler.ServeHTTP)
+	adminRouter.Post("/admin/orders/{id}/shipments", createShipmentHandler.ServeHTTP)
 
 	// Start server
 	addr := fmt.Sprintf(":%d", cfg.Port)

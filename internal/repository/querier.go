@@ -48,6 +48,8 @@ type Querier interface {
 	CreateProductSKU(ctx context.Context, arg CreateProductSKUParams) (ProductSku, error)
 	// Create a new session
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
+	// Create a shipment record for an order
+	CreateShipment(ctx context.Context, arg CreateShipmentParams) (Shipment, error)
 	// Create a new user (retail account by default)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	// Decrements inventory for a SKU after order placement
@@ -89,6 +91,8 @@ type Querier interface {
 	GetOrderItems(ctx context.Context, orderID pgtype.UUID) ([]OrderItem, error)
 	// Get order statistics for dashboard
 	GetOrderStats(ctx context.Context, arg GetOrderStatsParams) (GetOrderStatsRow, error)
+	// Get complete order details including addresses and payment info
+	GetOrderWithDetails(ctx context.Context, arg GetOrderWithDetailsParams) (GetOrderWithDetailsRow, error)
 	// Retrieves a single payment by ID
 	GetPaymentByID(ctx context.Context, id pgtype.UUID) (Payment, error)
 	// Get the price for a specific SKU on a price list
@@ -115,6 +119,8 @@ type Querier interface {
 	GetSKUByID(ctx context.Context, id pgtype.UUID) (ProductSku, error)
 	// Get session by token
 	GetSessionByToken(ctx context.Context, token string) (Session, error)
+	// Get all shipments for an order
+	GetShipmentsByOrderID(ctx context.Context, orderID pgtype.UUID) ([]Shipment, error)
 	// Get user by email within a tenant
 	GetUserByEmail(ctx context.Context, arg GetUserByEmailParams) (User, error)
 	// Get user by ID
@@ -167,6 +173,8 @@ type Querier interface {
 	UpdateProductSKU(ctx context.Context, arg UpdateProductSKUParams) (ProductSku, error)
 	// Update session data and extend expiration
 	UpdateSessionData(ctx context.Context, arg UpdateSessionDataParams) error
+	// Update shipment status
+	UpdateShipmentStatus(ctx context.Context, arg UpdateShipmentStatusParams) error
 	// Update user password
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	// Update user profile information

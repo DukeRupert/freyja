@@ -362,6 +362,70 @@ func (q *Queries) CreatePayment(ctx context.Context, arg CreatePaymentParams) (P
 	return i, err
 }
 
+const createShipment = `-- name: CreateShipment :one
+INSERT INTO shipments (
+    tenant_id,
+    order_id,
+    carrier,
+    tracking_number,
+    shipping_method_id,
+    status
+) VALUES (
+    $1, $2, $3, $4, $5, 'pending'
+)
+RETURNING id, tenant_id, order_id, shipment_number, shipping_method_id, carrier, service_name, tracking_number, tracking_url, status, shipping_cost_cents, label_cost_cents, weight_grams, length_cm, width_cm, height_cm, provider, provider_shipment_id, provider_label_id, label_url, metadata, label_created_at, shipped_at, delivered_at, failed_at, created_at, updated_at
+`
+
+type CreateShipmentParams struct {
+	TenantID         pgtype.UUID `json:"tenant_id"`
+	OrderID          pgtype.UUID `json:"order_id"`
+	Carrier          pgtype.Text `json:"carrier"`
+	TrackingNumber   pgtype.Text `json:"tracking_number"`
+	ShippingMethodID pgtype.UUID `json:"shipping_method_id"`
+}
+
+// Create a shipment record for an order
+func (q *Queries) CreateShipment(ctx context.Context, arg CreateShipmentParams) (Shipment, error) {
+	row := q.db.QueryRow(ctx, createShipment,
+		arg.TenantID,
+		arg.OrderID,
+		arg.Carrier,
+		arg.TrackingNumber,
+		arg.ShippingMethodID,
+	)
+	var i Shipment
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.OrderID,
+		&i.ShipmentNumber,
+		&i.ShippingMethodID,
+		&i.Carrier,
+		&i.ServiceName,
+		&i.TrackingNumber,
+		&i.TrackingUrl,
+		&i.Status,
+		&i.ShippingCostCents,
+		&i.LabelCostCents,
+		&i.WeightGrams,
+		&i.LengthCm,
+		&i.WidthCm,
+		&i.HeightCm,
+		&i.Provider,
+		&i.ProviderShipmentID,
+		&i.ProviderLabelID,
+		&i.LabelUrl,
+		&i.Metadata,
+		&i.LabelCreatedAt,
+		&i.ShippedAt,
+		&i.DeliveredAt,
+		&i.FailedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const decrementSKUStock = `-- name: DecrementSKUStock :exec
 UPDATE product_skus
 SET inventory_quantity = inventory_quantity - $3,
@@ -653,6 +717,140 @@ func (q *Queries) GetOrderStats(ctx context.Context, arg GetOrderStatsParams) (G
 	return i, err
 }
 
+const getOrderWithDetails = `-- name: GetOrderWithDetails :one
+SELECT
+    o.id,
+    o.tenant_id,
+    o.order_number,
+    o.order_type,
+    o.status,
+    o.fulfillment_status,
+    o.subtotal_cents,
+    o.shipping_cents,
+    o.tax_cents,
+    o.total_cents,
+    o.currency,
+    o.customer_notes,
+    o.created_at,
+    o.updated_at,
+    u.email as customer_email,
+    u.first_name as customer_first_name,
+    u.last_name as customer_last_name,
+    sa.full_name as shipping_name,
+    sa.company as shipping_company,
+    sa.address_line1 as shipping_address_line1,
+    sa.address_line2 as shipping_address_line2,
+    sa.city as shipping_city,
+    sa.state as shipping_state,
+    sa.postal_code as shipping_postal_code,
+    sa.country as shipping_country,
+    sa.phone as shipping_phone,
+    ba.full_name as billing_name,
+    ba.address_line1 as billing_address_line1,
+    ba.address_line2 as billing_address_line2,
+    ba.city as billing_city,
+    ba.state as billing_state,
+    ba.postal_code as billing_postal_code,
+    ba.country as billing_country,
+    p.status as payment_status,
+    p.provider_payment_id
+FROM orders o
+LEFT JOIN users u ON u.id = o.user_id
+LEFT JOIN addresses sa ON sa.id = o.shipping_address_id
+LEFT JOIN addresses ba ON ba.id = o.billing_address_id
+LEFT JOIN payments p ON p.id = o.payment_id
+WHERE o.tenant_id = $1
+  AND o.id = $2
+LIMIT 1
+`
+
+type GetOrderWithDetailsParams struct {
+	TenantID pgtype.UUID `json:"tenant_id"`
+	ID       pgtype.UUID `json:"id"`
+}
+
+type GetOrderWithDetailsRow struct {
+	ID                   pgtype.UUID        `json:"id"`
+	TenantID             pgtype.UUID        `json:"tenant_id"`
+	OrderNumber          string             `json:"order_number"`
+	OrderType            string             `json:"order_type"`
+	Status               string             `json:"status"`
+	FulfillmentStatus    string             `json:"fulfillment_status"`
+	SubtotalCents        int32              `json:"subtotal_cents"`
+	ShippingCents        int32              `json:"shipping_cents"`
+	TaxCents             int32              `json:"tax_cents"`
+	TotalCents           int32              `json:"total_cents"`
+	Currency             string             `json:"currency"`
+	CustomerNotes        pgtype.Text        `json:"customer_notes"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	CustomerEmail        pgtype.Text        `json:"customer_email"`
+	CustomerFirstName    pgtype.Text        `json:"customer_first_name"`
+	CustomerLastName     pgtype.Text        `json:"customer_last_name"`
+	ShippingName         pgtype.Text        `json:"shipping_name"`
+	ShippingCompany      pgtype.Text        `json:"shipping_company"`
+	ShippingAddressLine1 pgtype.Text        `json:"shipping_address_line1"`
+	ShippingAddressLine2 pgtype.Text        `json:"shipping_address_line2"`
+	ShippingCity         pgtype.Text        `json:"shipping_city"`
+	ShippingState        pgtype.Text        `json:"shipping_state"`
+	ShippingPostalCode   pgtype.Text        `json:"shipping_postal_code"`
+	ShippingCountry      pgtype.Text        `json:"shipping_country"`
+	ShippingPhone        pgtype.Text        `json:"shipping_phone"`
+	BillingName          pgtype.Text        `json:"billing_name"`
+	BillingAddressLine1  pgtype.Text        `json:"billing_address_line1"`
+	BillingAddressLine2  pgtype.Text        `json:"billing_address_line2"`
+	BillingCity          pgtype.Text        `json:"billing_city"`
+	BillingState         pgtype.Text        `json:"billing_state"`
+	BillingPostalCode    pgtype.Text        `json:"billing_postal_code"`
+	BillingCountry       pgtype.Text        `json:"billing_country"`
+	PaymentStatus        pgtype.Text        `json:"payment_status"`
+	ProviderPaymentID    pgtype.Text        `json:"provider_payment_id"`
+}
+
+// Get complete order details including addresses and payment info
+func (q *Queries) GetOrderWithDetails(ctx context.Context, arg GetOrderWithDetailsParams) (GetOrderWithDetailsRow, error) {
+	row := q.db.QueryRow(ctx, getOrderWithDetails, arg.TenantID, arg.ID)
+	var i GetOrderWithDetailsRow
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.OrderNumber,
+		&i.OrderType,
+		&i.Status,
+		&i.FulfillmentStatus,
+		&i.SubtotalCents,
+		&i.ShippingCents,
+		&i.TaxCents,
+		&i.TotalCents,
+		&i.Currency,
+		&i.CustomerNotes,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CustomerEmail,
+		&i.CustomerFirstName,
+		&i.CustomerLastName,
+		&i.ShippingName,
+		&i.ShippingCompany,
+		&i.ShippingAddressLine1,
+		&i.ShippingAddressLine2,
+		&i.ShippingCity,
+		&i.ShippingState,
+		&i.ShippingPostalCode,
+		&i.ShippingCountry,
+		&i.ShippingPhone,
+		&i.BillingName,
+		&i.BillingAddressLine1,
+		&i.BillingAddressLine2,
+		&i.BillingCity,
+		&i.BillingState,
+		&i.BillingPostalCode,
+		&i.BillingCountry,
+		&i.PaymentStatus,
+		&i.ProviderPaymentID,
+	)
+	return i, err
+}
+
 const getPaymentByID = `-- name: GetPaymentByID :one
 SELECT id, tenant_id, billing_customer_id, provider, provider_payment_id, amount_cents, currency, status, payment_method_id, failure_code, failure_message, refunded_amount_cents, metadata, succeeded_at, failed_at, refunded_at, created_at, updated_at FROM payments
 WHERE id = $1
@@ -684,6 +882,61 @@ func (q *Queries) GetPaymentByID(ctx context.Context, id pgtype.UUID) (Payment, 
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getShipmentsByOrderID = `-- name: GetShipmentsByOrderID :many
+SELECT id, tenant_id, order_id, shipment_number, shipping_method_id, carrier, service_name, tracking_number, tracking_url, status, shipping_cost_cents, label_cost_cents, weight_grams, length_cm, width_cm, height_cm, provider, provider_shipment_id, provider_label_id, label_url, metadata, label_created_at, shipped_at, delivered_at, failed_at, created_at, updated_at FROM shipments
+WHERE order_id = $1
+ORDER BY created_at DESC
+`
+
+// Get all shipments for an order
+func (q *Queries) GetShipmentsByOrderID(ctx context.Context, orderID pgtype.UUID) ([]Shipment, error) {
+	rows, err := q.db.Query(ctx, getShipmentsByOrderID, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Shipment{}
+	for rows.Next() {
+		var i Shipment
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.OrderID,
+			&i.ShipmentNumber,
+			&i.ShippingMethodID,
+			&i.Carrier,
+			&i.ServiceName,
+			&i.TrackingNumber,
+			&i.TrackingUrl,
+			&i.Status,
+			&i.ShippingCostCents,
+			&i.LabelCostCents,
+			&i.WeightGrams,
+			&i.LengthCm,
+			&i.WidthCm,
+			&i.HeightCm,
+			&i.Provider,
+			&i.ProviderShipmentID,
+			&i.ProviderLabelID,
+			&i.LabelUrl,
+			&i.Metadata,
+			&i.LabelCreatedAt,
+			&i.ShippedAt,
+			&i.DeliveredAt,
+			&i.FailedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listOrders = `-- name: ListOrders :many
@@ -922,5 +1175,28 @@ type UpdateOrderStatusParams struct {
 // Update order status
 func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) error {
 	_, err := q.db.Exec(ctx, updateOrderStatus, arg.TenantID, arg.ID, arg.Status)
+	return err
+}
+
+const updateShipmentStatus = `-- name: UpdateShipmentStatus :exec
+UPDATE shipments
+SET
+    status = $3,
+    shipped_at = CASE WHEN $3 = 'shipped' THEN NOW() ELSE shipped_at END,
+    delivered_at = CASE WHEN $3 = 'delivered' THEN NOW() ELSE delivered_at END,
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2
+`
+
+type UpdateShipmentStatusParams struct {
+	TenantID pgtype.UUID `json:"tenant_id"`
+	ID       pgtype.UUID `json:"id"`
+	Status   string      `json:"status"`
+}
+
+// Update shipment status
+func (q *Queries) UpdateShipmentStatus(ctx context.Context, arg UpdateShipmentStatusParams) error {
+	_, err := q.db.Exec(ctx, updateShipmentStatus, arg.TenantID, arg.ID, arg.Status)
 	return err
 }
