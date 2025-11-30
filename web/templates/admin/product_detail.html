@@ -1,114 +1,124 @@
 {{define "title"}}{{.Product.Name}} - Product Details{{end}}
 
 {{define "content"}}
-<div class="max-w-6xl">
-    <!-- Page Header -->
-    <div class="mb-6">
-        <div class="flex items-center justify-between mb-2">
-            <a href="/admin/products" class="text-neutral-600 hover:text-neutral-900">← Back to Products</a>
-            <div class="flex space-x-2">
-                <a href="/products/{{.Product.Slug}}" target="_blank" class="px-4 py-2 border border-neutral-300 rounded-md text-neutral-700 hover:bg-neutral-50 text-sm">
-                    View in Store →
-                </a>
-                <a href="/admin/products/{{.Product.ID}}/edit" class="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm">
-                    Edit Product
-                </a>
+<div class="space-y-8">
+    <!-- Back Link -->
+    <div>
+        <a href="/admin/products"
+           class="inline-flex items-center gap-2 text-sm/6 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white">
+            ← Back to Products
+        </a>
+    </div>
+
+    <!-- Page Header with Actions -->
+    <div class="flex items-start justify-between">
+        <div>
+            {{template "heading" (dict "Level" "2" "Content" .Product.Name)}}
+            <div class="mt-2 flex items-center gap-3">
+                {{if eq .Product.Status "active"}}
+                    {{template "badge" (dict "Content" "Active" "Color" "green")}}
+                {{else if eq .Product.Status "draft"}}
+                    {{template "badge" (dict "Content" "Draft" "Color" "zinc")}}
+                {{else}}
+                    {{template "badge" (dict "Content" .Product.Status "Color" "red")}}
+                {{end}}
+
+                <span class="text-sm text-zinc-500 dark:text-zinc-400">
+                    Visibility: {{.Product.Visibility}}
+                </span>
+
+                {{if .Product.Origin.Valid}}
+                <span class="text-sm text-zinc-500 dark:text-zinc-400">
+                    • {{.Product.Origin.String}}
+                </span>
+                {{end}}
             </div>
         </div>
-        <h2 class="text-2xl font-semibold text-neutral-900">{{.Product.Name}}</h2>
-        <div class="flex items-center space-x-3 mt-2">
-            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                {{if eq .Product.Status "active"}}bg-green-100 text-green-800
-                {{else if eq .Product.Status "draft"}}bg-neutral-100 text-neutral-800
-                {{else}}bg-red-100 text-red-800{{end}}">
-                {{.Product.Status}}
-            </span>
-            <span class="text-sm text-neutral-500">Visibility: {{.Product.Visibility}}</span>
-            {{if .Product.Origin.Valid}}
-            <span class="text-sm text-neutral-500">• {{.Product.Origin.String}}</span>
-            {{end}}
+
+        <div class="flex gap-3">
+            {{template "button" (dict
+                "Content" "View in Store →"
+                "Variant" "outline"
+                "Href" (printf "/products/%s" .Product.Slug)
+                "Class" "target-blank")}}
+
+            {{template "button" (dict
+                "Content" "Edit Product"
+                "Variant" "solid"
+                "Color" "zinc"
+                "Href" (printf "/admin/products/%s/edit" .Product.ID))}}
         </div>
     </div>
 
-    <!-- Product Info Summary -->
+    <!-- Short Description -->
     {{if .Product.ShortDescription.Valid}}
-    <div class="mb-6 p-4 bg-neutral-50 rounded-lg border border-neutral-200">
-        <p class="text-neutral-700">{{.Product.ShortDescription.String}}</p>
+    <div class="rounded-xl bg-zinc-50 p-4 ring-1 ring-zinc-950/5 dark:bg-zinc-900/50 dark:ring-white/10">
+        <p class="text-base/7 text-zinc-700 dark:text-zinc-300">
+            {{.Product.ShortDescription.String}}
+        </p>
     </div>
     {{end}}
 
     <!-- SKUs Section -->
-    <div class="bg-white rounded-lg border border-neutral-200">
-        <div class="px-6 py-4 border-b border-neutral-200 flex items-center justify-between">
+    <section class="rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+        <div class="flex items-center justify-between border-b border-zinc-950/5 px-6 py-4 dark:border-white/5">
             <div>
-                <h3 class="text-lg font-semibold text-neutral-900">Product Variants (SKUs)</h3>
-                <p class="text-sm text-neutral-600 mt-1">Sizes and grind options available for this coffee</p>
+                {{template "heading" (dict "Level" "3" "Content" "Product Variants (SKUs)")}}
+                <p class="mt-1 text-sm/6 text-zinc-600 dark:text-zinc-400">
+                    Sizes and grind options available for this coffee
+                </p>
             </div>
-            <a href="/admin/products/{{.Product.ID}}/skus/new" class="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm">
-                Add SKU
-            </a>
+
+            {{template "button" (dict
+                "Content" "Add SKU"
+                "Variant" "solid"
+                "Color" "zinc"
+                "Size" "sm"
+                "Href" (printf "/admin/products/%s/skus/new" .Product.ID))}}
         </div>
 
         {{if .SKUs}}
         <div class="overflow-x-auto">
-            <table class="w-full">
-                <thead class="bg-neutral-50">
+            <table class="min-w-full text-left text-sm/6 text-zinc-950 dark:text-white">
+                <thead class="text-zinc-500 dark:text-zinc-400">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">SKU</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Size</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Grind</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Base Price</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Inventory</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Status</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Actions</th>
+                        <th class="px-6 py-3 font-medium">SKU</th>
+                        <th class="px-6 py-3 font-medium">Weight</th>
+                        <th class="px-6 py-3 font-medium">Grind</th>
+                        <th class="px-6 py-3 font-medium text-right">Base Price</th>
+                        <th class="px-6 py-3 font-medium">Stock</th>
+                        <th class="px-6 py-3 font-medium">
+                            <span class="sr-only">Actions</span>
+                        </th>
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-neutral-200">
+                <tbody class="divide-y divide-zinc-950/5 dark:divide-white/5">
                     {{range .SKUs}}
-                    <tr>
-                        <td class="px-6 py-4 text-sm font-medium text-neutral-900">
-                            {{.Sku}}
+                    <tr class="hover:bg-zinc-950/[2.5%] dark:hover:bg-white/[2.5%]">
+                        <td class="px-6 py-4 font-mono text-sm">{{.Sku}}</td>
+                        <td class="px-6 py-4">
+                            {{.WeightValueFormatted}} {{.WeightUnit}}
                         </td>
-                        <td class="px-6 py-4 text-sm text-neutral-900">
-                            {{if .WeightValue.Valid}}
-                                {{.WeightValue.Int}}{{.WeightUnit}}
-                            {{else}}
-                                -
-                            {{end}}
-                        </td>
-                        <td class="px-6 py-4 text-sm text-neutral-900">
-                            {{if eq .Grind "whole_bean"}}Whole Bean
-                            {{else if eq .Grind "espresso"}}Espresso
-                            {{else if eq .Grind "drip"}}Drip
-                            {{else if eq .Grind "french_press"}}French Press
-                            {{else if eq .Grind "pour_over"}}Pour Over
-                            {{else}}{{.Grind}}
-                            {{end}}
-                        </td>
-                        <td class="px-6 py-4 text-sm text-neutral-900">
+                        <td class="px-6 py-4 capitalize">{{.GrindType}}</td>
+                        <td class="px-6 py-4 text-right font-medium">
                             ${{.BasePriceDollars}}
                         </td>
-                        <td class="px-6 py-4 text-sm">
-                            <span class="{{if le .InventoryQuantity 0}}text-red-600{{else if and .LowStockThreshold.Valid (le .InventoryQuantity .LowStockThreshold.Int32)}}text-amber-600{{else}}text-neutral-900{{end}}">
-                                {{.InventoryQuantity}}
-                                {{if .LowStockThreshold.Valid}}
-                                    (low: {{.LowStockThreshold.Int32}})
-                                {{end}}
-                            </span>
-                        </td>
                         <td class="px-6 py-4">
-                            {{if .IsActive}}
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                    Active
-                                </span>
+                            {{if .TrackInventory}}
+                                {{if le .StockQuantity 0}}
+                                    {{template "badge" (dict "Content" "Out of Stock" "Color" "red")}}
+                                {{else if le .StockQuantity 5}}
+                                    {{template "badge" (dict "Content" (printf "%d in stock" .StockQuantity) "Color" "amber")}}
+                                {{else}}
+                                    {{template "badge" (dict "Content" (printf "%d in stock" .StockQuantity) "Color" "green")}}
+                                {{end}}
                             {{else}}
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-neutral-100 text-neutral-800">
-                                    Inactive
-                                </span>
+                                <span class="text-zinc-500 dark:text-zinc-400">Not tracked</span>
                             {{end}}
                         </td>
-                        <td class="px-6 py-4 text-sm">
-                            <a href="/admin/products/{{$.Product.ID}}/skus/{{.ID}}/edit" class="text-teal-600 hover:text-teal-700">
+                        <td class="px-6 py-4 text-right">
+                            <a href="/admin/products/{{$.Product.ID}}/skus/{{.SkuID}}/edit"
+                               class="text-sm/6 font-medium text-zinc-950 hover:text-zinc-700 dark:text-white dark:hover:text-zinc-300">
                                 Edit
                             </a>
                         </td>
@@ -118,26 +128,137 @@
             </table>
         </div>
         {{else}}
-        <div class="px-6 py-12 text-center">
-            <svg class="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-            </svg>
-            <h3 class="mt-2 text-sm font-medium text-neutral-900">No SKUs yet</h3>
-            <p class="mt-1 text-sm text-neutral-500">Get started by creating your first SKU variant.</p>
-            <div class="mt-6">
-                <a href="/admin/products/{{.Product.ID}}/skus/new" class="inline-flex items-center px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700">
-                    Add First SKU
-                </a>
-            </div>
+        <div class="p-8">
+            {{template "empty-state" (dict
+                "Title" "No SKUs yet"
+                "Description" "Add product variants with different sizes and grind options"
+                "Action" (dict
+                    "Content" "Add Your First SKU"
+                    "Variant" "solid"
+                    "Color" "zinc"
+                    "Href" (printf "/admin/products/%s/skus/new" .Product.ID)))}}
         </div>
         {{end}}
-    </div>
+    </section>
 
-    <!-- Pricing Note -->
-    <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <p class="text-sm text-blue-800">
-            <strong>Pricing:</strong> Base prices are shown here. You can set different prices per price list (Retail, Wholesale tiers) after creating the SKU.
-        </p>
+    <!-- Product Details Grid -->
+    <div class="grid gap-8 lg:grid-cols-2">
+        <!-- Coffee Attributes -->
+        <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            {{template "heading" (dict "Level" "3" "Content" "Coffee Attributes")}}
+
+            <dl class="mt-6 space-y-4">
+                {{if .Product.Origin.Valid}}
+                <div>
+                    <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Origin</dt>
+                    <dd class="mt-1 text-base text-zinc-950 dark:text-white">{{.Product.Origin.String}}</dd>
+                </div>
+                {{end}}
+
+                {{if .Product.Region.Valid}}
+                <div>
+                    <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Region</dt>
+                    <dd class="mt-1 text-base text-zinc-950 dark:text-white">{{.Product.Region.String}}</dd>
+                </div>
+                {{end}}
+
+                {{if .Product.Producer.Valid}}
+                <div>
+                    <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Producer</dt>
+                    <dd class="mt-1 text-base text-zinc-950 dark:text-white">{{.Product.Producer.String}}</dd>
+                </div>
+                {{end}}
+
+                {{if .Product.Process.Valid}}
+                <div>
+                    <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Process</dt>
+                    <dd class="mt-1 text-base text-zinc-950 dark:text-white capitalize">{{.Product.Process.String}}</dd>
+                </div>
+                {{end}}
+
+                {{if .Product.RoastLevel.Valid}}
+                <div>
+                    <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Roast Level</dt>
+                    <dd class="mt-1 text-base text-zinc-950 dark:text-white capitalize">{{.Product.RoastLevel.String}}</dd>
+                </div>
+                {{end}}
+
+                {{if or .Product.ElevationMin.Valid .Product.ElevationMax.Valid}}
+                <div>
+                    <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Elevation</dt>
+                    <dd class="mt-1 text-base text-zinc-950 dark:text-white">
+                        {{if .Product.ElevationMin.Valid}}{{.Product.ElevationMin.Int32}}{{end}}
+                        {{if and .Product.ElevationMin.Valid .Product.ElevationMax.Valid}}-{{end}}
+                        {{if .Product.ElevationMax.Valid}}{{.Product.ElevationMax.Int32}}{{end}}
+                        meters
+                    </dd>
+                </div>
+                {{end}}
+
+                {{if .Product.TastingNotes}}
+                <div>
+                    <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Tasting Notes</dt>
+                    <dd class="mt-2 flex flex-wrap gap-2">
+                        {{range .Product.TastingNotes}}
+                            {{template "badge" (dict "Content" . "Color" "blue")}}
+                        {{end}}
+                    </dd>
+                </div>
+                {{end}}
+            </dl>
+        </section>
+
+        <!-- Description & Metadata -->
+        <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            {{template "heading" (dict "Level" "3" "Content" "Description & Metadata")}}
+
+            <dl class="mt-6 space-y-4">
+                {{if .Product.Description.Valid}}
+                <div>
+                    <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Full Description</dt>
+                    <dd class="mt-1 text-base text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
+                        {{.Product.Description.String}}
+                    </dd>
+                </div>
+                {{end}}
+
+                <div>
+                    <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Slug</dt>
+                    <dd class="mt-1 font-mono text-sm text-zinc-700 dark:text-zinc-300">
+                        {{.Product.Slug}}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Sort Order</dt>
+                    <dd class="mt-1 text-base text-zinc-950 dark:text-white">
+                        {{.Product.SortOrder}}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Created</dt>
+                    <dd class="mt-1 text-base text-zinc-700 dark:text-zinc-300">
+                        {{if .Product.CreatedAt.Valid}}
+                            {{.Product.CreatedAt.Time.Format "January 2, 2006 at 3:04 PM"}}
+                        {{else}}
+                            -
+                        {{end}}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Last Updated</dt>
+                    <dd class="mt-1 text-base text-zinc-700 dark:text-zinc-300">
+                        {{if .Product.UpdatedAt.Valid}}
+                            {{.Product.UpdatedAt.Time.Format "January 2, 2006 at 3:04 PM"}}
+                        {{else}}
+                            -
+                        {{end}}
+                    </dd>
+                </div>
+            </dl>
+        </section>
     </div>
 </div>
 {{end}}

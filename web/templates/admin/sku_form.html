@@ -1,252 +1,236 @@
-{{define "title"}}{{if .SKU.ID}}Edit SKU{{else}}New SKU{{end}} - {{.Product.Name}}{{end}}
+{{define "title"}}{{ternary .SKU.ID.Valid "Edit SKU" "New SKU"}} - {{.Product.Name}}{{end}}
 
 {{define "content"}}
-<div class="max-w-3xl">
-    <!-- Page Header -->
-    <div class="mb-6">
-        <div class="flex items-center space-x-4 mb-2">
-            <a href="/admin/products/{{.Product.ID}}" class="text-neutral-600 hover:text-neutral-900">← Back to {{.Product.Name}}</a>
-        </div>
-        <h2 class="text-2xl font-semibold text-neutral-900">
-            {{if .SKU.ID}}Edit SKU{{else}}Add New SKU{{end}}
-        </h2>
-        <p class="text-neutral-600 mt-1">Configure size and grind options for this coffee</p>
+<div class="mx-auto max-w-4xl space-y-8">
+    <!-- Back Link -->
+    <div>
+        <a href="/admin/products/{{.Product.ID}}"
+           class="inline-flex items-center gap-2 text-sm/6 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white">
+            ← Back to {{.Product.Name}}
+        </a>
     </div>
 
+    <!-- Page Header -->
+    {{template "page-header" (dict
+        "Title" (ternary .SKU.ID.Valid "Edit SKU" "Add New SKU")
+        "Description" "Configure size and grind options for this coffee")}}
+
     <!-- SKU Form -->
-    <form method="POST" action="{{if .SKU.ID}}/admin/products/{{.Product.ID}}/skus/{{.SKU.ID}}/edit{{else}}/admin/products/{{.Product.ID}}/skus/new{{end}}" class="space-y-8">
+    <form method="POST"
+          action="{{if .SKU.ID.Valid}}/admin/products/{{.Product.ID}}/skus/{{.SKU.ID}}/edit{{else}}/admin/products/{{.Product.ID}}/skus/new{{end}}"
+          class="space-y-8">
 
-        <!-- SKU Code (auto-generated hint) -->
-        <div class="bg-white rounded-lg border border-neutral-200 p-6">
-            <h3 class="text-lg font-semibold text-neutral-900 mb-4">SKU Identifier</h3>
+        <!-- SKU Identifier -->
+        <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            {{template "heading" (dict "Level" "3" "Content" "SKU Identifier")}}
 
-            <div>
-                <label for="sku" class="block text-sm font-medium text-neutral-700 mb-1">
-                    SKU Code
-                </label>
-                <input
-                    type="text"
-                    id="sku"
-                    name="sku"
-                    value="{{.SKU.Sku}}"
-                    class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    placeholder="Will be auto-generated if left blank"
-                >
-                <p class="text-xs text-neutral-500 mt-1">
-                    Leave blank to auto-generate (e.g., "{{.Product.Slug}}-12oz-whole-bean")
-                </p>
+            <div class="mt-6">
+                {{template "field" (dict
+                    "Label" "SKU Code"
+                    "Description" (printf "Leave blank to auto-generate (e.g., \"%s-12oz-whole-bean\")" .Product.Slug)
+                    "Input" (dict
+                        "Type" "text"
+                        "ID" "sku"
+                        "Name" "sku"
+                        "Value" .SKU.Sku
+                        "Placeholder" "Will be auto-generated if left blank"))}}
             </div>
-        </div>
+        </section>
 
         <!-- Size Configuration -->
-        <div class="bg-white rounded-lg border border-neutral-200 p-6">
-            <h3 class="text-lg font-semibold text-neutral-900 mb-4">Size</h3>
+        <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            {{template "heading" (dict "Level" "3" "Content" "Size")}}
 
-            <div class="grid grid-cols-2 gap-4">
+            <div class="mt-6 grid gap-6 sm:grid-cols-2">
                 <!-- Weight Value -->
-                <div>
-                    <label for="weight_value" class="block text-sm font-medium text-neutral-700 mb-1">
-                        Weight <span class="text-red-600">*</span>
-                    </label>
-                    <input
-                        type="number"
-                        id="weight_value"
-                        name="weight_value"
-                        required
-                        value="{{if .SKU.WeightValue.Valid}}{{.SKU.WeightValue.Int}}{{else}}12{{end}}"
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        min="1"
-                        step="any"
-                    >
-                </div>
+                {{template "field" (dict
+                    "Label" "Weight"
+                    "Required" true
+                    "Input" (dict
+                        "Type" "number"
+                        "ID" "weight_value"
+                        "Name" "weight_value"
+                        "Required" true
+                        "Value" (ternary .SKU.WeightValue.Valid .SKU.WeightValue.Int 12)
+                        "Placeholder" "12"
+                        "Step" "any"
+                        "Min" "1"))}}
 
                 <!-- Weight Unit -->
-                <div>
-                    <label for="weight_unit" class="block text-sm font-medium text-neutral-700 mb-1">
-                        Unit <span class="text-red-600">*</span>
-                    </label>
-                    <select
-                        id="weight_unit"
-                        name="weight_unit"
-                        required
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    >
-                        <option value="oz" {{if eq .SKU.WeightUnit "oz"}}selected{{else if not .SKU.ID}}selected{{end}}>oz</option>
-                        <option value="lb" {{if eq .SKU.WeightUnit "lb"}}selected{{end}}>lb</option>
-                        <option value="g" {{if eq .SKU.WeightUnit "g"}}selected{{end}}>g</option>
-                        <option value="kg" {{if eq .SKU.WeightUnit "kg"}}selected{{end}}>kg</option>
-                    </select>
+                {{template "field" (dict
+                    "Label" "Unit"
+                    "Required" true
+                    "Select" (dict
+                        "ID" "weight_unit"
+                        "Name" "weight_unit"
+                        "Required" true
+                        "Value" (default "oz" .SKU.WeightUnit)
+                        "Options" (list
+                            (dict "Value" "oz" "Label" "Ounces (oz)")
+                            (dict "Value" "lb" "Label" "Pounds (lb)")
+                            (dict "Value" "g" "Label" "Grams (g)")
+                            (dict "Value" "kg" "Label" "Kilograms (kg)"))))}}
+            </div>
+        </section>
+
+        <!-- Grind Configuration -->
+        <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            {{template "heading" (dict "Level" "3" "Content" "Grind Type")}}
+
+            <div class="mt-6">
+                {{template "field" (dict
+                    "Label" "Grind"
+                    "Required" true
+                    "Select" (dict
+                        "ID" "grind_type"
+                        "Name" "grind_type"
+                        "Required" true
+                        "Value" (default "whole_bean" .SKU.GrindType)
+                        "Options" (list
+                            (dict "Value" "whole_bean" "Label" "Whole Bean")
+                            (dict "Value" "espresso" "Label" "Espresso")
+                            (dict "Value" "fine" "Label" "Fine")
+                            (dict "Value" "medium" "Label" "Medium")
+                            (dict "Value" "coarse" "Label" "Coarse")
+                            (dict "Value" "french_press" "Label" "French Press"))))}}
+            </div>
+        </section>
+
+        <!-- Pricing -->
+        <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            {{template "heading" (dict "Level" "3" "Content" "Pricing")}}
+
+            <div class="mt-6 space-y-6">
+                <!-- Base Price -->
+                {{template "field" (dict
+                    "Label" "Base Price"
+                    "Required" true
+                    "Description" (printf "Suggested price: $%s" .SuggestedPrice)
+                    "Input" (dict
+                        "Type" "number"
+                        "ID" "base_price"
+                        "Name" "base_price"
+                        "Required" true
+                        "Value" .BasePriceDollars
+                        "Placeholder" .SuggestedPrice
+                        "Step" "0.01"
+                        "Min" "0"))}}
+
+                <div class="rounded-lg bg-blue-50 p-4 ring-1 ring-blue-600/20 dark:bg-blue-500/10 dark:ring-blue-500/20">
+                    <p class="text-sm text-blue-900 dark:text-blue-300">
+                        <strong>Note:</strong> This is the default retail price. You can set different prices for wholesale customers using price lists.
+                    </p>
                 </div>
             </div>
+        </section>
 
-            <p class="text-xs text-neutral-500 mt-2">
-                Common sizes: 12oz (standard bag), 5lb (bulk), 340g (metric)
-            </p>
-        </div>
+        <!-- Inventory Management -->
+        <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            {{template "heading" (dict "Level" "3" "Content" "Inventory")}}
 
-        <!-- Grind Option -->
-        <div class="bg-white rounded-lg border border-neutral-200 p-6">
-            <h3 class="text-lg font-semibold text-neutral-900 mb-4">Grind Option</h3>
-
-            <div>
-                <label for="grind" class="block text-sm font-medium text-neutral-700 mb-1">
-                    Grind Type <span class="text-red-600">*</span>
-                </label>
-                <select
-                    id="grind"
-                    name="grind"
-                    required
-                    class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                >
-                    <option value="whole_bean" {{if eq .SKU.Grind "whole_bean"}}selected{{else if not .SKU.ID}}selected{{end}}>Whole Bean</option>
-                    <option value="espresso" {{if eq .SKU.Grind "espresso"}}selected{{end}}>Espresso</option>
-                    <option value="drip" {{if eq .SKU.Grind "drip"}}selected{{end}}>Drip/Auto-Drip</option>
-                    <option value="french_press" {{if eq .SKU.Grind "french_press"}}selected{{end}}>French Press</option>
-                    <option value="pour_over" {{if eq .SKU.Grind "pour_over"}}selected{{end}}>Pour Over</option>
-                    <option value="cold_brew" {{if eq .SKU.Grind "cold_brew"}}selected{{end}}>Cold Brew</option>
-                </select>
-                <p class="text-xs text-neutral-500 mt-1">
-                    Most customers prefer whole bean. Create additional SKUs for ground options.
-                </p>
-            </div>
-        </div>
-
-        <!-- Pricing (Simplified) -->
-        <div class="bg-white rounded-lg border border-neutral-200 p-6">
-            <h3 class="text-lg font-semibold text-neutral-900 mb-4">Pricing</h3>
-
-            <div>
-                <label for="base_price" class="block text-sm font-medium text-neutral-700 mb-1">
-                    Retail Price <span class="text-red-600">*</span>
-                </label>
-                <div class="relative">
-                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-neutral-500">$</span>
-                    <input
-                        type="number"
-                        id="base_price"
-                        name="base_price"
-                        required
-                        value="{{if .SKU.BasePriceCents}}{{.BasePriceDollars}}{{else}}{{.SuggestedPrice}}{{end}}"
-                        class="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        min="0.01"
-                        step="0.01"
-                        placeholder="18.00"
-                    >
+            <div class="mt-6 space-y-6">
+                <!-- Track Inventory Checkbox -->
+                <div class="flex items-start gap-3">
+                    <div class="flex h-6 items-center">
+                        <input
+                            type="checkbox"
+                            id="track_inventory"
+                            name="track_inventory"
+                            {{if .SKU.TrackInventory}}checked{{end}}
+                            class="h-4 w-4 rounded border-zinc-300 text-zinc-950 focus:ring-2 focus:ring-zinc-950 dark:border-white/10 dark:bg-white/5 dark:focus:ring-white">
+                    </div>
+                    <div class="flex-1">
+                        <label for="track_inventory" class="text-base/6 font-medium text-zinc-950 dark:text-white">
+                            Track inventory for this SKU
+                        </label>
+                        <p class="text-sm/6 text-zinc-500 dark:text-zinc-400">
+                            Enable to manage stock levels and show availability
+                        </p>
+                    </div>
                 </div>
-                <p class="text-xs text-neutral-500 mt-1">
-                    {{if .SuggestedPrice}}
-                    Suggested: ${{.SuggestedPrice}} based on size (adjust as needed)
-                    {{else}}
-                    This will be the default retail price. You can set wholesale prices later.
-                    {{end}}
-                </p>
-            </div>
-        </div>
 
-        <!-- Inventory -->
-        <div class="bg-white rounded-lg border border-neutral-200 p-6">
-            <h3 class="text-lg font-semibold text-neutral-900 mb-4">Inventory</h3>
-
-            <div class="grid grid-cols-2 gap-4">
-                <!-- Initial Quantity -->
-                <div>
-                    <label for="inventory_quantity" class="block text-sm font-medium text-neutral-700 mb-1">
-                        Starting Quantity
-                    </label>
-                    <input
-                        type="number"
-                        id="inventory_quantity"
-                        name="inventory_quantity"
-                        value="{{if .SKU.ID}}{{.SKU.InventoryQuantity}}{{else}}0{{end}}"
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        min="0"
-                    >
-                    <p class="text-xs text-neutral-500 mt-1">Leave at 0 for unlimited/on-demand</p>
+                <!-- Stock Quantity (shown if tracking) -->
+                <div x-data="{trackInventory: {{.SKU.TrackInventory}}}"
+                     x-init="$watch('trackInventory', value => document.getElementById('stock_quantity').disabled = !value)">
+                    {{template "field" (dict
+                        "Label" "Stock Quantity"
+                        "Description" "Current number of units in stock"
+                        "Input" (dict
+                            "Type" "number"
+                            "ID" "stock_quantity"
+                            "Name" "stock_quantity"
+                            "Value" .SKU.StockQuantity
+                            "Placeholder" "0"
+                            "Min" "0"
+                            "Disabled" (not .SKU.TrackInventory)))}}
                 </div>
 
                 <!-- Low Stock Threshold -->
-                <div>
-                    <label for="low_stock_threshold" class="block text-sm font-medium text-neutral-700 mb-1">
-                        Low Stock Alert
-                    </label>
-                    <input
-                        type="number"
-                        id="low_stock_threshold"
-                        name="low_stock_threshold"
-                        value="{{if .SKU.LowStockThreshold.Valid}}{{.SKU.LowStockThreshold.Int32}}{{else}}10{{end}}"
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        min="0"
-                    >
-                    <p class="text-xs text-neutral-500 mt-1">Alert when stock drops below this</p>
+                <div x-show="trackInventory">
+                    {{template "field" (dict
+                        "Label" "Low Stock Alert Threshold"
+                        "Description" "Get notified when stock falls below this number"
+                        "Input" (dict
+                            "Type" "number"
+                            "ID" "low_stock_threshold"
+                            "Name" "low_stock_threshold"
+                            "Value" (ternary .SKU.LowStockThreshold.Valid .SKU.LowStockThreshold.Int32 5)
+                            "Placeholder" "5"
+                            "Min" "0"))}}
                 </div>
             </div>
-
-            <!-- Inventory Policy -->
-            <div class="mt-4">
-                <label for="inventory_policy" class="block text-sm font-medium text-neutral-700 mb-1">
-                    Out of Stock Behavior
-                </label>
-                <select
-                    id="inventory_policy"
-                    name="inventory_policy"
-                    class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                >
-                    <option value="deny" {{if eq .SKU.InventoryPolicy "deny"}}selected{{else if not .SKU.ID}}selected{{end}}>
-                        Don't allow purchases (default)
-                    </option>
-                    <option value="allow" {{if eq .SKU.InventoryPolicy "allow"}}selected{{end}}>
-                        Allow backorders
-                    </option>
-                </select>
-            </div>
-        </div>
+        </section>
 
         <!-- Status -->
-        <div class="bg-white rounded-lg border border-neutral-200 p-6">
-            <h3 class="text-lg font-semibold text-neutral-900 mb-4">Status</h3>
+        <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            {{template "heading" (dict "Level" "3" "Content" "Status")}}
 
-            <div>
-                <label class="flex items-center">
-                    <input
-                        type="checkbox"
-                        name="is_active"
-                        value="true"
-                        {{if .SKU.IsActive}}checked{{else if not .SKU.ID}}checked{{end}}
-                        class="h-4 w-4 text-teal-600 focus:ring-teal-500 border-neutral-300 rounded"
-                    >
-                    <span class="ml-2 text-sm text-neutral-700">Active (available for purchase)</span>
-                </label>
-                <p class="text-xs text-neutral-500 mt-1 ml-6">
-                    Uncheck to hide this SKU from customers without deleting it
-                </p>
+            <div class="mt-6">
+                <div class="flex items-start gap-3">
+                    <div class="flex h-6 items-center">
+                        <input
+                            type="checkbox"
+                            id="is_active"
+                            name="is_active"
+                            {{if or (not .SKU.ID.Valid) .SKU.IsActive}}checked{{end}}
+                            class="h-4 w-4 rounded border-zinc-300 text-zinc-950 focus:ring-2 focus:ring-zinc-950 dark:border-white/10 dark:bg-white/5 dark:focus:ring-white">
+                    </div>
+                    <div class="flex-1">
+                        <label for="is_active" class="text-base/6 font-medium text-zinc-950 dark:text-white">
+                            Active
+                        </label>
+                        <p class="text-sm/6 text-zinc-500 dark:text-zinc-400">
+                            Make this SKU available for purchase
+                        </p>
+                    </div>
+                </div>
             </div>
-        </div>
+        </section>
 
         <!-- Form Actions -->
-        <div class="flex justify-end space-x-4">
-            <a href="/admin/products/{{.Product.ID}}" class="px-4 py-2 border border-neutral-300 rounded-md text-neutral-700 hover:bg-neutral-50">
-                Cancel
-            </a>
-            <button
-                type="submit"
-                class="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700"
-            >
-                {{if .SKU.ID}}Update SKU{{else}}Create SKU{{end}}
-            </button>
+        <div class="flex justify-end gap-4">
+            {{template "button" (dict
+                "Content" "Cancel"
+                "Variant" "outline"
+                "Type" "button"
+                "Href" (printf "/admin/products/%s" .Product.ID))}}
+
+            {{template "button" (dict
+                "Content" (ternary .SKU.ID.Valid "Update SKU" "Create SKU")
+                "Variant" "solid"
+                "Color" "zinc"
+                "Type" "submit")}}
         </div>
     </form>
-
-    <!-- Helpful Tips -->
-    {{if not .SKU.ID}}
-    <div class="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <h4 class="text-sm font-semibold text-blue-900 mb-2">💡 Quick Start Tips</h4>
-        <ul class="text-sm text-blue-800 space-y-1 list-disc list-inside">
-            <li>Start with a 12oz whole bean SKU - most popular option</li>
-            <li>Price will auto-populate based on size (you can adjust)</li>
-            <li>SKU code will be generated automatically if left blank</li>
-            <li>Set inventory to 0 for unlimited availability</li>
-        </ul>
-    </div>
-    {{end}}
 </div>
+
+<script>
+// Handle track_inventory checkbox toggle
+document.getElementById('track_inventory')?.addEventListener('change', function(e) {
+    const stockInput = document.getElementById('stock_quantity');
+    const lowStockInput = document.getElementById('low_stock_threshold');
+    if (stockInput) stockInput.disabled = !e.target.checked;
+    if (lowStockInput) lowStockInput.disabled = !e.target.checked;
+});
+</script>
 {{end}}
