@@ -5,40 +5,133 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{block "title" .}}Admin Dashboard{{end}} - Freyja</title>
+
+    <!-- Inter Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" href="/static/css/output.css">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+
+    <style>
+        body {
+            font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-feature-settings: 'cv11';
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+    </style>
 </head>
-<body class="bg-neutral-50">
+<body class="bg-zinc-50 dark:bg-zinc-950">
     <!-- Admin Header -->
-    <header class="bg-white border-b border-neutral-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
-                <div class="flex items-center space-x-8">
-                    <h1 class="text-xl font-semibold text-neutral-900">Freyja Admin</h1>
-                    <nav class="hidden md:flex space-x-4">
-                        <a href="/admin" class="text-neutral-600 hover:text-neutral-900 px-3 py-2 rounded-md text-sm font-medium">Dashboard</a>
-                        <a href="/admin/products" class="text-neutral-600 hover:text-neutral-900 px-3 py-2 rounded-md text-sm font-medium">Products</a>
-                        <a href="/admin/orders" class="text-neutral-600 hover:text-neutral-900 px-3 py-2 rounded-md text-sm font-medium">Orders</a>
-                        <a href="/admin/customers" class="text-neutral-600 hover:text-neutral-900 px-3 py-2 rounded-md text-sm font-medium">Customers</a>
+    <header class="border-b border-zinc-950/10 bg-white dark:border-white/10 dark:bg-zinc-900">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div class="flex h-16 items-center justify-between">
+                <!-- Logo & Navigation -->
+                <div class="flex items-center gap-8">
+                    <a href="/admin" class="text-xl font-bold text-zinc-950 dark:text-white">
+                        Freyja Admin
+                    </a>
+
+                    <!-- Desktop Navigation -->
+                    <nav class="hidden md:flex md:gap-6">
+                        <a href="/admin"
+                           class="relative px-3 py-2 text-sm/6 font-medium transition
+                                  {{if eq .CurrentPath "/admin"}}
+                                      text-zinc-950 dark:text-white
+                                  {{else}}
+                                      text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white
+                                  {{end}}">
+                            Dashboard
+                            {{if eq .CurrentPath "/admin"}}
+                            <span class="absolute inset-x-0 -bottom-[17px] h-0.5 bg-zinc-950 dark:bg-white"></span>
+                            {{end}}
+                        </a>
+                        <a href="/admin/products"
+                           class="relative px-3 py-2 text-sm/6 font-medium transition
+                                  {{if hasPrefix .CurrentPath "/admin/products"}}
+                                      text-zinc-950 dark:text-white
+                                  {{else}}
+                                      text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white
+                                  {{end}}">
+                            Products
+                            {{if hasPrefix .CurrentPath "/admin/products"}}
+                            <span class="absolute inset-x-0 -bottom-[17px] h-0.5 bg-zinc-950 dark:bg-white"></span>
+                            {{end}}
+                        </a>
+                        <a href="/admin/orders"
+                           class="relative px-3 py-2 text-sm/6 font-medium transition
+                                  {{if hasPrefix .CurrentPath "/admin/orders"}}
+                                      text-zinc-950 dark:text-white
+                                  {{else}}
+                                      text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white
+                                  {{end}}">
+                            Orders
+                            {{if hasPrefix .CurrentPath "/admin/orders"}}
+                            <span class="absolute inset-x-0 -bottom-[17px] h-0.5 bg-zinc-950 dark:bg-white"></span>
+                            {{end}}
+                        </a>
+                        <a href="/admin/customers"
+                           class="relative px-3 py-2 text-sm/6 font-medium transition
+                                  {{if hasPrefix .CurrentPath "/admin/customers"}}
+                                      text-zinc-950 dark:text-white
+                                  {{else}}
+                                      text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white
+                                  {{end}}">
+                            Customers
+                            {{if hasPrefix .CurrentPath "/admin/customers"}}
+                            <span class="absolute inset-x-0 -bottom-[17px] h-0.5 bg-zinc-950 dark:bg-white"></span>
+                            {{end}}
+                        </a>
                     </nav>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <a href="/" class="text-neutral-600 hover:text-neutral-900 text-sm">View Store</a>
+
+                <!-- Right Side Actions -->
+                <div class="flex items-center gap-4">
+                    <a href="/"
+                       class="text-sm/6 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white">
+                        View Store
+                    </a>
                     <form action="/logout" method="POST">
-                        <button type="submit" class="text-neutral-600 hover:text-neutral-900 text-sm">Logout</button>
+                        <button type="submit"
+                                class="text-sm/6 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white">
+                            Logout
+                        </button>
                     </form>
                 </div>
             </div>
         </div>
     </header>
 
-    <!-- Main Content -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {{block "content" .}}
-        <p>No content</p>
-        {{end}}
+    <!-- Main Content with Gutter System -->
+    <main class="mx-auto max-w-7xl">
+        <div class="px-[--gutter] py-8 sm:py-12">
+            {{block "content" .}}
+            <p>No content</p>
+            {{end}}
+        </div>
     </main>
+
+    <style>
+        /* Gutter system for responsive page margins */
+        :root {
+            --gutter: 1rem; /* 16px on mobile */
+        }
+
+        @media (min-width: 640px) {
+            :root {
+                --gutter: 1.5rem; /* 24px on tablet */
+            }
+        }
+
+        @media (min-width: 1024px) {
+            :root {
+                --gutter: 2rem; /* 32px on desktop */
+            }
+        }
+    </style>
 </body>
 </html>
 {{end}}

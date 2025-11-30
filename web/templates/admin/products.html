@@ -1,78 +1,102 @@
 {{define "title"}}Products{{end}}
 
 {{define "content"}}
-<div class="space-y-6">
+<div class="space-y-8">
     <!-- Page Header -->
-    <div class="flex justify-between items-center">
-        <div>
-            <h2 class="text-2xl font-semibold text-neutral-900">Products</h2>
-            <p class="text-neutral-600 mt-1">Manage your coffee products</p>
-        </div>
-        <a href="/admin/products/new" class="inline-flex items-center px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700">
-            Add Product
-        </a>
-    </div>
+    {{template "page-header" (dict
+        "Title" "Products"
+        "Description" "Manage your coffee products"
+        "Action" (dict
+            "Content" "Add Product"
+            "Variant" "solid"
+            "Color" "zinc"
+            "Href" "/admin/products/new"))}}
 
     <!-- Products List -->
-    <div class="bg-white rounded-lg border border-neutral-200">
+    {{if .Products}}
+    <div class="rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
         <div class="overflow-x-auto">
-            <table class="w-full">
-                <thead class="bg-neutral-50">
+            <table class="min-w-full text-left text-sm/6 text-zinc-950 dark:text-white">
+                <thead class="text-zinc-500 dark:text-zinc-400">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Product</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Origin</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Roast</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Status</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Visibility</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Actions</th>
+                        <th class="px-6 py-3 font-medium">Product</th>
+                        <th class="px-6 py-3 font-medium">Origin</th>
+                        <th class="px-6 py-3 font-medium">Roast</th>
+                        <th class="px-6 py-3 font-medium">Status</th>
+                        <th class="px-6 py-3 font-medium">Visibility</th>
+                        <th class="px-6 py-3 font-medium">Actions</th>
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-neutral-200">
+                <tbody class="divide-y divide-zinc-950/5 dark:divide-white/5">
                     {{range .Products}}
-                    <tr>
+                    <tr class="hover:bg-zinc-950/[2.5%] dark:hover:bg-white/[2.5%]">
                         <td class="px-6 py-4">
-                            <div class="flex items-center">
+                            <div class="flex items-center gap-3">
                                 {{if .PrimaryImageUrl.Valid}}
-                                <img src="{{.PrimaryImageUrl.String}}" alt="{{.Name}}" class="h-10 w-10 rounded object-cover mr-3">
+                                <img src="{{.PrimaryImageUrl.String}}"
+                                     alt="{{.Name}}"
+                                     class="h-10 w-10 rounded-lg object-cover ring-1 ring-zinc-950/10 dark:ring-white/10">
                                 {{else}}
-                                <div class="h-10 w-10 rounded bg-neutral-200 mr-3"></div>
+                                <div class="h-10 w-10 rounded-lg bg-zinc-100 dark:bg-zinc-800"></div>
                                 {{end}}
                                 <div>
-                                    <div class="text-sm font-medium text-neutral-900">{{.Name}}</div>
-                                    <div class="text-sm text-neutral-500">{{.Slug}}</div>
+                                    <div class="font-medium text-zinc-950 dark:text-white">{{.Name}}</div>
+                                    <div class="text-sm text-zinc-500 dark:text-zinc-400">{{.Slug}}</div>
                                 </div>
                             </div>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-900">
+                        <td class="px-6 py-4 text-zinc-600 dark:text-zinc-400">
                             {{if .Origin.Valid}}{{.Origin.String}}{{else}}-{{end}}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-900">
+                        <td class="px-6 py-4 text-zinc-600 dark:text-zinc-400">
                             {{if .RoastLevel.Valid}}{{.RoastLevel.String}}{{else}}-{{end}}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                                {{if eq .Status "active"}}bg-green-100 text-green-800
-                                {{else if eq .Status "draft"}}bg-neutral-100 text-neutral-800
-                                {{else}}bg-red-100 text-red-800{{end}}">
-                                {{.Status}}
-                            </span>
+                        <td class="px-6 py-4">
+                            {{if eq .Status "active"}}
+                                {{template "badge" (dict "Content" "Active" "Color" "green")}}
+                            {{else if eq .Status "draft"}}
+                                {{template "badge" (dict "Content" "Draft" "Color" "zinc")}}
+                            {{else}}
+                                {{template "badge" (dict "Content" .Status "Color" "red")}}
+                            {{end}}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-900">
-                            {{.Visibility}}
+                        <td class="px-6 py-4">
+                            {{if eq .Visibility "public"}}
+                                {{template "badge" (dict "Content" "Public" "Color" "blue")}}
+                            {{else if eq .Visibility "wholesale"}}
+                                {{template "badge" (dict "Content" "Wholesale" "Color" "amber")}}
+                            {{else}}
+                                {{template "badge" (dict "Content" .Visibility "Color" "zinc")}}
+                            {{end}}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <a href="/admin/products/{{.ID}}/edit" class="text-teal-600 hover:text-teal-700 mr-4">Edit</a>
-                            <a href="/products/{{.Slug}}" target="_blank" class="text-neutral-600 hover:text-neutral-700">View</a>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-4">
+                                <a href="/admin/products/{{.ID}}/edit"
+                                   class="text-sm/6 font-medium text-zinc-950 hover:text-zinc-700 dark:text-white dark:hover:text-zinc-300">
+                                    Edit
+                                </a>
+                                <a href="/products/{{.Slug}}"
+                                   target="_blank"
+                                   class="text-sm/6 font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300">
+                                    View
+                                </a>
+                            </div>
                         </td>
-                    </tr>
-                    {{else}}
-                    <tr>
-                        <td colspan="6" class="px-6 py-4 text-center text-neutral-500">No products yet</td>
                     </tr>
                     {{end}}
                 </tbody>
             </table>
         </div>
     </div>
+    {{else}}
+    {{template "empty-state" (dict
+        "Title" "No products yet"
+        "Description" "Start by adding your first coffee product to the catalog"
+        "Action" (dict
+            "Content" "Add Your First Product"
+            "Variant" "solid"
+            "Color" "zinc"
+            "Href" "/admin/products/new"))}}
+    {{end}}
 </div>
 {{end}}

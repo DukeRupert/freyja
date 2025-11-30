@@ -73,9 +73,10 @@ func (h *OrderDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Order":      order,
-		"OrderItems": items,
-		"Shipments":  shipments,
+		"CurrentPath": r.URL.Path,
+		"Order":       order,
+		"OrderItems":  items,
+		"Shipments":   shipments,
 	}
 
 	h.renderer.RenderHTTP(w, "admin/order_detail", data)

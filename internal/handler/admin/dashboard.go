@@ -128,6 +128,7 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
+		"CurrentPath": r.URL.Path,
 		"OrderStats": map[string]interface{}{
 			"TotalOrders":          orderStats.TotalOrders,
 			"PendingOrders":        orderStats.PendingOrders,

@@ -1,300 +1,246 @@
 {{define "title"}}{{if .Product.ID}}Edit Product{{else}}New Product{{end}}{{end}}
 
 {{define "content"}}
-<div class="max-w-4xl">
-    <!-- Page Header -->
-    <div class="mb-6">
-        <div class="flex items-center space-x-4 mb-2">
-            <a href="/admin/products" class="text-neutral-600 hover:text-neutral-900">← Back to Products</a>
-        </div>
-        <h2 class="text-2xl font-semibold text-neutral-900">
-            {{if .Product.ID}}Edit Product{{else}}New Product{{end}}
-        </h2>
+<div class="mx-auto max-w-4xl space-y-8">
+    <!-- Back Link -->
+    <div>
+        <a href="/admin/products"
+           class="inline-flex items-center gap-2 text-sm/6 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white">
+            ← Back to Products
+        </a>
     </div>
 
+    <!-- Page Header -->
+    {{template "page-header" (dict
+        "Title" (ternary .Product.ID.Valid "Edit Product" "New Product")
+        "Description" "")}}
+
     <!-- Product Form -->
-    <form method="POST" action="{{if .Product.ID}}/admin/products/{{.Product.ID}}/edit{{else}}/admin/products/new{{end}}" class="space-y-8">
+    <form method="POST"
+          action="{{if .Product.ID}}/admin/products/{{.Product.ID}}/edit{{else}}/admin/products/new{{end}}"
+          class="space-y-8">
 
         <!-- Basic Information -->
-        <div class="bg-white rounded-lg border border-neutral-200 p-6">
-            <h3 class="text-lg font-semibold text-neutral-900 mb-4">Basic Information</h3>
+        <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            {{template "heading" (dict "Level" "3" "Content" "Basic Information")}}
 
-            <div class="space-y-4">
+            <div class="mt-6 space-y-6">
                 <!-- Name -->
-                <div>
-                    <label for="name" class="block text-sm font-medium text-neutral-700 mb-1">
-                        Product Name <span class="text-red-600">*</span>
-                    </label>
-                    <input
-                        type="text"
-                        id="name"
-                        name="name"
-                        required
-                        value="{{.Product.Name}}"
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        placeholder="Ethiopian Yirgacheffe"
-                    >
-                </div>
+                {{template "field" (dict
+                    "Label" "Product Name"
+                    "Required" true
+                    "Description" ""
+                    "Input" (dict
+                        "Type" "text"
+                        "ID" "name"
+                        "Name" "name"
+                        "Required" true
+                        "Value" .Product.Name
+                        "Placeholder" "Ethiopian Yirgacheffe"))}}
 
                 <!-- Slug -->
-                <div>
-                    <label for="slug" class="block text-sm font-medium text-neutral-700 mb-1">
-                        URL Slug <span class="text-red-600">*</span>
-                    </label>
-                    <input
-                        type="text"
-                        id="slug"
-                        name="slug"
-                        required
-                        value="{{.Product.Slug}}"
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        placeholder="ethiopian-yirgacheffe"
-                    >
-                    <p class="text-xs text-neutral-500 mt-1">Used in the URL. Lowercase, hyphens only.</p>
-                </div>
+                {{template "field" (dict
+                    "Label" "URL Slug"
+                    "Required" true
+                    "Description" "Used in the URL. Lowercase, hyphens only."
+                    "Input" (dict
+                        "Type" "text"
+                        "ID" "slug"
+                        "Name" "slug"
+                        "Required" true
+                        "Value" .Product.Slug
+                        "Placeholder" "ethiopian-yirgacheffe"))}}
 
                 <!-- Short Description -->
-                <div>
-                    <label for="short_description" class="block text-sm font-medium text-neutral-700 mb-1">
-                        Short Description
-                    </label>
-                    <input
-                        type="text"
-                        id="short_description"
-                        name="short_description"
-                        value="{{if .Product.ShortDescription.Valid}}{{.Product.ShortDescription.String}}{{end}}"
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        placeholder="Bright and floral with notes of blueberry"
-                    >
-                </div>
+                {{template "field" (dict
+                    "Label" "Short Description"
+                    "Description" ""
+                    "Input" (dict
+                        "Type" "text"
+                        "ID" "short_description"
+                        "Name" "short_description"
+                        "Value" (ternary .Product.ShortDescription.Valid .Product.ShortDescription.String "")
+                        "Placeholder" "Bright and floral with notes of blueberry"))}}
 
                 <!-- Description -->
-                <div>
-                    <label for="description" class="block text-sm font-medium text-neutral-700 mb-1">
-                        Full Description
-                    </label>
-                    <textarea
-                        id="description"
-                        name="description"
-                        rows="4"
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        placeholder="Tell the story of this coffee..."
-                    >{{if .Product.Description.Valid}}{{.Product.Description.String}}{{end}}</textarea>
-                </div>
+                {{template "field" (dict
+                    "Label" "Full Description"
+                    "Description" ""
+                    "Textarea" (dict
+                        "ID" "description"
+                        "Name" "description"
+                        "Rows" 4
+                        "Value" (ternary .Product.Description.Valid .Product.Description.String "")
+                        "Placeholder" "Tell the story of this coffee..."))}}
             </div>
-        </div>
+        </section>
 
         <!-- Coffee Attributes -->
-        <div class="bg-white rounded-lg border border-neutral-200 p-6">
-            <h3 class="text-lg font-semibold text-neutral-900 mb-4">Coffee Attributes</h3>
+        <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            {{template "heading" (dict "Level" "3" "Content" "Coffee Attributes")}}
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="mt-6 grid gap-6 sm:grid-cols-2">
                 <!-- Origin -->
-                <div>
-                    <label for="origin" class="block text-sm font-medium text-neutral-700 mb-1">
-                        Origin (Country)
-                    </label>
-                    <input
-                        type="text"
-                        id="origin"
-                        name="origin"
-                        value="{{if .Product.Origin.Valid}}{{.Product.Origin.String}}{{end}}"
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        placeholder="Ethiopia"
-                    >
-                </div>
+                {{template "field" (dict
+                    "Label" "Origin (Country)"
+                    "Input" (dict
+                        "Type" "text"
+                        "ID" "origin"
+                        "Name" "origin"
+                        "Value" (ternary .Product.Origin.Valid .Product.Origin.String "")
+                        "Placeholder" "Ethiopia"))}}
 
                 <!-- Region -->
-                <div>
-                    <label for="region" class="block text-sm font-medium text-neutral-700 mb-1">
-                        Region
-                    </label>
-                    <input
-                        type="text"
-                        id="region"
-                        name="region"
-                        value="{{if .Product.Region.Valid}}{{.Product.Region.String}}{{end}}"
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        placeholder="Yirgacheffe"
-                    >
-                </div>
+                {{template "field" (dict
+                    "Label" "Region"
+                    "Input" (dict
+                        "Type" "text"
+                        "ID" "region"
+                        "Name" "region"
+                        "Value" (ternary .Product.Region.Valid .Product.Region.String "")
+                        "Placeholder" "Yirgacheffe"))}}
 
                 <!-- Producer -->
-                <div>
-                    <label for="producer" class="block text-sm font-medium text-neutral-700 mb-1">
-                        Producer/Farm
-                    </label>
-                    <input
-                        type="text"
-                        id="producer"
-                        name="producer"
-                        value="{{if .Product.Producer.Valid}}{{.Product.Producer.String}}{{end}}"
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        placeholder="Smallholder farmers"
-                    >
-                </div>
+                {{template "field" (dict
+                    "Label" "Producer/Farm"
+                    "Input" (dict
+                        "Type" "text"
+                        "ID" "producer"
+                        "Name" "producer"
+                        "Value" (ternary .Product.Producer.Valid .Product.Producer.String "")
+                        "Placeholder" "Smallholder farmers"))}}
 
                 <!-- Process -->
-                <div>
-                    <label for="process" class="block text-sm font-medium text-neutral-700 mb-1">
-                        Process Method
-                    </label>
-                    <select
-                        id="process"
-                        name="process"
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    >
-                        <option value="">Select...</option>
-                        <option value="washed" {{if eq .Product.Process.String "washed"}}selected{{end}}>Washed</option>
-                        <option value="natural" {{if eq .Product.Process.String "natural"}}selected{{end}}>Natural</option>
-                        <option value="honey" {{if eq .Product.Process.String "honey"}}selected{{end}}>Honey</option>
-                        <option value="pulped_natural" {{if eq .Product.Process.String "pulped_natural"}}selected{{end}}>Pulped Natural</option>
-                        <option value="anaerobic" {{if eq .Product.Process.String "anaerobic"}}selected{{end}}>Anaerobic</option>
-                    </select>
-                </div>
+                {{template "field" (dict
+                    "Label" "Process Method"
+                    "Select" (dict
+                        "ID" "process"
+                        "Name" "process"
+                        "Value" (ternary .Product.Process.Valid .Product.Process.String "")
+                        "Options" (list
+                            (dict "Value" "" "Label" "Select...")
+                            (dict "Value" "washed" "Label" "Washed")
+                            (dict "Value" "natural" "Label" "Natural")
+                            (dict "Value" "honey" "Label" "Honey")
+                            (dict "Value" "pulped_natural" "Label" "Pulped Natural")
+                            (dict "Value" "anaerobic" "Label" "Anaerobic"))))}}
 
                 <!-- Roast Level -->
-                <div>
-                    <label for="roast_level" class="block text-sm font-medium text-neutral-700 mb-1">
-                        Roast Level
-                    </label>
-                    <select
-                        id="roast_level"
-                        name="roast_level"
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    >
-                        <option value="">Select...</option>
-                        <option value="light" {{if eq .Product.RoastLevel.String "light"}}selected{{end}}>Light</option>
-                        <option value="medium-light" {{if eq .Product.RoastLevel.String "medium-light"}}selected{{end}}>Medium-Light</option>
-                        <option value="medium" {{if eq .Product.RoastLevel.String "medium"}}selected{{end}}>Medium</option>
-                        <option value="medium-dark" {{if eq .Product.RoastLevel.String "medium-dark"}}selected{{end}}>Medium-Dark</option>
-                        <option value="dark" {{if eq .Product.RoastLevel.String "dark"}}selected{{end}}>Dark</option>
-                    </select>
-                </div>
+                {{template "field" (dict
+                    "Label" "Roast Level"
+                    "Select" (dict
+                        "ID" "roast_level"
+                        "Name" "roast_level"
+                        "Value" (ternary .Product.RoastLevel.Valid .Product.RoastLevel.String "")
+                        "Options" (list
+                            (dict "Value" "" "Label" "Select...")
+                            (dict "Value" "light" "Label" "Light")
+                            (dict "Value" "medium-light" "Label" "Medium-Light")
+                            (dict "Value" "medium" "Label" "Medium")
+                            (dict "Value" "medium-dark" "Label" "Medium-Dark")
+                            (dict "Value" "dark" "Label" "Dark"))))}}
 
                 <!-- Elevation Min -->
-                <div>
-                    <label for="elevation_min" class="block text-sm font-medium text-neutral-700 mb-1">
-                        Elevation Min (meters)
-                    </label>
-                    <input
-                        type="number"
-                        id="elevation_min"
-                        name="elevation_min"
-                        value="{{if .Product.ElevationMin.Valid}}{{.Product.ElevationMin.Int32}}{{end}}"
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        placeholder="1800"
-                    >
-                </div>
+                {{template "field" (dict
+                    "Label" "Elevation Min (meters)"
+                    "Input" (dict
+                        "Type" "number"
+                        "ID" "elevation_min"
+                        "Name" "elevation_min"
+                        "Value" (ternary .Product.ElevationMin.Valid .Product.ElevationMin.Int32 "")
+                        "Placeholder" "1800"))}}
 
                 <!-- Elevation Max -->
-                <div>
-                    <label for="elevation_max" class="block text-sm font-medium text-neutral-700 mb-1">
-                        Elevation Max (meters)
-                    </label>
-                    <input
-                        type="number"
-                        id="elevation_max"
-                        name="elevation_max"
-                        value="{{if .Product.ElevationMax.Valid}}{{.Product.ElevationMax.Int32}}{{end}}"
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        placeholder="2200"
-                    >
-                </div>
+                {{template "field" (dict
+                    "Label" "Elevation Max (meters)"
+                    "Input" (dict
+                        "Type" "number"
+                        "ID" "elevation_max"
+                        "Name" "elevation_max"
+                        "Value" (ternary .Product.ElevationMax.Valid .Product.ElevationMax.Int32 "")
+                        "Placeholder" "2200"))}}
 
-                <!-- Tasting Notes (will handle as comma-separated for now) -->
-                <div class="md:col-span-2">
-                    <label for="tasting_notes" class="block text-sm font-medium text-neutral-700 mb-1">
-                        Tasting Notes
-                    </label>
-                    <input
-                        type="text"
-                        id="tasting_notes"
-                        name="tasting_notes"
-                        value="{{if .Product.TastingNotes}}{{.TastingNotesString}}{{end}}"
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        placeholder="blueberry, floral, citrus (comma-separated)"
-                    >
-                    <p class="text-xs text-neutral-500 mt-1">Separate multiple notes with commas.</p>
+                <!-- Tasting Notes -->
+                <div class="sm:col-span-2">
+                    {{template "field" (dict
+                        "Label" "Tasting Notes"
+                        "Description" "Separate multiple notes with commas."
+                        "Input" (dict
+                            "Type" "text"
+                            "ID" "tasting_notes"
+                            "Name" "tasting_notes"
+                            "Value" .TastingNotesString
+                            "Placeholder" "blueberry, floral, citrus"))}}
                 </div>
             </div>
-        </div>
+        </section>
 
         <!-- Status & Visibility -->
-        <div class="bg-white rounded-lg border border-neutral-200 p-6">
-            <h3 class="text-lg font-semibold text-neutral-900 mb-4">Status & Visibility</h3>
+        <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            {{template "heading" (dict "Level" "3" "Content" "Status & Visibility")}}
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="mt-6 grid gap-6 sm:grid-cols-2">
                 <!-- Status -->
-                <div>
-                    <label for="status" class="block text-sm font-medium text-neutral-700 mb-1">
-                        Status <span class="text-red-600">*</span>
-                    </label>
-                    <select
-                        id="status"
-                        name="status"
-                        required
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    >
-                        <option value="draft" {{if eq .Product.Status "draft"}}selected{{end}}>Draft</option>
-                        <option value="active" {{if eq .Product.Status "active"}}selected{{end}}>Active</option>
-                        <option value="archived" {{if eq .Product.Status "archived"}}selected{{end}}>Archived</option>
-                    </select>
-                </div>
+                {{template "field" (dict
+                    "Label" "Status"
+                    "Required" true
+                    "Select" (dict
+                        "ID" "status"
+                        "Name" "status"
+                        "Required" true
+                        "Value" .Product.Status
+                        "Options" (list
+                            (dict "Value" "draft" "Label" "Draft")
+                            (dict "Value" "active" "Label" "Active")
+                            (dict "Value" "archived" "Label" "Archived"))))}}
 
                 <!-- Visibility -->
-                <div>
-                    <label for="visibility" class="block text-sm font-medium text-neutral-700 mb-1">
-                        Visibility <span class="text-red-600">*</span>
-                    </label>
-                    <select
-                        id="visibility"
-                        name="visibility"
-                        required
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    >
-                        <option value="public" {{if eq .Product.Visibility "public"}}selected{{end}}>Public</option>
-                        <option value="wholesale" {{if eq .Product.Visibility "wholesale"}}selected{{end}}>Wholesale Only</option>
-                        <option value="hidden" {{if eq .Product.Visibility "hidden"}}selected{{end}}>Hidden</option>
-                    </select>
-                </div>
+                {{template "field" (dict
+                    "Label" "Visibility"
+                    "Required" true
+                    "Select" (dict
+                        "ID" "visibility"
+                        "Name" "visibility"
+                        "Required" true
+                        "Value" .Product.Visibility
+                        "Options" (list
+                            (dict "Value" "public" "Label" "Public")
+                            (dict "Value" "wholesale" "Label" "Wholesale Only")
+                            (dict "Value" "hidden" "Label" "Hidden"))))}}
 
                 <!-- Sort Order -->
-                <div>
-                    <label for="sort_order" class="block text-sm font-medium text-neutral-700 mb-1">
-                        Sort Order
-                    </label>
-                    <input
-                        type="number"
-                        id="sort_order"
-                        name="sort_order"
-                        value="{{if .Product.SortOrder.Valid}}{{.Product.SortOrder.Int32}}{{else}}0{{end}}"
-                        class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        placeholder="0"
-                    >
-                    <p class="text-xs text-neutral-500 mt-1">Lower numbers appear first.</p>
-                </div>
+                {{template "field" (dict
+                    "Label" "Sort Order"
+                    "Description" "Lower numbers appear first."
+                    "Input" (dict
+                        "Type" "number"
+                        "ID" "sort_order"
+                        "Name" "sort_order"
+                        "Value" .Product.SortOrder
+                        "Placeholder" "0"))}}
             </div>
-        </div>
+        </section>
 
         <!-- Form Actions -->
-        <div class="flex justify-end space-x-4">
-            <a href="/admin/products" class="px-4 py-2 border border-neutral-300 rounded-md text-neutral-700 hover:bg-neutral-50">
-                Cancel
-            </a>
-            <button
-                type="submit"
-                class="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700"
-            >
-                {{if .Product.ID}}Update Product{{else}}Create Product{{end}}
-            </button>
+        <div class="flex justify-end gap-4">
+            {{template "button" (dict
+                "Content" "Cancel"
+                "Variant" "outline"
+                "Type" "button"
+                "Href" "/admin/products")}}
+
+            {{template "button" (dict
+                "Content" (ternary .Product.ID.Valid "Update Product" "Create Product")
+                "Variant" "solid"
+                "Color" "zinc"
+                "Type" "submit")}}
         </div>
     </form>
 
     <!-- Note about SKUs -->
     {{if .Product.ID}}
-    <div class="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <p class="text-sm text-blue-800">
+    <div class="rounded-2xl bg-blue-50 p-6 ring-1 ring-blue-600/20 dark:bg-blue-500/10 dark:ring-blue-500/20">
+        <p class="text-sm/6 text-blue-900 dark:text-blue-300">
             <strong>Note:</strong> After saving, you can manage SKUs (sizes and grind options), pricing, and images from the product detail page.
         </p>
     </div>

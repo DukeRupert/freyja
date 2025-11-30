@@ -1,0 +1,55 @@
+{{/*
+  Text Component - Catalyst UI Kit Style
+
+  Usage:
+    {{template "text" (dict "Content" "Body text goes here")}}
+    {{template "text-secondary" (dict "Content" "Secondary text")}}
+    {{template "text-link" (dict "Content" "Click here" "Href" "/link")}}
+
+  Parameters:
+    - Content: Text content (required)
+    - Class: Additional CSS classes
+*/}}
+
+{{/* Body text - primary color */}}
+{{define "text"}}
+<p class="text-base/6 text-zinc-950 sm:text-sm/6 dark:text-white {{.Class}}">
+  {{.Content}}
+</p>
+{{end}}
+
+{{/* Secondary text - muted color */}}
+{{define "text-secondary"}}
+<p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400 {{.Class}}">
+  {{.Content}}
+</p>
+{{end}}
+
+{{/* Small text */}}
+{{define "text-small"}}
+<p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400 {{.Class}}">
+  {{.Content}}
+</p>
+{{end}}
+
+{{/* Strong/emphasized text */}}
+{{define "text-strong"}}
+<strong class="font-medium text-zinc-950 dark:text-white {{.Class}}">
+  {{.Content}}
+</strong>
+{{end}}
+
+{{/* Code text */}}
+{{define "text-code"}}
+<code class="rounded border border-zinc-950/10 bg-zinc-950/[2.5%] px-0.5 text-sm font-medium text-zinc-950 dark:border-white/20 dark:bg-white/5 dark:text-white sm:text-xs {{.Class}}">
+  {{.Content}}
+</code>
+{{end}}
+
+{{/* Link text */}}
+{{define "text-link"}}
+<a href="{{.Href}}"
+   class="text-zinc-950 underline decoration-zinc-950/50 hover:decoration-zinc-950 dark:text-white dark:decoration-white/50 dark:hover:decoration-white {{.Class}}">
+  {{.Content}}
+</a>
+{{end}}

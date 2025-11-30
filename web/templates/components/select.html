@@ -1,0 +1,53 @@
+{{/*
+  Select Component - Catalyst UI Kit Style
+
+  Usage:
+    {{template "select" (dict
+      "Name" "country"
+      "Options" (list
+        (dict "Value" "us" "Label" "United States")
+        (dict "Value" "ca" "Label" "Canada")))}}
+
+  Parameters:
+    - Name: Select name attribute (required)
+    - Options: List of option dicts with Value and Label (required)
+    - Value: Selected value
+    - Required: true/false
+    - Disabled: true/false
+    - ID: Select ID (defaults to Name)
+    - Placeholder: First option placeholder text (e.g., "Select an option...")
+    - Class: Additional CSS classes
+*/}}
+
+{{define "select"}}
+<select name="{{.Name}}"
+        id="{{or .ID .Name}}"
+        {{if .Required}}required{{end}}
+        {{if .Disabled}}disabled{{end}}
+        class="{{template "select-classes" .}}">
+  {{if .Placeholder}}
+    <option value="">{{.Placeholder}}</option>
+  {{end}}
+  {{range .Options}}
+    <option value="{{.Value}}" {{if eq $.Value .Value}}selected{{end}}>
+      {{.Label}}
+    </option>
+  {{end}}
+</select>
+{{end}}
+
+{{define "select-classes"}}
+{{/* Base select classes - similar to input */}}
+relative block w-full appearance-none rounded-lg border
+px-[calc(theme(spacing.3.5)-1px)] py-[calc(theme(spacing.2.5)-1px)]
+sm:px-[calc(theme(spacing.3)-1px)] sm:py-[calc(theme(spacing.1.5)-1px)]
+text-base/6 text-zinc-950 sm:text-sm/6
+border-zinc-950/10 hover:border-zinc-950/20
+dark:border-white/10 dark:text-white
+dark:hover:border-white/20
+bg-white dark:bg-white/5
+focus:outline focus:outline-2 focus:-outline-offset-1 focus:outline-blue-500
+disabled:border-zinc-950/20 disabled:dark:border-white/15 disabled:dark:bg-white/[2.5%]
+disabled:opacity-50 disabled:cursor-not-allowed
+{{if .Class}}{{.Class}}{{end}}
+{{end}}

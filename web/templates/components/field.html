@@ -1,0 +1,76 @@
+{{/*
+  Field Wrapper Component - Catalyst UI Kit Style
+
+  Wraps form inputs with label, description, error message
+
+  Usage:
+    {{template "field" (dict
+      "Label" "Email"
+      "Input" (dict "ID" "email" "Name" "email" "Type" "email")
+      "Description" "We'll never share your email"
+      "Error" "Email is required"
+      "Required" true)}}
+
+  Or with Select:
+    {{template "field" (dict
+      "Label" "Country"
+      "Select" (dict "ID" "country" "Name" "country" "Options" ...)
+      "Required" true)}}
+
+  Or with Textarea:
+    {{template "field" (dict
+      "Label" "Description"
+      "Textarea" (dict "ID" "desc" "Name" "desc" "Rows" 4)
+      "Required" true)}}
+
+  Parameters:
+    - Label: Field label text
+    - Input: Dict of input parameters (renders input component)
+    - Select: Dict of select parameters (renders select component)
+    - Textarea: Dict of textarea parameters (renders textarea component)
+    - Description: Helper text shown below label
+    - Error: Error message shown below input
+    - Required: Show required indicator (true/false)
+*/}}
+
+{{define "field"}}
+<div class="space-y-1">
+  {{if .Label}}
+    {{/* Determine ID from nested component */}}
+    {{$id := ""}}
+    {{if .Input}}{{$id = .Input.ID}}{{end}}
+    {{if .Select}}{{$id = .Select.ID}}{{end}}
+    {{if .Textarea}}{{$id = .Textarea.ID}}{{end}}
+
+    <label for="{{$id}}"
+           class="text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white data-[disabled]:opacity-50">
+      {{.Label}}
+      {{if .Required}}
+        <span class="text-red-600 dark:text-red-500">*</span>
+      {{end}}
+    </label>
+  {{end}}
+
+  {{if .Description}}
+    <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400 data-[disabled]:opacity-50">
+      {{.Description}}
+    </p>
+  {{end}}
+
+  <div class="mt-2">
+    {{if .Input}}
+      {{template "input" .Input}}
+    {{else if .Select}}
+      {{template "select" .Select}}
+    {{else if .Textarea}}
+      {{template "textarea" .Textarea}}
+    {{end}}
+  </div>
+
+  {{if .Error}}
+    <p class="mt-2 text-base/6 text-red-600 sm:text-sm/6 dark:text-red-500 data-[disabled]:opacity-50">
+      {{.Error}}
+    </p>
+  {{end}}
+</div>
+{{end}}

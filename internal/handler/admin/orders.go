@@ -49,7 +49,8 @@ func (h *OrderListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Orders": orders,
+		"CurrentPath": r.URL.Path,
+		"Orders":      orders,
 	}
 
 	h.renderer.RenderHTTP(w, "admin/orders", data)

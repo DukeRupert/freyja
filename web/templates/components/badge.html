@@ -1,0 +1,133 @@
+{{/*
+  Badge Component - Catalyst UI Kit Style
+
+  Usage:
+    {{template "badge" (dict "Content" "New" "Color" "blue")}}
+    {{template "severity-badge" (dict "Severity" "critical")}}
+    {{template "status-badge" (dict "Status" "pending")}}
+
+  Parameters:
+    - Content: Badge text (required)
+    - Color: zinc, red, orange, amber, green, blue (default: "zinc")
+    - Size: sm, md (default: "md")
+    - Class: Additional CSS classes
+*/}}
+
+{{define "badge"}}
+<span class="{{template "badge-classes" .}}">
+  {{.Content}}
+</span>
+{{end}}
+
+{{define "badge-classes"}}
+{{/* Base badge classes - Catalyst style */}}
+inline-flex items-center gap-x-1.5 rounded-md font-medium
+forced-colors:outline
+
+{{/* Size variants */}}
+{{$size := or .Size "md"}}
+{{if eq $size "sm"}}
+  px-1 py-0.5 text-xs/5
+{{else}}
+  px-1.5 py-0.5 text-sm/5 sm:text-xs/5
+{{end}}
+
+{{/* Color variants */}}
+{{$color := or .Color "zinc"}}
+{{if eq $color "zinc"}}
+  bg-zinc-600/10 text-zinc-700
+  dark:bg-white/5 dark:text-zinc-400
+{{else if eq $color "red"}}
+  bg-red-600/10 text-red-700
+  dark:bg-red-400/10 dark:text-red-400
+{{else if eq $color "orange"}}
+  bg-orange-600/10 text-orange-700
+  dark:bg-orange-400/10 dark:text-orange-400
+{{else if eq $color "amber"}}
+  bg-amber-400/20 text-amber-700
+  dark:bg-amber-400/10 dark:text-amber-400
+{{else if eq $color "green"}}
+  bg-green-600/10 text-green-700
+  dark:bg-green-400/10 dark:text-green-400
+{{else if eq $color "blue"}}
+  bg-blue-600/10 text-blue-700
+  dark:bg-blue-400/10 dark:text-blue-400
+{{end}}
+
+{{/* Additional custom classes */}}
+{{if .Class}}{{.Class}}{{end}}
+{{end}}
+
+{{/*
+  Severity Badge - Maps violation severity to colors
+
+  Usage:
+    {{template "severity-badge" (dict "Severity" "critical")}}
+
+  Severity values:
+    - critical → red
+    - high → orange
+    - medium → amber
+    - low → zinc
+*/}}
+{{define "severity-badge"}}
+{{$color := "zinc"}}
+{{$content := .Severity}}
+
+{{if eq .Severity "critical"}}
+  {{$color = "red"}}
+  {{$content = "Critical"}}
+{{else if eq .Severity "high"}}
+  {{$color = "orange"}}
+  {{$content = "High"}}
+{{else if eq .Severity "medium"}}
+  {{$color = "amber"}}
+  {{$content = "Medium"}}
+{{else if eq .Severity "low"}}
+  {{$color = "zinc"}}
+  {{$content = "Low"}}
+{{end}}
+
+{{template "badge" (dict "Content" $content "Color" $color "Size" .Size "Class" .Class)}}
+{{end}}
+
+{{/*
+  Status Badge - Maps violation/inspection status to colors
+
+  Usage:
+    {{template "status-badge" (dict "Status" "pending")}}
+
+  Status values:
+    - pending → blue
+    - confirmed → green
+    - dismissed → zinc
+    - draft → zinc
+    - in_progress → blue
+    - completed → green
+*/}}
+{{define "status-badge"}}
+{{$color := "zinc"}}
+{{$content := .Status}}
+
+{{if eq .Status "pending"}}
+  {{$color = "blue"}}
+  {{$content = "Pending"}}
+{{else if eq .Status "confirmed"}}
+  {{$color = "green"}}
+  {{$content = "Confirmed"}}
+{{else if eq .Status "dismissed"}}
+  {{$color = "zinc"}}
+  {{$content = "Dismissed"}}
+{{else if eq .Status "draft"}}
+  {{$color = "zinc"}}
+  {{$content = "Draft"}}
+{{else if eq .Status "in_progress"}}
+  {{$color = "blue"}}
+  {{$content = "In Progress"}}
+{{else if eq .Status "completed"}}
+  {{$color = "green"}}
+  {{$content = "Completed"}}
+{{end}}
+
+{{template "badge" (dict "Content" $content "Color" $color "Size" .Size "Class" .Class)}}
+{{end}}

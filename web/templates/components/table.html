@@ -1,0 +1,94 @@
+{{/*
+  Table Component - Reusable table wrapper with Catalyst styling
+
+  Usage:
+    {{template "table-start" (dict "Title" "Recent Orders")}}
+      <table class="min-w-full text-left text-sm/6 text-zinc-950 dark:text-white">
+        <thead class="text-zinc-500 dark:text-zinc-400">
+          <tr>
+            <th class="px-6 py-3 font-medium">Column</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-950/5 dark:divide-white/5">
+          ... rows ...
+        </tbody>
+      </table>
+    {{template "table-end" (dict "FooterLink" "/orders" "FooterText" "View all orders →")}}
+
+  Or for empty states:
+    {{template "table-start" (dict "Title" "Orders")}}
+      {{template "empty-state" (dict ...)}}
+    {{template "table-end"}}
+
+  Parameters for table-start:
+    - Title: Optional table title (displays in header)
+    - Class: Additional CSS classes for the container
+
+  Parameters for table-end:
+    - FooterLink: Optional footer link URL
+    - FooterText: Optional footer link text
+*/}}
+
+{{define "table-start"}}
+<section class="rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10 {{.Class}}">
+    {{if .Title}}
+    <div class="border-b border-zinc-950/5 px-6 py-4 dark:border-white/5">
+        {{template "heading" (dict "Level" "3" "Content" .Title)}}
+    </div>
+    {{end}}
+    <div class="overflow-x-auto">
+{{end}}
+
+{{define "table-end"}}
+    </div>
+    {{if or .FooterLink .FooterText}}
+    <div class="border-t border-zinc-950/5 px-6 py-4 dark:border-white/5">
+        <a href="{{.FooterLink}}"
+           class="text-sm/6 font-medium text-zinc-950 hover:text-zinc-700 dark:text-white dark:hover:text-zinc-300">
+            {{.FooterText}}
+        </a>
+    </div>
+    {{end}}
+</section>
+{{end}}
+
+{{/*
+  Table Classes - Standard table styling
+
+  Usage:
+    <table class="{{template "table-classes"}}">
+*/}}
+{{define "table-classes"}}min-w-full text-left text-sm/6 text-zinc-950 dark:text-white{{end}}
+
+{{/*
+  Table Header Classes - Standard thead styling
+
+  Usage:
+    <thead class="{{template "table-header-classes"}}">
+*/}}
+{{define "table-header-classes"}}text-zinc-500 dark:text-zinc-400{{end}}
+
+{{/*
+  Table Body Classes - Standard tbody styling with dividers
+
+  Usage:
+    <tbody class="{{template "table-body-classes"}}">
+*/}}
+{{define "table-body-classes"}}divide-y divide-zinc-950/5 dark:divide-white/5{{end}}
+
+{{/*
+  Table Row Classes - Standard tr styling with hover
+
+  Usage:
+    <tr class="{{template "table-row-classes"}}">
+*/}}
+{{define "table-row-classes"}}hover:bg-zinc-950/[2.5%] dark:hover:bg-white/[2.5%]{{end}}
+
+{{/*
+  Table Cell Classes - Standard th/td styling
+
+  Usage:
+    <th class="{{template "table-cell-classes"}}">Column</th>
+    <td class="{{template "table-cell-classes"}}">Value</td>
+*/}}
+{{define "table-cell-classes"}}px-6 py-3 font-medium{{end}}

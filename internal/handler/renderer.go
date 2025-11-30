@@ -18,6 +18,13 @@ type Renderer struct {
 func NewRenderer(templatesDir string) (*Renderer, error) {
 	templates := make(map[string]*template.Template)
 
+	// Get all component templates
+	componentPattern := filepath.Join(templatesDir, "components", "*.html")
+	componentFiles, err := filepath.Glob(componentPattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to glob components: %w", err)
+	}
+
 	// Parse storefront layout once as base template
 	layoutPattern := filepath.Join(templatesDir, "layout.html")
 	baseTmpl, err := template.New("base").Funcs(TemplateFuncs()).ParseFiles(layoutPattern)
@@ -25,11 +32,27 @@ func NewRenderer(templatesDir string) (*Renderer, error) {
 		return nil, fmt.Errorf("failed to parse layout: %w", err)
 	}
 
+	// Parse components into base template
+	if len(componentFiles) > 0 {
+		baseTmpl, err = baseTmpl.ParseFiles(componentFiles...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse components into base template: %w", err)
+		}
+	}
+
 	// Parse admin layout
 	adminLayoutPattern := filepath.Join(templatesDir, "admin", "layout.html")
 	adminBaseTmpl, err := template.New("admin_base").Funcs(TemplateFuncs()).ParseFiles(adminLayoutPattern)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse admin layout: %w", err)
+	}
+
+	// Parse components into admin base template
+	if len(componentFiles) > 0 {
+		adminBaseTmpl, err = adminBaseTmpl.ParseFiles(componentFiles...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse components into admin base template: %w", err)
+		}
 	}
 
 	// Get list of page templates (root level)

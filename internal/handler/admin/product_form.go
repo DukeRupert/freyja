@@ -78,6 +78,7 @@ func (h *ProductFormHandler) showForm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
+		"CurrentPath":        r.URL.Path,
 		"Product":            product,
 		"TastingNotesString": tastingNotesString,
 	}

@@ -44,7 +44,8 @@ func (h *ProductListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Products": products,
+		"CurrentPath": r.URL.Path,
+		"Products":    products,
 	}
 
 	h.renderer.RenderHTTP(w, "admin/products", data)

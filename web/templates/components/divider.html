@@ -1,0 +1,30 @@
+{{/*
+  Divider Component - Catalyst UI Kit Style
+
+  Usage:
+    {{template "divider" .}}
+    {{template "divider-text" (dict "Text" "Or continue with")}}
+
+  Parameters:
+    - Text: Optional centered text for divider
+    - Class: Additional CSS classes
+*/}}
+
+{{/* Simple horizontal divider */}}
+{{define "divider"}}
+<hr class="w-full border-t border-zinc-950/10 dark:border-white/10 {{.Class}}">
+{{end}}
+
+{{/* Divider with centered text */}}
+{{define "divider-text"}}
+<div class="relative {{.Class}}">
+  <div class="absolute inset-0 flex items-center" aria-hidden="true">
+    <div class="w-full border-t border-zinc-950/10 dark:border-white/10"></div>
+  </div>
+  <div class="relative flex justify-center text-sm/6">
+    <span class="bg-white px-6 text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
+      {{.Text}}
+    </span>
+  </div>
+</div>
+{{end}}

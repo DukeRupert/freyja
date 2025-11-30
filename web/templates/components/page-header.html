@@ -1,0 +1,44 @@
+{{/*
+  Page Header Component - Catalyst UI Kit Style
+
+  Provides consistent page headers with title, description, and actions
+
+  Usage:
+    {{template "page-header" (dict
+      "Title" "Page Title"
+      "Description" "Optional description"
+      "Actions" (list
+        (dict "Label" "New Item" "Href" "/new" "Variant" "solid" "Color" "blue")))}}
+
+  Parameters:
+    - Title: Page title (required)
+    - Description: Optional description text below title
+    - Actions: List of button dicts (Label, Href, Variant, Color, HXGet, HXPost, etc.)
+    - Class: Additional CSS classes
+*/}}
+
+{{define "page-header"}}
+<header class="px-gutter py-8 sm:py-12 {{.Class}}">
+  {{template "heading" (dict "Content" .Title "Level" "1")}}
+
+  {{if .Description}}
+    <p class="mt-2 text-base/7 text-zinc-600 dark:text-zinc-400">
+      {{.Description}}
+    </p>
+  {{end}}
+
+  {{if .Actions}}
+    <div class="mt-6 flex flex-wrap gap-4">
+      {{range .Actions}}
+        {{if .Href}}
+          <a href="{{.Href}}">
+            {{template "button" .}}
+          </a>
+        {{else}}
+          {{template "button" .}}
+        {{end}}
+      {{end}}
+    </div>
+  {{end}}
+</header>
+{{end}}

@@ -98,10 +98,11 @@ func (h *SKUFormHandler) showForm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Product":         product,
-		"SKU":             sku,
+		"CurrentPath":      r.URL.Path,
+		"Product":          product,
+		"SKU":              sku,
 		"BasePriceDollars": basePriceDollars,
-		"SuggestedPrice":  suggestedPrice,
+		"SuggestedPrice":   suggestedPrice,
 	}
 
 	h.renderer.RenderHTTP(w, "admin/sku_form", data)

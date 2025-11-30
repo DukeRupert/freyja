@@ -1,121 +1,116 @@
-{{define "title"}}Orders - Admin{{end}}
+{{define "title"}}Orders{{end}}
 
 {{define "content"}}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="sm:flex sm:items-center sm:justify-between">
-        <div>
-            <h1 class="text-2xl font-semibold text-gray-900">Orders</h1>
-            <p class="mt-2 text-sm text-gray-700">Manage and fulfill customer orders</p>
-        </div>
-        <div class="mt-4 sm:mt-0 sm:ml-16 flex gap-3">
-            <select id="status-filter" class="block rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm">
-                <option value="">All Orders</option>
-                <option value="pending">Pending</option>
-                <option value="processing">Processing</option>
-                <option value="shipped">Shipped</option>
-                <option value="delivered">Delivered</option>
-                <option value="cancelled">Cancelled</option>
-            </select>
-        </div>
+<div class="space-y-8">
+    <!-- Page Header -->
+    {{template "page-header" (dict
+        "Title" "Orders"
+        "Description" "Manage and fulfill customer orders")}}
+
+    <!-- Filters -->
+    <div class="flex items-center gap-4">
+        {{template "field" (dict
+            "Label" ""
+            "Select" (dict
+                "ID" "status-filter"
+                "Name" "status"
+                "Value" ""
+                "Options" (list
+                    (dict "Value" "" "Label" "All Orders")
+                    (dict "Value" "pending" "Label" "Pending")
+                    (dict "Value" "processing" "Label" "Processing")
+                    (dict "Value" "shipped" "Label" "Shipped")
+                    (dict "Value" "delivered" "Label" "Delivered")
+                    (dict "Value" "cancelled" "Label" "Cancelled"))))}}
     </div>
 
-    <div class="mt-8 flex flex-col">
-        <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
-            <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
-                <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-                    <table class="min-w-full divide-y divide-gray-300">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">
-                                    Order
-                                </th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                                    Customer
-                                </th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                                    Status
-                                </th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                                    Fulfillment
-                                </th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                                    Total
-                                </th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                                    Date
-                                </th>
-                                <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                                    <span class="sr-only">Actions</span>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200 bg-white">
-                            {{if .Orders}}
-                                {{range .Orders}}
-                                <tr>
-                                    <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
-                                        <div class="font-medium text-gray-900">{{.OrderNumber}}</div>
-                                        <div class="text-gray-500">{{.OrderType}}</div>
-                                    </td>
-                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                                        <div class="text-gray-900">{{.CustomerName.String}}</div>
-                                        <div class="text-gray-500">{{.CustomerEmail.String}}</div>
-                                    </td>
-                                    <td class="whitespace-nowrap px-3 py-4 text-sm">
-                                        {{if eq .Status "pending"}}
-                                            <span class="inline-flex rounded-full bg-yellow-100 px-2 text-xs font-semibold leading-5 text-yellow-800">
-                                                Pending
-                                            </span>
-                                        {{else if eq .Status "processing"}}
-                                            <span class="inline-flex rounded-full bg-blue-100 px-2 text-xs font-semibold leading-5 text-blue-800">
-                                                Processing
-                                            </span>
-                                        {{else if eq .Status "shipped"}}
-                                            <span class="inline-flex rounded-full bg-green-100 px-2 text-xs font-semibold leading-5 text-green-800">
-                                                Shipped
-                                            </span>
-                                        {{else if eq .Status "delivered"}}
-                                            <span class="inline-flex rounded-full bg-teal-100 px-2 text-xs font-semibold leading-5 text-teal-800">
-                                                Delivered
-                                            </span>
-                                        {{else if eq .Status "cancelled"}}
-                                            <span class="inline-flex rounded-full bg-red-100 px-2 text-xs font-semibold leading-5 text-red-800">
-                                                Cancelled
-                                            </span>
-                                        {{else}}
-                                            <span class="inline-flex rounded-full bg-gray-100 px-2 text-xs font-semibold leading-5 text-gray-800">
-                                                {{.Status}}
-                                            </span>
-                                        {{end}}
-                                    </td>
-                                    <td class="whitespace-nowrap px-3 py-4 text-sm">
-                                        <span class="text-gray-400">-</span>
-                                    </td>
-                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-900">
-                                        ${{printf "%.2f" (div .TotalCents 100.0)}}
-                                    </td>
-                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                                        {{.CreatedAt.Time.Format "Jan 2, 2006"}}
-                                    </td>
-                                    <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                                        <a href="/admin/orders/{{.ID}}" class="text-teal-600 hover:text-teal-900">
-                                            View<span class="sr-only">, {{.OrderNumber}}</span>
-                                        </a>
-                                    </td>
-                                </tr>
-                                {{end}}
-                            {{else}}
-                                <tr>
-                                    <td colspan="7" class="px-6 py-10 text-center text-sm text-gray-500">
-                                        No orders found
-                                    </td>
-                                </tr>
+    <!-- Orders Table -->
+    {{if .Orders}}
+    {{template "table-start" (dict "Title" "All Orders")}}
+        <table class="min-w-full text-left text-sm/6 text-zinc-950 dark:text-white">
+            <thead class="text-zinc-500 dark:text-zinc-400">
+                <tr>
+                    <th class="px-6 py-3 font-medium">Order</th>
+                    <th class="px-6 py-3 font-medium">Customer</th>
+                    <th class="px-6 py-3 font-medium">Status</th>
+                    <th class="px-6 py-3 font-medium">Total</th>
+                    <th class="px-6 py-3 font-medium">Date</th>
+                    <th class="px-6 py-3 font-medium">
+                        <span class="sr-only">Actions</span>
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-950/5 dark:divide-white/5">
+                {{range .Orders}}
+                <tr class="hover:bg-zinc-950/[2.5%] dark:hover:bg-white/[2.5%]">
+                    <td class="px-6 py-4">
+                        <div>
+                            <div class="font-medium text-zinc-950 dark:text-white">
+                                {{.OrderNumber}}
+                            </div>
+                            <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                                {{.OrderType}}
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        {{if .CustomerName.Valid}}
+                        <div>
+                            <div class="text-zinc-950 dark:text-white">
+                                {{.CustomerName.String}}
+                            </div>
+                            {{if .CustomerEmail.Valid}}
+                            <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                                {{.CustomerEmail.String}}
+                            </div>
                             {{end}}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
+                        </div>
+                        {{else}}
+                        <span class="text-zinc-500 dark:text-zinc-400">Guest</span>
+                        {{end}}
+                    </td>
+                    <td class="px-6 py-4">
+                        {{if eq .Status "pending"}}
+                            {{template "badge" (dict "Content" "Pending" "Color" "amber")}}
+                        {{else if eq .Status "processing"}}
+                            {{template "badge" (dict "Content" "Processing" "Color" "blue")}}
+                        {{else if eq .Status "shipped"}}
+                            {{template "badge" (dict "Content" "Shipped" "Color" "green")}}
+                        {{else if eq .Status "delivered"}}
+                            {{template "badge" (dict "Content" "Delivered" "Color" "green")}}
+                        {{else if eq .Status "cancelled"}}
+                            {{template "badge" (dict "Content" "Cancelled" "Color" "red")}}
+                        {{else}}
+                            {{template "badge" (dict "Content" .Status "Color" "zinc")}}
+                        {{end}}
+                    </td>
+                    <td class="px-6 py-4 text-zinc-950 dark:text-white">
+                        ${{printf "%.2f" (divf (add .TotalCents 0.0) 100.0)}}
+                    </td>
+                    <td class="px-6 py-4 text-zinc-500 dark:text-zinc-400">
+                        {{if .CreatedAt.Valid}}
+                            {{.CreatedAt.Time.Format "Jan 2, 2006"}}
+                        {{else}}
+                            -
+                        {{end}}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="/admin/orders/{{.ID}}"
+                           class="text-sm/6 font-medium text-zinc-950 hover:text-zinc-700 dark:text-white dark:hover:text-zinc-300">
+                            View
+                        </a>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    {{template "table-end"}}
+    {{else}}
+    {{template "table-start"}}
+        {{template "empty-state" (dict
+            "Title" "No orders yet"
+            "Description" "Orders will appear here once customers start purchasing from your store")}}
+    {{template "table-end"}}
+    {{end}}
 </div>
 {{end}}

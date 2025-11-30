@@ -1,0 +1,44 @@
+{{/*
+  Stat Card Component - Display a metric with label and optional description
+
+  Usage:
+    {{template "stat-card" (dict
+        "Label" "Total Orders"
+        "Value" "1,234"
+        "Description" "Last 30 days"
+        "Color" "default")}}
+
+  Parameters:
+    - Label: The metric label (required)
+    - Value: The metric value (required)
+    - Description: Optional description/context below the value
+    - Color: Optional color variant: default, amber, green, blue, red (default: "default")
+    - Icon: Optional icon HTML to display (future enhancement)
+*/}}
+
+{{define "stat-card"}}
+<div class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+    {{/* Label */}}
+    <div class="text-sm/6 text-zinc-500 dark:text-zinc-400">
+        {{.Label}}
+    </div>
+
+    {{/* Value with optional color */}}
+    {{$color := or .Color "default"}}
+    <div class="mt-2 text-3xl font-semibold
+                {{if eq $color "amber"}}text-amber-600 dark:text-amber-500
+                {{else if eq $color "green"}}text-green-600 dark:text-green-500
+                {{else if eq $color "blue"}}text-blue-600 dark:text-blue-500
+                {{else if eq $color "red"}}text-red-600 dark:text-red-500
+                {{else}}text-zinc-950 dark:text-white{{end}}">
+        {{.Value}}
+    </div>
+
+    {{/* Optional description */}}
+    {{if .Description}}
+    <div class="mt-2 text-sm/6 text-zinc-500 dark:text-zinc-400">
+        {{.Description}}
+    </div>
+    {{end}}
+</div>
+{{end}}

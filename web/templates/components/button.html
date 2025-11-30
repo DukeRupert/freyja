@@ -1,0 +1,112 @@
+{{/*
+  Button Component - Catalyst UI Kit Style
+
+  Usage:
+    {{template "button" (dict "Content" "Click me" "Type" "submit" "Variant" "solid")}}
+    {{template "button" (dict "Content" "View" "Href" "/products/123")}}
+
+  Parameters:
+    - Content: Button text/content (required)
+    - Href: If provided, renders as <a> instead of <button>
+    - Type: button, submit, reset (default: "button") - only for <button>
+    - Variant: solid, outline, plain (default: "solid")
+    - Color: zinc, red, orange, amber, green, blue (default: "zinc" for solid, none for outline/plain)
+    - Size: sm, md, lg (default: "md")
+    - HXPost: HTMX post URL
+    - HXGet: HTMX get URL
+    - HXTarget: HTMX target selector
+    - HXSwap: HTMX swap strategy
+    - Disabled: true/false
+    - Class: Additional CSS classes
+*/}}
+
+{{define "button"}}
+{{if .Href}}
+<a href="{{.Href}}"
+   class="{{template "button-classes" .}}"
+   {{if .HXPost}}hx-post="{{.HXPost}}"{{end}}
+   {{if .HXGet}}hx-get="{{.HXGet}}"{{end}}
+   {{if .HXTarget}}hx-target="{{.HXTarget}}"{{end}}
+   {{if .HXSwap}}hx-swap="{{.HXSwap}}"{{end}}>
+  {{.Content}}
+</a>
+{{else}}
+<button type="{{or .Type "button"}}"
+        class="{{template "button-classes" .}}"
+        {{if .HXPost}}hx-post="{{.HXPost}}"{{end}}
+        {{if .HXGet}}hx-get="{{.HXGet}}"{{end}}
+        {{if .HXTarget}}hx-target="{{.HXTarget}}"{{end}}
+        {{if .HXSwap}}hx-swap="{{.HXSwap}}"{{end}}
+        {{if .Disabled}}disabled{{end}}>
+  {{.Content}}
+</button>
+{{end}}
+{{end}}
+
+{{define "button-classes"}}
+{{/* Base button classes - Catalyst style */}}
+relative isolate inline-flex items-center justify-center gap-x-2
+rounded-lg border text-base/6 font-semibold
+transition-colors
+focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-blue-500
+disabled:opacity-50 disabled:cursor-not-allowed
+
+{{/* Size variants */}}
+{{$size := or .Size "md"}}
+{{if eq $size "sm"}}
+  px-3 py-1.5 text-sm/6
+{{else if eq $size "lg"}}
+  px-4 py-3 text-base/6
+{{else}}
+  px-[calc(theme(spacing.3.5)-1px)] py-[calc(theme(spacing.2.5)-1px)]
+  sm:px-[calc(theme(spacing.3)-1px)] sm:py-[calc(theme(spacing.1.5)-1px)]
+  sm:text-sm/6
+{{end}}
+
+{{/* Variant styles */}}
+{{$variant := or .Variant "solid"}}
+{{$color := or .Color "zinc"}}
+
+{{if eq $variant "solid"}}
+  {{/* Solid variant with color support */}}
+  {{if eq $color "zinc"}}
+    border-transparent bg-zinc-900 text-white
+    hover:bg-zinc-800
+    dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100
+  {{else if eq $color "blue"}}
+    border-transparent bg-blue-600 text-white
+    hover:bg-blue-700
+    dark:bg-blue-500 dark:hover:bg-blue-600
+  {{else if eq $color "red"}}
+    border-transparent bg-red-600 text-white
+    hover:bg-red-700
+    dark:bg-red-500 dark:hover:bg-red-600
+  {{else if eq $color "green"}}
+    border-transparent bg-green-600 text-white
+    hover:bg-green-700
+    dark:bg-green-500 dark:hover:bg-green-600
+  {{else if eq $color "orange"}}
+    border-transparent bg-orange-600 text-white
+    hover:bg-orange-700
+    dark:bg-orange-500 dark:hover:bg-orange-600
+  {{else if eq $color "amber"}}
+    border-transparent bg-amber-500 text-white
+    hover:bg-amber-600
+    dark:bg-amber-400 dark:hover:bg-amber-500
+  {{end}}
+{{else if eq $variant "outline"}}
+  {{/* Outline variant */}}
+  border-zinc-950/10 text-zinc-950 bg-transparent
+  hover:border-zinc-950/20 hover:bg-zinc-950/[2.5%]
+  dark:border-white/15 dark:text-white
+  dark:hover:border-white/25 dark:hover:bg-white/5
+{{else if eq $variant "plain"}}
+  {{/* Plain/ghost variant */}}
+  border-transparent text-zinc-950 bg-transparent
+  hover:bg-zinc-950/5
+  dark:text-white dark:hover:bg-white/5
+{{end}}
+
+{{/* Additional custom classes */}}
+{{if .Class}}{{.Class}}{{end}}
+{{end}}

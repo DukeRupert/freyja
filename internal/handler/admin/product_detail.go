@@ -80,8 +80,9 @@ func (h *ProductDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	}
 
 	data := map[string]interface{}{
-		"Product": product,
-		"SKUs":    displaySKUs,
+		"CurrentPath": r.URL.Path,
+		"Product":     product,
+		"SKUs":        displaySKUs,
 	}
 
 	h.renderer.RenderHTTP(w, "admin/product_detail", data)

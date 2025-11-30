@@ -1,0 +1,47 @@
+{{/*
+  Container Component - Catalyst UI Kit Style
+
+  Provides consistent page width and gutter spacing
+
+  Usage:
+    {{template "container" (dict "Content" ...)}}
+
+  Parameters:
+    - Content: Page content (required)
+    - MaxWidth: 7xl, 6xl, 5xl, 4xl, 3xl, 2xl, xl, lg, md (default: "7xl")
+    - Class: Additional CSS classes
+*/}}
+
+{{define "container"}}
+<div class="{{template "container-classes" .}}">
+  {{.Content}}
+</div>
+{{end}}
+
+{{define "container-classes"}}
+mx-auto px-gutter
+
+{{/* Max width variants */}}
+{{$maxWidth := or .MaxWidth "7xl"}}
+{{if eq $maxWidth "2xl"}}
+  max-w-2xl
+{{else if eq $maxWidth "3xl"}}
+  max-w-3xl
+{{else if eq $maxWidth "4xl"}}
+  max-w-4xl
+{{else if eq $maxWidth "5xl"}}
+  max-w-5xl
+{{else if eq $maxWidth "6xl"}}
+  max-w-6xl
+{{else if eq $maxWidth "xl"}}
+  max-w-xl
+{{else if eq $maxWidth "lg"}}
+  max-w-lg
+{{else if eq $maxWidth "md"}}
+  max-w-md
+{{else}}
+  max-w-7xl
+{{end}}
+
+{{.Class}}
+{{end}}
