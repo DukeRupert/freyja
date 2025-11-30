@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/dukerupert/freyja/internal"
+	"github.com/dukerupert/freyja/internal/address"
 	"github.com/dukerupert/freyja/internal/billing"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/handler/admin"
@@ -19,6 +20,7 @@ import (
 	"github.com/dukerupert/freyja/internal/router"
 	"github.com/dukerupert/freyja/internal/service"
 	"github.com/dukerupert/freyja/internal/shipping"
+	"github.com/dukerupert/freyja/internal/tax"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -103,6 +105,13 @@ func run() error {
 	loginHandler := storefront.NewLoginHandler(userService, renderer)
 	logoutHandler := storefront.NewLogoutHandler(userService)
 
+	// Checkout handlers (will be initialized after checkout service is created)
+	var checkoutPageHandler *storefront.CheckoutPageHandler
+	var validateAddressHandler *storefront.ValidateAddressHandler
+	var getShippingRatesHandler *storefront.GetShippingRatesHandler
+	var calculateTotalHandler *storefront.CalculateTotalHandler
+	var createPaymentIntentHandler *storefront.CreatePaymentIntentHandler
+
 	// Initialize Stripe billing provider
 	logger.Info("Initializing Stripe billing provider...")
 	stripeConfig := billing.StripeConfig{
@@ -133,6 +142,39 @@ func run() error {
 		return fmt.Errorf("failed to initialize order service: %w", err)
 	}
 	logger.Info("Order service initialized")
+
+	// Initialize address validator (mock for MVP)
+	logger.Info("Initializing address validator...")
+	addressValidator := address.NewMockValidator()
+	logger.Info("Address validator initialized")
+
+	// Initialize tax calculator (no tax for MVP)
+	logger.Info("Initializing tax calculator...")
+	taxCalculator := tax.NewNoTaxCalculator()
+	logger.Info("Tax calculator initialized")
+
+	// Initialize checkout service
+	logger.Info("Initializing checkout service...")
+	checkoutService, err := service.NewCheckoutService(
+		repo,
+		cartService,
+		billingProvider,
+		shippingProvider,
+		taxCalculator,
+		addressValidator,
+		cfg.TenantID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to initialize checkout service: %w", err)
+	}
+	logger.Info("Checkout service initialized")
+
+	// Initialize checkout handlers
+	checkoutPageHandler = storefront.NewCheckoutPageHandler(renderer, cartService)
+	validateAddressHandler = storefront.NewValidateAddressHandler(checkoutService)
+	getShippingRatesHandler = storefront.NewGetShippingRatesHandler(checkoutService)
+	calculateTotalHandler = storefront.NewCalculateTotalHandler(checkoutService)
+	createPaymentIntentHandler = storefront.NewCreatePaymentIntentHandler(checkoutService)
 
 	// Initialize webhook handler
 	stripeWebhookHandler := webhook.NewStripeHandler(billingProvider, orderService, webhook.StripeWebhookConfig{
@@ -175,6 +217,13 @@ func run() error {
 	r.Post("/cart/add", addToCartHandler.ServeHTTP)
 	r.Post("/cart/update", updateCartItemHandler.ServeHTTP)
 	r.Post("/cart/remove", removeCartItemHandler.ServeHTTP)
+
+	// Checkout routes
+	r.Get("/checkout", checkoutPageHandler.ServeHTTP)
+	r.Post("/checkout/validate-address", validateAddressHandler.ServeHTTP)
+	r.Post("/checkout/shipping-rates", getShippingRatesHandler.ServeHTTP)
+	r.Post("/checkout/calculate-total", calculateTotalHandler.ServeHTTP)
+	r.Post("/checkout/create-payment-intent", createPaymentIntentHandler.ServeHTTP)
 
 	// Webhook routes (no authentication - Stripe handles signature verification)
 	r.Post("/webhooks/stripe", stripeWebhookHandler.HandleWebhook)

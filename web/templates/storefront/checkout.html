@@ -1,0 +1,662 @@
+{{define "title"}}Checkout - Freyja Coffee{{end}}
+
+{{define "content"}}
+<div class="bg-neutral-50 min-h-screen pb-16">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+    <!-- Page Header -->
+    <div class="mb-8">
+      <h1 class="text-2xl font-semibold text-neutral-900">Checkout</h1>
+      <p class="mt-1 text-sm text-neutral-600">Complete your order in a few simple steps</p>
+    </div>
+
+    <div class="lg:grid lg:grid-cols-3 lg:gap-8">
+
+      <!-- Checkout Form (2/3 width) -->
+      <div class="lg:col-span-2">
+
+        <!-- Alpine.js state management -->
+        <div x-data="{
+          currentStep: 1,
+          contactComplete: false,
+          shippingAddressComplete: false,
+          shippingMethodComplete: false,
+          billingAddressComplete: false,
+          sameAsShipping: true,
+          shippingRates: [],
+          selectedRate: null,
+          orderTotal: null,
+          paymentIntentClientSecret: null,
+          processing: false,
+
+          // Contact info
+          email: '',
+          phone: '',
+
+          // Shipping address
+          shippingName: '',
+          shippingAddress1: '',
+          shippingAddress2: '',
+          shippingCity: '',
+          shippingState: '',
+          shippingPostalCode: '',
+
+          // Billing address
+          billingName: '',
+          billingAddress1: '',
+          billingAddress2: '',
+          billingCity: '',
+          billingState: '',
+          billingPostalCode: '',
+
+          advanceToStep(step) {
+            this.currentStep = step;
+          }
+        }"
+        class="space-y-4">
+
+          <!-- Step 1: Contact Information -->
+          <div class="card">
+            <!-- Step Header -->
+            <div class="p-6 border-b border-neutral-200">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="flex items-center justify-center w-8 h-8 rounded-full"
+                       :class="contactComplete ? 'bg-teal-700 text-white' : 'bg-neutral-200 text-neutral-600'">
+                    <template x-if="contactComplete">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                      </svg>
+                    </template>
+                    <template x-if="!contactComplete">
+                      <span class="text-sm font-medium">1</span>
+                    </template>
+                  </div>
+                  <h2 class="text-base font-medium text-neutral-900">Contact Information</h2>
+                </div>
+                <button type="button"
+                        x-show="contactComplete && currentStep !== 1"
+                        @click="currentStep = 1"
+                        class="text-sm text-teal-700 hover:text-teal-800">
+                  Edit
+                </button>
+              </div>
+            </div>
+
+            <!-- Step Content -->
+            <div x-show="currentStep === 1" class="p-6">
+              <form @submit.prevent="contactComplete = true; currentStep = 2" class="space-y-4">
+
+                <!-- Email -->
+                <div>
+                  <label for="email" class="block text-sm font-medium text-neutral-900 mb-1">
+                    Email address
+                  </label>
+                  <input type="email"
+                         id="email"
+                         name="email"
+                         x-model="email"
+                         required
+                         class="input-text"
+                         placeholder="you@example.com">
+                  <p class="mt-1 text-xs text-neutral-600">We'll send your order confirmation here</p>
+                </div>
+
+                <!-- Phone -->
+                <div>
+                  <label for="phone" class="block text-sm font-medium text-neutral-900 mb-1">
+                    Phone number <span class="text-neutral-500 font-normal">(optional)</span>
+                  </label>
+                  <input type="tel"
+                         id="phone"
+                         name="phone"
+                         x-model="phone"
+                         class="input-text"
+                         placeholder="(555) 123-4567">
+                  <p class="mt-1 text-xs text-neutral-600">For shipping updates</p>
+                </div>
+
+                <div>
+                  <button type="submit" class="btn-primary">
+                    Continue to Shipping
+                  </button>
+                </div>
+
+              </form>
+            </div>
+
+            <!-- Collapsed Summary -->
+            <div x-show="contactComplete && currentStep !== 1" class="p-6">
+              <div class="text-sm">
+                <p class="text-neutral-900" x-text="email"></p>
+                <p class="text-neutral-600" x-text="phone || 'No phone provided'"></p>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Step 2: Shipping Address -->
+          <div class="card" x-show="currentStep >= 2">
+            <!-- Step Header -->
+            <div class="p-6 border-b border-neutral-200">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="flex items-center justify-center w-8 h-8 rounded-full"
+                       :class="shippingAddressComplete ? 'bg-teal-700 text-white' : 'bg-neutral-200 text-neutral-600'">
+                    <template x-if="shippingAddressComplete">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                      </svg>
+                    </template>
+                    <template x-if="!shippingAddressComplete">
+                      <span class="text-sm font-medium">2</span>
+                    </template>
+                  </div>
+                  <h2 class="text-base font-medium text-neutral-900">Shipping Address</h2>
+                </div>
+                <button type="button"
+                        x-show="shippingAddressComplete && currentStep !== 2"
+                        @click="currentStep = 2"
+                        class="text-sm text-teal-700 hover:text-teal-800">
+                  Edit
+                </button>
+              </div>
+            </div>
+
+            <!-- Step Content -->
+            <div x-show="currentStep === 2" class="p-6">
+              <form
+                hx-post="/api/checkout/validate-addresses"
+                hx-trigger="submit"
+                hx-target="#address-validation-result"
+                hx-swap="innerHTML"
+                @submit.prevent
+                class="space-y-4">
+
+                <!-- Full Name -->
+                <div>
+                  <label for="shipping-name" class="block text-sm font-medium text-neutral-900 mb-1">
+                    Full name
+                  </label>
+                  <input type="text"
+                         id="shipping-name"
+                         name="shipping_name"
+                         x-model="shippingName"
+                         required
+                         class="input-text"
+                         placeholder="Jane Doe">
+                </div>
+
+                <!-- Address Line 1 -->
+                <div>
+                  <label for="shipping-address1" class="block text-sm font-medium text-neutral-900 mb-1">
+                    Street address
+                  </label>
+                  <input type="text"
+                         id="shipping-address1"
+                         name="shipping_address1"
+                         x-model="shippingAddress1"
+                         required
+                         class="input-text"
+                         placeholder="123 Main Street">
+                </div>
+
+                <!-- Address Line 2 -->
+                <div>
+                  <label for="shipping-address2" class="block text-sm font-medium text-neutral-900 mb-1">
+                    Apartment, suite, etc. <span class="text-neutral-500 font-normal">(optional)</span>
+                  </label>
+                  <input type="text"
+                         id="shipping-address2"
+                         name="shipping_address2"
+                         x-model="shippingAddress2"
+                         class="input-text"
+                         placeholder="Apt 4B">
+                </div>
+
+                <!-- City, State, Zip -->
+                <div class="grid grid-cols-6 gap-4">
+                  <div class="col-span-3">
+                    <label for="shipping-city" class="block text-sm font-medium text-neutral-900 mb-1">
+                      City
+                    </label>
+                    <input type="text"
+                           id="shipping-city"
+                           name="shipping_city"
+                           x-model="shippingCity"
+                           required
+                           class="input-text"
+                           placeholder="Portland">
+                  </div>
+                  <div class="col-span-1">
+                    <label for="shipping-state" class="block text-sm font-medium text-neutral-900 mb-1">
+                      State
+                    </label>
+                    <input type="text"
+                           id="shipping-state"
+                           name="shipping_state"
+                           x-model="shippingState"
+                           required
+                           maxlength="2"
+                           class="input-text uppercase"
+                           placeholder="OR">
+                  </div>
+                  <div class="col-span-2">
+                    <label for="shipping-postal" class="block text-sm font-medium text-neutral-900 mb-1">
+                      ZIP code
+                    </label>
+                    <input type="text"
+                           id="shipping-postal"
+                           name="shipping_postal_code"
+                           x-model="shippingPostalCode"
+                           required
+                           class="input-text"
+                           placeholder="97201">
+                  </div>
+                </div>
+
+                <!-- Validation Result -->
+                <div id="address-validation-result"></div>
+
+                <div>
+                  <button type="submit" class="btn-primary">
+                    Validate Address
+                  </button>
+                </div>
+
+              </form>
+            </div>
+
+            <!-- Collapsed Summary -->
+            <div x-show="shippingAddressComplete && currentStep !== 2" class="p-6">
+              <div class="text-sm space-y-1">
+                <p class="text-neutral-900" x-text="shippingName"></p>
+                <p class="text-neutral-600" x-text="shippingAddress1"></p>
+                <p class="text-neutral-600" x-text="shippingAddress2" x-show="shippingAddress2"></p>
+                <p class="text-neutral-600">
+                  <span x-text="shippingCity"></span>, <span x-text="shippingState"></span> <span x-text="shippingPostalCode"></span>
+                </p>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Step 3: Shipping Method -->
+          <div class="card" x-show="currentStep >= 3">
+            <!-- Step Header -->
+            <div class="p-6 border-b border-neutral-200">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="flex items-center justify-center w-8 h-8 rounded-full"
+                       :class="shippingMethodComplete ? 'bg-teal-700 text-white' : 'bg-neutral-200 text-neutral-600'">
+                    <template x-if="shippingMethodComplete">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                      </svg>
+                    </template>
+                    <template x-if="!shippingMethodComplete">
+                      <span class="text-sm font-medium">3</span>
+                    </template>
+                  </div>
+                  <h2 class="text-base font-medium text-neutral-900">Shipping Method</h2>
+                </div>
+                <button type="button"
+                        x-show="shippingMethodComplete && currentStep !== 3"
+                        @click="currentStep = 3"
+                        class="text-sm text-teal-700 hover:text-teal-800">
+                  Edit
+                </button>
+              </div>
+            </div>
+
+            <!-- Step Content -->
+            <div x-show="currentStep === 3" class="p-6">
+
+              <!-- Loading State -->
+              <div id="shipping-loader" class="htmx-indicator">
+                <div class="flex items-center justify-center py-8">
+                  <svg class="animate-spin h-8 w-8 text-teal-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span class="ml-3 text-sm text-neutral-600">Loading shipping options...</span>
+                </div>
+              </div>
+
+              <!-- Shipping Rates Container -->
+              <div id="shipping-rates-container"
+                   hx-post="/api/checkout/shipping-rates"
+                   hx-trigger="load"
+                   hx-swap="innerHTML"
+                   hx-indicator="#shipping-loader">
+                <!-- Rates will be injected here -->
+              </div>
+
+            </div>
+
+            <!-- Collapsed Summary -->
+            <div x-show="shippingMethodComplete && currentStep !== 3" class="p-6">
+              <div class="text-sm">
+                <p class="text-neutral-900">USPS Priority Mail</p>
+                <p class="text-neutral-600">2-3 business days - $8.95</p>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Step 4: Billing Address -->
+          <div class="card" x-show="currentStep >= 4">
+            <!-- Step Header -->
+            <div class="p-6 border-b border-neutral-200">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="flex items-center justify-center w-8 h-8 rounded-full"
+                       :class="billingAddressComplete ? 'bg-teal-700 text-white' : 'bg-neutral-200 text-neutral-600'">
+                    <template x-if="billingAddressComplete">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                      </svg>
+                    </template>
+                    <template x-if="!billingAddressComplete">
+                      <span class="text-sm font-medium">4</span>
+                    </template>
+                  </div>
+                  <h2 class="text-base font-medium text-neutral-900">Billing Address</h2>
+                </div>
+                <button type="button"
+                        x-show="billingAddressComplete && currentStep !== 4"
+                        @click="currentStep = 4"
+                        class="text-sm text-teal-700 hover:text-teal-800">
+                  Edit
+                </button>
+              </div>
+            </div>
+
+            <!-- Step Content -->
+            <div x-show="currentStep === 4" class="p-6">
+
+              <!-- Same as Shipping Checkbox -->
+              <div class="mb-4">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox"
+                         x-model="sameAsShipping"
+                         class="w-4 h-4 text-teal-700 border-neutral-300 rounded focus:ring-teal-700">
+                  <span class="text-sm text-neutral-900">Same as shipping address</span>
+                </label>
+              </div>
+
+              <!-- Billing Address Form (if different) -->
+              <form x-show="!sameAsShipping"
+                    @submit.prevent="billingAddressComplete = true; currentStep = 5"
+                    class="space-y-4">
+
+                <!-- Full Name -->
+                <div>
+                  <label for="billing-name" class="block text-sm font-medium text-neutral-900 mb-1">
+                    Full name
+                  </label>
+                  <input type="text"
+                         id="billing-name"
+                         name="billing_name"
+                         x-model="billingName"
+                         :required="!sameAsShipping"
+                         class="input-text"
+                         placeholder="Jane Doe">
+                </div>
+
+                <!-- Address Line 1 -->
+                <div>
+                  <label for="billing-address1" class="block text-sm font-medium text-neutral-900 mb-1">
+                    Street address
+                  </label>
+                  <input type="text"
+                         id="billing-address1"
+                         name="billing_address1"
+                         x-model="billingAddress1"
+                         :required="!sameAsShipping"
+                         class="input-text"
+                         placeholder="123 Main Street">
+                </div>
+
+                <!-- Address Line 2 -->
+                <div>
+                  <label for="billing-address2" class="block text-sm font-medium text-neutral-900 mb-1">
+                    Apartment, suite, etc. <span class="text-neutral-500 font-normal">(optional)</span>
+                  </label>
+                  <input type="text"
+                         id="billing-address2"
+                         name="billing_address2"
+                         x-model="billingAddress2"
+                         class="input-text"
+                         placeholder="Apt 4B">
+                </div>
+
+                <!-- City, State, Zip -->
+                <div class="grid grid-cols-6 gap-4">
+                  <div class="col-span-3">
+                    <label for="billing-city" class="block text-sm font-medium text-neutral-900 mb-1">
+                      City
+                    </label>
+                    <input type="text"
+                           id="billing-city"
+                           name="billing_city"
+                           x-model="billingCity"
+                           :required="!sameAsShipping"
+                           class="input-text"
+                           placeholder="Portland">
+                  </div>
+                  <div class="col-span-1">
+                    <label for="billing-state" class="block text-sm font-medium text-neutral-900 mb-1">
+                      State
+                    </label>
+                    <input type="text"
+                           id="billing-state"
+                           name="billing_state"
+                           x-model="billingState"
+                           :required="!sameAsShipping"
+                           maxlength="2"
+                           class="input-text uppercase"
+                           placeholder="OR">
+                  </div>
+                  <div class="col-span-2">
+                    <label for="billing-postal" class="block text-sm font-medium text-neutral-900 mb-1">
+                      ZIP code
+                    </label>
+                    <input type="text"
+                           id="billing-postal"
+                           name="billing_postal_code"
+                           x-model="billingPostalCode"
+                           :required="!sameAsShipping"
+                           class="input-text"
+                           placeholder="97201">
+                  </div>
+                </div>
+
+                <div>
+                  <button type="submit" class="btn-primary">
+                    Continue to Payment
+                  </button>
+                </div>
+
+              </form>
+
+              <!-- Auto-advance if same as shipping -->
+              <div x-show="sameAsShipping">
+                <button type="button"
+                        @click="billingAddressComplete = true; currentStep = 5"
+                        class="btn-primary">
+                  Continue to Payment
+                </button>
+              </div>
+
+            </div>
+
+            <!-- Collapsed Summary -->
+            <div x-show="billingAddressComplete && currentStep !== 4" class="p-6">
+              <div class="text-sm">
+                <template x-if="sameAsShipping">
+                  <p class="text-neutral-600">Same as shipping address</p>
+                </template>
+                <template x-if="!sameAsShipping">
+                  <div class="space-y-1">
+                    <p class="text-neutral-900" x-text="billingName"></p>
+                    <p class="text-neutral-600" x-text="billingAddress1"></p>
+                    <p class="text-neutral-600" x-text="billingAddress2" x-show="billingAddress2"></p>
+                    <p class="text-neutral-600">
+                      <span x-text="billingCity"></span>, <span x-text="billingState"></span> <span x-text="billingPostalCode"></span>
+                    </p>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Step 5: Payment -->
+          <div class="card" x-show="currentStep >= 5">
+            <!-- Step Header -->
+            <div class="p-6 border-b border-neutral-200">
+              <div class="flex items-center gap-3">
+                <div class="flex items-center justify-center w-8 h-8 rounded-full bg-neutral-200 text-neutral-600">
+                  <span class="text-sm font-medium">5</span>
+                </div>
+                <h2 class="text-base font-medium text-neutral-900">Payment</h2>
+              </div>
+            </div>
+
+            <!-- Step Content -->
+            <div x-show="currentStep === 5" class="p-6">
+
+              <!-- Payment Intent Creation (trigger on load) -->
+              <div id="payment-intent-container"
+                   hx-post="/api/checkout/create-payment-intent"
+                   hx-trigger="load"
+                   hx-swap="innerHTML">
+                <div class="flex items-center justify-center py-8">
+                  <svg class="animate-spin h-8 w-8 text-teal-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span class="ml-3 text-sm text-neutral-600">Preparing payment...</span>
+                </div>
+              </div>
+
+              <!-- Stripe Payment Element will be injected here -->
+              <div id="payment-element" class="mb-4"></div>
+
+              <!-- Error Message -->
+              <div id="payment-error" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800"></div>
+
+              <!-- Submit Button -->
+              <button type="button"
+                      id="submit-payment"
+                      class="btn-primary w-full"
+                      :disabled="processing"
+                      x-text="processing ? 'Processing...' : 'Place Order'">
+              </button>
+
+              <p class="mt-4 text-xs text-neutral-600 text-center">
+                Your payment information is securely processed by Stripe
+              </p>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Order Summary Sidebar (1/3 width) -->
+      <aside class="mt-8 lg:mt-0">
+
+        <!-- Mobile: Collapsible Summary -->
+        <div class="lg:hidden mb-4">
+          <button
+            type="button"
+            @click="showMobileSummary = !showMobileSummary"
+            x-data="{ showMobileSummary: false }"
+            class="w-full flex items-center justify-between p-4 bg-neutral-100 rounded-lg border border-neutral-200">
+            <span class="text-sm font-medium text-neutral-900">
+              Order summary
+              <span class="text-neutral-600">($36.00)</span>
+            </span>
+            <svg class="w-5 h-5 text-neutral-600 transition-transform"
+                 :class="{ 'rotate-180': showMobileSummary }"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Order Summary Card -->
+        <div class="card p-6 lg:sticky lg:top-24">
+          <h2 class="text-base font-medium text-neutral-900 mb-4">Order Summary</h2>
+
+          <!-- Cart Items -->
+          <div class="space-y-4 mb-6">
+            {{range .Cart.Items}}
+            <div class="flex gap-3">
+              <div class="relative flex-shrink-0">
+                <div class="w-16 h-16 bg-neutral-100 rounded overflow-hidden flex items-center justify-center">
+                  <svg class="w-6 h-6 text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                  </svg>
+                </div>
+                <div class="absolute -top-2 -right-2 w-5 h-5 bg-neutral-600 text-white text-xs rounded-full flex items-center justify-center">
+                  {{.Quantity}}
+                </div>
+              </div>
+              <div class="flex-1 min-w-0">
+                <h3 class="text-sm font-medium text-neutral-900">{{.ProductName}}</h3>
+                <p class="text-xs text-neutral-600">{{.SKU}}</p>
+              </div>
+              <div class="text-sm text-neutral-900">
+                ${{printf "%.2f" (divf .LineSubtotal 100.0)}}
+              </div>
+            </div>
+            {{end}}
+          </div>
+
+          <!-- Order Totals -->
+          <div class="space-y-2 border-t border-neutral-200 pt-4 mb-4">
+            <div class="flex justify-between text-sm">
+              <span class="text-neutral-600">Subtotal</span>
+              <span class="text-neutral-900">${{printf "%.2f" (divf .Cart.SubtotalCents 100.0)}}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-neutral-600">Shipping</span>
+              <span class="text-neutral-600 text-xs" id="shipping-cost">
+                Calculated in step 3
+              </span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-neutral-600">Tax</span>
+              <span class="text-neutral-600 text-xs" id="tax-amount">
+                Calculated in step 3
+              </span>
+            </div>
+          </div>
+
+          <!-- Final Total -->
+          <div class="flex justify-between border-t border-neutral-200 pt-4">
+            <span class="text-base font-semibold text-neutral-900">Total</span>
+            <span class="text-base font-semibold text-neutral-900" id="order-total">
+              ${{printf "%.2f" (divf .Cart.SubtotalCents 100.0)}}
+            </span>
+          </div>
+
+        </div>
+
+      </aside>
+
+    </div>
+
+  </div>
+</div>
+
+<!-- Stripe.js -->
+<script src="https://js.stripe.com/v3/"></script>
+
+{{end}}
