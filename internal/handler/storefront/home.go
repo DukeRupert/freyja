@@ -24,7 +24,7 @@ func (h *HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"Year": 2024,
 	}
 
-	if err := h.templates.ExecuteTemplate(w, "layout", data); err != nil {
+	if err := h.templates.ExecuteTemplate(w, "base", data); err != nil {
 		http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		return
 	}

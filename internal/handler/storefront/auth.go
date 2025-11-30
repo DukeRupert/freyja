@@ -50,16 +50,7 @@ func (h *SignupHandler) showSignupForm(w http.ResponseWriter, r *http.Request, f
 		data["Error"] = *formError
 	}
 
-	tmpl, err := h.renderer.Execute("signup")
-	if err != nil {
-		http.Error(w, "Template not found", http.StatusInternalServerError)
-		return
-	}
-
-	if err := tmpl.ExecuteTemplate(w, "layout", data); err != nil {
-		http.Error(w, "Failed to render template", http.StatusInternalServerError)
-		return
-	}
+	h.renderer.RenderHTTP(w, "signup", data)
 }
 
 func (h *SignupHandler) handleSignup(w http.ResponseWriter, r *http.Request) {
@@ -158,16 +149,7 @@ func (h *LoginHandler) showLoginForm(w http.ResponseWriter, r *http.Request, for
 		data["Error"] = *formError
 	}
 
-	tmpl, err := h.renderer.Execute("login")
-	if err != nil {
-		http.Error(w, "Template not found", http.StatusInternalServerError)
-		return
-	}
-
-	if err := tmpl.ExecuteTemplate(w, "layout", data); err != nil {
-		http.Error(w, "Failed to render template", http.StatusInternalServerError)
-		return
-	}
+	h.renderer.RenderHTTP(w, "login", data)
 }
 
 func (h *LoginHandler) handleLogin(w http.ResponseWriter, r *http.Request) {

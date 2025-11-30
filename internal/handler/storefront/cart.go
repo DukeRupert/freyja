@@ -54,17 +54,8 @@ func (h *CartViewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"Year":    2024,
 	}
 
-	tmpl, err := h.renderer.Execute("cart")
-	if err != nil {
-		http.Error(w, "Failed to load template", http.StatusInternalServerError)
-		return
-	}
-
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.ExecuteTemplate(w, "layout", data); err != nil {
-		http.Error(w, "Failed to render template", http.StatusInternalServerError)
-		return
-	}
+	h.renderer.RenderHTTP(w, "cart", data)
 }
 
 // AddToCartHandler handles adding items to cart

@@ -40,16 +40,7 @@ func (h *ProductListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"Year":     2024,
 	}
 
-	tmpl, err := h.renderer.Execute("products")
-	if err != nil {
-		http.Error(w, "Template not found", http.StatusInternalServerError)
-		return
-	}
-
-	if err := tmpl.ExecuteTemplate(w, "layout", data); err != nil {
-		http.Error(w, "Failed to render template", http.StatusInternalServerError)
-		return
-	}
+	h.renderer.RenderHTTP(w, "products", data)
 }
 
 // ProductDetailHandler handles the product detail page
@@ -123,16 +114,5 @@ func (h *ProductDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		"Year":    2024,
 	}
 
-	tmpl, err := h.renderer.Execute("product_detail")
-	if err != nil {
-		http.Error(w, "Template not found", http.StatusInternalServerError)
-		return
-	}
-
-	if err := tmpl.ExecuteTemplate(w, "layout", data); err != nil {
-		// Log the actual error (template has already started writing, so we can't send headers)
-		// TODO: Use structured logging
-		println("Template execution error:", err.Error())
-		return
-	}
+	h.renderer.RenderHTTP(w, "product_detail", data)
 }
