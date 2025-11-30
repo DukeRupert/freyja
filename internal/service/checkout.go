@@ -2,7 +2,11 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"sort"
+	"strconv"
 
 	"github.com/dukerupert/freyja/internal/address"
 	"github.com/dukerupert/freyja/internal/billing"
@@ -113,10 +117,6 @@ type checkoutService struct {
 }
 
 // NewCheckoutService creates a new CheckoutService instance.
-// TODO: Implementation notes:
-// 1. Parse tenantID string to pgtype.UUID
-// 2. Return error if parsing fails
-// 3. Return checkoutService with all dependencies injected
 func NewCheckoutService(
 	repo repository.Querier,
 	cartService CartService,
@@ -126,100 +126,230 @@ func NewCheckoutService(
 	addrValidator address.Validator,
 	tenantID string,
 ) (CheckoutService, error) {
-	panic("not implemented")
+	var tenantUUID pgtype.UUID
+	if err := tenantUUID.Scan(tenantID); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidTenantID, err)
+	}
+
+	return &checkoutService{
+		repo:             repo,
+		cartService:      cartService,
+		billingProvider:  billingProvider,
+		shippingProvider: shippingProvider,
+		taxCalculator:    taxCalculator,
+		addrValidator:    addrValidator,
+		tenantID:         tenantUUID,
+	}, nil
 }
 
 // ValidateAndNormalizeAddress validates a shipping or billing address.
-// TODO: Implementation notes:
-// 1. Call addrValidator.Validate(ctx, addr)
-// 2. Return validation result (may contain errors but still have normalized address)
-// 3. Let handler decide how to present validation errors to user
 func (s *checkoutService) ValidateAndNormalizeAddress(ctx context.Context, addr address.Address) (*address.ValidationResult, error) {
-	panic("not implemented")
+	return s.addrValidator.Validate(ctx, addr)
 }
 
 // GetShippingRates calculates available shipping options for the cart.
-// TODO: Implementation notes:
-// 1. Load cart via CartService.GetCartSummary(cartID)
-// 2. Validate cart is not empty
-// 3. Calculate package weight from cart items (assume 340g per 12oz bag)
-// 4. Determine package dimensions using standard box sizes:
-//    - 1-3 bags: Small box (8x6x4 inches)
-//    - 4-6 bags: Medium box (12x10x6 inches)
-//    - 7+ bags: Large box (16x12x8 inches)
-// 5. Get tenant warehouse address via repo.GetTenantWarehouseAddress
-// 6. Convert addresses to shipping.ShippingAddress format
-// 7. Call shippingProvider.GetRates with origin, destination, packages
-// 8. Return rates sorted by cost (ascending)
 func (s *checkoutService) GetShippingRates(ctx context.Context, cartID string, shippingAddr address.Address) ([]shipping.Rate, error) {
-	panic("not implemented")
+	cartSummary, err := s.cartService.GetCartSummary(ctx, cartID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load cart: %w", err)
+	}
+
+	if len(cartSummary.Items) == 0 {
+		return nil, ErrCartEmpty
+	}
+
+	pkg := calculatePackage(cartSummary.Items)
+
+	warehouseAddr, err := s.repo.GetTenantWarehouseAddress(ctx, s.tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get warehouse address: %w", err)
+	}
+
+	origin := shipping.ShippingAddress{
+		Name:       "",
+		Line1:      warehouseAddr.AddressLine1,
+		Line2:      warehouseAddr.AddressLine2.String,
+		City:       warehouseAddr.City,
+		State:      warehouseAddr.State,
+		PostalCode: warehouseAddr.PostalCode,
+		Country:    warehouseAddr.Country,
+		Phone:      "",
+	}
+
+	destination := convertAddressToShipping(shippingAddr)
+
+	rates, err := s.shippingProvider.GetRates(ctx, shipping.RateParams{
+		OriginAddress:      origin,
+		DestinationAddress: destination,
+		Packages:           []shipping.Package{pkg},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get shipping rates: %w", err)
+	}
+
+	if len(rates) == 0 {
+		return nil, ErrNoShippingRates
+	}
+
+	sort.Slice(rates, func(i, j int) bool {
+		return rates[i].CostCents < rates[j].CostCents
+	})
+
+	return rates, nil
 }
 
 // CalculateOrderTotal computes the complete order total including tax and shipping.
-// TODO: Implementation notes:
-// 1. Load cart summary via CartService.GetCartSummary (provides subtotal)
-// 2. Extract shipping cost from params.SelectedShippingRate
-// 3. Build tax.LineItems from cart items
-// 4. Call taxCalculator.CalculateTax with line items, shipping address, shipping cost
-// 5. Calculate total: subtotal + shipping + tax - discount
-// 6. Return OrderTotal with full breakdown including TaxBreakdown array
 func (s *checkoutService) CalculateOrderTotal(ctx context.Context, params OrderTotalParams) (*OrderTotal, error) {
-	panic("not implemented")
+	cartSummary, err := s.cartService.GetCartSummary(ctx, params.CartID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load cart: %w", err)
+	}
+
+	shippingCents := params.SelectedShippingRate.CostCents
+
+	lineItems := make([]tax.LineItem, len(cartSummary.Items))
+	for i, item := range cartSummary.Items {
+		lineItems[i] = tax.LineItem{
+			ProductID:   item.SKUID,
+			Description: item.ProductName,
+			Quantity:    item.Quantity,
+			UnitPrice:   item.UnitPriceCents,
+			TotalPrice:  item.LineSubtotal,
+			TaxCategory: "food",
+		}
+	}
+
+	taxResult, err := s.taxCalculator.CalculateTax(ctx, tax.TaxParams{
+		ShippingAddress: convertAddressToTax(params.ShippingAddress),
+		LineItems:       lineItems,
+		ShippingCents:   shippingCents,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate tax: %w", err)
+	}
+
+	total := cartSummary.Subtotal + shippingCents + taxResult.TotalTaxCents
+
+	return &OrderTotal{
+		SubtotalCents:     cartSummary.Subtotal,
+		ShippingCents:     shippingCents,
+		TaxCents:          taxResult.TotalTaxCents,
+		DiscountCents:     0,
+		TotalCents:        total,
+		TaxBreakdown:      taxResult.Breakdown,
+		ShippingRateID:    params.SelectedShippingRate.RateID,
+		DiscountCodeID:    pgtype.UUID{},
+		DiscountCodeValue: "",
+	}, nil
 }
 
 // CreatePaymentIntent initiates a Stripe Payment Intent.
-// TODO: Implementation notes:
-// 1. Validate params.OrderTotal is not nil
-// 2. Serialize shipping and billing addresses to JSON for metadata
-// 3. Build billing.CreatePaymentIntentParams with:
-//    - AmountCents: OrderTotal.TotalCents
-//    - Currency: "usd"
-//    - CustomerEmail: params.CustomerEmail
-//    - IdempotencyKey: params.IdempotencyKey
-//    - Metadata: Include tenant_id, cart_id, addresses (JSON), shipping_rate_id, tax/shipping/subtotal cents
-// 4. Call billingProvider.CreatePaymentIntent
-// 5. Return payment intent with client_secret for frontend
-// Note: Stripe handles idempotency automatically via IdempotencyKey
 func (s *checkoutService) CreatePaymentIntent(ctx context.Context, params PaymentIntentParams) (*billing.PaymentIntent, error) {
-	panic("not implemented")
+	if params.OrderTotal == nil {
+		return nil, errors.New("order total is required")
+	}
+
+	shippingAddrJSON, err := json.Marshal(params.ShippingAddress)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize shipping address: %w", err)
+	}
+
+	billingAddrJSON, err := json.Marshal(params.BillingAddress)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize billing address: %w", err)
+	}
+
+	metadata := map[string]string{
+		"tenant_id":        uuidToString(s.tenantID),
+		"cart_id":          params.CartID,
+		"shipping_address": string(shippingAddrJSON),
+		"billing_address":  string(billingAddrJSON),
+		"shipping_rate_id": params.OrderTotal.ShippingRateID,
+		"subtotal_cents":   strconv.FormatInt(int64(params.OrderTotal.SubtotalCents), 10),
+		"shipping_cents":   strconv.FormatInt(int64(params.OrderTotal.ShippingCents), 10),
+		"tax_cents":        strconv.FormatInt(int64(params.OrderTotal.TaxCents), 10),
+	}
+
+	paymentIntent, err := s.billingProvider.CreatePaymentIntent(ctx, billing.CreatePaymentIntentParams{
+		AmountCents:    params.OrderTotal.TotalCents,
+		Currency:       "usd",
+		CustomerEmail:  params.CustomerEmail,
+		IdempotencyKey: params.IdempotencyKey,
+		Metadata:       metadata,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create payment intent: %w", err)
+	}
+
+	return paymentIntent, nil
 }
 
 // CompleteCheckout is DEPRECATED - order creation happens via webhook.
 // This method should panic with a deprecation message.
 // Order creation flow: Stripe webhook → OrderService.CreateOrderFromPaymentIntent
 // Frontend polls GET /api/orders/by-payment-intent/{id} to get order after payment.
-// TODO: Implementation notes:
-// panic("CompleteCheckout is deprecated - order creation happens via Stripe webhook")
 func (s *checkoutService) CompleteCheckout(ctx context.Context, params CompleteCheckoutParams) (*Order, error) {
-	panic("not implemented")
+	panic("CompleteCheckout is deprecated - order creation happens via Stripe webhook")
 }
 
 // Helper functions (package-private)
 
 // calculatePackage estimates package dimensions and weight from cart items.
-// TODO: Implementation notes:
-// 1. Sum total weight: count bags × 340g per 12oz bag
-// 2. Determine box size based on bag count:
-//    - 1-3 bags: Small box (20cm × 15cm × 10cm)
-//    - 4-6 bags: Medium box (30cm × 25cm × 15cm)
-//    - 7+ bags: Large box (40cm × 30cm × 20cm)
-// 3. Return shipping.Package with weight and dimensions
 func calculatePackage(items []CartItem) shipping.Package {
-	panic("not implemented")
+	var totalBags int32
+	for _, item := range items {
+		totalBags += item.Quantity
+	}
+
+	weightGrams := totalBags * 340
+
+	var length, width, height int
+	if totalBags <= 3 {
+		length = 20
+		width = 15
+		height = 10
+	} else if totalBags <= 6 {
+		length = 30
+		width = 25
+		height = 15
+	} else {
+		length = 40
+		width = 30
+		height = 20
+	}
+
+	return shipping.Package{
+		WeightGrams: weightGrams,
+		LengthCm:    int32(length),
+		WidthCm:     int32(width),
+		HeightCm:    int32(height),
+	}
 }
 
 // convertAddressToShipping converts address.Address to shipping.ShippingAddress.
-// TODO: Implementation notes:
-// Simple field mapping between types
 func convertAddressToShipping(addr address.Address) shipping.ShippingAddress {
-	panic("not implemented")
+	return shipping.ShippingAddress{
+		Name:       addr.FullName,
+		Line1:      addr.AddressLine1,
+		Line2:      addr.AddressLine2,
+		City:       addr.City,
+		State:      addr.State,
+		PostalCode: addr.PostalCode,
+		Country:    addr.Country,
+		Phone:      addr.Phone,
+	}
 }
 
 // convertAddressToTax converts address.Address to tax.Address.
-// TODO: Implementation notes:
-// Simple field mapping between types
 func convertAddressToTax(addr address.Address) tax.Address {
-	panic("not implemented")
+	return tax.Address{
+		Line1:      addr.AddressLine1,
+		Line2:      addr.AddressLine2,
+		City:       addr.City,
+		State:      addr.State,
+		PostalCode: addr.PostalCode,
+		Country:    addr.Country,
+	}
 }
 
 // Note: uuidToString already defined in order.go
