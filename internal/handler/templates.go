@@ -12,6 +12,13 @@ import (
 // TemplateFuncs returns a FuncMap with custom template functions
 func TemplateFuncs() template.FuncMap {
 	return template.FuncMap{
+		// div divides two integers
+		"div": func(a, b int) int {
+			if b == 0 {
+				return 0
+			}
+			return a / b
+		},
 		"divf": func(a, b float64) float64 {
 			return a / b
 		},

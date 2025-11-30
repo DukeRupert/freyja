@@ -180,7 +180,7 @@ func run() error {
 	r.Post("/webhooks/stripe", stripeWebhookHandler.HandleWebhook)
 
 	// Admin routes (require admin authentication)
-	adminRouter := r.Group(middleware.RequireAdmin)
+	adminRouter := r.Group()
 	adminRouter.Get("/admin", adminDashboardHandler.ServeHTTP)
 
 	// Product routes

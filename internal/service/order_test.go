@@ -309,6 +309,58 @@ func (m *mockQuerier) VerifyUserEmail(ctx context.Context, id pgtype.UUID) error
 	return errors.New("not implemented in mock")
 }
 
+func (m *mockQuerier) CreatePriceListEntry(ctx context.Context, arg repository.CreatePriceListEntryParams) (repository.PriceListEntry, error) {
+	return repository.PriceListEntry{}, errors.New("not implemented in mock")
+}
+
+func (m *mockQuerier) CreateProduct(ctx context.Context, arg repository.CreateProductParams) (repository.Product, error) {
+	return repository.Product{}, errors.New("not implemented in mock")
+}
+
+func (m *mockQuerier) CreateProductSKU(ctx context.Context, arg repository.CreateProductSKUParams) (repository.ProductSku, error) {
+	return repository.ProductSku{}, errors.New("not implemented in mock")
+}
+
+func (m *mockQuerier) CreateProductImage(ctx context.Context, arg repository.CreateProductImageParams) (repository.ProductImage, error) {
+	return repository.ProductImage{}, errors.New("not implemented in mock")
+}
+
+func (m *mockQuerier) DeleteProduct(ctx context.Context, arg repository.DeleteProductParams) error {
+	return errors.New("not implemented in mock")
+}
+
+func (m *mockQuerier) DeleteProductSKU(ctx context.Context, arg repository.DeleteProductSKUParams) error {
+	return errors.New("not implemented in mock")
+}
+
+func (m *mockQuerier) DeleteProductImage(ctx context.Context, arg repository.DeleteProductImageParams) error {
+	return errors.New("not implemented in mock")
+}
+
+func (m *mockQuerier) GetOrderStats(ctx context.Context, arg repository.GetOrderStatsParams) (repository.GetOrderStatsRow, error) {
+	return repository.GetOrderStatsRow{}, errors.New("not implemented in mock")
+}
+
+func (m *mockQuerier) GetOrderWithDetails(ctx context.Context, arg repository.GetOrderWithDetailsParams) (repository.GetOrderWithDetailsRow, error) {
+	return repository.GetOrderWithDetailsRow{}, errors.New("not implemented in mock")
+}
+
+func (m *mockQuerier) CreateShipment(ctx context.Context, arg repository.CreateShipmentParams) (repository.Shipment, error) {
+	return repository.Shipment{}, errors.New("not implemented in mock")
+}
+
+func (m *mockQuerier) GetTenantWarehouseAddress(ctx context.Context, tenantID pgtype.UUID) (repository.GetTenantWarehouseAddressRow, error) {
+	return repository.GetTenantWarehouseAddressRow{}, errors.New("not implemented in mock")
+}
+
+func (m *mockQuerier) CountOrders(ctx context.Context, tenantID pgtype.UUID) (int64, error) {
+	return 0, errors.New("not implemented in mock")
+}
+
+func (m *mockQuerier) CountUsers(ctx context.Context, tenantID pgtype.UUID) (int64, error) {
+	return 0, errors.New("not implemented in mock")
+}
+
 // Test fixtures and helpers
 
 func mustParseUUID(s string) pgtype.UUID {
