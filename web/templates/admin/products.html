@@ -20,8 +20,8 @@
                 <thead class="text-zinc-500 dark:text-zinc-400">
                     <tr>
                         <th class="px-6 py-3 font-medium">Product</th>
-                        <th class="px-6 py-3 font-medium">Origin</th>
-                        <th class="px-6 py-3 font-medium">Roast</th>
+                        <th class="hidden lg:table-cell px-6 py-3 font-medium">Origin</th>
+                        <th class="hidden lg:table-cell px-6 py-3 font-medium">Roast</th>
                         <th class="px-6 py-3 font-medium">Status</th>
                         <th class="px-6 py-3 font-medium">Visibility</th>
                         <th class="px-6 py-3 font-medium">Actions</th>
@@ -45,10 +45,10 @@
                                 </div>
                             </div>
                         </td>
-                        <td class="px-6 py-4 text-zinc-600 dark:text-zinc-400">
+                        <td class="hidden lg:table-cell px-6 py-4 text-zinc-600 dark:text-zinc-400">
                             {{if .Origin.Valid}}{{.Origin.String}}{{else}}-{{end}}
                         </td>
-                        <td class="px-6 py-4 text-zinc-600 dark:text-zinc-400">
+                        <td class="hidden lg:table-cell px-6 py-4 text-zinc-600 dark:text-zinc-400">
                             {{if .RoastLevel.Valid}}{{.RoastLevel.String}}{{else}}-{{end}}
                         </td>
                         <td class="px-6 py-4">
