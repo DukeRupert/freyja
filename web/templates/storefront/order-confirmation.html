@@ -5,21 +5,21 @@
   <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 
     <!-- Success Header -->
-    <div class="text-center mb-8">
-      <div class="inline-flex items-center justify-center w-16 h-16 bg-teal-700 rounded-full mb-4">
-        <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+    <div class="text-center mb-10">
+      <div class="inline-flex items-center justify-center w-20 h-20 bg-teal-700 rounded-full mb-6 shadow-sm">
+        <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
         </svg>
       </div>
-      <h1 class="text-2xl font-semibold text-neutral-900 mb-2">Order Confirmed</h1>
-      <p class="text-sm text-neutral-600">
+      {{template "sf-heading" (dict "Level" "1" "Content" "Order Confirmed" "Class" "mb-3")}}
+      <p class="text-base text-neutral-600">
         We've received your order and will send a confirmation email to
         <span class="font-medium text-neutral-900">{{.Order.Email}}</span>
       </p>
     </div>
 
     <!-- Order Details Card -->
-    <div class="card p-8 mb-6">
+    <div class="bg-white border border-neutral-200 rounded-lg shadow-sm p-8 mb-6">
 
       <!-- Order Number & Date -->
       <div class="mb-6 pb-6 border-b border-neutral-200">
@@ -128,8 +128,8 @@
     </div>
 
     <!-- Next Steps -->
-    <div class="card p-6 mb-8">
-      <h2 class="text-base font-medium text-neutral-900 mb-3">What's Next?</h2>
+    <div class="bg-white border border-neutral-200 rounded-lg shadow-sm p-6 mb-8">
+      <h2 class="text-lg font-semibold text-neutral-900 mb-4">What's Next?</h2>
       <div class="space-y-3 text-sm text-neutral-600">
         <div class="flex gap-3">
           <div class="flex-shrink-0 w-6 h-6 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-medium">
@@ -155,11 +155,11 @@
     <!-- Action Buttons -->
     <div class="flex flex-col sm:flex-row gap-4">
       {{if .User}}
-      <a href="/account/orders/{{.Order.OrderNumber}}" class="btn-primary text-center">
+      <a href="/account/orders/{{.Order.OrderNumber}}" class="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-md font-medium bg-teal-700 text-white hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-700 shadow-sm transition-colors text-center">
         View Order Details
       </a>
       {{end}}
-      <a href="/products" class="btn-secondary text-center">
+      <a href="/products" class="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-md font-medium bg-white text-neutral-900 border border-neutral-300 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-700 transition-colors text-center">
         Continue Shopping
       </a>
     </div>

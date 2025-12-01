@@ -4,25 +4,25 @@
 <div class="mx-auto max-w-7xl">
     <!-- Page Header -->
     <div class="mb-12 text-center">
-        {{template "heading" (dict "Level" "1" "Content" "Our Coffee")}}
-        <p class="mt-4 text-lg text-zinc-600 dark:text-zinc-400">
+        {{template "sf-heading" (dict "Level" "1" "Content" "Our Coffee")}}
+        <p class="mt-4 text-lg text-neutral-600">
             Freshly roasted, ethically sourced coffee from around the world
         </p>
     </div>
 
     <!-- Product Grid -->
     {{if .Products}}
-    <div class="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {{range .Products}}
         <a href="/products/{{.Slug}}" class="group">
-            <article class="flex h-full flex-col rounded-2xl bg-white ring-1 ring-zinc-950/5 transition hover:ring-zinc-950/10 dark:bg-zinc-900 dark:ring-white/10 dark:hover:ring-white/20">
+            <article class="flex h-full flex-col rounded-lg bg-white border border-neutral-200 shadow-sm transition hover:shadow-md">
                 <!-- Product Image -->
-                <div class="aspect-square overflow-hidden rounded-t-2xl bg-zinc-100 dark:bg-zinc-800">
+                <div class="aspect-square overflow-hidden rounded-t-lg bg-neutral-100">
                     {{if .ImageURL.Valid}}
                         <img src="{{.ImageURL.String}}" alt="{{.Name}}" class="h-full w-full object-cover transition group-hover:scale-105">
                     {{else}}
                         <div class="flex h-full items-center justify-center">
-                            <svg class="h-24 w-24 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg class="h-20 w-20 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
                         </div>
@@ -32,18 +32,18 @@
                 <!-- Product Info -->
                 <div class="flex flex-1 flex-col p-6">
                     <div class="flex-1">
-                        <h3 class="text-lg font-semibold text-zinc-950 dark:text-white">
+                        <h3 class="text-lg font-semibold text-neutral-900">
                             {{.Name}}
                         </h3>
 
                         {{if .Origin.Valid}}
-                        <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                        <p class="mt-1 text-sm text-neutral-600">
                             {{.Origin.String}}
                         </p>
                         {{end}}
 
                         {{if .ShortDescription.Valid}}
-                        <p class="mt-3 text-sm/6 text-zinc-700 dark:text-zinc-300 line-clamp-2">
+                        <p class="mt-3 text-sm leading-6 text-neutral-700 line-clamp-2">
                             {{.ShortDescription.String}}
                         </p>
                         {{end}}
@@ -51,16 +51,16 @@
                         <!-- Attributes -->
                         <div class="mt-4 flex flex-wrap gap-2">
                             {{if .RoastLevel.Valid}}
-                                {{template "badge" (dict "Content" .RoastLevel.String "Color" "zinc")}}
+                                {{template "sf-badge" (dict "Content" .RoastLevel.String "Color" "neutral")}}
                             {{end}}
 
                             {{if .TastingNotes}}
                                 {{$notes := .TastingNotes}}
                                 {{if gt (len $notes) 0}}
-                                    {{template "badge" (dict "Content" (index $notes 0) "Color" "blue")}}
+                                    {{template "sf-badge" (dict "Content" (index $notes 0) "Color" "amber")}}
                                 {{end}}
                                 {{if gt (len $notes) 1}}
-                                    <span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                                    <span class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-neutral-100 text-neutral-700 border border-neutral-200">
                                         +{{sub (len $notes) 1}} more
                                     </span>
                                 {{end}}
@@ -70,9 +70,9 @@
 
                     <!-- Price -->
                     {{if .BasePrice.Valid}}
-                    <div class="mt-4 flex items-baseline justify-between border-t border-zinc-950/5 pt-4 dark:border-white/5">
-                        <span class="text-sm text-zinc-500 dark:text-zinc-400">Starting at</span>
-                        <span class="text-xl font-bold text-zinc-950 dark:text-white">
+                    <div class="mt-4 flex items-baseline justify-between border-t border-neutral-200 pt-4">
+                        <span class="text-sm text-neutral-500">Starting at</span>
+                        <span class="text-xl font-bold text-neutral-900">
                             ${{printf "%.2f" (divf .BasePrice.Int 100.0)}}
                         </span>
                     </div>
@@ -80,7 +80,7 @@
 
                     <!-- View Details Link -->
                     <div class="mt-4">
-                        <span class="inline-flex items-center gap-2 text-sm font-medium text-zinc-950 group-hover:text-zinc-700 dark:text-white dark:group-hover:text-zinc-300">
+                        <span class="inline-flex items-center gap-2 text-sm font-medium text-teal-700 group-hover:text-teal-800 transition-colors">
                             View Details
                             <svg class="h-4 w-4 transition group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -94,11 +94,10 @@
     </div>
     {{else}}
     <!-- Empty State -->
-    <div class="py-20 text-center">
-        {{template "empty-state" (dict
-            "Title" "No products available"
-            "Description" "Check back soon for fresh roasted coffee")}}
-    </div>
+    {{template "sf-empty-state" (dict
+        "Icon" "<path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4\"/>"
+        "Title" "No products available"
+        "Description" "Check back soon for fresh roasted coffee")}}
     {{end}}
 </div>
 {{end}}

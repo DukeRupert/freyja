@@ -19,14 +19,76 @@ func TemplateFuncs() template.FuncMap {
 			}
 			return a / b
 		},
-		"divf": func(a, b float64) float64 {
-			return a / b
+		"divf": func(a, b interface{}) float64 {
+			var aVal, bVal float64
+			switch v := a.(type) {
+			case int:
+				aVal = float64(v)
+			case int32:
+				aVal = float64(v)
+			case int64:
+				aVal = float64(v)
+			case float32:
+				aVal = float64(v)
+			case float64:
+				aVal = v
+			}
+			switch v := b.(type) {
+			case int:
+				bVal = float64(v)
+			case int32:
+				bVal = float64(v)
+			case int64:
+				bVal = float64(v)
+			case float32:
+				bVal = float64(v)
+			case float64:
+				bVal = v
+			}
+			if bVal == 0 {
+				return 0
+			}
+			return aVal / bVal
 		},
-		"add": func(a, b int) int {
-			return a + b
+		"add": func(a, b interface{}) int32 {
+			var aVal, bVal int32
+			switch v := a.(type) {
+			case int:
+				aVal = int32(v)
+			case int32:
+				aVal = v
+			case int64:
+				aVal = int32(v)
+			}
+			switch v := b.(type) {
+			case int:
+				bVal = int32(v)
+			case int32:
+				bVal = v
+			case int64:
+				bVal = int32(v)
+			}
+			return aVal + bVal
 		},
-		"sub": func(a, b int) int {
-			return a - b
+		"sub": func(a, b interface{}) int32 {
+			var aVal, bVal int32
+			switch v := a.(type) {
+			case int:
+				aVal = int32(v)
+			case int32:
+				aVal = v
+			case int64:
+				aVal = int32(v)
+			}
+			switch v := b.(type) {
+			case int:
+				bVal = int32(v)
+			case int32:
+				bVal = v
+			case int64:
+				bVal = int32(v)
+			}
+			return aVal - bVal
 		},
 
 		// Date/Time functions

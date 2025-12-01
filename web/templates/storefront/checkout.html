@@ -595,7 +595,7 @@
 
           <!-- Cart Items -->
           <div class="space-y-4 mb-6">
-            {{range .Cart.Items}}
+            {{range .Items}}
             <div class="flex gap-3">
               <div class="relative flex-shrink-0">
                 <div class="w-16 h-16 bg-neutral-100 rounded overflow-hidden flex items-center justify-center">
@@ -623,7 +623,7 @@
           <div class="space-y-2 border-t border-neutral-200 pt-4 mb-4">
             <div class="flex justify-between text-sm">
               <span class="text-neutral-600">Subtotal</span>
-              <span class="text-neutral-900">${{printf "%.2f" (divf .Cart.SubtotalCents 100.0)}}</span>
+              <span class="text-neutral-900">${{printf "%.2f" (divf .Subtotal 100.0)}}</span>
             </div>
             <div class="flex justify-between text-sm">
               <span class="text-neutral-600">Shipping</span>
@@ -643,7 +643,7 @@
           <div class="flex justify-between border-t border-neutral-200 pt-4">
             <span class="text-base font-semibold text-neutral-900">Total</span>
             <span class="text-base font-semibold text-neutral-900" id="order-total">
-              ${{printf "%.2f" (divf .Cart.SubtotalCents 100.0)}}
+              ${{printf "%.2f" (divf .Subtotal 100.0)}}
             </span>
           </div>
 

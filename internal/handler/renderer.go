@@ -18,11 +18,18 @@ type Renderer struct {
 func NewRenderer(templatesDir string) (*Renderer, error) {
 	templates := make(map[string]*template.Template)
 
-	// Get all component templates
+	// Get all component templates (admin components)
 	componentPattern := filepath.Join(templatesDir, "components", "*.html")
 	componentFiles, err := filepath.Glob(componentPattern)
 	if err != nil {
 		return nil, fmt.Errorf("failed to glob components: %w", err)
+	}
+
+	// Get storefront component templates
+	storefrontComponentPattern := filepath.Join(templatesDir, "storefront", "components", "*.html")
+	storefrontComponentFiles, err := filepath.Glob(storefrontComponentPattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to glob storefront components: %w", err)
 	}
 
 	// Parse storefront layout once as base template
@@ -32,11 +39,19 @@ func NewRenderer(templatesDir string) (*Renderer, error) {
 		return nil, fmt.Errorf("failed to parse layout: %w", err)
 	}
 
-	// Parse components into base template
+	// Parse admin components into base template
 	if len(componentFiles) > 0 {
 		baseTmpl, err = baseTmpl.ParseFiles(componentFiles...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse components into base template: %w", err)
+		}
+	}
+
+	// Parse storefront components into base template
+	if len(storefrontComponentFiles) > 0 {
+		baseTmpl, err = baseTmpl.ParseFiles(storefrontComponentFiles...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse storefront components into base template: %w", err)
 		}
 	}
 
@@ -47,11 +62,19 @@ func NewRenderer(templatesDir string) (*Renderer, error) {
 		return nil, fmt.Errorf("failed to parse admin layout: %w", err)
 	}
 
-	// Parse components into admin base template
+	// Parse admin components into admin base template
 	if len(componentFiles) > 0 {
 		adminBaseTmpl, err = adminBaseTmpl.ParseFiles(componentFiles...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse components into admin base template: %w", err)
+		}
+	}
+
+	// Parse storefront components into admin base template as well
+	if len(storefrontComponentFiles) > 0 {
+		adminBaseTmpl, err = adminBaseTmpl.ParseFiles(storefrontComponentFiles...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse storefront components into admin base template: %w", err)
 		}
 	}
 

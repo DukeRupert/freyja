@@ -1,0 +1,21 @@
+{{/* Storefront Card Component - Warm, steady aesthetic */}}
+
+{{define "sf-card"}}
+{{$padding := .Padding | default "default"}}
+
+{{/* Padding classes */}}
+{{$paddingClasses := ""}}
+{{if eq $padding "none"}}
+  {{$paddingClasses = ""}}
+{{else if eq $padding "sm"}}
+  {{$paddingClasses = "p-4"}}
+{{else if eq $padding "lg"}}
+  {{$paddingClasses = "p-8"}}
+{{else}}
+  {{$paddingClasses = "p-6"}}
+{{end}}
+
+<div class="bg-white border border-neutral-200 rounded-lg shadow-sm {{$paddingClasses}} {{.Class}}">
+  {{.Content}}
+</div>
+{{end}}

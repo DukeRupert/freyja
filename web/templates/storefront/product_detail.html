@@ -6,14 +6,14 @@
     <nav class="mb-8 flex" aria-label="Breadcrumb">
         <ol class="inline-flex items-center space-x-1 md:space-x-3">
             <li class="inline-flex items-center">
-                <a href="/products" class="text-sm font-medium text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white">
+                <a href="/products" class="text-sm font-medium text-neutral-600 hover:text-teal-700 transition-colors">
                     Products
                 </a>
             </li>
             <li>
                 <div class="flex items-center">
-                    <span class="mx-2 text-zinc-400">/</span>
-                    <span class="text-sm font-medium text-zinc-950 dark:text-white">{{.Product.Name}}</span>
+                    <span class="mx-2 text-neutral-400">/</span>
+                    <span class="text-sm font-medium text-neutral-900">{{.Product.Name}}</span>
                 </div>
             </li>
         </ol>
@@ -21,15 +21,15 @@
 
     <div class="grid gap-8 lg:grid-cols-2">
         <!-- Product Image -->
-        <div class="rounded-2xl bg-zinc-100 dark:bg-zinc-800 aspect-square flex items-center justify-center">
+        <div class="rounded-lg bg-neutral-100 aspect-square flex items-center justify-center border border-neutral-200">
             {{if .Images}}
-                <img src="{{index .Images 0}}" alt="{{.Product.Name}}" class="h-full w-full object-cover rounded-2xl">
+                <img src="{{index .Images 0}}" alt="{{.Product.Name}}" class="h-full w-full object-cover rounded-lg">
             {{else}}
                 <div class="text-center">
-                    <svg class="mx-auto h-24 w-24 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg class="mx-auto h-24 w-24 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">No image available</p>
+                    <p class="mt-2 text-sm text-neutral-500">No image available</p>
                 </div>
             {{end}}
         </div>
@@ -38,15 +38,15 @@
         <div class="flex flex-col">
             <!-- Product Name & Origin -->
             <div>
-                {{template "heading" (dict "Level" "1" "Content" .Product.Name)}}
+                {{template "sf-heading" (dict "Level" "1" "Content" .Product.Name)}}
                 {{if .Product.Origin.Valid}}
-                <p class="mt-2 text-lg text-zinc-600 dark:text-zinc-400">{{.Product.Origin.String}}</p>
+                <p class="mt-2 text-lg text-neutral-600">{{.Product.Origin.String}}</p>
                 {{end}}
             </div>
 
             <!-- Short Description -->
             {{if .Product.ShortDescription.Valid}}
-            <p class="mt-4 text-base/7 text-zinc-700 dark:text-zinc-300">
+            <p class="mt-4 text-base leading-7 text-neutral-700">
                 {{.Product.ShortDescription.String}}
             </p>
             {{end}}
@@ -94,7 +94,7 @@
                             "XModel" "selectedWeight"
                             "Options" (list)))}}
                     <select id="weight" name="weight" required x-model="selectedWeight"
-                            class="block w-full rounded-lg border-zinc-950/10 py-[calc(theme(spacing[2.5])-1px)] px-[calc(theme(spacing[3.5])-1px)] text-base/6 sm:text-sm/6 dark:border-white/10 dark:bg-white/5 dark:[color-scheme:dark]">
+                            class="block w-full rounded-md border-neutral-300 shadow-sm focus:border-teal-700 focus:ring focus:ring-teal-200 focus:ring-opacity-50 py-2 px-3 text-sm">
                         {{range .Weights}}
                         <option value="{{.}}">{{.}}</option>
                         {{end}}
@@ -115,7 +115,7 @@
                             "XModel" "selectedGrind"
                             "Options" (list)))}}
                     <select id="grind" name="grind" required x-model="selectedGrind"
-                            class="block w-full rounded-lg border-zinc-950/10 py-[calc(theme(spacing[2.5])-1px)] px-[calc(theme(spacing[3.5])-1px)] text-base/6 sm:text-sm/6 capitalize dark:border-white/10 dark:bg-white/5 dark:[color-scheme:dark]">
+                            class="block w-full rounded-md border-neutral-300 shadow-sm focus:border-teal-700 focus:ring focus:ring-teal-200 focus:ring-opacity-50 py-2 px-3 text-sm capitalize">
                         {{range .Grinds}}
                         <option value="{{.}}" class="capitalize">{{.}}</option>
                         {{end}}
@@ -137,73 +137,70 @@
                             "Min" 1
                             "XModel" "quantity"))}}
                     <input type="number" id="quantity" name="quantity" required x-model="quantity" min="1" value="1"
-                           class="block w-full rounded-lg border-zinc-950/10 py-[calc(theme(spacing[2.5])-1px)] px-[calc(theme(spacing[3.5])-1px)] text-base/6 sm:text-sm/6 dark:border-white/10 dark:bg-white/5 dark:[color-scheme:dark]">
+                           class="block w-full rounded-md border-neutral-300 shadow-sm focus:border-teal-700 focus:ring focus:ring-teal-200 focus:ring-opacity-50 py-2 px-3 text-sm">
                 </div>
 
                 <!-- Hidden SKU ID -->
                 <input type="hidden" name="sku_id" x-model="selectedSKU">
 
                 <!-- Price Display -->
-                <div class="rounded-lg bg-zinc-50 p-4 ring-1 ring-zinc-950/5 dark:bg-zinc-900/50 dark:ring-white/10">
+                <div class="rounded-lg bg-neutral-50 p-4 border border-neutral-200">
                     <div class="flex items-baseline justify-between">
-                        <span class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Price</span>
-                        <span class="text-3xl font-bold text-zinc-950 dark:text-white" x-text="'$' + price.toFixed(2)">$0.00</span>
+                        <span class="text-sm font-medium text-neutral-600">Price</span>
+                        <span class="text-3xl font-bold text-neutral-900" x-text="'$' + price.toFixed(2)">$0.00</span>
                     </div>
                     <div class="mt-2 flex items-baseline justify-between text-sm">
-                        <span class="text-zinc-500 dark:text-zinc-400">Total</span>
-                        <span class="font-semibold text-zinc-700 dark:text-zinc-300" x-text="'$' + (price * quantity).toFixed(2)">$0.00</span>
+                        <span class="text-neutral-600">Total</span>
+                        <span class="font-semibold text-neutral-900" x-text="'$' + (price * quantity).toFixed(2)">$0.00</span>
                     </div>
                 </div>
 
                 <!-- Add to Cart Button -->
-                {{template "button" (dict
-                    "Content" "Add to Cart"
-                    "Type" "submit"
-                    "Variant" "solid"
-                    "Color" "zinc"
-                    "Class" "w-full")}}
+                <button type="submit" class="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-md font-medium bg-teal-700 text-white hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-700 shadow-sm transition-colors">
+                    Add to Cart
+                </button>
             </form>
 
             <!-- Coffee Attributes -->
             {{if or .Product.RoastLevel.Valid .Product.Process.Valid .Product.TastingNotes}}
             <div class="mt-12 space-y-6">
-                <h3 class="text-lg font-semibold text-zinc-950 dark:text-white">Details</h3>
+                <h3 class="text-lg font-semibold text-neutral-900">Details</h3>
 
                 <dl class="space-y-4">
                     {{if .Product.RoastLevel.Valid}}
                     <div class="flex justify-between">
-                        <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Roast Level</dt>
-                        <dd class="text-sm text-zinc-950 dark:text-white capitalize">{{.Product.RoastLevel.String}}</dd>
+                        <dt class="text-sm font-medium text-neutral-600">Roast Level</dt>
+                        <dd class="text-sm text-neutral-900 capitalize">{{.Product.RoastLevel.String}}</dd>
                     </div>
                     {{end}}
 
                     {{if .Product.Process.Valid}}
                     <div class="flex justify-between">
-                        <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Process</dt>
-                        <dd class="text-sm text-zinc-950 dark:text-white capitalize">{{.Product.Process.String}}</dd>
+                        <dt class="text-sm font-medium text-neutral-600">Process</dt>
+                        <dd class="text-sm text-neutral-900 capitalize">{{.Product.Process.String}}</dd>
                     </div>
                     {{end}}
 
                     {{if .Product.Region.Valid}}
                     <div class="flex justify-between">
-                        <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Region</dt>
-                        <dd class="text-sm text-zinc-950 dark:text-white">{{.Product.Region.String}}</dd>
+                        <dt class="text-sm font-medium text-neutral-600">Region</dt>
+                        <dd class="text-sm text-neutral-900">{{.Product.Region.String}}</dd>
                     </div>
                     {{end}}
 
                     {{if .Product.Producer.Valid}}
                     <div class="flex justify-between">
-                        <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Producer</dt>
-                        <dd class="text-sm text-zinc-950 dark:text-white">{{.Product.Producer.String}}</dd>
+                        <dt class="text-sm font-medium text-neutral-600">Producer</dt>
+                        <dd class="text-sm text-neutral-900">{{.Product.Producer.String}}</dd>
                     </div>
                     {{end}}
 
                     {{if .Product.TastingNotes}}
                     <div>
-                        <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-2">Tasting Notes</dt>
+                        <dt class="text-sm font-medium text-neutral-600 mb-2">Tasting Notes</dt>
                         <dd class="flex flex-wrap gap-2">
                             {{range .Product.TastingNotes}}
-                                {{template "badge" (dict "Content" . "Color" "blue")}}
+                                {{template "sf-badge" (dict "Content" . "Color" "amber")}}
                             {{end}}
                         </dd>
                     </div>
@@ -215,9 +212,9 @@
             <!-- Full Description -->
             {{if .Product.Description.Valid}}
             <div class="mt-12">
-                <h3 class="text-lg font-semibold text-zinc-950 dark:text-white mb-4">About This Coffee</h3>
-                <div class="prose prose-zinc dark:prose-invert max-w-none">
-                    <p class="text-base/7 text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">{{.Product.Description.String}}</p>
+                <h3 class="text-lg font-semibold text-neutral-900 mb-4">About This Coffee</h3>
+                <div class="prose max-w-none">
+                    <p class="text-base leading-7 text-neutral-700 whitespace-pre-wrap">{{.Product.Description.String}}</p>
                 </div>
             </div>
             {{end}}

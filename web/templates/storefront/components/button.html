@@ -1,0 +1,47 @@
+{{/* Storefront Button Component - Warm, steady aesthetic */}}
+
+{{define "sf-button"}}
+{{$variant := .Variant | default "primary"}}
+{{$size := .Size | default "default"}}
+{{$type := .Type | default "button"}}
+{{$disabled := .Disabled | default false}}
+
+{{/* Size classes */}}
+{{$sizeClasses := ""}}
+{{if eq $size "small"}}
+  {{$sizeClasses = "px-3 py-1.5 text-sm"}}
+{{else if eq $size "large"}}
+  {{$sizeClasses = "px-5 py-3 text-base"}}
+{{else}}
+  {{$sizeClasses = "px-4 py-2.5 text-base"}}
+{{end}}
+
+{{/* Variant classes */}}
+{{$variantClasses := ""}}
+{{if eq $variant "primary"}}
+  {{$variantClasses = "bg-teal-700 text-white hover:bg-teal-800 focus:ring-teal-700 shadow-sm"}}
+{{else if eq $variant "secondary"}}
+  {{$variantClasses = "bg-white text-neutral-900 border border-neutral-300 hover:bg-neutral-50 focus:ring-teal-700"}}
+{{else if eq $variant "destructive"}}
+  {{$variantClasses = "bg-white text-red-700 border border-red-700 hover:bg-red-50 focus:ring-red-700"}}
+{{else if eq $variant "ghost"}}
+  {{$variantClasses = "bg-transparent text-teal-700 hover:bg-neutral-50 focus:ring-teal-700"}}
+{{end}}
+
+<button
+  type="{{$type}}"
+  {{if $disabled}}disabled{{end}}
+  {{if .HxPost}}hx-post="{{.HxPost}}"{{end}}
+  {{if .HxGet}}hx-get="{{.HxGet}}"{{end}}
+  {{if .HxTarget}}hx-target="{{.HxTarget}}"{{end}}
+  {{if .HxSwap}}hx-swap="{{.HxSwap}}"{{end}}
+  {{if .HxVals}}hx-vals='{{.HxVals}}'{{end}}
+  class="inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed {{$sizeClasses}} {{$variantClasses}} {{.Class}}">
+  {{if .Icon}}
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    {{.Icon}}
+  </svg>
+  {{end}}
+  {{.Content}}
+</button>
+{{end}}
