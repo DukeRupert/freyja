@@ -82,10 +82,10 @@
                     "Label" "Grind"
                     "Required" true
                     "Select" (dict
-                        "ID" "grind_type"
-                        "Name" "grind_type"
+                        "ID" "grind"
+                        "Name" "grind"
                         "Required" true
-                        "Value" (default "whole_bean" .SKU.GrindType)
+                        "Value" (default "whole_bean" .SKU.Grind)
                         "Options" (list
                             (dict "Value" "whole_bean" "Label" "Whole Bean")
                             (dict "Value" "espresso" "Label" "Espresso")
@@ -136,7 +136,7 @@
                             type="checkbox"
                             id="track_inventory"
                             name="track_inventory"
-                            {{if .SKU.TrackInventory}}checked{{end}}
+                            {{if eq .SKU.InventoryPolicy "deny"}}checked{{end}}
                             class="h-4 w-4 rounded border-zinc-300 text-zinc-950 focus:ring-2 focus:ring-zinc-950 dark:border-white/10 dark:bg-white/5 dark:focus:ring-white">
                     </div>
                     <div class="flex-1">
@@ -150,7 +150,7 @@
                 </div>
 
                 <!-- Stock Quantity (shown if tracking) -->
-                <div x-data="{trackInventory: {{.SKU.TrackInventory}}}"
+                <div x-data="{trackInventory: {{if eq .SKU.InventoryPolicy "deny"}}true{{else}}false{{end}}}"
                      x-init="$watch('trackInventory', value => document.getElementById('stock_quantity').disabled = !value)">
                     {{template "field" (dict
                         "Label" "Stock Quantity"
@@ -159,10 +159,10 @@
                             "Type" "number"
                             "ID" "stock_quantity"
                             "Name" "stock_quantity"
-                            "Value" .SKU.StockQuantity
+                            "Value" .SKU.InventoryQuantity
                             "Placeholder" "0"
                             "Min" "0"
-                            "Disabled" (not .SKU.TrackInventory)))}}
+                            "Disabled" (ne .SKU.InventoryPolicy "deny")))}}
                 </div>
 
                 <!-- Low Stock Threshold -->

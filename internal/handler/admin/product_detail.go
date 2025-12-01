@@ -67,15 +67,47 @@ func (h *ProductDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 	// Format SKUs for display
 	type DisplaySKU struct {
-		repository.ProductSku
-		BasePriceDollars string
+		SkuID                pgtype.UUID
+		Sku                  string
+		WeightValueFormatted string
+		WeightUnit           string
+		GrindType            string
+		BasePriceDollars     string
+		TrackInventory       bool
+		StockQuantity        int32
+		IsActive             bool
 	}
 
 	displaySKUs := make([]DisplaySKU, len(skus))
 	for i, sku := range skus {
+		// Format weight value
+		weightFormatted := ""
+		if sku.WeightValue.Valid {
+			f, err := sku.WeightValue.Float64Value()
+			if err == nil && f.Valid {
+				// Format without unnecessary decimal places
+				weightStr := fmt.Sprintf("%.2f", f.Float64)
+				// Trim trailing zeros and decimal point if needed
+				for len(weightStr) > 0 && weightStr[len(weightStr)-1] == '0' {
+					weightStr = weightStr[:len(weightStr)-1]
+				}
+				if len(weightStr) > 0 && weightStr[len(weightStr)-1] == '.' {
+					weightStr = weightStr[:len(weightStr)-1]
+				}
+				weightFormatted = weightStr
+			}
+		}
+
 		displaySKUs[i] = DisplaySKU{
-			ProductSku:       sku,
-			BasePriceDollars: fmt.Sprintf("%.2f", float64(sku.BasePriceCents)/100),
+			SkuID:                sku.ID,
+			Sku:                  sku.Sku,
+			WeightValueFormatted: weightFormatted,
+			WeightUnit:           sku.WeightUnit,
+			GrindType:            sku.Grind,
+			BasePriceDollars:     fmt.Sprintf("%.2f", float64(sku.BasePriceCents)/100),
+			TrackInventory:       sku.InventoryPolicy == "deny", // Track if policy is deny (prevent backorders)
+			StockQuantity:        sku.InventoryQuantity,
+			IsActive:             sku.IsActive,
 		}
 	}
 
