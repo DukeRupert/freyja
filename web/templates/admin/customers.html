@@ -1,0 +1,153 @@
+{{define "title"}}Customers{{end}}
+
+{{define "content"}}
+<div class="space-y-8">
+    <!-- Page Header -->
+    {{template "page-header" (dict
+        "Title" "Customers"
+        "Description" "Manage customer accounts and wholesale applications")}}
+
+    <!-- Filters -->
+    <div class="flex items-center gap-4">
+        {{template "field" (dict
+            "Label" ""
+            "Select" (dict
+                "ID" "account-type-filter"
+                "Name" "type"
+                "Value" .FilterType
+                "Options" (list
+                    (dict "Value" "" "Label" "All Customers")
+                    (dict "Value" "retail" "Label" "Retail Customers")
+                    (dict "Value" "wholesale" "Label" "Wholesale Customers"))))}}
+    </div>
+
+    <!-- Customers Table -->
+    {{if .Customers}}
+    {{template "table-start" (dict "Title" "All Customers")}}
+        <table class="min-w-full text-left text-sm/6 text-zinc-950 dark:text-white">
+            <thead class="text-zinc-500 dark:text-zinc-400">
+                <tr>
+                    <th class="px-6 py-3 font-medium">Customer</th>
+                    <th class="px-6 py-3 font-medium">Account Type</th>
+                    <th class="px-6 py-3 font-medium">Status</th>
+                    <th class="px-6 py-3 font-medium">Joined</th>
+                    <th class="px-6 py-3 font-medium">Last Login</th>
+                    <th class="px-6 py-3 font-medium">
+                        <span class="sr-only">Actions</span>
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-950/5 dark:divide-white/5">
+                {{range .Customers}}
+                <tr class="hover:bg-zinc-950/[2.5%] dark:hover:bg-white/[2.5%]">
+                    <td class="px-6 py-4">
+                        <div>
+                            {{if .FullName}}
+                            <div class="font-medium text-zinc-950 dark:text-white">
+                                {{.FullName}}
+                            </div>
+                            {{end}}
+                            <div class="{{if .FullName}}text-sm {{end}}text-zinc-500 dark:text-zinc-400">
+                                {{.Email}}
+                            </div>
+                            {{if and (eq .AccountType "wholesale") .CompanyName.Valid}}
+                            <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                                {{.CompanyName.String}}
+                            </div>
+                            {{end}}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        {{if eq .AccountType "retail"}}
+                            {{template "badge" (dict "Content" "Retail" "Color" "blue")}}
+                        {{else if eq .AccountType "wholesale"}}
+                            <div class="flex flex-col gap-1">
+                                {{template "badge" (dict "Content" "Wholesale" "Color" "amber")}}
+                                {{if .WholesaleStatus.Valid}}
+                                    {{if eq .WholesaleStatus.String "pending"}}
+                                        {{template "badge" (dict "Content" "Pending Approval" "Color" "zinc")}}
+                                    {{else if eq .WholesaleStatus.String "approved"}}
+                                        {{template "badge" (dict "Content" "Approved" "Color" "green")}}
+                                    {{else if eq .WholesaleStatus.String "rejected"}}
+                                        {{template "badge" (dict "Content" "Rejected" "Color" "red")}}
+                                    {{end}}
+                                {{end}}
+                            </div>
+                        {{else}}
+                            <span class="capitalize">{{.AccountType}}</span>
+                        {{end}}
+                    </td>
+                    <td class="px-6 py-4">
+                        {{if eq .Status "active"}}
+                            {{template "badge" (dict "Content" "Active" "Color" "green")}}
+                        {{else if eq .Status "inactive"}}
+                            {{template "badge" (dict "Content" "Inactive" "Color" "zinc")}}
+                        {{else if eq .Status "suspended"}}
+                            {{template "badge" (dict "Content" "Suspended" "Color" "red")}}
+                        {{else}}
+                            {{template "badge" (dict "Content" .Status "Color" "zinc")}}
+                        {{end}}
+                    </td>
+                    <td class="px-6 py-4 text-zinc-500 dark:text-zinc-400">
+                        {{.CreatedAtFormatted}}
+                    </td>
+                    <td class="px-6 py-4 text-zinc-500 dark:text-zinc-400">
+                        {{if .LastLoginFormatted}}
+                            {{.LastLoginFormatted}}
+                        {{else}}
+                            Never
+                        {{end}}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="/admin/customers/{{.ID}}"
+                           class="text-sm/6 font-medium text-zinc-950 hover:text-zinc-700 dark:text-white dark:hover:text-zinc-300">
+                            View
+                        </a>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    {{template "table-end"}}
+    {{else}}
+    {{template "table-start"}}
+        {{template "empty-state" (dict
+            "Title" "No customers yet"
+            "Description" "Customers will appear here once they create accounts on your store")}}
+    {{template "table-end"}}
+    {{end}}
+
+    <!-- Quick Stats -->
+    <div class="grid gap-6 sm:grid-cols-3">
+        {{template "stat-card" (dict
+            "Label" "Total Customers"
+            "Value" (len .Customers)
+            "Description" "All customer accounts")}}
+
+        {{template "stat-card" (dict
+            "Label" "Retail Customers"
+            "Value" "—"
+            "Description" "Individual shoppers"
+            "Color" "blue")}}
+
+        {{template "stat-card" (dict
+            "Label" "Wholesale Accounts"
+            "Value" "—"
+            "Description" "Business customers"
+            "Color" "amber")}}
+    </div>
+</div>
+
+<script>
+// Handle account type filter change
+document.getElementById('account-type-filter')?.addEventListener('change', function(e) {
+    const url = new URL(window.location);
+    if (e.target.value) {
+        url.searchParams.set('type', e.target.value);
+    } else {
+        url.searchParams.delete('type');
+    }
+    window.location = url;
+});
+</script>
+{{end}}

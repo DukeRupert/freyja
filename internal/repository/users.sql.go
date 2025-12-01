@@ -200,17 +200,7 @@ func (q *Queries) GetUserStats(ctx context.Context, tenantID pgtype.UUID) (GetUs
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT
-    id,
-    email,
-    email_verified,
-    account_type,
-    first_name,
-    last_name,
-    company_name,
-    status,
-    wholesale_application_status,
-    created_at
+SELECT id, tenant_id, email, password_hash, email_verified, account_type, first_name, last_name, phone, company_name, tax_id, business_type, status, wholesale_application_status, wholesale_application_notes, wholesale_approved_at, wholesale_approved_by, payment_terms, metadata, created_at, updated_at
 FROM users
 WHERE tenant_id = $1
   AND status != 'closed'
@@ -224,40 +214,38 @@ type ListUsersParams struct {
 	Offset   int32       `json:"offset"`
 }
 
-type ListUsersRow struct {
-	ID                         pgtype.UUID        `json:"id"`
-	Email                      string             `json:"email"`
-	EmailVerified              bool               `json:"email_verified"`
-	AccountType                string             `json:"account_type"`
-	FirstName                  pgtype.Text        `json:"first_name"`
-	LastName                   pgtype.Text        `json:"last_name"`
-	CompanyName                pgtype.Text        `json:"company_name"`
-	Status                     string             `json:"status"`
-	WholesaleApplicationStatus pgtype.Text        `json:"wholesale_application_status"`
-	CreatedAt                  pgtype.Timestamptz `json:"created_at"`
-}
-
 // List all users for a tenant (admin only)
-func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error) {
+func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error) {
 	rows, err := q.db.Query(ctx, listUsers, arg.TenantID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListUsersRow{}
+	items := []User{}
 	for rows.Next() {
-		var i ListUsersRow
+		var i User
 		if err := rows.Scan(
 			&i.ID,
+			&i.TenantID,
 			&i.Email,
+			&i.PasswordHash,
 			&i.EmailVerified,
 			&i.AccountType,
 			&i.FirstName,
 			&i.LastName,
+			&i.Phone,
 			&i.CompanyName,
+			&i.TaxID,
+			&i.BusinessType,
 			&i.Status,
 			&i.WholesaleApplicationStatus,
+			&i.WholesaleApplicationNotes,
+			&i.WholesaleApprovedAt,
+			&i.WholesaleApprovedBy,
+			&i.PaymentTerms,
+			&i.Metadata,
 			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -270,17 +258,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUse
 }
 
 const listUsersByAccountType = `-- name: ListUsersByAccountType :many
-SELECT
-    id,
-    email,
-    email_verified,
-    account_type,
-    first_name,
-    last_name,
-    company_name,
-    status,
-    wholesale_application_status,
-    created_at
+SELECT id, tenant_id, email, password_hash, email_verified, account_type, first_name, last_name, phone, company_name, tax_id, business_type, status, wholesale_application_status, wholesale_application_notes, wholesale_approved_at, wholesale_approved_by, payment_terms, metadata, created_at, updated_at
 FROM users
 WHERE tenant_id = $1
   AND account_type = $2
@@ -293,40 +271,38 @@ type ListUsersByAccountTypeParams struct {
 	AccountType string      `json:"account_type"`
 }
 
-type ListUsersByAccountTypeRow struct {
-	ID                         pgtype.UUID        `json:"id"`
-	Email                      string             `json:"email"`
-	EmailVerified              bool               `json:"email_verified"`
-	AccountType                string             `json:"account_type"`
-	FirstName                  pgtype.Text        `json:"first_name"`
-	LastName                   pgtype.Text        `json:"last_name"`
-	CompanyName                pgtype.Text        `json:"company_name"`
-	Status                     string             `json:"status"`
-	WholesaleApplicationStatus pgtype.Text        `json:"wholesale_application_status"`
-	CreatedAt                  pgtype.Timestamptz `json:"created_at"`
-}
-
 // List users filtered by account type
-func (q *Queries) ListUsersByAccountType(ctx context.Context, arg ListUsersByAccountTypeParams) ([]ListUsersByAccountTypeRow, error) {
+func (q *Queries) ListUsersByAccountType(ctx context.Context, arg ListUsersByAccountTypeParams) ([]User, error) {
 	rows, err := q.db.Query(ctx, listUsersByAccountType, arg.TenantID, arg.AccountType)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListUsersByAccountTypeRow{}
+	items := []User{}
 	for rows.Next() {
-		var i ListUsersByAccountTypeRow
+		var i User
 		if err := rows.Scan(
 			&i.ID,
+			&i.TenantID,
 			&i.Email,
+			&i.PasswordHash,
 			&i.EmailVerified,
 			&i.AccountType,
 			&i.FirstName,
 			&i.LastName,
+			&i.Phone,
 			&i.CompanyName,
+			&i.TaxID,
+			&i.BusinessType,
 			&i.Status,
 			&i.WholesaleApplicationStatus,
+			&i.WholesaleApplicationNotes,
+			&i.WholesaleApprovedAt,
+			&i.WholesaleApprovedBy,
+			&i.PaymentTerms,
+			&i.Metadata,
 			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

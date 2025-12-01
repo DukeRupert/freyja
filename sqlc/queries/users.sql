@@ -52,17 +52,7 @@ WHERE id = $1;
 
 -- name: ListUsers :many
 -- List all users for a tenant (admin only)
-SELECT
-    id,
-    email,
-    email_verified,
-    account_type,
-    first_name,
-    last_name,
-    company_name,
-    status,
-    wholesale_application_status,
-    created_at
+SELECT *
 FROM users
 WHERE tenant_id = $1
   AND status != 'closed'
@@ -98,17 +88,7 @@ WHERE tenant_id = $1
 
 -- name: ListUsersByAccountType :many
 -- List users filtered by account type
-SELECT
-    id,
-    email,
-    email_verified,
-    account_type,
-    first_name,
-    last_name,
-    company_name,
-    status,
-    wholesale_application_status,
-    created_at
+SELECT *
 FROM users
 WHERE tenant_id = $1
   AND account_type = $2

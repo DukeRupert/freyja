@@ -146,9 +146,9 @@ type Querier interface {
 	// List orders filtered by status
 	ListOrdersByStatus(ctx context.Context, arg ListOrdersByStatusParams) ([]ListOrdersByStatusRow, error)
 	// List all users for a tenant (admin only)
-	ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error)
+	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
 	// List users filtered by account type
-	ListUsersByAccountType(ctx context.Context, arg ListUsersByAccountTypeParams) ([]ListUsersByAccountTypeRow, error)
+	ListUsersByAccountType(ctx context.Context, arg ListUsersByAccountTypeParams) ([]User, error)
 	// List pending wholesale applications
 	ListWholesaleApplications(ctx context.Context, tenantID pgtype.UUID) ([]ListWholesaleApplicationsRow, error)
 	// Remove an item from cart

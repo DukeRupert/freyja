@@ -190,6 +190,7 @@ func run() error {
 	adminSKUFormHandler := admin.NewSKUFormHandler(repo, renderer, cfg.TenantID)
 	adminOrderListHandler := admin.NewOrderListHandler(repo, renderer, cfg.TenantID)
 	adminOrderDetailHandler := admin.NewOrderDetailHandler(repo, renderer, cfg.TenantID)
+	adminCustomerListHandler := admin.NewCustomerListHandler(repo, renderer, cfg.TenantID)
 	updateOrderStatusHandler := admin.NewUpdateOrderStatusHandler(repo, cfg.TenantID)
 	createShipmentHandler := admin.NewCreateShipmentHandler(repo, cfg.TenantID)
 
@@ -249,6 +250,9 @@ func run() error {
 	adminRouter.Get("/admin/orders/{id}", adminOrderDetailHandler.ServeHTTP)
 	adminRouter.Post("/admin/orders/{id}/status", updateOrderStatusHandler.ServeHTTP)
 	adminRouter.Post("/admin/orders/{id}/shipments", createShipmentHandler.ServeHTTP)
+
+	// Customer routes
+	adminRouter.Get("/admin/customers", adminCustomerListHandler.ServeHTTP)
 
 	// Start server
 	addr := fmt.Sprintf(":%d", cfg.Port)
