@@ -178,33 +178,14 @@
         </div>
     </header>
 
-    <!-- Main Content with Gutter System -->
+    <!-- Main Content -->
     <main class="mx-auto max-w-7xl">
-        <div class="px-[--gutter] py-8 sm:py-12">
+        <div class="px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
             {{block "content" .}}
             <p>No content</p>
             {{end}}
         </div>
     </main>
-
-    <style>
-        /* Gutter system for responsive page margins */
-        :root {
-            --gutter: 1rem; /* 16px on mobile */
-        }
-
-        @media (min-width: 640px) {
-            :root {
-                --gutter: 1.5rem; /* 24px on tablet */
-            }
-        }
-
-        @media (min-width: 1024px) {
-            :root {
-                --gutter: 2rem; /* 32px on desktop */
-            }
-        }
-    </style>
 </body>
 </html>
 {{end}}
