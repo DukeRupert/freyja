@@ -262,6 +262,7 @@ func (s *checkoutService) CreatePaymentIntent(ctx context.Context, params Paymen
 	metadata := map[string]string{
 		"tenant_id":        uuidToString(s.tenantID),
 		"cart_id":          params.CartID,
+		"customer_email":   params.CustomerEmail,
 		"shipping_address": string(shippingAddrJSON),
 		"billing_address":  string(billingAddrJSON),
 		"shipping_rate_id": params.OrderTotal.ShippingRateID,

@@ -37,6 +37,11 @@ type Provider interface {
 	// Post-MVP: For subscription management.
 	GetCustomer(ctx context.Context, customerID string) (*Customer, error)
 
+	// GetCustomerByEmail searches for an existing customer by email.
+	// Used for reconciliation - linking existing Stripe customers to local users.
+	// Returns nil, nil if no customer found (not an error).
+	GetCustomerByEmail(ctx context.Context, email string) (*Customer, error)
+
 	// UpdateCustomer updates customer information.
 	// Post-MVP: For account management.
 	UpdateCustomer(ctx context.Context, customerID string, params UpdateCustomerParams) (*Customer, error)
@@ -178,6 +183,10 @@ type PaymentIntent struct {
 
 	// LastPaymentError contains details if payment failed
 	LastPaymentError *PaymentError
+
+	// ReceiptEmail is the email where Stripe sends receipts
+	// Used for guest checkout to create user account
+	ReceiptEmail string
 }
 
 // PaymentError contains details about a failed payment attempt.

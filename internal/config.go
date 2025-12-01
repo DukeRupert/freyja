@@ -21,8 +21,9 @@ type Config struct {
 }
 
 type StripeConfig struct {
-	SecretKey     string
-	WebhookSecret string
+	SecretKey       string
+	PublishableKey  string
+	WebhookSecret   string
 }
 
 type EmailConfig struct {
@@ -60,8 +61,9 @@ func NewConfig() (*Config, error) {
 		TenantID:      getEnv("TENANT_ID", "00000000-0000-0000-0000-000000000001"),
 		SessionSecret: getEnv("SESSION_SECRET", "dev-secret-change-in-production"),
 		Stripe: StripeConfig{
-			SecretKey:     getEnv("STRIPE_SECRET_KEY", "sk_test_your_key_here"),
-			WebhookSecret: getEnv("STRIPE_WEBHOOK_SECRET", "whsec_your_webhook_secret_here"),
+			SecretKey:      getEnv("STRIPE_SECRET_KEY", "sk_test_your_key_here"),
+			PublishableKey: getEnv("STRIPE_PUBLISHABLE_KEY", "pk_test_your_key_here"),
+			WebhookSecret:  getEnv("STRIPE_WEBHOOK_SECRET", "whsec_your_webhook_secret_here"),
 		},
 		Email: EmailConfig{
 			Host:     getEnv("SMTP_HOST", "localhost"),

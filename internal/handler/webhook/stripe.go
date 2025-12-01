@@ -54,8 +54,11 @@ func NewStripeHandler(provider billing.Provider, orderService service.OrderServi
 //	stripe listen --forward-to localhost:3000/webhooks/stripe
 //	stripe trigger payment_intent.succeeded
 func (h *StripeHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[WEBHOOK] Received request: %s %s", r.Method, r.URL.Path)
+
 	// Only accept POST requests
 	if r.Method != http.MethodPost {
+		log.Printf("[WEBHOOK] Rejected: method %s not allowed", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -63,26 +66,39 @@ func (h *StripeHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	// Read the request body
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Printf("Error reading webhook payload: %v", err)
+		log.Printf("[WEBHOOK] Error reading payload: %v", err)
 		http.Error(w, "Error reading request body", http.StatusBadRequest)
 		return
 	}
+	log.Printf("[WEBHOOK] Payload size: %d bytes", len(payload))
 
 	// Get the signature from headers
 	signature := r.Header.Get("Stripe-Signature")
 	if signature == "" {
-		log.Printf("Missing Stripe-Signature header")
+		log.Printf("[WEBHOOK] Missing Stripe-Signature header")
 		http.Error(w, "Missing signature", http.StatusBadRequest)
 		return
+	}
+	log.Printf("[WEBHOOK] Signature header present (length: %d)", len(signature))
+
+	// Log webhook secret configuration (masked for security)
+	secretLen := len(h.config.WebhookSecret)
+	if secretLen > 0 {
+		maskedSecret := h.config.WebhookSecret[:min(10, secretLen)] + "..."
+		log.Printf("[WEBHOOK] Using webhook secret: %s (length: %d)", maskedSecret, secretLen)
+	} else {
+		log.Printf("[WEBHOOK] WARNING: Webhook secret is empty!")
 	}
 
 	// Verify the webhook signature
 	err = h.provider.VerifyWebhookSignature(payload, signature, h.config.WebhookSecret)
 	if err != nil {
-		log.Printf("Invalid webhook signature: %v", err)
+		log.Printf("[WEBHOOK] Signature verification FAILED: %v", err)
+		log.Printf("[WEBHOOK] Signature: %s", signature)
 		http.Error(w, "Invalid signature", http.StatusUnauthorized)
 		return
 	}
+	log.Printf("[WEBHOOK] Signature verification SUCCESS")
 
 	// Parse the event
 	var event stripe.Event

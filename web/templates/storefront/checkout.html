@@ -563,6 +563,7 @@
               <button type="button"
                       id="submit-payment"
                       class="btn-primary w-full"
+                      @click="handlePaymentSubmit($data)"
                       :disabled="processing"
                       x-text="processing ? 'Processing...' : 'Place Order'">
               </button>
@@ -939,23 +940,95 @@ async function loadPaymentIntent(alpineData) {
     // Store client secret for Stripe
     alpineData.paymentIntentClientSecret = result.client_secret;
 
-    // Initialize Stripe payment element
-    const container = document.getElementById('payment-intent-container');
-    if (container && result.client_secret) {
-      // Here you would initialize Stripe Elements with the client secret
-      container.innerHTML = `
-        <div class="p-4 bg-green-50 border border-green-200 rounded-lg">
-          <p class="text-green-800">Payment ready. Amount: $${(result.amount_cents / 100).toFixed(2)}</p>
-          <p class="text-sm text-green-600 mt-2">Stripe payment form would be initialized here with client secret.</p>
-        </div>
-      `;
-    }
+    // Initialize Stripe Elements
+    await initializeStripePayment(result.client_secret, alpineData);
   } catch (error) {
     console.error('Error creating payment intent:', error);
     const container = document.getElementById('payment-intent-container');
     if (container) {
       container.innerHTML = '<p class="text-red-600">Failed to initialize payment. Please try again.</p>';
     }
+  }
+}
+
+/**
+ * Initialize Stripe Payment Element
+ */
+async function initializeStripePayment(clientSecret, alpineData) {
+  const container = document.getElementById('payment-intent-container');
+  if (!container) return;
+
+  try {
+    // Initialize Stripe with publishable key
+    const stripe = Stripe('{{.StripePublishableKey}}');
+
+    // Create Elements instance
+    const appearance = {
+      theme: 'stripe',
+      variables: {
+        colorPrimary: '#2A7D7D',
+        colorBackground: '#ffffff',
+        colorText: '#171717',
+        colorDanger: '#dc2626',
+        fontFamily: 'system-ui, sans-serif',
+        borderRadius: '6px',
+      }
+    };
+
+    const elements = stripe.elements({
+      clientSecret: clientSecret,
+      appearance: appearance
+    });
+
+    // Create and mount Payment Element
+    const paymentElement = elements.create('payment', {
+      layout: 'tabs'
+    });
+
+    container.innerHTML = '<div id="payment-element"></div><div id="payment-message" class="mt-4 text-sm text-red-600"></div>';
+    paymentElement.mount('#payment-element');
+
+    // Store Stripe instances for form submission
+    window.stripeInstance = stripe;
+    window.stripeElements = elements;
+
+    console.log('Stripe Payment Element initialized');
+  } catch (error) {
+    console.error('Error initializing Stripe:', error);
+    container.innerHTML = '<p class="text-red-600">Failed to load payment form. Please refresh and try again.</p>';
+  }
+}
+
+/**
+ * Handle payment form submission
+ */
+async function handlePaymentSubmit(alpineData) {
+  if (!window.stripeInstance || !window.stripeElements) {
+    alert('Payment form not initialized. Please refresh the page.');
+    return;
+  }
+
+  alpineData.processing = true;
+
+  const {error} = await window.stripeInstance.confirmPayment({
+    elements: window.stripeElements,
+    confirmParams: {
+      return_url: window.location.origin + '/order-confirmation',
+      receipt_email: alpineData.email,
+    },
+  });
+
+  if (error) {
+    // Show error to customer
+    const messageContainer = document.getElementById('payment-message');
+    if (messageContainer) {
+      messageContainer.textContent = error.message;
+    }
+    console.error('Payment error:', error);
+    alpineData.processing = false;
+  } else {
+    // Payment succeeded, customer will be redirected to return_url
+    console.log('Payment confirmed, redirecting...');
   }
 }
 </script>

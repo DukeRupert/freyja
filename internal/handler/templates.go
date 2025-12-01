@@ -153,5 +153,10 @@ func TemplateFuncs() template.FuncMap {
 			weightStr := strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.2f", f.Float64), "0"), ".")
 			return weightStr
 		},
+
+		// HTML rendering function
+		"html": func(s string) template.HTML {
+			return template.HTML(s)
+		},
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/dukerupert/freyja/internal/billing"
@@ -227,15 +228,82 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 		return nil, fmt.Errorf("failed to create billing address: %w", err)
 	}
 
-	// Step 10: Create billing customer
-	stripeCustomerID := paymentIntent.Metadata["customer_id"]
-	if stripeCustomerID == "" {
-		stripeCustomerID = "guest_" + paymentIntentID
+	// Step 10: Handle guest checkout - create user if needed
+	userID := cart.UserID
+	var customerEmail string
+	var customerName string
+
+	if !userID.Valid {
+		// Guest checkout - create a guest user account
+		customerEmail = paymentIntent.ReceiptEmail
+		if customerEmail == "" {
+			// Fallback to metadata
+			customerEmail = paymentIntent.Metadata["customer_email"]
+		}
+		if customerEmail == "" {
+			return nil, fmt.Errorf("customer email required for guest checkout")
+		}
+
+		// Parse name from shipping address
+		firstName, lastName := splitFullName(shippingAddr.FullName)
+		customerName = shippingAddr.FullName
+
+		guestUser, err := s.repo.CreateUser(ctx, repository.CreateUserParams{
+			TenantID:     s.tenantID,
+			Email:        customerEmail,
+			PasswordHash: pgtype.Text{Valid: false}, // No password for guest accounts
+			FirstName:    makePgText(firstName),
+			LastName:     makePgText(lastName),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create guest user: %w", err)
+		}
+		userID = guestUser.ID
+	} else {
+		// Logged-in user - get their email from user record
+		user, err := s.repo.GetUserByID(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user: %w", err)
+		}
+		customerEmail = user.Email
+		if user.FirstName.Valid && user.LastName.Valid {
+			customerName = user.FirstName.String + " " + user.LastName.String
+		} else if user.FirstName.Valid {
+			customerName = user.FirstName.String
+		}
 	}
 
+	// Step 11: Get or create Stripe customer (reconciliation)
+	// First, check if a Stripe customer already exists with this email
+	var stripeCustomerID string
+	existingCustomer, err := s.billingProvider.GetCustomerByEmail(ctx, customerEmail)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search for existing Stripe customer: %w", err)
+	}
+
+	if existingCustomer != nil {
+		// Found existing Stripe customer - reuse it
+		stripeCustomerID = existingCustomer.ID
+	} else {
+		// No existing customer - create new one
+		newCustomer, err := s.billingProvider.CreateCustomer(ctx, billing.CreateCustomerParams{
+			Email: customerEmail,
+			Name:  customerName,
+			Metadata: map[string]string{
+				"tenant_id": uuidToString(s.tenantID),
+				"user_id":   uuidToString(userID),
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Stripe customer: %w", err)
+		}
+		stripeCustomerID = newCustomer.ID
+	}
+
+	// Step 12: Create billing customer record (links user to Stripe customer)
 	billingCustomer, err := s.repo.CreateBillingCustomer(ctx, repository.CreateBillingCustomerParams{
 		TenantID:           s.tenantID,
-		UserID:             cart.UserID,
+		UserID:             userID,
 		Provider:           "stripe",
 		ProviderCustomerID: stripeCustomerID,
 	})
@@ -277,7 +345,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 	order, err := s.repo.CreateOrder(ctx, repository.CreateOrderParams{
 		TenantID:          s.tenantID,
 		CartID:            cart.ID,
-		UserID:            cart.UserID,
+		UserID:            userID,
 		OrderNumber:       orderNumber,
 		OrderType:         "retail",
 		Status:            "pending",
@@ -569,4 +637,23 @@ func capitalizeFirst(s string) string {
 		return string(s[0]-32) + s[1:]
 	}
 	return s
+}
+
+// splitFullName splits a full name into first and last name components
+// Handles various formats: "John", "John Doe", "John Paul Doe"
+func splitFullName(fullName string) (firstName, lastName string) {
+	fullName = strings.TrimSpace(fullName)
+	if fullName == "" {
+		return "Guest", "Customer"
+	}
+
+	parts := strings.Fields(fullName)
+	if len(parts) == 1 {
+		return parts[0], ""
+	}
+
+	// First name is the first part, last name is everything else
+	firstName = parts[0]
+	lastName = strings.Join(parts[1:], " ")
+	return
 }

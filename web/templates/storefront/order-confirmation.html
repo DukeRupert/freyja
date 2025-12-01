@@ -4,6 +4,31 @@
 <div class="bg-neutral-50 min-h-screen">
   <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 
+    {{if eq .Status "processing"}}
+    <!-- Processing State -->
+    <div class="text-center mb-10">
+      <div class="inline-flex items-center justify-center w-20 h-20 bg-amber-500 rounded-full mb-6 shadow-sm animate-pulse">
+        <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      {{template "sf-heading" (dict "Level" "1" "Content" "Processing Your Order" "Class" "mb-3")}}
+      <p class="text-base text-neutral-600 mb-6">
+        Your payment was successful! We're processing your order now.
+      </p>
+      <p class="text-sm text-neutral-500">
+        This page will automatically refresh when your order is ready.
+      </p>
+    </div>
+
+    <script>
+      // Poll for order completion every 2 seconds
+      setTimeout(function() {
+        window.location.reload();
+      }, 2000);
+    </script>
+
+    {{else if eq .Status "succeeded"}}
     <!-- Success Header -->
     <div class="text-center mb-10">
       <div class="inline-flex items-center justify-center w-20 h-20 bg-teal-700 rounded-full mb-6 shadow-sm">
@@ -171,6 +196,24 @@
         <a href="/contact" class="text-teal-700 hover:text-teal-800 font-medium">Contact us</a>
       </p>
     </div>
+
+    {{else}}
+    <!-- Payment Failed State -->
+    <div class="text-center mb-10">
+      <div class="inline-flex items-center justify-center w-20 h-20 bg-red-100 rounded-full mb-6 shadow-sm">
+        <svg class="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </div>
+      {{template "sf-heading" (dict "Level" "1" "Content" "Payment Failed" "Class" "mb-3")}}
+      <p class="text-base text-neutral-600 mb-6">
+        We couldn't process your payment. Please try again.
+      </p>
+      <a href="/cart" class="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-md font-medium bg-teal-700 text-white hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-700 shadow-sm transition-colors">
+        Return to Cart
+      </a>
+    </div>
+    {{end}}
 
   </div>
 </div>

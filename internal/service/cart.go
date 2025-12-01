@@ -19,6 +19,7 @@ type CartService interface {
 	UpdateItemQuantity(ctx context.Context, cartID string, skuID string, quantity int) (*CartSummary, error)
 	RemoveItem(ctx context.Context, cartID string, skuID string) (*CartSummary, error)
 	GetCartSummary(ctx context.Context, cartID string) (*CartSummary, error)
+	ClearCart(ctx context.Context, cartID string) error
 }
 
 // Cart represents a lightweight cart view model
@@ -389,4 +390,18 @@ func (s *cartService) GetCartSummary(ctx context.Context, cartID string) (*CartS
 		Subtotal:  subtotal,
 		ItemCount: itemCount,
 	}, nil
+}
+
+// ClearCart removes all items from a cart
+func (s *cartService) ClearCart(ctx context.Context, cartID string) error {
+	var cartUUID pgtype.UUID
+	if err := cartUUID.Scan(cartID); err != nil {
+		return fmt.Errorf("invalid cart ID: %w", err)
+	}
+
+	if err := s.repo.ClearCart(ctx, cartUUID); err != nil {
+		return fmt.Errorf("failed to clear cart: %w", err)
+	}
+
+	return nil
 }

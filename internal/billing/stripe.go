@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stripe/stripe-go/v83"
+	"github.com/stripe/stripe-go/v83/customer"
 	"github.com/stripe/stripe-go/v83/paymentintent"
 	"github.com/stripe/stripe-go/v83/webhook"
 )
@@ -376,8 +377,15 @@ func (s *StripeProvider) VerifyWebhookSignature(payload []byte, signature string
 		return ErrInvalidWebhookSignature
 	}
 
-	_, err := webhook.ConstructEvent(payload, signature, secret)
+	// Use ConstructEventWithOptions to allow API version mismatch
+	// This is necessary because the Stripe CLI may send events with a different
+	// API version than what the SDK expects. The signature verification still
+	// works correctly, but we need to be careful when deserializing event data.
+	_, err := webhook.ConstructEventWithOptions(payload, signature, secret, webhook.ConstructEventOptions{
+		IgnoreAPIVersionMismatch: true,
+	})
 	if err != nil {
+		fmt.Printf("[WEBHOOK DEBUG] ConstructEvent error: %v\n", err)
 		return ErrInvalidWebhookSignature
 	}
 
@@ -397,35 +405,103 @@ func (s *StripeProvider) VerifyWebhookSignature(payload []byte, signature string
 //
 // Returns Customer with Stripe ID for future reference.
 func (s *StripeProvider) CreateCustomer(ctx context.Context, params CreateCustomerParams) (*Customer, error) {
-	// TODO: Post-MVP implementation
-	//
-	// Steps:
-	// 1. Validate params.Email (required)
-	// 2. Build stripe.CustomerParams:
-	//    - Email: params.Email
-	//    - Name: params.Name
-	//    - Phone: params.Phone
-	//    - Description: params.Description
-	//    - Metadata: params.Metadata (ensure tenant_id)
-	// 3. Call customer.New()
-	// 4. Map response to Customer
-	// 5. Return Customer
-	return nil, ErrNotImplemented
+	if params.Email == "" {
+		return nil, fmt.Errorf("email is required to create customer")
+	}
+
+	customerParams := &stripe.CustomerParams{
+		Email: stripe.String(params.Email),
+	}
+
+	if params.Name != "" {
+		customerParams.Name = stripe.String(params.Name)
+	}
+	if params.Phone != "" {
+		customerParams.Phone = stripe.String(params.Phone)
+	}
+	if params.Description != "" {
+		customerParams.Description = stripe.String(params.Description)
+	}
+
+	// Add metadata
+	if params.Metadata != nil {
+		for k, v := range params.Metadata {
+			customerParams.AddMetadata(k, v)
+		}
+	}
+
+	stripeCustomer, err := customer.New(customerParams)
+	if err != nil {
+		return nil, wrapStripeError(err)
+	}
+
+	return &Customer{
+		ID:        stripeCustomer.ID,
+		Email:     stripeCustomer.Email,
+		Name:      stripeCustomer.Name,
+		CreatedAt: time.Unix(stripeCustomer.Created, 0),
+	}, nil
 }
 
 // GetCustomer retrieves an existing customer.
 //
 // Post-MVP feature for subscription management and payment method retrieval.
 func (s *StripeProvider) GetCustomer(ctx context.Context, customerID string) (*Customer, error) {
-	// TODO: Post-MVP implementation
-	//
-	// Steps:
-	// 1. Validate customerID not empty
-	// 2. Call customer.Get(customerID, nil)
-	// 3. Handle errors (not found, etc.)
-	// 4. Map response to Customer
-	// 5. Return Customer
-	return nil, ErrNotImplemented
+	if customerID == "" {
+		return nil, fmt.Errorf("customer ID is required")
+	}
+
+	stripeCustomer, err := customer.Get(customerID, nil)
+	if err != nil {
+		stripeErr, ok := err.(*stripe.Error)
+		if ok && stripeErr.Code == stripe.ErrorCodeResourceMissing {
+			return nil, nil // Customer not found - not an error
+		}
+		return nil, wrapStripeError(err)
+	}
+
+	return &Customer{
+		ID:        stripeCustomer.ID,
+		Email:     stripeCustomer.Email,
+		Name:      stripeCustomer.Name,
+		CreatedAt: time.Unix(stripeCustomer.Created, 0),
+	}, nil
+}
+
+// GetCustomerByEmail searches for an existing customer by email.
+//
+// Used for reconciliation - linking existing Stripe customers to local users.
+// Returns nil, nil if no customer found (not an error).
+// If multiple customers exist with the same email, returns the most recent one.
+func (s *StripeProvider) GetCustomerByEmail(ctx context.Context, email string) (*Customer, error) {
+	if email == "" {
+		return nil, fmt.Errorf("email is required")
+	}
+
+	params := &stripe.CustomerListParams{
+		Email: stripe.String(email),
+	}
+	params.Limit = stripe.Int64(1) // We only need the most recent one
+
+	iter := customer.List(params)
+
+	// Get the first (most recent) customer with this email
+	if iter.Next() {
+		stripeCustomer := iter.Customer()
+		return &Customer{
+			ID:        stripeCustomer.ID,
+			Email:     stripeCustomer.Email,
+			Name:      stripeCustomer.Name,
+			CreatedAt: time.Unix(stripeCustomer.Created, 0),
+		}, nil
+	}
+
+	if err := iter.Err(); err != nil {
+		return nil, wrapStripeError(err)
+	}
+
+	// No customer found with this email
+	return nil, nil
 }
 
 // UpdateCustomer updates customer information.
@@ -553,6 +629,7 @@ func buildPaymentIntent(stripePI *stripe.PaymentIntent) *PaymentIntent {
 		Status:       string(stripePI.Status),
 		Metadata:     stripePI.Metadata,
 		CreatedAt:    time.Unix(stripePI.Created, 0),
+		ReceiptEmail: stripePI.ReceiptEmail,
 	}
 
 	// Extract tax amount from latest charge if available

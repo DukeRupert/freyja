@@ -170,11 +170,12 @@ func run() error {
 	logger.Info("Checkout service initialized")
 
 	// Initialize checkout handlers
-	checkoutPageHandler = storefront.NewCheckoutPageHandler(renderer, cartService)
+	checkoutPageHandler = storefront.NewCheckoutPageHandler(renderer, cartService, cfg.Stripe.PublishableKey)
 	validateAddressHandler = storefront.NewValidateAddressHandler(checkoutService)
 	getShippingRatesHandler = storefront.NewGetShippingRatesHandler(checkoutService)
 	calculateTotalHandler = storefront.NewCalculateTotalHandler(checkoutService)
 	createPaymentIntentHandler = storefront.NewCreatePaymentIntentHandler(checkoutService)
+	orderConfirmationHandler := storefront.NewOrderConfirmationHandler(renderer, cartService, orderService, repo, cfg.TenantID)
 
 	// Initialize webhook handler
 	stripeWebhookHandler := webhook.NewStripeHandler(billingProvider, orderService, webhook.StripeWebhookConfig{
@@ -225,6 +226,7 @@ func run() error {
 	r.Post("/checkout/shipping-rates", getShippingRatesHandler.ServeHTTP)
 	r.Post("/checkout/calculate-total", calculateTotalHandler.ServeHTTP)
 	r.Post("/checkout/create-payment-intent", createPaymentIntentHandler.ServeHTTP)
+	r.Get("/order-confirmation", orderConfirmationHandler.ServeHTTP)
 
 	// Webhook routes (no authentication - Stripe handles signature verification)
 	r.Post("/webhooks/stripe", stripeWebhookHandler.HandleWebhook)

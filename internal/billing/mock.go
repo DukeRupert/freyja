@@ -20,8 +20,17 @@ type MockProvider struct {
 	// VerifyWebhookSignatureFunc allows customizing webhook verification behavior
 	VerifyWebhookSignatureFunc func(payload []byte, signature string, secret string) error
 
+	// CreateCustomerFunc allows customizing customer creation behavior
+	CreateCustomerFunc func(ctx context.Context, params CreateCustomerParams) (*Customer, error)
+
+	// GetCustomerByEmailFunc allows customizing customer lookup behavior
+	GetCustomerByEmailFunc func(ctx context.Context, email string) (*Customer, error)
+
 	// PaymentIntents stores created payment intents for retrieval
 	PaymentIntents map[string]*PaymentIntent
+
+	// Customers stores created customers for retrieval
+	Customers map[string]*Customer
 
 	// CallLog tracks method calls for test assertions
 	CallLog []string
@@ -31,6 +40,7 @@ type MockProvider struct {
 func NewMockProvider() *MockProvider {
 	return &MockProvider{
 		PaymentIntents: make(map[string]*PaymentIntent),
+		Customers:      make(map[string]*Customer),
 		CallLog:        []string{},
 	}
 }
@@ -129,14 +139,50 @@ func (m *MockProvider) VerifyWebhookSignature(payload []byte, signature string, 
 
 // CreateCustomer creates a mock customer.
 func (m *MockProvider) CreateCustomer(ctx context.Context, params CreateCustomerParams) (*Customer, error) {
-	m.CallLog = append(m.CallLog, "CreateCustomer")
-	return nil, ErrNotImplemented
+	m.CallLog = append(m.CallLog, fmt.Sprintf("CreateCustomer(%s)", params.Email))
+
+	if m.CreateCustomerFunc != nil {
+		return m.CreateCustomerFunc(ctx, params)
+	}
+
+	// Default mock behavior: create successful customer
+	customer := &Customer{
+		ID:        "cus_" + uuid.New().String()[:8],
+		Email:     params.Email,
+		Name:      params.Name,
+		CreatedAt: time.Now(),
+	}
+
+	m.Customers[customer.ID] = customer
+	return customer, nil
 }
 
 // GetCustomer retrieves a mock customer.
 func (m *MockProvider) GetCustomer(ctx context.Context, customerID string) (*Customer, error) {
-	m.CallLog = append(m.CallLog, "GetCustomer")
-	return nil, ErrNotImplemented
+	m.CallLog = append(m.CallLog, fmt.Sprintf("GetCustomer(%s)", customerID))
+
+	customer, exists := m.Customers[customerID]
+	if !exists {
+		return nil, nil // Not found
+	}
+	return customer, nil
+}
+
+// GetCustomerByEmail searches for a mock customer by email.
+func (m *MockProvider) GetCustomerByEmail(ctx context.Context, email string) (*Customer, error) {
+	m.CallLog = append(m.CallLog, fmt.Sprintf("GetCustomerByEmail(%s)", email))
+
+	if m.GetCustomerByEmailFunc != nil {
+		return m.GetCustomerByEmailFunc(ctx, email)
+	}
+
+	// Default mock behavior: search through customers
+	for _, customer := range m.Customers {
+		if customer.Email == email {
+			return customer, nil
+		}
+	}
+	return nil, nil // Not found
 }
 
 // UpdateCustomer updates a mock customer.
