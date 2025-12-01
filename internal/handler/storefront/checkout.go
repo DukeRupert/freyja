@@ -3,6 +3,7 @@ package storefront
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/dukerupert/freyja/internal/address"
@@ -61,7 +62,8 @@ func (h *CheckoutPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 
 	data := map[string]interface{}{
-		"Cart": cartSummary,
+		"Cart":   cartSummary,
+		"CartID": cart.ID.String(),
 	}
 
 	h.renderer.RenderHTTP(w, "storefront/checkout", data)
@@ -91,19 +93,24 @@ type ValidateAddressResponse struct {
 
 func (h *ValidateAddressHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
+		slog.Error("Invalid method for validate address", "method", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	var req ValidateAddressRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		slog.Error("Failed to decode validate address request", "error", err)
+		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
 	}
+
+	slog.Info("Validating address", "shipping", req.ShippingAddress, "billing", req.BillingAddress)
 
 	// Validate shipping address
 	shippingResult, err := h.checkoutService.ValidateAndNormalizeAddress(r.Context(), req.ShippingAddress)
 	if err != nil {
+		slog.Error("Shipping address validation failed", "error", err, "address", req.ShippingAddress)
 		http.Error(w, fmt.Sprintf("Address validation failed: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -111,6 +118,7 @@ func (h *ValidateAddressHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	// Validate billing address
 	billingResult, err := h.checkoutService.ValidateAndNormalizeAddress(r.Context(), req.BillingAddress)
 	if err != nil {
+		slog.Error("Billing address validation failed", "error", err, "address", req.BillingAddress)
 		http.Error(w, fmt.Sprintf("Address validation failed: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -121,7 +129,9 @@ func (h *ValidateAddressHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Error("Failed to encode validate address response", "error", err)
+	}
 }
 
 // GetShippingRatesHandler calculates shipping rates for the cart
@@ -147,29 +157,38 @@ type GetShippingRatesResponse struct {
 
 func (h *GetShippingRatesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
+		slog.Error("Invalid method for get shipping rates", "method", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	var req GetShippingRatesRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		slog.Error("Failed to decode shipping rates request", "error", err)
+		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
 	}
+
+	slog.Info("Getting shipping rates", "cart_id", req.CartID, "address", req.ShippingAddress)
 
 	// Get shipping rates
 	rates, err := h.checkoutService.GetShippingRates(r.Context(), req.CartID, req.ShippingAddress)
 	if err != nil {
+		slog.Error("Failed to get shipping rates", "error", err, "cart_id", req.CartID)
 		http.Error(w, fmt.Sprintf("Failed to get shipping rates: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	slog.Info("Retrieved shipping rates", "count", len(rates))
 
 	resp := GetShippingRatesResponse{
 		Rates: rates,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Error("Failed to encode shipping rates response", "error", err)
+	}
 }
 
 // CalculateTotalHandler calculates the complete order total
@@ -197,15 +216,19 @@ type CalculateTotalResponse struct {
 
 func (h *CalculateTotalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
+		slog.Error("Invalid method for calculate total", "method", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	var req CalculateTotalRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		slog.Error("Failed to decode calculate total request", "error", err)
+		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
 	}
+
+	slog.Info("Calculating order total", "cart_id", req.CartID)
 
 	// Calculate order total
 	params := service.OrderTotalParams{
@@ -217,16 +240,21 @@ func (h *CalculateTotalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 
 	total, err := h.checkoutService.CalculateOrderTotal(r.Context(), params)
 	if err != nil {
+		slog.Error("Failed to calculate order total", "error", err, "cart_id", req.CartID)
 		http.Error(w, fmt.Sprintf("Failed to calculate total: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	slog.Info("Calculated order total", "total_cents", total.TotalCents)
 
 	resp := CalculateTotalResponse{
 		OrderTotal: total,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Error("Failed to encode calculate total response", "error", err)
+	}
 }
 
 // CreatePaymentIntentHandler creates a Stripe payment intent
@@ -258,15 +286,19 @@ type CreatePaymentIntentResponse struct {
 
 func (h *CreatePaymentIntentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
+		slog.Error("Invalid method for create payment intent", "method", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	var req CreatePaymentIntentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		slog.Error("Failed to decode payment intent request", "error", err)
+		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
 	}
+
+	slog.Info("Creating payment intent", "cart_id", req.CartID, "email", req.CustomerEmail)
 
 	// Create payment intent
 	params := service.PaymentIntentParams{
@@ -280,9 +312,12 @@ func (h *CreatePaymentIntentHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 
 	paymentIntent, err := h.checkoutService.CreatePaymentIntent(r.Context(), params)
 	if err != nil {
+		slog.Error("Failed to create payment intent", "error", err, "cart_id", req.CartID)
 		http.Error(w, fmt.Sprintf("Failed to create payment intent: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	slog.Info("Payment intent created", "payment_intent_id", paymentIntent.ID, "amount_cents", paymentIntent.AmountCents)
 
 	resp := CreatePaymentIntentResponse{
 		PaymentIntentID: paymentIntent.ID,
@@ -291,5 +326,7 @@ func (h *CreatePaymentIntentHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Error("Failed to encode payment intent response", "error", err)
+	}
 }
