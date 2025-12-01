@@ -30,8 +30,8 @@
                     <th class="px-6 py-3 font-medium">Customer</th>
                     <th class="px-6 py-3 font-medium">Account Type</th>
                     <th class="px-6 py-3 font-medium">Status</th>
-                    <th class="px-6 py-3 font-medium">Joined</th>
-                    <th class="px-6 py-3 font-medium">Last Login</th>
+                    <th class="hidden md:table-cell px-6 py-3 font-medium">Joined</th>
+                    <th class="hidden md:table-cell px-6 py-3 font-medium">Last Login</th>
                     <th class="px-6 py-3 font-medium">
                         <span class="sr-only">Actions</span>
                     </th>
@@ -88,10 +88,10 @@
                             {{template "badge" (dict "Content" .Status "Color" "zinc")}}
                         {{end}}
                     </td>
-                    <td class="px-6 py-4 text-zinc-500 dark:text-zinc-400">
+                    <td class="hidden md:table-cell px-6 py-4 text-zinc-500 dark:text-zinc-400">
                         {{.CreatedAtFormatted}}
                     </td>
-                    <td class="px-6 py-4 text-zinc-500 dark:text-zinc-400">
+                    <td class="hidden md:table-cell px-6 py-4 text-zinc-500 dark:text-zinc-400">
                         {{if .LastLoginFormatted}}
                             {{.LastLoginFormatted}}
                         {{else}}
