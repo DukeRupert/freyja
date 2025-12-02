@@ -12,7 +12,8 @@ This roadmap defines the path to MVP launch and the six months following. The MV
 
 ✅ **Phases 1-3 Complete** — Full B2C e-commerce with working checkout and payments
 ⏳ **Phase 4 Partial** — Flat-rate shipping working, advanced shipping not started
-🔲 **Phases 5-6** — Database schema complete, service layer not implemented
+✅ **Phase 5 Complete** — Subscriptions fully implemented with Stripe Billing
+🔲 **Phase 6** — Wholesale & invoicing not started
 
 ---
 
@@ -112,7 +113,7 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 - ⏳ Pick list generation — not implemented
 - ⏳ Shipping confirmation emails — not implemented
 
-### Phase 5: Subscriptions 🔲 NOT STARTED
+### Phase 5: Subscriptions ✅ COMPLETE
 
 **Database Schema** ✅
 - ✅ subscription_plans table
@@ -120,24 +121,32 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 - ✅ subscription_items table
 - ✅ subscription_schedule table
 
-**Subscription Management** 🔲
-- 🔲 Subscription plans linked to products
-- 🔲 Frequency options: weekly, every 2 weeks, monthly, every 6 weeks, every 2 months
-- 🔲 Quantity and grind selection per subscription
-- 🔲 Subscription status: active, paused, canceled
+**Subscription Management** ✅
+- ✅ Subscription plans linked to products (via product SKU)
+- ✅ Frequency options: weekly, every 2 weeks, monthly, every 6 weeks, every 2 months
+- ✅ Quantity and grind selection per subscription
+- ✅ Subscription status: active, paused, cancelled, past_due, expired
 
-**Stripe Subscription Integration** 🔲
-- 🔲 Create and manage subscriptions via Stripe Billing
-- 🔲 Handle subscription lifecycle webhooks
-- 🔲 Failed payment retry handling
-- 🔲 Dunning management (email notifications for payment issues)
+**Stripe Subscription Integration** ✅
+- ✅ Create and manage subscriptions via Stripe Billing
+- ✅ Handle subscription lifecycle webhooks (invoice.payment_succeeded, .failed, customer.subscription.updated, .deleted)
+- ✅ Order creation from subscription invoice payments
+- ✅ Failed payment handling (status → past_due)
+- ⏳ Dunning email notifications — not implemented (uses Stripe's built-in)
 
-**Customer Subscription Portal** 🔲
-- 🔲 View active subscriptions
-- 🔲 Pause/resume subscription
-- 🔲 Skip next delivery
-- 🔲 Change frequency, quantity, or grind
-- 🔲 Cancel subscription
+**Subscription Checkout Flow** ✅
+- ✅ Product detail page with one-time/subscribe toggle
+- ✅ Dedicated subscription checkout page (/subscribe/checkout)
+- ✅ Select from saved addresses and payment methods
+- ✅ Delivery frequency selector
+- ✅ Subscription creation via POST /subscribe
+
+**Customer Subscription Portal** ✅
+- ✅ View active subscriptions (/account/subscriptions)
+- ✅ View subscription details (/account/subscriptions/{id})
+- ✅ Stripe Customer Portal integration for pause/resume/cancel
+- ⏳ Skip next delivery — deferred to post-MVP
+- ⏳ Change frequency/quantity in-app — uses Stripe Portal for now
 
 ### Phase 6: Wholesale & Invoicing 🔲 NOT STARTED
 
@@ -320,8 +329,8 @@ These are noted for architectural awareness but not scheduled:
 | Payments | ✅ Complete | Payment intents, webhooks, idempotent processing |
 | Orders | ✅ Complete | Creation, status tracking, admin management |
 | Shipping | ⏳ Partial | Flat-rate working, no carrier integration |
-| Admin Dashboard | ⏳ Partial | Products, orders, customers; missing subscriptions/invoices |
-| Subscriptions | 🔲 Schema only | 4 tables ready, no service layer |
+| Admin Dashboard | ⏳ Partial | Products, orders, customers, subscriptions; missing invoices |
+| Subscriptions | ✅ Complete | Full Stripe Billing integration, checkout flow, webhooks |
 | Invoicing | 🔲 Schema only | 4 tables ready, no service layer |
 | Email | 🔲 Interface only | Provider interface defined, no implementation |
 
@@ -336,7 +345,7 @@ These are noted for architectural awareness but not scheduled:
 
 ### Remaining MVP Work
 
-1. **Subscriptions** — SubscriptionService, Stripe Billing integration, customer portal
+1. ~~**Subscriptions**~~ ✅ Complete — Full Stripe Billing integration with checkout flow
 2. **Wholesale/Invoicing** — InvoiceService, net terms, consolidated billing
 3. **Email notifications** — Provider implementation, transactional emails
 4. **Polish** — Product filters, wholesale minimums, pick lists
@@ -349,7 +358,7 @@ These are noted for architectural awareness but not scheduled:
 |-----------|--------|-----------------|
 | Phase 1-3 | ✅ Complete | B2C checkout with Stripe payments |
 | Phase 4 | ⏳ Partial | Flat-rate shipping, fulfillment workflow |
-| Phase 5 | 🔲 Not started | Subscriptions |
+| Phase 5 | ✅ Complete | Subscriptions with Stripe Billing |
 | Phase 6 | 🔲 Not started | Wholesale & invoicing |
 | MVP + 2 mo | — | Shipping provider integration, automated labels |
 | MVP + 4 mo | — | Inventory management, discounts, reviews |

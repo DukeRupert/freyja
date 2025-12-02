@@ -1,8 +1,8 @@
 # Subscription Feature Design
 
 **Created:** December 2024
-**Status:** Core implementation complete, ready for testing
-**Last Updated:** December 1, 2024
+**Status:** ✅ Feature Complete
+**Last Updated:** December 2, 2024
 
 ---
 
@@ -25,6 +25,8 @@
 - [x] Includes: CRUD operations, user queries, admin queries, stats
 - [x] Add `subscription_id` to CreateOrder query
 - [x] Add `ListOrdersBySubscription` query for order history
+- [x] Add `sqlc/queries/addresses.sql` - ListAddressesForUser, GetAddressByIDForUser
+- [x] Add `sqlc/queries/billing.sql` - ListPaymentMethodsForUser, GetPaymentMethodByID
 
 **Phase 3: Subscription Service**
 - [x] Create `internal/service/subscription.go` (interface + types)
@@ -34,6 +36,7 @@
 - [x] Implement CreateCustomerPortalSession, SyncSubscriptionFromWebhook
 - [x] Implement `CreateOrderFromSubscriptionInvoice` - creates orders from paid invoices
 - [x] Initialize service in main.go
+- [x] Create `internal/service/account.go` (AccountService for addresses/payment methods)
 
 **Phase 4: Webhook Handlers**
 - [x] Extend `internal/handler/webhook/stripe.go`
@@ -44,11 +47,18 @@
 - [x] Fix Stripe v83 Invoice API (subscription now in Parent.SubscriptionDetails)
 - [x] Fix Stripe v83 Invoice.Payments API (PaymentIntent now in Payments.Data[].Payment)
 
+**Phase 5: Authentication & Authorization**
+- [x] Add RequireAuth middleware to subscription routes
+- [x] Add RequireAdmin middleware to admin routes
+- [x] Update subscription handlers to use `middleware.GetUserFromContext(ctx)`
+- [x] Add ownership validation to GetSubscription (UserID field)
+
 **Phase 6: HTTP Handlers & UI**
 - [x] Create `internal/handler/storefront/subscription.go`
   - SubscriptionListHandler: GET /account/subscriptions
   - SubscriptionDetailHandler: GET /account/subscriptions/{id}
   - SubscriptionPortalHandler: GET /account/subscriptions/portal
+  - SubscriptionCheckoutHandler: GET /subscribe/checkout
   - CreateSubscriptionHandler: POST /subscribe
 - [x] Create `internal/handler/admin/subscriptions.go`
   - SubscriptionListHandler: GET /admin/subscriptions
@@ -56,40 +66,54 @@
 - [x] Create templates:
   - `web/templates/storefront/subscriptions.html`
   - `web/templates/storefront/subscription_detail.html`
+  - `web/templates/storefront/subscription_checkout.html`
   - `web/templates/admin/subscriptions.html`
   - `web/templates/admin/subscription_detail.html`
 - [x] Register all routes in main.go
-- [x] Add `mulf` template function for price calculations
+- [x] Add `mulf` and `uuidToString` template functions
 
-### Remaining 🔲
+**Phase 7: Subscription Checkout Flow**
+- [x] Add one-time/subscribe toggle to product detail page
+- [x] Create dedicated subscription checkout page
+- [x] Saved address selection with radio buttons
+- [x] Saved payment method selection
+- [x] Delivery frequency selector
+- [x] Order summary with subscription benefits
 
-**Phase 5: Lifecycle Operations**
-- [ ] Test pause/resume/cancel with Stripe CLI
-- [ ] Add email notifications for lifecycle events
-
-**Phase 6: UI Polish**
-- [ ] Add authentication middleware to storefront handlers
-- [ ] Add "Subscribe" option to product detail pages
-- [ ] Create subscription creation flow UI
+### Remaining (Post-MVP) 🔲
 
 **Testing**
 - [ ] Update test mocks to include new interface methods (ClearCart, subscription methods)
 - [ ] Add integration tests for subscription flow
+- [ ] Test pause/resume/cancel with Stripe CLI
+
+**Email Notifications**
+- [ ] Subscription created confirmation
+- [ ] Renewal reminder (uses Stripe's invoice.upcoming webhook)
+- [ ] Payment failed notification
+
+**Future Enhancements**
+- [ ] Skip next delivery feature
+- [ ] In-app frequency/quantity changes (currently uses Stripe Portal)
+- [ ] Product swap mid-subscription
 
 ### Git Commits
 
 1. `d1639d5` - feat: implement subscription billing and webhook handlers
 2. `73ab28d` - feat: add subscription HTTP handlers and templates
+3. `4f678fb` - feat: complete subscription order creation from invoices
+4. `e52aa1c` - feat: add subscription auth middleware and product page subscribe option
+5. `ccd1372` - feat: add subscription checkout page flow
 
-### Known Issues
+### Known Issues (Resolved)
 
-1. **Stripe v83 API Changes**: Invoice no longer has direct `Subscription` field. Access via `invoice.Parent.SubscriptionDetails.Subscription`. Fixed in webhook handlers.
+1. **Stripe v83 API Changes**: ✅ Fixed - Invoice no longer has direct `Subscription` field. Access via `invoice.Parent.SubscriptionDetails.Subscription`.
 
-2. **pgtype.Numeric**: No `.String()` method. Use `.Int.String()` when `.Valid` is true.
+2. **pgtype.Numeric**: ✅ Handled - Use `Float64Value()` method, check `.Valid` before access.
 
-3. **Authentication**: Storefront handlers have TODO placeholders for user authentication. Need to extract userID from session/context once auth middleware is wired up.
+3. **Authentication**: ✅ Fixed - All storefront handlers now use `middleware.GetUserFromContext(ctx)` with RequireAuth middleware.
 
-4. **Test Mocks**: Test files have mock implementations that don't include new interface methods added for subscriptions. Need to update mocks for CartService, billing.Provider, and repository.Querier.
+4. **Test Mocks**: Still need updates for new interface methods added for subscriptions.
 
 ## Overview
 
@@ -100,6 +124,54 @@ Subscriptions allow customers to receive recurring coffee deliveries at configur
 - No trial periods — standard billing from day one
 - No "skip next delivery" — can be added post-MVP
 - Stripe Customer Portal for self-service (no custom portal UI)
+
+---
+
+## Architecture Decision: Separate Checkout Flows
+
+**Decision:** Subscriptions have their own checkout flow, completely separate from the cart-based one-time purchase checkout.
+
+**Rationale:**
+1. **Conceptual clarity:** Subscriptions are fundamentally different from one-time purchases — different data requirements (billing interval, recurring payment), different user intent, different post-purchase management
+2. **Implementation simplicity:** Avoids complexity of mixed carts with both one-time and subscription items
+3. **UX cleanliness:** Each flow can be optimized for its purpose without compromise
+4. **Stripe alignment:** Stripe treats subscriptions and one-time payments as separate entities
+
+**How it works:**
+
+```
+ONE-TIME PURCHASE FLOW:
+  Product Page → [Add to Cart] → /cart → /checkout → Stripe Payment Intent → Order
+
+SUBSCRIPTION FLOW:
+  Product Page → [Subscribe] → /subscribe/checkout → POST /subscribe → Stripe Subscription → Order (via webhook)
+```
+
+**Product Detail Page Behavior:**
+- Toggle between "One-time purchase" and "Subscribe & Save"
+- One-time: Form POSTs to `/cart/add`, adds item to cart
+- Subscribe: Form GETs to `/subscribe/checkout`, redirects to subscription checkout page
+
+**Subscription Checkout Page (`/subscribe/checkout`):**
+- Requires authentication (RequireAuth middleware)
+- Displays product/SKU summary
+- Delivery frequency selector
+- Select from saved addresses (radio buttons)
+- Select from saved payment methods (radio buttons)
+- POSTs to `/subscribe` to create subscription
+
+**Key Files:**
+- `internal/handler/storefront/subscription.go` - SubscriptionCheckoutHandler
+- `web/templates/storefront/subscription_checkout.html` - Checkout UI
+- `web/templates/storefront/product_detail.html` - Toggle and form logic
+
+**Tradeoffs accepted:**
+- Users cannot combine subscription items with one-time items in single checkout
+- Requires saved addresses/payment methods (users must add these first)
+- Two separate checkout experiences to maintain
+
+**Future consideration:**
+If multi-item subscriptions are needed, this architecture supports it — the subscription checkout page can display multiple subscription items from a "subscription cart" concept without affecting one-time checkout.
 
 ---
 
@@ -760,6 +832,7 @@ GetInvoice(ctx context.Context, invoiceID string) (*Invoice, error)
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Source of truth | Stripe Billing | Simplicity, reliability, less code |
+| Checkout flow | Separate from cart | Cleaner UX, simpler implementation, no mixed carts |
 | Order creation | Webhook-driven | Consistency with existing checkout |
 | Pricing | Locked at creation | Predictability for customers |
 | Customer portal | Stripe hosted (MVP) | Fastest path to launch |
@@ -767,6 +840,7 @@ GetInvoice(ctx context.Context, invoiceID string) (*Invoice, error)
 | Multi-item | Deferred to post-MVP | Reduces complexity |
 | Trial periods | Not implemented | Standard billing from day one |
 | Skip delivery | Deferred to post-MVP | Can layer on later |
+| Auth requirement | RequireAuth middleware | Subscriptions need saved addresses/payment methods |
 
 ---
 
