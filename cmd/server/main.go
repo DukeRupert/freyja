@@ -218,10 +218,10 @@ func run() error {
 	subscriptionCheckoutHandler := storefront.NewSubscriptionCheckoutHandler(productService, accountService, renderer, cfg.TenantID)
 	createSubscriptionHandler := storefront.NewCreateSubscriptionHandler(subscriptionService, renderer, cfg.TenantID)
 
-	// Initialize SaaS landing page handler
-	landingHandler, err := saas.NewLandingHandler("web/templates")
+	// Initialize SaaS page handler
+	saasHandler, err := saas.NewPageHandler("web/templates")
 	if err != nil {
-		return fmt.Errorf("failed to initialize landing handler: %w", err)
+		return fmt.Errorf("failed to initialize saas handler: %w", err)
 	}
 
 	// Create router with global middleware
@@ -234,8 +234,12 @@ func run() error {
 	// Static files
 	r.Static("/static/", "./web/static")
 
-	// SaaS landing page (root)
-	r.Get("/", landingHandler.ServeHTTP)
+	// SaaS marketing pages
+	r.Get("/", saasHandler.Landing())
+	r.Get("/about", saasHandler.About())
+	r.Get("/contact", saasHandler.Contact())
+	r.Get("/privacy", saasHandler.Privacy())
+	r.Get("/terms", saasHandler.Terms())
 
 	// Auth routes
 	r.Get("/signup", signupHandler.ServeHTTP)

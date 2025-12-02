@@ -1,0 +1,125 @@
+{{define "saas-base"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{block "title" .}}Freyja - E-commerce for Coffee Roasters{{end}}</title>
+  <meta name="description" content="{{block "description" .}}E-commerce platform built exclusively for coffee roasters. B2C, B2B, and subscriptions in one simple system. $149/month, no plugins required.{{end}}">
+  <link rel="stylesheet" href="/static/css/output.css">
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-stone-50 antialiased">
+
+  <!-- Header -->
+  <header class="py-6 lg:py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <nav class="relative z-50 flex justify-between items-center" x-data="{ mobileMenuOpen: false }">
+        <!-- Logo -->
+        <div class="flex items-center">
+          <a href="/" class="text-xl font-semibold text-neutral-900 tracking-tight">
+            Freyja
+          </a>
+        </div>
+
+        <!-- Desktop Navigation -->
+        <div class="hidden md:flex md:gap-x-8">
+          <a href="/#features" class="text-sm font-medium text-neutral-700 hover:text-teal-700">Features</a>
+          <a href="/#pricing" class="text-sm font-medium text-neutral-700 hover:text-teal-700">Pricing</a>
+          <a href="/about" class="text-sm font-medium text-neutral-700 hover:text-teal-700">About</a>
+          <a href="/contact" class="text-sm font-medium text-neutral-700 hover:text-teal-700">Contact</a>
+        </div>
+
+        <!-- Desktop CTA -->
+        <div class="hidden md:flex md:items-center md:gap-x-4">
+          <a href="/login" class="text-sm font-medium text-neutral-700 hover:text-teal-700">Sign in</a>
+          <a href="/signup" class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-teal-700 rounded-md hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
+            Start free trial
+          </a>
+        </div>
+
+        <!-- Mobile Menu Button -->
+        <button
+          type="button"
+          class="md:hidden p-2 -mr-2 text-neutral-700"
+          @click="mobileMenuOpen = !mobileMenuOpen"
+          :aria-expanded="mobileMenuOpen"
+        >
+          <span class="sr-only">Open menu</span>
+          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path x-show="!mobileMenuOpen" stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+            <path x-show="mobileMenuOpen" stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <!-- Mobile Menu -->
+        <div
+          x-show="mobileMenuOpen"
+          x-transition:enter="transition ease-out duration-200"
+          x-transition:enter-start="opacity-0 scale-95"
+          x-transition:enter-end="opacity-100 scale-100"
+          x-transition:leave="transition ease-in duration-150"
+          x-transition:leave-start="opacity-100 scale-100"
+          x-transition:leave-end="opacity-0 scale-95"
+          @click.away="mobileMenuOpen = false"
+          class="absolute inset-x-0 top-full mt-4 flex origin-top flex-col rounded-xl bg-white p-4 text-lg shadow-xl ring-1 ring-neutral-900/5 md:hidden"
+        >
+          <a href="/#features" class="block p-2 text-neutral-700 hover:text-teal-700" @click="mobileMenuOpen = false">Features</a>
+          <a href="/#pricing" class="block p-2 text-neutral-700 hover:text-teal-700" @click="mobileMenuOpen = false">Pricing</a>
+          <a href="/about" class="block p-2 text-neutral-700 hover:text-teal-700" @click="mobileMenuOpen = false">About</a>
+          <a href="/contact" class="block p-2 text-neutral-700 hover:text-teal-700" @click="mobileMenuOpen = false">Contact</a>
+          <hr class="my-2 border-neutral-200">
+          <a href="/login" class="block p-2 text-neutral-700 hover:text-teal-700" @click="mobileMenuOpen = false">Sign in</a>
+          <a href="/signup" class="block p-2 mt-2 text-center text-white bg-teal-700 rounded-md hover:bg-teal-800" @click="mobileMenuOpen = false">Start free trial</a>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    {{block "content" .}}{{end}}
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-neutral-900">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="py-16">
+        <a href="/" class="mx-auto block text-center text-xl font-semibold text-white tracking-tight">
+          Freyja
+        </a>
+        <nav class="mt-10" aria-label="Footer navigation">
+          <div class="flex flex-wrap justify-center gap-x-8 gap-y-4 text-sm">
+            <a href="/#features" class="text-neutral-400 hover:text-white">Features</a>
+            <a href="/#pricing" class="text-neutral-400 hover:text-white">Pricing</a>
+            <a href="/about" class="text-neutral-400 hover:text-white">About</a>
+            <a href="/contact" class="text-neutral-400 hover:text-white">Contact</a>
+          </div>
+        </nav>
+      </div>
+      <div class="flex flex-col items-center border-t border-neutral-800 py-10 sm:flex-row-reverse sm:justify-between">
+        <div class="flex gap-x-6">
+          <!-- Twitter/X -->
+          <a href="#" class="text-neutral-500 hover:text-neutral-400" aria-label="Freyja on X">
+            <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M13.3174 10.7749L19.1457 4H17.7646L12.7039 9.88256L8.66193 4H4L10.1122 12.8955L4 20H5.38119L10.7254 13.7878L14.994 20H19.656L13.3171 10.7749H13.3174ZM11.4257 12.9738L10.8064 12.0881L5.87886 5.03974H8.00029L11.9769 10.728L12.5962 11.6137L17.7652 19.0075H15.6438L11.4257 12.9742V12.9738Z" />
+            </svg>
+          </a>
+          <!-- GitHub -->
+          <a href="#" class="text-neutral-500 hover:text-neutral-400" aria-label="Freyja on GitHub">
+            <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844a9.59 9.59 0 012.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0022 12.017C22 6.484 17.522 2 12 2Z" />
+            </svg>
+          </a>
+        </div>
+        <div class="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-neutral-500 sm:mt-0">
+          <a href="/privacy" class="hover:text-neutral-400">Privacy Policy</a>
+          <a href="/terms" class="hover:text-neutral-400">Terms of Service</a>
+          <span>&copy; {{.Year}} Freyja. All rights reserved.</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
+{{end}}
