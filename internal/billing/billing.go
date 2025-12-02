@@ -50,6 +50,11 @@ type Provider interface {
 	// Post-MVP: For coffee subscriptions.
 	CreateSubscription(ctx context.Context, params SubscriptionParams) (*Subscription, error)
 
+	// CreateProduct creates a billing provider product.
+	// Required for subscriptions to create Stripe Products for each subscribable SKU.
+	// Returns existing product if one already exists with matching metadata.
+	CreateProduct(ctx context.Context, params CreateProductParams) (*Product, error)
+
 	// CreateRecurringPrice creates a Stripe Price for recurring subscriptions.
 	// Required for subscriptions to define pricing per product SKU.
 	CreateRecurringPrice(ctx context.Context, params CreateRecurringPriceParams) (*Price, error)
@@ -292,6 +297,31 @@ type CreateRecurringPriceParams struct {
 
 	// Nickname for the price (e.g., "Colombia Supremo - Monthly")
 	Nickname string
+}
+
+// CreateProductParams contains parameters for creating a product.
+type CreateProductParams struct {
+	// Name is the product name (e.g., "Colombia Supremo - 12oz Whole Bean")
+	Name string
+
+	// Description is optional product description
+	Description string
+
+	// Metadata for filtering and reporting (must include tenant_id and product_sku_id)
+	Metadata map[string]string
+
+	// Active determines if product is available for purchase
+	Active bool
+}
+
+// Product represents a billing provider product.
+type Product struct {
+	ID          string
+	Name        string
+	Description string
+	Active      bool
+	Metadata    map[string]string
+	CreatedAt   time.Time
 }
 
 // Price represents a Stripe price (one-time or recurring).

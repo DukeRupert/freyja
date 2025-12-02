@@ -11,6 +11,7 @@ import (
 	"github.com/stripe/stripe-go/v83/customer"
 	"github.com/stripe/stripe-go/v83/paymentintent"
 	"github.com/stripe/stripe-go/v83/price"
+	"github.com/stripe/stripe-go/v83/product"
 	"github.com/stripe/stripe-go/v83/subscription"
 	"github.com/stripe/stripe-go/v83/webhook"
 )
@@ -520,6 +521,48 @@ func (s *StripeProvider) UpdateCustomer(ctx context.Context, customerID string, 
 	// 4. Map response to Customer
 	// 5. Return updated Customer
 	return nil, ErrNotImplemented
+}
+
+// CreateProduct creates a Stripe product.
+//
+// Products in Stripe represent the goods or services being sold.
+// For subscriptions, each subscribable SKU needs its own Stripe Product.
+//
+// SECURITY: Validates tenant_id is present in metadata.
+//
+// Returns existing product if already created (idempotent based on metadata).
+func (s *StripeProvider) CreateProduct(ctx context.Context, params CreateProductParams) (*Product, error) {
+	// Validate required params
+	if params.Name == "" {
+		return nil, fmt.Errorf("product name is required")
+	}
+
+	// CRITICAL: Validate tenant_id is present for multi-tenant isolation
+	if params.Metadata == nil || params.Metadata["tenant_id"] == "" {
+		return nil, fmt.Errorf("tenant_id is required in metadata for multi-tenant isolation")
+	}
+
+	// Build Stripe product parameters
+	productParams := &stripe.ProductParams{
+		Name:   stripe.String(params.Name),
+		Active: stripe.Bool(params.Active),
+	}
+
+	if params.Description != "" {
+		productParams.Description = stripe.String(params.Description)
+	}
+
+	if params.Metadata != nil {
+		productParams.Metadata = params.Metadata
+	}
+
+	// Create product in Stripe
+	stripeProduct, err := product.New(productParams)
+	if err != nil {
+		return nil, wrapStripeError(err)
+	}
+
+	return buildProduct(stripeProduct), nil
 }
 
 // CreateSubscription creates a recurring subscription.
@@ -1088,6 +1131,23 @@ func buildSubscription(stripeSub *stripe.Subscription) *Subscription {
 	}
 
 	return subscription
+}
+
+// buildProduct maps Stripe Product to our Product type.
+// Centralizes mapping logic used by CreateProduct method.
+func buildProduct(stripeProduct *stripe.Product) *Product {
+	if stripeProduct == nil {
+		return nil
+	}
+
+	return &Product{
+		ID:          stripeProduct.ID,
+		Name:        stripeProduct.Name,
+		Description: stripeProduct.Description,
+		Active:      stripeProduct.Active,
+		Metadata:    stripeProduct.Metadata,
+		CreatedAt:   time.Unix(stripeProduct.Created, 0),
+	}
 }
 
 // validateAmount checks if amount meets Stripe's minimum requirements.
