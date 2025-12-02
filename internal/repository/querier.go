@@ -17,6 +17,10 @@ type Querier interface {
 	ClearCart(ctx context.Context, cartID pgtype.UUID) error
 	// Count total orders for pagination
 	CountOrders(ctx context.Context, tenantID pgtype.UUID) (int64, error)
+	// Count total subscriptions for pagination
+	CountSubscriptions(ctx context.Context, tenantID pgtype.UUID) (int64, error)
+	// Counts subscriptions by status for pagination
+	CountSubscriptionsByStatus(ctx context.Context, arg CountSubscriptionsByStatusParams) (int64, error)
 	// Admin queries
 	// Count total users for pagination
 	CountUsers(ctx context.Context, tenantID pgtype.UUID) (int64, error)
@@ -37,6 +41,8 @@ type Querier interface {
 	// Records a payment transaction linked to an order
 	// Includes Stripe payment intent ID for reconciliation
 	CreatePayment(ctx context.Context, arg CreatePaymentParams) (Payment, error)
+	// Creates a new payment method record
+	CreatePaymentMethod(ctx context.Context, arg CreatePaymentMethodParams) (PaymentMethod, error)
 	// Admin queries
 	// Create a new price list entry for a SKU
 	CreatePriceListEntry(ctx context.Context, arg CreatePriceListEntryParams) (PriceListEntry, error)
@@ -50,8 +56,20 @@ type Querier interface {
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	// Create a shipment record for an order
 	CreateShipment(ctx context.Context, arg CreateShipmentParams) (Shipment, error)
+	// Subscription queries for the SubscriptionService
+	// Creates a new subscription record
+	// Returns the complete subscription with generated ID and timestamps
+	CreateSubscription(ctx context.Context, arg CreateSubscriptionParams) (Subscription, error)
+	// Creates a subscription item (product in subscription)
+	// Captures pricing at time of subscription creation
+	CreateSubscriptionItem(ctx context.Context, arg CreateSubscriptionItemParams) (SubscriptionItem, error)
+	// Subscription schedule queries
+	// Records a subscription schedule event (billing, pause, resume, cancel, etc.)
+	CreateSubscriptionScheduleEvent(ctx context.Context, arg CreateSubscriptionScheduleEventParams) (SubscriptionSchedule, error)
 	// Create a new user (retail account by default)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	// Record incoming webhook event for idempotency
+	CreateWebhookEvent(ctx context.Context, arg CreateWebhookEventParams) (WebhookEvent, error)
 	// Decrements inventory for a SKU after order placement
 	// Uses optimistic locking to prevent overselling
 	DecrementSKUStock(ctx context.Context, arg DecrementSKUStockParams) error
@@ -69,6 +87,13 @@ type Querier interface {
 	GetAddressByID(ctx context.Context, id pgtype.UUID) (Address, error)
 	// Get the base product for a white-label product
 	GetBaseProductForWhiteLabel(ctx context.Context, id pgtype.UUID) (Product, error)
+	// Retrieves billing customer by Stripe customer ID
+	// Used for webhook processing
+	GetBillingCustomerByProviderID(ctx context.Context, arg GetBillingCustomerByProviderIDParams) (BillingCustomer, error)
+	// Billing customer queries
+	// Retrieves billing customer record for user
+	// Used to get Stripe customer ID for subscription creation
+	GetBillingCustomerForUser(ctx context.Context, arg GetBillingCustomerForUserParams) (BillingCustomer, error)
 	// Get cart by ID
 	GetCartByID(ctx context.Context, id pgtype.UUID) (Cart, error)
 	// Get active cart for a session
@@ -77,6 +102,9 @@ type Querier interface {
 	GetCartItemCount(ctx context.Context, cartID pgtype.UUID) (int32, error)
 	// Get all items in a cart with product details
 	GetCartItems(ctx context.Context, cartID pgtype.UUID) ([]GetCartItemsRow, error)
+	// Retrieves user's default payment method
+	// Required for subscription creation
+	GetDefaultPaymentMethodForUser(ctx context.Context, arg GetDefaultPaymentMethodForUserParams) (PaymentMethod, error)
 	// Get the default price list for a tenant (used for guests and unassigned users)
 	GetDefaultPriceList(ctx context.Context, tenantID pgtype.UUID) (PriceList, error)
 	// Retrieves a single order by ID with tenant scoping
@@ -95,6 +123,9 @@ type Querier interface {
 	GetOrderWithDetails(ctx context.Context, arg GetOrderWithDetailsParams) (GetOrderWithDetailsRow, error)
 	// Retrieves a single payment by ID
 	GetPaymentByID(ctx context.Context, id pgtype.UUID) (Payment, error)
+	// Payment method queries
+	// Retrieves payment method by ID
+	GetPaymentMethodByID(ctx context.Context, arg GetPaymentMethodByIDParams) (PaymentMethod, error)
 	// Get the price for a specific SKU on a price list
 	GetPriceForSKU(ctx context.Context, arg GetPriceForSKUParams) (PriceListEntry, error)
 	// Get a price list by ID
@@ -121,6 +152,22 @@ type Querier interface {
 	GetSessionByToken(ctx context.Context, token string) (Session, error)
 	// Get all shipments for an order
 	GetShipmentsByOrderID(ctx context.Context, orderID pgtype.UUID) ([]Shipment, error)
+	// Retrieves subscription by database ID with tenant scoping
+	GetSubscriptionByID(ctx context.Context, arg GetSubscriptionByIDParams) (Subscription, error)
+	// Retrieves subscription by Stripe subscription ID
+	// Used for webhook processing to find local subscription
+	GetSubscriptionByProviderID(ctx context.Context, arg GetSubscriptionByProviderIDParams) (Subscription, error)
+	// Checks if an invoice has already been processed (idempotency)
+	// Invoice ID is stored in metadata->>'invoice_id'
+	GetSubscriptionScheduleEventByInvoiceID(ctx context.Context, arg GetSubscriptionScheduleEventByInvoiceIDParams) (SubscriptionSchedule, error)
+	// Get subscription statistics for dashboard
+	GetSubscriptionStats(ctx context.Context, tenantID pgtype.UUID) (GetSubscriptionStatsRow, error)
+	// Subscription summary for customer account page
+	// Get subscription summaries with primary product info for customer display
+	GetSubscriptionSummariesForUser(ctx context.Context, arg GetSubscriptionSummariesForUserParams) ([]GetSubscriptionSummariesForUserRow, error)
+	// Retrieves subscription with joined user, address, and payment method details
+	// Used for displaying subscription information to customers
+	GetSubscriptionWithDetails(ctx context.Context, arg GetSubscriptionWithDetailsParams) (GetSubscriptionWithDetailsRow, error)
 	// Checkout queries
 	// Get the primary warehouse address for a tenant (for shipping origin calculations)
 	// Used by CheckoutService.GetShippingRates to determine shipping origin
@@ -131,10 +178,16 @@ type Querier interface {
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	// Get user statistics for dashboard
 	GetUserStats(ctx context.Context, tenantID pgtype.UUID) (GetUserStatsRow, error)
+	// Webhook event queries for subscription idempotency
+	// Check if webhook event was already processed
+	GetWebhookEventByProviderID(ctx context.Context, arg GetWebhookEventByProviderIDParams) (WebhookEvent, error)
 	// Get all white-label products for a specific customer
 	GetWhiteLabelProductsForCustomer(ctx context.Context, arg GetWhiteLabelProductsForCustomerParams) ([]Product, error)
 	// List all active products for a tenant with their primary image
 	ListActiveProducts(ctx context.Context, tenantID pgtype.UUID) ([]ListActiveProductsRow, error)
+	// Lists only active/trial subscriptions for a customer
+	// Used for checking if user has active subscriptions
+	ListActiveSubscriptionsForUser(ctx context.Context, arg ListActiveSubscriptionsForUserParams) ([]Subscription, error)
 	// List all price lists for a tenant
 	ListAllPriceLists(ctx context.Context, tenantID pgtype.UUID) ([]PriceList, error)
 	// Admin queries
@@ -145,6 +198,23 @@ type Querier interface {
 	ListOrders(ctx context.Context, arg ListOrdersParams) ([]ListOrdersRow, error)
 	// List orders filtered by status
 	ListOrdersByStatus(ctx context.Context, arg ListOrdersByStatusParams) ([]ListOrdersByStatusRow, error)
+	// Lists all payment methods for a user
+	ListPaymentMethodsForUser(ctx context.Context, arg ListPaymentMethodsForUserParams) ([]PaymentMethod, error)
+	// Lists all items in a subscription with product details
+	// Includes product name, SKU, and image for display
+	ListSubscriptionItemsForSubscription(ctx context.Context, arg ListSubscriptionItemsForSubscriptionParams) ([]ListSubscriptionItemsForSubscriptionRow, error)
+	// Admin queries
+	// List all subscriptions for admin with pagination
+	ListSubscriptions(ctx context.Context, arg ListSubscriptionsParams) ([]ListSubscriptionsRow, error)
+	// Lists subscriptions filtered by status with pagination
+	// Used for admin filtering
+	ListSubscriptionsByStatus(ctx context.Context, arg ListSubscriptionsByStatusParams) ([]Subscription, error)
+	// Lists all subscriptions for a customer with pagination
+	// Returns newest first
+	ListSubscriptionsForUser(ctx context.Context, arg ListSubscriptionsForUserParams) ([]Subscription, error)
+	// Lists upcoming scheduled events for processing
+	// Used by background job to process subscription renewals
+	ListUpcomingScheduleEvents(ctx context.Context, arg ListUpcomingScheduleEventsParams) ([]ListUpcomingScheduleEventsRow, error)
 	// List all users for a tenant (admin only)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
 	// List users filtered by account type
@@ -179,12 +249,26 @@ type Querier interface {
 	UpdateSessionData(ctx context.Context, arg UpdateSessionDataParams) error
 	// Update shipment status
 	UpdateShipmentStatus(ctx context.Context, arg UpdateShipmentStatusParams) error
+	// Marks subscription as cancelled or scheduled for cancellation
+	UpdateSubscriptionCancellation(ctx context.Context, arg UpdateSubscriptionCancellationParams) (Subscription, error)
+	// Updates subscription status for pause/resume operations
+	UpdateSubscriptionPauseResume(ctx context.Context, arg UpdateSubscriptionPauseResumeParams) (Subscription, error)
+	// Updates subscription with Stripe subscription ID after creation
+	// Called after Stripe subscription is created
+	UpdateSubscriptionProviderID(ctx context.Context, arg UpdateSubscriptionProviderIDParams) (Subscription, error)
+	// Updates subscription schedule event status after processing
+	UpdateSubscriptionScheduleEvent(ctx context.Context, arg UpdateSubscriptionScheduleEventParams) (SubscriptionSchedule, error)
+	// Updates subscription status and related timestamps
+	// Used when syncing from Stripe webhooks
+	UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscriptionStatusParams) (Subscription, error)
 	// Update user password
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	// Update user profile information
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) error
 	// Update user status (active, suspended, closed)
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) error
+	// Update webhook event status after processing
+	UpdateWebhookEventStatus(ctx context.Context, arg UpdateWebhookEventStatusParams) error
 	// Update wholesale application status
 	UpdateWholesaleApplication(ctx context.Context, arg UpdateWholesaleApplicationParams) error
 	// Mark user email as verified
