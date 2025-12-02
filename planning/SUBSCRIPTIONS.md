@@ -1,7 +1,97 @@
 # Subscription Feature Design
 
 **Created:** December 2024
-**Status:** Planning complete, implementation not started
+**Status:** Implementation in progress (Phase 6 partial)
+**Last Updated:** December 1, 2024
+
+---
+
+## Implementation Progress
+
+### Completed ✅
+
+**Phase 1: Billing Provider Extensions**
+- [x] Add subscription types to `internal/billing/billing.go`
+- [x] Implement Stripe subscription methods in `internal/billing/stripe.go`
+  - CreateRecurringPrice, CreateSubscription, GetSubscription
+  - PauseSubscription, ResumeSubscription, CancelSubscription
+  - CreateCustomerPortalSession, CreateProduct
+- [x] Fix Stripe v83 API compatibility (CurrentPeriodStart/End on SubscriptionItem)
+
+**Phase 2: SQLc Queries**
+- [x] Create `sqlc/queries/subscriptions.sql` with comprehensive queries
+- [x] Generate repository code via `sqlc generate`
+- [x] Includes: CRUD operations, user queries, admin queries, stats
+
+**Phase 3: Subscription Service**
+- [x] Create `internal/service/subscription.go` (interface + types)
+- [x] Create `internal/service/subscription_impl.go` (implementation)
+- [x] Implement CreateSubscription, GetSubscription, ListSubscriptionsForUser
+- [x] Implement PauseSubscription, ResumeSubscription, CancelSubscription
+- [x] Implement CreateCustomerPortalSession, SyncSubscriptionFromWebhook
+- [x] Initialize service in main.go
+
+**Phase 4: Webhook Handlers**
+- [x] Extend `internal/handler/webhook/stripe.go`
+- [x] Handle `invoice.payment_succeeded` → triggers order creation
+- [x] Handle `invoice.payment_failed` → updates status to past_due
+- [x] Handle `customer.subscription.updated` → syncs subscription state
+- [x] Handle `customer.subscription.deleted` → marks as expired
+- [x] Fix Stripe v83 Invoice API (subscription now in Parent.SubscriptionDetails)
+
+**Phase 6: HTTP Handlers & UI (Partial)**
+- [x] Create `internal/handler/storefront/subscription.go`
+  - SubscriptionListHandler: GET /account/subscriptions
+  - SubscriptionDetailHandler: GET /account/subscriptions/{id}
+  - SubscriptionPortalHandler: GET /account/subscriptions/portal
+  - CreateSubscriptionHandler: POST /subscribe
+- [x] Create `internal/handler/admin/subscriptions.go`
+  - SubscriptionListHandler: GET /admin/subscriptions
+  - SubscriptionDetailHandler: GET /admin/subscriptions/{id}
+- [x] Create templates:
+  - `web/templates/storefront/subscriptions.html`
+  - `web/templates/storefront/subscription_detail.html`
+  - `web/templates/admin/subscriptions.html`
+  - `web/templates/admin/subscription_detail.html`
+
+### Remaining 🔲
+
+**Phase 4: Webhook Handlers (Completion)**
+- [ ] Implement `CreateOrderFromSubscriptionInvoice()` fully
+  - Currently documented but returns error "requires additional infrastructure"
+  - Needs: GetInvoice billing method, order creation refactoring
+
+**Phase 5: Lifecycle Operations**
+- [ ] Test pause/resume/cancel with Stripe CLI
+- [ ] Add email notifications for lifecycle events
+
+**Phase 6: HTTP Handlers & UI (Completion)**
+- [ ] Register routes in main.go
+- [ ] Add authentication middleware to storefront handlers
+- [ ] Add "Subscribe" option to product detail pages
+- [ ] Create subscription creation flow UI
+
+**Phase 7: Admin UI**
+- [ ] Add ListOrdersBySubscription query for order history
+- [ ] Wire up admin UI to routes
+
+**Infrastructure Needs**
+- [ ] Add `GetInvoice` method to billing provider
+- [ ] Refactor order creation into reusable internal method
+- [ ] Add `DecrementInventory` repository method if missing
+
+### Git Commits
+
+1. `d1639d5` - feat: implement subscription billing and webhook handlers
+2. `73ab28d` - feat: add subscription HTTP handlers and templates
+
+### Known Issues
+
+1. **Stripe v83 API Changes**: Invoice no longer has direct `Subscription` field. Access via `invoice.Parent.SubscriptionDetails.Subscription`. Fixed in webhook handlers.
+
+2. **pgtype.Numeric**: No `.String()` method. Use `.Int.String()` when `.Valid` is true.
+
+3. **Authentication**: Storefront handlers have TODO placeholders for user authentication. Need to extract userID from session/context once auth middleware is wired up.
 
 ## Overview
 
