@@ -1,126 +1,329 @@
 {{define "title"}}{{.StoreName}} - Fresh Roasted Coffee{{end}}
 
 {{define "content"}}
-<!-- Hero Section -->
-<section class="relative bg-neutral-900 text-white">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32">
-    <div class="max-w-2xl">
-      <h1 class="text-4xl md:text-5xl font-bold tracking-tight mb-6">
-        Fresh Roasted Coffee
-      </h1>
-      <p class="text-lg md:text-xl text-neutral-300 mb-8">
-        Small batch, specialty coffee roasted to order and shipped directly to you.
-      </p>
-      <div class="flex flex-col sm:flex-row gap-4">
-        <a href="/products"
-           class="inline-flex items-center justify-center px-6 py-3 text-base font-medium bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors">
-          Shop Coffee
-        </a>
-        <a href="/subscribe/checkout"
-           class="inline-flex items-center justify-center px-6 py-3 text-base font-medium border border-neutral-600 hover:border-neutral-400 rounded-lg transition-colors">
-          Subscribe & Save
-        </a>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- Featured Products Section -->
-{{if .FeaturedProducts}}
-<section class="py-16 md:py-24">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div class="text-center mb-12">
-      <h2 class="text-2xl md:text-3xl font-bold text-neutral-900 mb-4">Featured Coffees</h2>
-      <p class="text-neutral-600">Our most popular roasts, fresh from the roaster.</p>
-    </div>
-
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-      {{range .FeaturedProducts}}
-      <a href="/products/{{.Slug}}" class="group">
-        <div class="aspect-square bg-neutral-100 rounded-lg overflow-hidden mb-4">
-          {{if .ImageURL}}
-          <img src="{{.ImageURL}}" alt="{{.Name}}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
-          {{else}}
-          <div class="w-full h-full flex items-center justify-center text-neutral-400">
-            <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </div>
-          {{end}}
-        </div>
-        <h3 class="text-lg font-medium text-neutral-900 group-hover:text-teal-700 transition-colors">{{.Name}}</h3>
-        {{if .Origin}}
-        <p class="text-sm text-neutral-600">{{.Origin}}</p>
-        {{end}}
-        {{if .StartingPrice}}
-        <p class="text-sm font-medium text-neutral-900 mt-1">From ${{divf .StartingPrice 100 | printf "%.2f"}}</p>
-        {{end}}
-      </a>
-      {{end}}
-    </div>
-
-    <div class="text-center mt-12">
-      <a href="/products" class="inline-flex items-center text-teal-700 hover:text-teal-800 font-medium">
-        View all coffees
-        <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-        </svg>
-      </a>
-    </div>
-  </div>
-</section>
-{{end}}
-
-<!-- Value Props Section -->
-<section class="py-16 bg-neutral-50">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-
-      <div class="text-center">
-        <div class="w-12 h-12 mx-auto mb-4 flex items-center justify-center rounded-full bg-teal-100 text-teal-700">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <h3 class="text-lg font-medium text-neutral-900 mb-2">Roasted Fresh</h3>
-        <p class="text-neutral-600">Every order is roasted within 24-48 hours of shipping.</p>
-      </div>
-
-      <div class="text-center">
-        <div class="w-12 h-12 mx-auto mb-4 flex items-center justify-center rounded-full bg-teal-100 text-teal-700">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-          </svg>
-        </div>
-        <h3 class="text-lg font-medium text-neutral-900 mb-2">Free Shipping</h3>
-        <p class="text-neutral-600">Free shipping on all subscription orders.</p>
-      </div>
-
-      <div class="text-center">
-        <div class="w-12 h-12 mx-auto mb-4 flex items-center justify-center rounded-full bg-teal-100 text-teal-700">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-          </svg>
-        </div>
-        <h3 class="text-lg font-medium text-neutral-900 mb-2">Ethically Sourced</h3>
-        <p class="text-neutral-600">Direct trade relationships with farmers worldwide.</p>
-      </div>
-
-    </div>
-  </div>
-</section>
-
-<!-- CTA Section -->
-<section class="py-16 md:py-24">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-    <h2 class="text-2xl md:text-3xl font-bold text-neutral-900 mb-4">Never Run Out of Coffee</h2>
-    <p class="text-lg text-neutral-600 mb-8 max-w-2xl mx-auto">
-      Subscribe and save 10% on every order. Pause, skip, or cancel anytime.
+<!-- Announcement Bar -->
+<div class="bg-teal-700">
+  <div class="mx-auto flex h-10 max-w-7xl items-center justify-center px-4 sm:px-6 lg:px-8">
+    <p class="text-sm font-medium text-white">
+      Free shipping on subscription orders
+      <a href="/subscribe/checkout" class="ml-2 inline-block font-semibold underline">Subscribe now &rarr;</a>
     </p>
-    <a href="/subscribe/checkout"
-       class="inline-flex items-center justify-center px-8 py-3 text-base font-medium bg-teal-700 hover:bg-teal-800 text-white rounded-lg transition-colors">
-      Start Your Subscription
-    </a>
+  </div>
+</div>
+
+<!-- Hero -->
+<div class="flex flex-col border-b border-neutral-200 lg:border-0">
+  <!-- Offers Bar -->
+  <nav aria-label="Offers" class="order-last lg:order-first">
+    <div class="mx-auto max-w-7xl lg:px-8">
+      <ul role="list" class="grid grid-cols-1 divide-y divide-neutral-200 lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+        <li class="flex flex-col">
+          <a href="/products" class="relative flex flex-1 flex-col justify-center bg-white px-4 py-6 text-center focus:z-10">
+            <p class="text-sm text-neutral-500">Roasted to order</p>
+            <p class="font-semibold text-neutral-900">Fresh within 48 hours</p>
+          </a>
+        </li>
+        <li class="flex flex-col">
+          <a href="/subscribe/checkout" class="relative flex flex-1 flex-col justify-center bg-white px-4 py-6 text-center focus:z-10">
+            <p class="text-sm text-neutral-500">Subscribe & save</p>
+            <p class="font-semibold text-neutral-900">10% off every order</p>
+          </a>
+        </li>
+        <li class="flex flex-col">
+          <a href="/products" class="relative flex flex-1 flex-col justify-center bg-white px-4 py-6 text-center focus:z-10">
+            <p class="text-sm text-neutral-500">Ethically sourced</p>
+            <p class="font-semibold text-neutral-900">Direct trade relationships</p>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Hero Image Section -->
+  <div class="relative">
+    <div aria-hidden="true" class="absolute hidden h-full w-1/2 bg-neutral-100 lg:block"></div>
+    <div class="relative bg-neutral-100 lg:bg-transparent">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:grid lg:grid-cols-2 lg:px-8">
+        <div class="mx-auto max-w-2xl py-24 lg:max-w-none lg:py-40">
+          <div class="lg:pr-16">
+            <h1 class="text-4xl font-bold tracking-tight text-neutral-900 sm:text-5xl xl:text-6xl">Fresh roasted, delivered to you</h1>
+            <p class="mt-4 text-xl text-neutral-600">Small batch specialty coffee, roasted to order and shipped directly to your door. Taste the difference that fresh makes.</p>
+            <div class="mt-6 flex flex-col sm:flex-row gap-4">
+              <a href="/products" class="inline-block rounded-md border border-transparent bg-teal-700 px-8 py-3 font-medium text-white hover:bg-teal-800 text-center">Shop Coffee</a>
+              <a href="/subscribe/checkout" class="inline-block rounded-md border border-neutral-300 bg-white px-8 py-3 font-medium text-neutral-700 hover:bg-neutral-50 text-center">Start a Subscription</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="h-48 w-full sm:h-64 lg:absolute lg:top-0 lg:right-0 lg:h-full lg:w-1/2">
+      <div class="size-full bg-gradient-to-br from-amber-800 via-amber-900 to-neutral-900 flex items-center justify-center">
+        <!-- Placeholder for hero image - coffee beans or brewing setup -->
+        <svg class="w-32 h-32 text-amber-700/50" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M2 21V19H4V18C4 16.0667 4.50833 14.3167 5.525 12.75C6.54167 11.1833 7.93333 10.0667 9.7 9.4C9.36667 9.08333 9.10417 8.70417 8.9125 8.2625C8.72083 7.82083 8.625 7.35 8.625 6.85C8.625 5.9 8.9625 5.08333 9.6375 4.4C10.3125 3.71667 11.1333 3.375 12.1 3.375C13.0667 3.375 13.8833 3.71667 14.55 4.4C15.2167 5.08333 15.55 5.9 15.55 6.85C15.55 7.35 15.4542 7.82083 15.2625 8.2625C15.0708 8.70417 14.8083 9.08333 14.475 9.4C16.2417 10.0667 17.6333 11.1833 18.65 12.75C19.6667 14.3167 20.175 16.0667 20.175 18V19H22.175V21H2ZM6 19H18.175V18C18.175 16.3333 17.5833 14.9167 16.4 13.75C15.2167 12.5833 13.7833 12 12.1 12C10.4167 12 8.98333 12.5833 7.8 13.75C6.61667 14.9167 6.025 16.3333 6.025 18V19H6ZM12.1 9.625C12.5667 9.625 12.9583 9.46667 13.275 9.15C13.5917 8.83333 13.75 8.44167 13.75 7.975V5.725C13.75 5.25833 13.5917 4.86667 13.275 4.55C12.9583 4.23333 12.5667 4.075 12.1 4.075C11.6333 4.075 11.2417 4.23333 10.925 4.55C10.6083 4.86667 10.45 5.25833 10.45 5.725V7.975C10.45 8.44167 10.6083 8.83333 10.925 9.15C11.2417 9.46667 11.6333 9.625 12.1 9.625Z"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Featured Products -->
+<section aria-labelledby="trending-heading" class="bg-white">
+  <div class="py-16 sm:py-24 lg:mx-auto lg:max-w-7xl lg:px-8 lg:py-32">
+    <div class="flex items-center justify-between px-4 sm:px-6 lg:px-0">
+      <h2 id="trending-heading" class="text-2xl font-bold tracking-tight text-neutral-900">Featured Coffees</h2>
+      <a href="/products" class="hidden text-sm font-semibold text-teal-700 hover:text-teal-600 sm:block">
+        See all coffees
+        <span aria-hidden="true"> &rarr;</span>
+      </a>
+    </div>
+
+    <div class="relative mt-8">
+      <div class="relative w-full overflow-x-auto">
+        <ul role="list" class="mx-4 inline-flex space-x-8 sm:mx-6 lg:mx-0 lg:grid lg:grid-cols-4 lg:gap-x-8 lg:space-x-0">
+          {{if .FeaturedProducts}}
+          {{range .FeaturedProducts}}
+          <li class="inline-flex w-64 flex-col text-center lg:w-auto">
+            <div class="group relative">
+              <div class="aspect-square w-full rounded-md bg-neutral-100 overflow-hidden">
+                {{if .ImageURL}}
+                <img src="{{.ImageURL}}" alt="{{.Name}}" class="size-full object-cover group-hover:opacity-75" />
+                {{else}}
+                <div class="size-full flex items-center justify-center text-neutral-300">
+                  <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                {{end}}
+              </div>
+              <div class="mt-6">
+                {{if .Origin}}
+                <p class="text-sm text-neutral-500">{{.Origin}}</p>
+                {{end}}
+                <h3 class="mt-1 font-semibold text-neutral-900">
+                  <a href="/products/{{.Slug}}">
+                    <span class="absolute inset-0"></span>
+                    {{.Name}}
+                  </a>
+                </h3>
+                {{if .StartingPrice}}
+                <p class="mt-1 text-neutral-900">From ${{divf .StartingPrice 100 | printf "%.2f"}}</p>
+                {{end}}
+              </div>
+            </div>
+          </li>
+          {{end}}
+          {{else}}
+          <!-- Placeholder products when none exist -->
+          <li class="inline-flex w-64 flex-col text-center lg:w-auto">
+            <div class="group relative">
+              <div class="aspect-square w-full rounded-md bg-neutral-100 flex items-center justify-center">
+                <span class="text-neutral-400 text-sm">Coming soon</span>
+              </div>
+              <div class="mt-6">
+                <p class="text-sm text-neutral-500">Ethiopia</p>
+                <h3 class="mt-1 font-semibold text-neutral-900">Yirgacheffe Natural</h3>
+                <p class="mt-1 text-neutral-900">From $18.00</p>
+              </div>
+            </div>
+          </li>
+          <li class="inline-flex w-64 flex-col text-center lg:w-auto">
+            <div class="group relative">
+              <div class="aspect-square w-full rounded-md bg-neutral-100 flex items-center justify-center">
+                <span class="text-neutral-400 text-sm">Coming soon</span>
+              </div>
+              <div class="mt-6">
+                <p class="text-sm text-neutral-500">Colombia</p>
+                <h3 class="mt-1 font-semibold text-neutral-900">Huila Washed</h3>
+                <p class="mt-1 text-neutral-900">From $17.00</p>
+              </div>
+            </div>
+          </li>
+          <li class="inline-flex w-64 flex-col text-center lg:w-auto">
+            <div class="group relative">
+              <div class="aspect-square w-full rounded-md bg-neutral-100 flex items-center justify-center">
+                <span class="text-neutral-400 text-sm">Coming soon</span>
+              </div>
+              <div class="mt-6">
+                <p class="text-sm text-neutral-500">Guatemala</p>
+                <h3 class="mt-1 font-semibold text-neutral-900">Antigua Blend</h3>
+                <p class="mt-1 text-neutral-900">From $16.00</p>
+              </div>
+            </div>
+          </li>
+          <li class="inline-flex w-64 flex-col text-center lg:w-auto">
+            <div class="group relative">
+              <div class="aspect-square w-full rounded-md bg-neutral-100 flex items-center justify-center">
+                <span class="text-neutral-400 text-sm">Coming soon</span>
+              </div>
+              <div class="mt-6">
+                <p class="text-sm text-neutral-500">House Blend</p>
+                <h3 class="mt-1 font-semibold text-neutral-900">Daily Driver</h3>
+                <p class="mt-1 text-neutral-900">From $15.00</p>
+              </div>
+            </div>
+          </li>
+          {{end}}
+        </ul>
+      </div>
+    </div>
+
+    <div class="mt-12 px-4 sm:hidden">
+      <a href="/products" class="text-sm font-semibold text-teal-700 hover:text-teal-600">
+        See all coffees
+        <span aria-hidden="true"> &rarr;</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Collections -->
+<section aria-labelledby="collections-heading" class="bg-neutral-100">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-2xl py-16 sm:py-24 lg:max-w-none lg:py-32">
+      <h2 id="collections-heading" class="text-2xl font-bold text-neutral-900">Shop by Category</h2>
+
+      <div class="mt-6 space-y-12 lg:grid lg:grid-cols-3 lg:space-y-0 lg:gap-x-6">
+        <div class="group relative">
+          <div class="w-full rounded-lg bg-amber-900 flex items-center justify-center group-hover:opacity-75 max-sm:h-80 sm:aspect-2/1 lg:aspect-square">
+            <div class="text-center text-amber-100">
+              <svg class="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span class="text-lg font-medium">Single Origins</span>
+            </div>
+          </div>
+          <h3 class="mt-6 text-sm text-neutral-500">
+            <a href="/products?category=single-origin">
+              <span class="absolute inset-0"></span>
+              Explore origins
+            </a>
+          </h3>
+          <p class="text-base font-semibold text-neutral-900">Distinct flavors from around the world</p>
+        </div>
+        <div class="group relative">
+          <div class="w-full rounded-lg bg-neutral-800 flex items-center justify-center group-hover:opacity-75 max-sm:h-80 sm:aspect-2/1 lg:aspect-square">
+            <div class="text-center text-neutral-300">
+              <svg class="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+              </svg>
+              <span class="text-lg font-medium">Blends</span>
+            </div>
+          </div>
+          <h3 class="mt-6 text-sm text-neutral-500">
+            <a href="/products?category=blend">
+              <span class="absolute inset-0"></span>
+              Our signature blends
+            </a>
+          </h3>
+          <p class="text-base font-semibold text-neutral-900">Crafted for balance and consistency</p>
+        </div>
+        <div class="group relative">
+          <div class="w-full rounded-lg bg-teal-800 flex items-center justify-center group-hover:opacity-75 max-sm:h-80 sm:aspect-2/1 lg:aspect-square">
+            <div class="text-center text-teal-100">
+              <svg class="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span class="text-lg font-medium">Subscriptions</span>
+            </div>
+          </div>
+          <h3 class="mt-6 text-sm text-neutral-500">
+            <a href="/subscribe/checkout">
+              <span class="absolute inset-0"></span>
+              Never run out
+            </a>
+          </h3>
+          <p class="text-base font-semibold text-neutral-900">Fresh coffee on your schedule</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Subscription CTA -->
+<div class="relative overflow-hidden">
+  <!-- Decorative background -->
+  <div aria-hidden="true" class="absolute inset-0">
+    <div class="absolute inset-0 bg-gradient-to-br from-teal-900 via-teal-800 to-neutral-900"></div>
+  </div>
+
+  <section aria-labelledby="subscription-heading" class="relative mx-auto flex max-w-7xl flex-col items-center px-4 pt-24 pb-16 text-center sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-2xl lg:max-w-none">
+      <h2 id="subscription-heading" class="text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">Never run out of coffee</h2>
+      <p class="mx-auto mt-4 max-w-xl text-lg text-teal-100">Subscribe and save 10% on every order. Pause, skip, or cancel anytime. Free shipping on all subscription orders.</p>
+      <a href="/subscribe/checkout" class="mt-8 inline-block w-full rounded-md border border-transparent bg-white px-8 py-3 font-medium text-teal-900 hover:bg-teal-50 sm:w-auto">Start Your Subscription</a>
+    </div>
+  </section>
+
+  <!-- Testimonials -->
+  <section aria-labelledby="testimonial-heading" class="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+    <div class="mx-auto max-w-2xl lg:max-w-none">
+      <h2 id="testimonial-heading" class="text-2xl font-bold tracking-tight text-white">What our customers say</h2>
+
+      <div class="mt-12 space-y-12 lg:grid lg:grid-cols-3 lg:space-y-0 lg:gap-x-8">
+        <blockquote class="sm:flex lg:block">
+          <svg viewBox="0 0 24 18" width="24" height="18" aria-hidden="true" class="shrink-0 text-teal-600">
+            <path d="M0 18h8.7v-5.555c-.024-3.906 1.113-6.841 2.892-9.68L6.452 0C3.188 2.644-.026 7.86 0 12.469V18zm12.408 0h8.7v-5.555C21.083 8.539 22.22 5.604 24 2.765L18.859 0c-3.263 2.644-6.476 7.86-6.451 12.469V18z" fill="currentColor" />
+          </svg>
+          <div class="mt-8 sm:mt-0 sm:ml-6 lg:mt-10 lg:ml-0">
+            <p class="text-lg text-teal-100">The freshness is unreal. I can actually taste the difference compared to store-bought coffee. This is the real deal.</p>
+            <cite class="mt-4 block font-semibold text-white not-italic">Sarah M., Portland</cite>
+          </div>
+        </blockquote>
+        <blockquote class="sm:flex lg:block">
+          <svg viewBox="0 0 24 18" width="24" height="18" aria-hidden="true" class="shrink-0 text-teal-600">
+            <path d="M0 18h8.7v-5.555c-.024-3.906 1.113-6.841 2.892-9.68L6.452 0C3.188 2.644-.026 7.86 0 12.469V18zm12.408 0h8.7v-5.555C21.083 8.539 22.22 5.604 24 2.765L18.859 0c-3.263 2.644-6.476 7.86-6.451 12.469V18z" fill="currentColor" />
+          </svg>
+          <div class="mt-8 sm:mt-0 sm:ml-6 lg:mt-10 lg:ml-0">
+            <p class="text-lg text-teal-100">The subscription is so convenient. Great coffee shows up right when I need it, and I love trying the seasonal offerings.</p>
+            <cite class="mt-4 block font-semibold text-white not-italic">James K., Austin</cite>
+          </div>
+        </blockquote>
+        <blockquote class="sm:flex lg:block">
+          <svg viewBox="0 0 24 18" width="24" height="18" aria-hidden="true" class="shrink-0 text-teal-600">
+            <path d="M0 18h8.7v-5.555c-.024-3.906 1.113-6.841 2.892-9.68L6.452 0C3.188 2.644-.026 7.86 0 12.469V18zm12.408 0h8.7v-5.555C21.083 8.539 22.22 5.604 24 2.765L18.859 0c-3.263 2.644-6.476 7.86-6.451 12.469V18z" fill="currentColor" />
+          </svg>
+          <div class="mt-8 sm:mt-0 sm:ml-6 lg:mt-10 lg:ml-0">
+            <p class="text-lg text-teal-100">Finally, coffee that tastes as good at home as it does at my favorite cafe. The Yirgacheffe is incredible.</p>
+            <cite class="mt-4 block font-semibold text-white not-italic">Maria L., Denver</cite>
+          </div>
+        </blockquote>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- Newsletter Signup -->
+<section class="bg-white">
+  <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+    <div class="lg:grid lg:grid-cols-2 lg:gap-x-6 xl:gap-x-8">
+      <div class="flex items-center rounded-lg bg-neutral-100 p-6 sm:p-10">
+        <div class="mx-auto max-w-sm">
+          <h3 class="font-semibold text-neutral-900">Sign up for our newsletter</h3>
+          <p class="mt-2 text-sm text-neutral-500">Get brewing tips, new release announcements, and exclusive offers delivered to your inbox.</p>
+          <form class="mt-4 sm:mt-6 sm:flex">
+            <label for="email-address" class="sr-only">Email address</label>
+            <input id="email-address" type="email" required autocomplete="email" placeholder="Enter your email" class="block w-full rounded-md bg-white px-4 py-2 text-base text-neutral-900 border border-neutral-300 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent" />
+            <div class="mt-3 sm:mt-0 sm:ml-4 sm:shrink-0">
+              <button type="submit" class="flex w-full items-center justify-center rounded-md border border-transparent bg-teal-700 px-4 py-2 text-base font-medium text-white hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2">Subscribe</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="relative mt-6 flex items-center px-6 py-12 sm:px-10 sm:py-16 lg:mt-0">
+        <div class="absolute inset-0 overflow-hidden rounded-lg bg-gradient-to-br from-amber-800 to-amber-900"></div>
+        <div class="relative mx-auto max-w-sm text-center">
+          <h3 class="text-2xl font-bold tracking-tight text-white">First order? Get 15% off</h3>
+          <p class="mt-2 text-amber-100">
+            Use code <span class="font-mono font-bold">FIRSTBREW</span> at checkout for 15% off your first order.
+          </p>
+          <a href="/products" class="mt-4 inline-block font-semibold text-white hover:text-amber-200">
+            Shop now <span aria-hidden="true">&rarr;</span>
+          </a>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 {{end}}
