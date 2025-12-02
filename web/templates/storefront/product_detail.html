@@ -64,7 +64,7 @@
                       quantity: 1,
                       skus: [
                           {{range $i, $sku := .SKUs}}{{if $i}},{{end}}{
-                              'id': '{{$sku.SKU.ID}}',
+                              'id': '{{uuidToString $sku.SKU.ID}}',
                               'weight': '{{formatWeight $sku.SKU.WeightValue}}{{$sku.SKU.WeightUnit}}',
                               'grind': '{{$sku.SKU.Grind}}',
                               'price': {{$sku.PriceCents}}
@@ -82,9 +82,11 @@
                       updateFormAction() {
                           const form = document.getElementById('add-to-cart-form');
                           if (this.purchaseType === 'subscription') {
-                              form.action = '/subscribe';
+                              form.action = '/subscribe/checkout';
+                              form.method = 'GET';
                           } else {
                               form.action = '/cart/add';
+                              form.method = 'POST';
                           }
                       }
                   }"
@@ -196,10 +198,8 @@
                     </select>
                 </div>
 
-                <!-- Hidden SKU ID -->
+                <!-- Hidden SKU ID (used by both cart and subscription checkout) -->
                 <input type="hidden" name="sku_id" x-model="selectedSKU">
-                <!-- Product SKU ID for subscription (using same field name expected by handler) -->
-                <input type="hidden" name="product_sku_id" x-model="selectedSKU">
 
                 <!-- Price Display -->
                 <div class="rounded-lg bg-neutral-50 p-4 border border-neutral-200">

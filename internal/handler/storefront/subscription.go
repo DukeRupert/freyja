@@ -189,6 +189,119 @@ func (h *SubscriptionPortalHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 	http.Redirect(w, r, portalURL, http.StatusSeeOther)
 }
 
+// SubscriptionCheckoutHandler displays the subscription checkout page
+type SubscriptionCheckoutHandler struct {
+	productService  service.ProductService
+	accountService  service.AccountService
+	renderer        *handler.Renderer
+	tenantID        pgtype.UUID
+}
+
+// NewSubscriptionCheckoutHandler creates a new subscription checkout handler
+func NewSubscriptionCheckoutHandler(
+	productService service.ProductService,
+	accountService service.AccountService,
+	renderer *handler.Renderer,
+	tenantID string,
+) *SubscriptionCheckoutHandler {
+	var tenantUUID pgtype.UUID
+	if err := tenantUUID.Scan(tenantID); err != nil {
+		panic(fmt.Sprintf("invalid tenant ID: %v", err))
+	}
+
+	return &SubscriptionCheckoutHandler{
+		productService: productService,
+		accountService: accountService,
+		renderer:       renderer,
+		tenantID:       tenantUUID,
+	}
+}
+
+// ServeHTTP handles GET /subscribe/checkout
+func (h *SubscriptionCheckoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	ctx := r.Context()
+
+	// Get authenticated user from context
+	user := middleware.GetUserFromContext(ctx)
+	if user == nil {
+		// Preserve the subscription parameters in return URL
+		returnURL := fmt.Sprintf("/subscribe/checkout?%s", r.URL.RawQuery)
+		http.Redirect(w, r, "/login?return_to="+returnURL, http.StatusSeeOther)
+		return
+	}
+
+	// Get subscription parameters from query string
+	skuID := r.URL.Query().Get("sku_id")
+	quantityStr := r.URL.Query().Get("quantity")
+	billingInterval := r.URL.Query().Get("billing_interval")
+
+	if skuID == "" {
+		http.Error(w, "Product SKU is required", http.StatusBadRequest)
+		return
+	}
+
+	// Default values
+	quantity := int32(1)
+	if quantityStr != "" {
+		q, err := strconv.Atoi(quantityStr)
+		if err == nil && q > 0 {
+			quantity = int32(q)
+		}
+	}
+
+	if billingInterval == "" {
+		billingInterval = service.BillingIntervalMonthly
+	}
+
+	// Validate billing interval
+	if !service.IsValidBillingInterval(billingInterval) {
+		http.Error(w, "Invalid billing interval", http.StatusBadRequest)
+		return
+	}
+
+	// Get SKU details with product info
+	skuDetail, err := h.productService.GetSKUForCheckout(ctx, skuID)
+	if err != nil {
+		http.Error(w, "Product not found", http.StatusNotFound)
+		return
+	}
+
+	// Get user's saved addresses
+	addresses, err := h.accountService.ListAddresses(ctx, h.tenantID, user.ID)
+	if err != nil {
+		// Continue with empty addresses - user can add new one
+		addresses = []service.UserAddress{}
+	}
+
+	// Get user's saved payment methods
+	paymentMethods, err := h.accountService.ListPaymentMethods(ctx, h.tenantID, user.ID)
+	if err != nil {
+		// Continue with empty payment methods - user can add new one
+		paymentMethods = []service.UserPaymentMethod{}
+	}
+
+	// Calculate totals
+	subtotalCents := skuDetail.PriceCents * quantity
+
+	data := BaseTemplateData(r)
+	data["SKU"] = skuDetail
+	data["Quantity"] = quantity
+	data["BillingInterval"] = billingInterval
+	data["BillingIntervals"] = service.ValidBillingIntervals
+	data["Addresses"] = addresses
+	data["PaymentMethods"] = paymentMethods
+	data["SubtotalCents"] = subtotalCents
+	data["HasAddresses"] = len(addresses) > 0
+	data["HasPaymentMethods"] = len(paymentMethods) > 0
+
+	h.renderer.RenderHTTP(w, "storefront/subscription_checkout", data)
+}
+
 // CreateSubscriptionHandler handles subscription creation from checkout
 type CreateSubscriptionHandler struct {
 	subscriptionService service.SubscriptionService

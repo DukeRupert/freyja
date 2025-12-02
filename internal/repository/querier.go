@@ -24,24 +24,23 @@ type Querier interface {
 	// Admin queries
 	// Count total users for pagination
 	CountUsers(ctx context.Context, tenantID pgtype.UUID) (int64, error)
-	// Creates a new address record for shipping or billing
-	// Returns complete address with generated ID
+	// Create a new address
 	CreateAddress(ctx context.Context, arg CreateAddressParams) (Address, error)
-	// Creates a billing customer record (links to Stripe customer)
-	// This is for tracking payment method details
+	// Create a new billing customer
 	CreateBillingCustomer(ctx context.Context, arg CreateBillingCustomerParams) (BillingCustomer, error)
 	// Create a new cart for a session
 	CreateCart(ctx context.Context, arg CreateCartParams) (Cart, error)
+	// Link an address to a user
+	CreateCustomerAddress(ctx context.Context, arg CreateCustomerAddressParams) (CustomerAddress, error)
 	// Creates a new order record with all required fields
 	// Returns the complete order with generated ID and timestamps
 	CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error)
 	// Creates an order line item linked to a specific order
 	// Captures product state at time of purchase
 	CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItem, error)
-	// Records a payment transaction linked to an order
-	// Includes Stripe payment intent ID for reconciliation
+	// Create a new payment record
 	CreatePayment(ctx context.Context, arg CreatePaymentParams) (Payment, error)
-	// Creates a new payment method record
+	// Create a new payment method
 	CreatePaymentMethod(ctx context.Context, arg CreatePaymentMethodParams) (PaymentMethod, error)
 	// Admin queries
 	// Create a new price list entry for a SKU
@@ -73,8 +72,12 @@ type Querier interface {
 	// Decrements inventory for a SKU after order placement
 	// Uses optimistic locking to prevent overselling
 	DecrementSKUStock(ctx context.Context, arg DecrementSKUStockParams) error
+	// Remove association between user and address
+	DeleteCustomerAddress(ctx context.Context, arg DeleteCustomerAddressParams) error
 	// Clean up expired sessions (for background job)
 	DeleteExpiredSessions(ctx context.Context) error
+	// Delete a payment method
+	DeletePaymentMethod(ctx context.Context, arg DeletePaymentMethodParams) error
 	// Soft delete a product (set status to 'archived')
 	DeleteProduct(ctx context.Context, arg DeleteProductParams) error
 	// Delete a product image
@@ -83,13 +86,17 @@ type Querier interface {
 	DeleteProductSKU(ctx context.Context, arg DeleteProductSKUParams) error
 	// Delete a session
 	DeleteSession(ctx context.Context, token string) error
-	// Retrieves a single address by ID
+	// Get a single address by ID (no user validation - for system use)
 	GetAddressByID(ctx context.Context, id pgtype.UUID) (Address, error)
+	// Get a single address by ID (validates user ownership via customer_addresses)
+	GetAddressByIDForUser(ctx context.Context, arg GetAddressByIDForUserParams) (GetAddressByIDForUserRow, error)
 	// Get the base product for a white-label product
 	GetBaseProductForWhiteLabel(ctx context.Context, id pgtype.UUID) (Product, error)
 	// Retrieves billing customer by Stripe customer ID
 	// Used for webhook processing
 	GetBillingCustomerByProviderID(ctx context.Context, arg GetBillingCustomerByProviderIDParams) (BillingCustomer, error)
+	// Get billing customer for a user
+	GetBillingCustomerByUserID(ctx context.Context, arg GetBillingCustomerByUserIDParams) (BillingCustomer, error)
 	// Billing customer queries
 	// Retrieves billing customer record for user
 	// Used to get Stripe customer ID for subscription creation
@@ -102,11 +109,16 @@ type Querier interface {
 	GetCartItemCount(ctx context.Context, cartID pgtype.UUID) (int32, error)
 	// Get all items in a cart with product details
 	GetCartItems(ctx context.Context, cartID pgtype.UUID) ([]GetCartItemsRow, error)
+	// Get the default payment method for a user
+	GetDefaultPaymentMethod(ctx context.Context, arg GetDefaultPaymentMethodParams) (GetDefaultPaymentMethodRow, error)
+	// Payment method queries
 	// Retrieves user's default payment method
 	// Required for subscription creation
 	GetDefaultPaymentMethodForUser(ctx context.Context, arg GetDefaultPaymentMethodForUserParams) (PaymentMethod, error)
 	// Get the default price list for a tenant (used for guests and unassigned users)
 	GetDefaultPriceList(ctx context.Context, tenantID pgtype.UUID) (PriceList, error)
+	// Get the default shipping address for a user
+	GetDefaultShippingAddress(ctx context.Context, arg GetDefaultShippingAddressParams) (GetDefaultShippingAddressRow, error)
 	// Retrieves a single order by ID with tenant scoping
 	GetOrder(ctx context.Context, arg GetOrderParams) (Order, error)
 	// Retrieves a single order by order number with tenant scoping
@@ -123,9 +135,10 @@ type Querier interface {
 	GetOrderWithDetails(ctx context.Context, arg GetOrderWithDetailsParams) (GetOrderWithDetailsRow, error)
 	// Retrieves a single payment by ID
 	GetPaymentByID(ctx context.Context, id pgtype.UUID) (Payment, error)
-	// Payment method queries
-	// Retrieves payment method by ID
-	GetPaymentMethodByID(ctx context.Context, arg GetPaymentMethodByIDParams) (PaymentMethod, error)
+	// Get a payment by provider payment ID
+	GetPaymentByProviderID(ctx context.Context, arg GetPaymentByProviderIDParams) (Payment, error)
+	// Get a single payment method by ID (validates user ownership)
+	GetPaymentMethodByID(ctx context.Context, arg GetPaymentMethodByIDParams) (GetPaymentMethodByIDRow, error)
 	// Get the price for a specific SKU on a price list
 	GetPriceForSKU(ctx context.Context, arg GetPriceForSKUParams) (PriceListEntry, error)
 	// Get a price list by ID
@@ -148,6 +161,8 @@ type Querier interface {
 	GetProductsForCustomer(ctx context.Context, arg GetProductsForCustomerParams) ([]Product, error)
 	// Get a single SKU by ID
 	GetSKUByID(ctx context.Context, id pgtype.UUID) (ProductSku, error)
+	// Get a SKU with its product details (for checkout display)
+	GetSKUWithProduct(ctx context.Context, arg GetSKUWithProductParams) (GetSKUWithProductRow, error)
 	// Get session by token
 	GetSessionByToken(ctx context.Context, token string) (Session, error)
 	// Get all shipments for an order
@@ -188,6 +203,8 @@ type Querier interface {
 	// Lists only active/trial subscriptions for a customer
 	// Used for checking if user has active subscriptions
 	ListActiveSubscriptionsForUser(ctx context.Context, arg ListActiveSubscriptionsForUserParams) ([]Subscription, error)
+	// Get all addresses for a user with their associations
+	ListAddressesForUser(ctx context.Context, arg ListAddressesForUserParams) ([]ListAddressesForUserRow, error)
 	// List all price lists for a tenant
 	ListAllPriceLists(ctx context.Context, tenantID pgtype.UUID) ([]PriceList, error)
 	// Admin queries
@@ -201,8 +218,8 @@ type Querier interface {
 	// Get all orders for a specific subscription
 	// Used by subscription detail page to show order history
 	ListOrdersBySubscription(ctx context.Context, arg ListOrdersBySubscriptionParams) ([]ListOrdersBySubscriptionRow, error)
-	// Lists all payment methods for a user
-	ListPaymentMethodsForUser(ctx context.Context, arg ListPaymentMethodsForUserParams) ([]PaymentMethod, error)
+	// Get all payment methods for a user
+	ListPaymentMethodsForUser(ctx context.Context, arg ListPaymentMethodsForUserParams) ([]ListPaymentMethodsForUserRow, error)
 	// Lists all items in a subscription with product details
 	// Includes product name, SKU, and image for display
 	ListSubscriptionItemsForSubscription(ctx context.Context, arg ListSubscriptionItemsForSubscriptionParams) ([]ListSubscriptionItemsForSubscriptionRow, error)
@@ -226,8 +243,16 @@ type Querier interface {
 	ListWholesaleApplications(ctx context.Context, tenantID pgtype.UUID) ([]ListWholesaleApplicationsRow, error)
 	// Remove an item from cart
 	RemoveCartItem(ctx context.Context, arg RemoveCartItemParams) error
+	// Set a payment method as the default for a billing customer
+	SetDefaultPaymentMethod(ctx context.Context, arg SetDefaultPaymentMethodParams) error
+	// Set an address as the default shipping address for a user
+	SetDefaultShippingAddress(ctx context.Context, arg SetDefaultShippingAddressParams) error
 	// Set a product image as primary (and unset others)
 	SetPrimaryImage(ctx context.Context, arg SetPrimaryImageParams) error
+	// Update an address
+	UpdateAddress(ctx context.Context, arg UpdateAddressParams) (Address, error)
+	// Update a billing customer
+	UpdateBillingCustomer(ctx context.Context, arg UpdateBillingCustomerParams) (BillingCustomer, error)
 	// Update quantity of a cart item
 	UpdateCartItemQuantity(ctx context.Context, arg UpdateCartItemQuantityParams) error
 	// Ensures sufficient stock
@@ -240,6 +265,8 @@ type Querier interface {
 	UpdateOrderPaymentID(ctx context.Context, arg UpdateOrderPaymentIDParams) error
 	// Update order status
 	UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) error
+	// Update payment status
+	UpdatePaymentStatus(ctx context.Context, arg UpdatePaymentStatusParams) (Payment, error)
 	// Update an existing price list entry
 	UpdatePriceListEntry(ctx context.Context, arg UpdatePriceListEntryParams) (PriceListEntry, error)
 	// Update an existing product

@@ -719,6 +719,80 @@ func (q *Queries) GetSKUByID(ctx context.Context, id pgtype.UUID) (ProductSku, e
 	return i, err
 }
 
+const getSKUWithProduct = `-- name: GetSKUWithProduct :one
+SELECT
+    ps.id as sku_id,
+    ps.tenant_id,
+    ps.product_id,
+    ps.sku,
+    ps.weight_value,
+    ps.weight_unit,
+    ps.grind,
+    ps.base_price_cents,
+    ps.is_active,
+    p.name as product_name,
+    p.slug as product_slug,
+    p.short_description as product_short_description,
+    p.origin as product_origin,
+    p.roast_level as product_roast_level,
+    pi.url as product_image_url
+FROM product_skus ps
+INNER JOIN products p ON p.id = ps.product_id
+LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = TRUE
+WHERE ps.id = $1
+  AND ps.tenant_id = $2
+  AND ps.is_active = TRUE
+  AND p.status = 'active'
+LIMIT 1
+`
+
+type GetSKUWithProductParams struct {
+	ID       pgtype.UUID `json:"id"`
+	TenantID pgtype.UUID `json:"tenant_id"`
+}
+
+type GetSKUWithProductRow struct {
+	SkuID                   pgtype.UUID    `json:"sku_id"`
+	TenantID                pgtype.UUID    `json:"tenant_id"`
+	ProductID               pgtype.UUID    `json:"product_id"`
+	Sku                     string         `json:"sku"`
+	WeightValue             pgtype.Numeric `json:"weight_value"`
+	WeightUnit              string         `json:"weight_unit"`
+	Grind                   string         `json:"grind"`
+	BasePriceCents          int32          `json:"base_price_cents"`
+	IsActive                bool           `json:"is_active"`
+	ProductName             string         `json:"product_name"`
+	ProductSlug             string         `json:"product_slug"`
+	ProductShortDescription pgtype.Text    `json:"product_short_description"`
+	ProductOrigin           pgtype.Text    `json:"product_origin"`
+	ProductRoastLevel       pgtype.Text    `json:"product_roast_level"`
+	ProductImageUrl         pgtype.Text    `json:"product_image_url"`
+}
+
+// Get a SKU with its product details (for checkout display)
+func (q *Queries) GetSKUWithProduct(ctx context.Context, arg GetSKUWithProductParams) (GetSKUWithProductRow, error) {
+	row := q.db.QueryRow(ctx, getSKUWithProduct, arg.ID, arg.TenantID)
+	var i GetSKUWithProductRow
+	err := row.Scan(
+		&i.SkuID,
+		&i.TenantID,
+		&i.ProductID,
+		&i.Sku,
+		&i.WeightValue,
+		&i.WeightUnit,
+		&i.Grind,
+		&i.BasePriceCents,
+		&i.IsActive,
+		&i.ProductName,
+		&i.ProductSlug,
+		&i.ProductShortDescription,
+		&i.ProductOrigin,
+		&i.ProductRoastLevel,
+		&i.ProductImageUrl,
+	)
+	return i, err
+}
+
 const getWhiteLabelProductsForCustomer = `-- name: GetWhiteLabelProductsForCustomer :many
 SELECT p.id, p.tenant_id, p.name, p.slug, p.description, p.short_description, p.origin, p.region, p.producer, p.process, p.roast_level, p.elevation_min, p.elevation_max, p.variety, p.harvest_year, p.tasting_notes, p.status, p.visibility, p.meta_title, p.meta_description, p.sort_order, p.created_at, p.updated_at, p.is_white_label, p.base_product_id, p.white_label_customer_id
 FROM products p

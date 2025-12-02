@@ -207,12 +207,6 @@ WHERE provider_customer_id = $1
 
 -- Payment method queries
 
--- name: GetPaymentMethodByID :one
--- Retrieves payment method by ID
-SELECT * FROM payment_methods
-WHERE id = $1
-  AND tenant_id = $2;
-
 -- name: GetDefaultPaymentMethodForUser :one
 -- Retrieves user's default payment method
 -- Required for subscription creation
@@ -222,34 +216,6 @@ WHERE bc.user_id = $1
   AND bc.tenant_id = $2
   AND bc.provider = $3
   AND pm.is_default = true;
-
--- name: ListPaymentMethodsForUser :many
--- Lists all payment methods for a user
-SELECT pm.* FROM payment_methods pm
-JOIN billing_customers bc ON pm.billing_customer_id = bc.id
-WHERE bc.user_id = $1
-  AND bc.tenant_id = $2
-  AND bc.provider = $3
-ORDER BY pm.is_default DESC, pm.created_at DESC;
-
--- name: CreatePaymentMethod :one
--- Creates a new payment method record
-INSERT INTO payment_methods (
-    tenant_id,
-    billing_customer_id,
-    provider,
-    provider_payment_method_id,
-    method_type,
-    display_brand,
-    display_last4,
-    display_exp_month,
-    display_exp_year,
-    is_default,
-    metadata
-) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
-)
-RETURNING *;
 
 -- Subscription schedule queries
 

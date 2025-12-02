@@ -116,6 +116,33 @@ WHERE id = $1
   AND is_active = TRUE
 LIMIT 1;
 
+-- name: GetSKUWithProduct :one
+-- Get a SKU with its product details (for checkout display)
+SELECT
+    ps.id as sku_id,
+    ps.tenant_id,
+    ps.product_id,
+    ps.sku,
+    ps.weight_value,
+    ps.weight_unit,
+    ps.grind,
+    ps.base_price_cents,
+    ps.is_active,
+    p.name as product_name,
+    p.slug as product_slug,
+    p.short_description as product_short_description,
+    p.origin as product_origin,
+    p.roast_level as product_roast_level,
+    pi.url as product_image_url
+FROM product_skus ps
+INNER JOIN products p ON p.id = ps.product_id
+LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = TRUE
+WHERE ps.id = $1
+  AND ps.tenant_id = $2
+  AND ps.is_active = TRUE
+  AND p.status = 'active'
+LIMIT 1;
+
 -- name: GetProductsForCustomer :many
 -- Get all products available to a specific customer
 SELECT p.*

@@ -44,74 +44,6 @@ func (q *Queries) CountSubscriptionsByStatus(ctx context.Context, arg CountSubsc
 	return count, err
 }
 
-const createPaymentMethod = `-- name: CreatePaymentMethod :one
-INSERT INTO payment_methods (
-    tenant_id,
-    billing_customer_id,
-    provider,
-    provider_payment_method_id,
-    method_type,
-    display_brand,
-    display_last4,
-    display_exp_month,
-    display_exp_year,
-    is_default,
-    metadata
-) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
-)
-RETURNING id, tenant_id, billing_customer_id, provider, provider_payment_method_id, method_type, display_brand, display_last4, display_exp_month, display_exp_year, is_default, metadata, created_at, updated_at
-`
-
-type CreatePaymentMethodParams struct {
-	TenantID                pgtype.UUID `json:"tenant_id"`
-	BillingCustomerID       pgtype.UUID `json:"billing_customer_id"`
-	Provider                string      `json:"provider"`
-	ProviderPaymentMethodID string      `json:"provider_payment_method_id"`
-	MethodType              string      `json:"method_type"`
-	DisplayBrand            pgtype.Text `json:"display_brand"`
-	DisplayLast4            pgtype.Text `json:"display_last4"`
-	DisplayExpMonth         pgtype.Int4 `json:"display_exp_month"`
-	DisplayExpYear          pgtype.Int4 `json:"display_exp_year"`
-	IsDefault               bool        `json:"is_default"`
-	Metadata                []byte      `json:"metadata"`
-}
-
-// Creates a new payment method record
-func (q *Queries) CreatePaymentMethod(ctx context.Context, arg CreatePaymentMethodParams) (PaymentMethod, error) {
-	row := q.db.QueryRow(ctx, createPaymentMethod,
-		arg.TenantID,
-		arg.BillingCustomerID,
-		arg.Provider,
-		arg.ProviderPaymentMethodID,
-		arg.MethodType,
-		arg.DisplayBrand,
-		arg.DisplayLast4,
-		arg.DisplayExpMonth,
-		arg.DisplayExpYear,
-		arg.IsDefault,
-		arg.Metadata,
-	)
-	var i PaymentMethod
-	err := row.Scan(
-		&i.ID,
-		&i.TenantID,
-		&i.BillingCustomerID,
-		&i.Provider,
-		&i.ProviderPaymentMethodID,
-		&i.MethodType,
-		&i.DisplayBrand,
-		&i.DisplayLast4,
-		&i.DisplayExpMonth,
-		&i.DisplayExpYear,
-		&i.IsDefault,
-		&i.Metadata,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const createSubscription = `-- name: CreateSubscription :one
 
 INSERT INTO subscriptions (
@@ -452,6 +384,7 @@ func (q *Queries) GetBillingCustomerForUser(ctx context.Context, arg GetBillingC
 }
 
 const getDefaultPaymentMethodForUser = `-- name: GetDefaultPaymentMethodForUser :one
+
 SELECT pm.id, pm.tenant_id, pm.billing_customer_id, pm.provider, pm.provider_payment_method_id, pm.method_type, pm.display_brand, pm.display_last4, pm.display_exp_month, pm.display_exp_year, pm.is_default, pm.metadata, pm.created_at, pm.updated_at FROM payment_methods pm
 JOIN billing_customers bc ON pm.billing_customer_id = bc.id
 WHERE bc.user_id = $1
@@ -466,46 +399,11 @@ type GetDefaultPaymentMethodForUserParams struct {
 	Provider string      `json:"provider"`
 }
 
+// Payment method queries
 // Retrieves user's default payment method
 // Required for subscription creation
 func (q *Queries) GetDefaultPaymentMethodForUser(ctx context.Context, arg GetDefaultPaymentMethodForUserParams) (PaymentMethod, error) {
 	row := q.db.QueryRow(ctx, getDefaultPaymentMethodForUser, arg.UserID, arg.TenantID, arg.Provider)
-	var i PaymentMethod
-	err := row.Scan(
-		&i.ID,
-		&i.TenantID,
-		&i.BillingCustomerID,
-		&i.Provider,
-		&i.ProviderPaymentMethodID,
-		&i.MethodType,
-		&i.DisplayBrand,
-		&i.DisplayLast4,
-		&i.DisplayExpMonth,
-		&i.DisplayExpYear,
-		&i.IsDefault,
-		&i.Metadata,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getPaymentMethodByID = `-- name: GetPaymentMethodByID :one
-
-SELECT id, tenant_id, billing_customer_id, provider, provider_payment_method_id, method_type, display_brand, display_last4, display_exp_month, display_exp_year, is_default, metadata, created_at, updated_at FROM payment_methods
-WHERE id = $1
-  AND tenant_id = $2
-`
-
-type GetPaymentMethodByIDParams struct {
-	ID       pgtype.UUID `json:"id"`
-	TenantID pgtype.UUID `json:"tenant_id"`
-}
-
-// Payment method queries
-// Retrieves payment method by ID
-func (q *Queries) GetPaymentMethodByID(ctx context.Context, arg GetPaymentMethodByIDParams) (PaymentMethod, error) {
-	row := q.db.QueryRow(ctx, getPaymentMethodByID, arg.ID, arg.TenantID)
 	var i PaymentMethod
 	err := row.Scan(
 		&i.ID,
@@ -994,57 +892,6 @@ func (q *Queries) ListActiveSubscriptionsForUser(ctx context.Context, arg ListAc
 			&i.CancelAtPeriodEnd,
 			&i.CancelledAt,
 			&i.CancellationReason,
-			&i.Metadata,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listPaymentMethodsForUser = `-- name: ListPaymentMethodsForUser :many
-SELECT pm.id, pm.tenant_id, pm.billing_customer_id, pm.provider, pm.provider_payment_method_id, pm.method_type, pm.display_brand, pm.display_last4, pm.display_exp_month, pm.display_exp_year, pm.is_default, pm.metadata, pm.created_at, pm.updated_at FROM payment_methods pm
-JOIN billing_customers bc ON pm.billing_customer_id = bc.id
-WHERE bc.user_id = $1
-  AND bc.tenant_id = $2
-  AND bc.provider = $3
-ORDER BY pm.is_default DESC, pm.created_at DESC
-`
-
-type ListPaymentMethodsForUserParams struct {
-	UserID   pgtype.UUID `json:"user_id"`
-	TenantID pgtype.UUID `json:"tenant_id"`
-	Provider string      `json:"provider"`
-}
-
-// Lists all payment methods for a user
-func (q *Queries) ListPaymentMethodsForUser(ctx context.Context, arg ListPaymentMethodsForUserParams) ([]PaymentMethod, error) {
-	rows, err := q.db.Query(ctx, listPaymentMethodsForUser, arg.UserID, arg.TenantID, arg.Provider)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []PaymentMethod{}
-	for rows.Next() {
-		var i PaymentMethod
-		if err := rows.Scan(
-			&i.ID,
-			&i.TenantID,
-			&i.BillingCustomerID,
-			&i.Provider,
-			&i.ProviderPaymentMethodID,
-			&i.MethodType,
-			&i.DisplayBrand,
-			&i.DisplayLast4,
-			&i.DisplayExpMonth,
-			&i.DisplayExpYear,
-			&i.IsDefault,
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,

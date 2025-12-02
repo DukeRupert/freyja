@@ -151,6 +151,11 @@ func run() error {
 	}
 	logger.Info("Subscription service initialized")
 
+	// Initialize account service
+	logger.Info("Initializing account service...")
+	accountService := service.NewAccountService(repo)
+	logger.Info("Account service initialized")
+
 	// Initialize address validator (mock for MVP)
 	logger.Info("Initializing address validator...")
 	addressValidator := address.NewMockValidator()
@@ -209,6 +214,7 @@ func run() error {
 	subscriptionListHandler := storefront.NewSubscriptionListHandler(subscriptionService, renderer, cfg.TenantID)
 	subscriptionDetailHandler := storefront.NewSubscriptionDetailHandler(subscriptionService, renderer, cfg.TenantID)
 	subscriptionPortalHandler := storefront.NewSubscriptionPortalHandler(subscriptionService, cfg.TenantID)
+	subscriptionCheckoutHandler := storefront.NewSubscriptionCheckoutHandler(productService, accountService, renderer, cfg.TenantID)
 	createSubscriptionHandler := storefront.NewCreateSubscriptionHandler(subscriptionService, renderer, cfg.TenantID)
 
 	// Create router with global middleware
@@ -249,6 +255,7 @@ func run() error {
 	accountRouter.Get("/account/subscriptions", subscriptionListHandler.ServeHTTP)
 	accountRouter.Get("/account/subscriptions/portal", subscriptionPortalHandler.ServeHTTP)
 	accountRouter.Get("/account/subscriptions/{id}", subscriptionDetailHandler.ServeHTTP)
+	accountRouter.Get("/subscribe/checkout", subscriptionCheckoutHandler.ServeHTTP)
 	accountRouter.Post("/subscribe", createSubscriptionHandler.ServeHTTP)
 
 	// Webhook routes (no authentication - Stripe handles signature verification)

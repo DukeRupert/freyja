@@ -15,6 +15,7 @@ type ProductService interface {
 	ListProducts(ctx context.Context) ([]repository.ListActiveProductsRow, error)
 	GetProductDetail(ctx context.Context, slug string) (*ProductDetail, error)
 	GetProductPrice(ctx context.Context, skuID string) (*ProductPrice, error)
+	GetSKUForCheckout(ctx context.Context, skuID string) (*SKUCheckoutDetail, error)
 }
 
 // ProductDetail aggregates product information with SKUs, pricing, and images
@@ -37,6 +38,22 @@ type ProductPrice struct {
 	SKUID       pgtype.UUID
 	PriceCents  int32
 	PriceListID pgtype.UUID
+}
+
+// SKUCheckoutDetail contains SKU and product info for checkout display
+type SKUCheckoutDetail struct {
+	SKUID                   pgtype.UUID
+	SKU                     string
+	WeightValue             string
+	WeightUnit              string
+	Grind                   string
+	PriceCents              int32
+	ProductName             string
+	ProductSlug             string
+	ProductShortDescription string
+	ProductOrigin           string
+	ProductRoastLevel       string
+	ProductImageURL         string
 }
 
 type productService struct {
@@ -178,4 +195,64 @@ func (s *productService) getInventoryMessage(sku repository.ProductSku) string {
 	}
 
 	return "In stock"
+}
+
+// GetSKUForCheckout retrieves SKU details with product info for checkout display
+func (s *productService) GetSKUForCheckout(ctx context.Context, skuID string) (*SKUCheckoutDetail, error) {
+	var skuUUID pgtype.UUID
+	if err := skuUUID.Scan(skuID); err != nil {
+		return nil, fmt.Errorf("invalid SKU ID: %w", err)
+	}
+
+	row, err := s.repo.GetSKUWithProduct(ctx, repository.GetSKUWithProductParams{
+		ID:       skuUUID,
+		TenantID: s.tenantID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrSKUNotFound
+		}
+		return nil, fmt.Errorf("failed to get SKU with product: %w", err)
+	}
+
+	// Get price from default price list
+	priceList, err := s.repo.GetDefaultPriceList(ctx, s.tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get default price list: %w", err)
+	}
+
+	price, err := s.repo.GetPriceForSKU(ctx, repository.GetPriceForSKUParams{
+		PriceListID:  priceList.ID,
+		ProductSkuID: row.SkuID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrPriceNotFound
+		}
+		return nil, fmt.Errorf("failed to get price for SKU: %w", err)
+	}
+
+	// Format weight value
+	weightStr := ""
+	if row.WeightValue.Valid {
+		f, err := row.WeightValue.Float64Value()
+		if err == nil && f.Valid {
+			weightStr = fmt.Sprintf("%.0f", f.Float64)
+		}
+	}
+
+	return &SKUCheckoutDetail{
+		SKUID:                   row.SkuID,
+		SKU:                     row.Sku,
+		WeightValue:             weightStr,
+		WeightUnit:              row.WeightUnit,
+		Grind:                   row.Grind,
+		PriceCents:              price.PriceCents,
+		ProductName:             row.ProductName,
+		ProductSlug:             row.ProductSlug,
+		ProductShortDescription: row.ProductShortDescription.String,
+		ProductOrigin:           row.ProductOrigin.String,
+		ProductRoastLevel:       row.ProductRoastLevel.String,
+		ProductImageURL:         row.ProductImageUrl.String,
+	}, nil
 }

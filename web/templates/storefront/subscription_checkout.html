@@ -1,0 +1,275 @@
+{{define "title"}}Subscribe - {{.SKU.ProductName}}{{end}}
+
+{{define "content"}}
+<div class="bg-neutral-50 min-h-screen pb-16">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+    <!-- Page Header -->
+    <div class="mb-8">
+      <nav class="mb-4 flex" aria-label="Breadcrumb">
+        <ol class="inline-flex items-center space-x-1 md:space-x-3">
+          <li class="inline-flex items-center">
+            <a href="/products" class="text-sm font-medium text-neutral-600 hover:text-teal-700 transition-colors">
+              Products
+            </a>
+          </li>
+          <li>
+            <div class="flex items-center">
+              <span class="mx-2 text-neutral-400">/</span>
+              <a href="/products/{{.SKU.ProductSlug}}" class="text-sm font-medium text-neutral-600 hover:text-teal-700 transition-colors">
+                {{.SKU.ProductName}}
+              </a>
+            </div>
+          </li>
+          <li>
+            <div class="flex items-center">
+              <span class="mx-2 text-neutral-400">/</span>
+              <span class="text-sm font-medium text-neutral-900">Subscribe</span>
+            </div>
+          </li>
+        </ol>
+      </nav>
+      <h1 class="text-2xl font-semibold text-neutral-900">Start Your Subscription</h1>
+      <p class="mt-1 text-sm text-neutral-600">Fresh coffee delivered on your schedule</p>
+    </div>
+
+    <form action="/subscribe" method="POST" class="lg:grid lg:grid-cols-5 lg:gap-8">
+      <!-- Checkout Form (3/5 width) -->
+      <div class="lg:col-span-3 space-y-6">
+
+        <!-- Product Summary Card -->
+        <div class="bg-white rounded-lg border border-neutral-200 overflow-hidden">
+          <div class="p-6">
+            <h2 class="text-base font-medium text-neutral-900 mb-4">Your Subscription</h2>
+            <div class="flex gap-4">
+              {{if .SKU.ProductImageURL}}
+              <img src="{{.SKU.ProductImageURL}}" alt="{{.SKU.ProductName}}" class="w-20 h-20 rounded-lg object-cover">
+              {{else}}
+              <div class="w-20 h-20 rounded-lg bg-neutral-100 flex items-center justify-center">
+                <svg class="w-8 h-8 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              {{end}}
+              <div class="flex-1">
+                <h3 class="font-medium text-neutral-900">{{.SKU.ProductName}}</h3>
+                <p class="text-sm text-neutral-600 mt-1">
+                  {{.SKU.WeightValue}}{{.SKU.WeightUnit}} - <span class="capitalize">{{.SKU.Grind}}</span>
+                </p>
+                {{if .SKU.ProductOrigin}}
+                <p class="text-sm text-neutral-500 mt-1">Origin: {{.SKU.ProductOrigin}}</p>
+                {{end}}
+              </div>
+              <div class="text-right">
+                <p class="font-medium text-neutral-900">${{divf .SKU.PriceCents 100}}</p>
+                <p class="text-sm text-neutral-500">x {{.Quantity}}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Delivery Frequency -->
+        <div class="bg-white rounded-lg border border-neutral-200 overflow-hidden">
+          <div class="p-6">
+            <h2 class="text-base font-medium text-neutral-900 mb-4">Delivery Frequency</h2>
+            <select name="billing_interval" class="block w-full rounded-md border-neutral-300 shadow-sm focus:border-teal-700 focus:ring focus:ring-teal-200 focus:ring-opacity-50 py-2 px-3 text-sm">
+              <option value="weekly" {{if eq .BillingInterval "weekly"}}selected{{end}}>Every week</option>
+              <option value="biweekly" {{if eq .BillingInterval "biweekly"}}selected{{end}}>Every 2 weeks</option>
+              <option value="monthly" {{if eq .BillingInterval "monthly"}}selected{{end}}>Every month</option>
+              <option value="every_6_weeks" {{if eq .BillingInterval "every_6_weeks"}}selected{{end}}>Every 6 weeks</option>
+              <option value="every_2_months" {{if eq .BillingInterval "every_2_months"}}selected{{end}}>Every 2 months</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Shipping Address -->
+        <div class="bg-white rounded-lg border border-neutral-200 overflow-hidden">
+          <div class="p-6">
+            <h2 class="text-base font-medium text-neutral-900 mb-4">Shipping Address</h2>
+
+            {{if .HasAddresses}}
+            <div class="space-y-3">
+              {{range $i, $addr := .Addresses}}
+              <label class="flex items-start gap-3 p-4 border rounded-lg cursor-pointer hover:border-teal-600 transition-colors {{if $addr.IsDefaultShipping}}border-teal-600 bg-teal-50{{else}}border-neutral-200{{end}}">
+                <input type="radio" name="shipping_address_id" value="{{uuidToString $addr.ID}}"
+                       {{if $addr.IsDefaultShipping}}checked{{end}}
+                       class="mt-1 text-teal-700 focus:ring-teal-700">
+                <div class="flex-1">
+                  {{if $addr.Label}}
+                  <span class="inline-block px-2 py-0.5 text-xs font-medium bg-neutral-100 text-neutral-600 rounded mb-1">{{$addr.Label}}</span>
+                  {{end}}
+                  <p class="font-medium text-neutral-900">{{$addr.FullName}}</p>
+                  {{if $addr.Company}}<p class="text-sm text-neutral-600">{{$addr.Company}}</p>{{end}}
+                  <p class="text-sm text-neutral-600">{{$addr.AddressLine1}}</p>
+                  {{if $addr.AddressLine2}}<p class="text-sm text-neutral-600">{{$addr.AddressLine2}}</p>{{end}}
+                  <p class="text-sm text-neutral-600">{{$addr.City}}, {{$addr.State}} {{$addr.PostalCode}}</p>
+                </div>
+              </label>
+              {{end}}
+            </div>
+            <div class="mt-4">
+              <a href="/account/addresses/new?return_to={{.RequestPath}}" class="text-sm text-teal-700 hover:text-teal-800 font-medium">
+                + Add new address
+              </a>
+            </div>
+            {{else}}
+            <div class="text-center py-8">
+              <svg class="mx-auto h-12 w-12 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <h3 class="mt-2 text-sm font-medium text-neutral-900">No saved addresses</h3>
+              <p class="mt-1 text-sm text-neutral-500">Add an address to continue</p>
+              <div class="mt-4">
+                <a href="/account/addresses/new?return_to={{.RequestPath}}"
+                   class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-teal-700 hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-700">
+                  Add Address
+                </a>
+              </div>
+            </div>
+            {{end}}
+          </div>
+        </div>
+
+        <!-- Payment Method -->
+        <div class="bg-white rounded-lg border border-neutral-200 overflow-hidden">
+          <div class="p-6">
+            <h2 class="text-base font-medium text-neutral-900 mb-4">Payment Method</h2>
+
+            {{if .HasPaymentMethods}}
+            <div class="space-y-3">
+              {{range $i, $pm := .PaymentMethods}}
+              <label class="flex items-center gap-3 p-4 border rounded-lg cursor-pointer hover:border-teal-600 transition-colors {{if $pm.IsDefault}}border-teal-600 bg-teal-50{{else}}border-neutral-200{{end}}">
+                <input type="radio" name="payment_method_id" value="{{uuidToString $pm.ID}}"
+                       {{if $pm.IsDefault}}checked{{end}}
+                       class="text-teal-700 focus:ring-teal-700">
+                <div class="flex-1 flex items-center gap-3">
+                  {{if eq $pm.MethodType "card"}}
+                  <div class="w-10 h-6 bg-neutral-100 rounded flex items-center justify-center">
+                    <span class="text-xs font-medium text-neutral-600">{{$pm.DisplayBrand}}</span>
+                  </div>
+                  {{end}}
+                  <div>
+                    <p class="font-medium text-neutral-900">{{$pm.DisplayBrand}} ending in {{$pm.DisplayLast4}}</p>
+                    {{if and $pm.DisplayExpMonth $pm.DisplayExpYear}}
+                    <p class="text-sm text-neutral-500">Expires {{$pm.DisplayExpMonth}}/{{$pm.DisplayExpYear}}</p>
+                    {{end}}
+                  </div>
+                </div>
+              </label>
+              {{end}}
+            </div>
+            <div class="mt-4">
+              <a href="/account/payment-methods/new?return_to={{.RequestPath}}" class="text-sm text-teal-700 hover:text-teal-800 font-medium">
+                + Add new payment method
+              </a>
+            </div>
+            {{else}}
+            <div class="text-center py-8">
+              <svg class="mx-auto h-12 w-12 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+              </svg>
+              <h3 class="mt-2 text-sm font-medium text-neutral-900">No saved payment methods</h3>
+              <p class="mt-1 text-sm text-neutral-500">Add a payment method to continue</p>
+              <div class="mt-4">
+                <a href="/account/payment-methods/new?return_to={{.RequestPath}}"
+                   class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-teal-700 hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-700">
+                  Add Payment Method
+                </a>
+              </div>
+            </div>
+            {{end}}
+          </div>
+        </div>
+      </div>
+
+      <!-- Order Summary (2/5 width) -->
+      <div class="lg:col-span-2 mt-8 lg:mt-0">
+        <div class="bg-white rounded-lg border border-neutral-200 overflow-hidden sticky top-8">
+          <div class="p-6">
+            <h2 class="text-base font-medium text-neutral-900 mb-4">Order Summary</h2>
+
+            <div class="space-y-3">
+              <div class="flex justify-between text-sm">
+                <span class="text-neutral-600">Subtotal</span>
+                <span class="text-neutral-900">${{divf .SubtotalCents 100}}</span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-neutral-600">Shipping</span>
+                <span class="text-neutral-500">Calculated at billing</span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-neutral-600">Tax</span>
+                <span class="text-neutral-500">Calculated at billing</span>
+              </div>
+              <div class="border-t border-neutral-200 pt-3">
+                <div class="flex justify-between">
+                  <span class="font-medium text-neutral-900">Due today</span>
+                  <span class="font-medium text-neutral-900">${{divf .SubtotalCents 100}}</span>
+                </div>
+                <p class="text-xs text-neutral-500 mt-1">
+                  + shipping & tax charged with first delivery
+                </p>
+              </div>
+            </div>
+
+            <!-- Subscription Benefits -->
+            <div class="mt-6 p-4 bg-teal-50 rounded-lg border border-teal-100">
+              <h3 class="text-sm font-medium text-teal-800 mb-2">Subscription Benefits</h3>
+              <ul class="space-y-2 text-sm text-teal-700">
+                <li class="flex items-center gap-2">
+                  <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Fresh coffee on your schedule
+                </li>
+                <li class="flex items-center gap-2">
+                  <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Skip, pause, or cancel anytime
+                </li>
+                <li class="flex items-center gap-2">
+                  <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Manage from your account
+                </li>
+              </ul>
+            </div>
+
+            <!-- Hidden fields -->
+            <input type="hidden" name="product_sku_id" value="{{uuidToString .SKU.SKUID}}">
+            <input type="hidden" name="quantity" value="{{.Quantity}}">
+
+            <!-- Submit Button -->
+            <button type="submit"
+                    {{if not (and .HasAddresses .HasPaymentMethods)}}disabled{{end}}
+                    class="mt-6 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-md font-medium text-white shadow-sm transition-colors
+                           {{if and .HasAddresses .HasPaymentMethods}}bg-teal-700 hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-700{{else}}bg-neutral-300 cursor-not-allowed{{end}}">
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Start Subscription
+            </button>
+
+            {{if not (and .HasAddresses .HasPaymentMethods)}}
+            <p class="mt-3 text-center text-sm text-neutral-500">
+              Please add {{if not .HasAddresses}}a shipping address{{end}}{{if and (not .HasAddresses) (not .HasPaymentMethods)}} and {{end}}{{if not .HasPaymentMethods}}a payment method{{end}} to continue
+            </p>
+            {{end}}
+
+            <!-- Cancel link -->
+            <div class="mt-4 text-center">
+              <a href="/products/{{.SKU.ProductSlug}}" class="text-sm text-neutral-600 hover:text-neutral-900">
+                Cancel and return to product
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+
+  </div>
+</div>
+{{end}}

@@ -186,5 +186,15 @@ func TemplateFuncs() template.FuncMap {
 		"html": func(s string) template.HTML {
 			return template.HTML(s)
 		},
+
+		// UUID functions
+		"uuidToString": func(u pgtype.UUID) string {
+			if !u.Valid {
+				return ""
+			}
+			return fmt.Sprintf("%x-%x-%x-%x-%x",
+				u.Bytes[0:4], u.Bytes[4:6], u.Bytes[6:8],
+				u.Bytes[8:10], u.Bytes[10:16])
+		},
 	}
 }
