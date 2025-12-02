@@ -1090,11 +1090,17 @@ func buildSubscription(stripeSub *stripe.Subscription) *Subscription {
 		CustomerID:             stripeSub.Customer.ID,
 		Status:                 string(stripeSub.Status),
 		DefaultPaymentMethodID: "",
-		CurrentPeriodStart:     time.Unix(stripeSub.CurrentPeriodStart, 0),
-		CurrentPeriodEnd:       time.Unix(stripeSub.CurrentPeriodEnd, 0),
 		CancelAtPeriodEnd:      stripeSub.CancelAtPeriodEnd,
 		Metadata:               stripeSub.Metadata,
 		CreatedAt:              time.Unix(stripeSub.Created, 0),
+	}
+
+	// In stripe-go v83, CurrentPeriodStart/End are on subscription items, not the subscription itself
+	// Get period from first item if available
+	if len(stripeSub.Items.Data) > 0 {
+		firstItem := stripeSub.Items.Data[0]
+		subscription.CurrentPeriodStart = time.Unix(firstItem.CurrentPeriodStart, 0)
+		subscription.CurrentPeriodEnd = time.Unix(firstItem.CurrentPeriodEnd, 0)
 	}
 
 	// Set default payment method if present

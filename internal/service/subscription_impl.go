@@ -55,11 +55,8 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 		return nil, ErrInvalidBillingInterval
 	}
 
-	// Step 2: Get product SKU with pricing
-	sku, err := s.repo.GetProductSKUByID(ctx, repository.GetProductSKUByIDParams{
-		ID:       params.ProductSKUID,
-		TenantID: s.tenantID,
-	})
+	// Step 2: Get product SKU
+	sku, err := s.repo.GetSKUByID(ctx, params.ProductSKUID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrSKUNotFound
@@ -67,10 +64,16 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 		return nil, fmt.Errorf("failed to get product SKU: %w", err)
 	}
 
-	// Get price for SKU (assumes user's price list - would need price list service in real implementation)
-	priceRow, err := s.repo.GetPriceBySKUID(ctx, repository.GetPriceBySKUIDParams{
+	// Get default price list for tenant
+	defaultPriceList, err := s.repo.GetDefaultPriceList(ctx, s.tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get default price list: %w", err)
+	}
+
+	// Get price for SKU from default price list
+	priceEntry, err := s.repo.GetPriceForSKU(ctx, repository.GetPriceForSKUParams{
+		PriceListID:  defaultPriceList.ID,
 		ProductSkuID: params.ProductSKUID,
-		TenantID:     s.tenantID,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -110,11 +113,12 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 	}
 
 	// Step 5: Calculate pricing
-	unitPriceCents := priceRow.Amount
+	unitPriceCents := priceEntry.PriceCents
 	subtotalCents := unitPriceCents * params.Quantity
 	shippingCents := int32(0) // TODO: Calculate shipping based on shipping_method_id
 	taxCents := int32(0)      // TODO: Calculate tax if needed
 	totalCents := subtotalCents + shippingCents + taxCents
+	currency := "usd" // Default currency, could be from price list in future
 
 	// Step 6: Create local subscription record (pending status)
 	now := pgtype.Timestamptz{Time: time.Now(), Valid: true}
@@ -138,7 +142,7 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 		SubtotalCents:          subtotalCents,
 		TaxCents:               taxCents,
 		TotalCents:             totalCents,
-		Currency:               priceRow.Currency,
+		Currency:               currency,
 		ShippingAddressID:      params.ShippingAddressID,
 		ShippingMethodID:       params.ShippingMethodID,
 		ShippingCents:          shippingCents,
@@ -169,7 +173,11 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 
 	// Step 9: Create or get Stripe Product for this SKU
 	// Product name includes weight and grind for uniqueness
-	productName := fmt.Sprintf("%s - %s %s", product.Name, sku.WeightValue.String(), sku.WeightUnit)
+	weightStr := ""
+	if sku.WeightValue.Valid {
+		weightStr = sku.WeightValue.Int.String()
+	}
+	productName := fmt.Sprintf("%s - %s %s", product.Name, weightStr, sku.WeightUnit)
 	if sku.Grind != "" && sku.Grind != "whole_bean" {
 		productName = fmt.Sprintf("%s (%s)", productName, sku.Grind)
 	}
@@ -191,7 +199,7 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 	priceNickname := fmt.Sprintf("%s - %s", sku.Sku, params.BillingInterval)
 
 	stripePrice, err := s.billingProvider.CreateRecurringPrice(ctx, billing.CreateRecurringPriceParams{
-		Currency:        priceRow.Currency,
+		Currency:        currency,
 		UnitAmountCents: unitPriceCents,
 		BillingInterval: stripeInterval,
 		IntervalCount:   intervalCount,
@@ -357,7 +365,7 @@ func (s *subscriptionService) GetSubscription(ctx context.Context, params GetSub
 	for i, item := range items {
 		weightValue := ""
 		if item.WeightValue.Valid {
-			weightValue = item.WeightValue.String()
+			weightValue = item.WeightValue.Int.String()
 		}
 
 		imageURL := ""
@@ -870,18 +878,7 @@ func (s *subscriptionService) CreateOrderFromSubscriptionInvoice(ctx context.Con
 }
 
 // Helper functions
-
-func uuidToString(uuid pgtype.UUID) string {
-	if !uuid.Valid {
-		return ""
-	}
-	return fmt.Sprintf("%x-%x-%x-%x-%x",
-		uuid.Bytes[0:4],
-		uuid.Bytes[4:6],
-		uuid.Bytes[6:8],
-		uuid.Bytes[8:10],
-		uuid.Bytes[10:16])
-}
+// Note: uuidToString is defined in order.go
 
 func formatTimePtr(t *time.Time) string {
 	if t == nil {

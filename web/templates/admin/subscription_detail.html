@@ -1,0 +1,316 @@
+{{define "title"}}Subscription Details{{end}}
+
+{{define "content"}}
+<div class="space-y-8">
+    <!-- Back Link -->
+    <div>
+        <a href="/admin/subscriptions"
+           class="inline-flex items-center gap-2 text-sm/6 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white">
+            ← Back to Subscriptions
+        </a>
+    </div>
+
+    {{with .Subscription}}
+    <!-- Page Header -->
+    <div class="flex items-start justify-between">
+        <div>
+            {{template "heading" (dict "Level" "2" "Content" "Subscription Details")}}
+            <p class="mt-2 text-base/7 text-zinc-600 dark:text-zinc-400">
+                Created on {{.CreatedAt.Time.Format "January 2, 2006"}}
+            </p>
+        </div>
+        <div>
+            {{if eq .Status "active"}}
+                {{template "badge" (dict "Content" "Active" "Color" "green")}}
+            {{else if eq .Status "paused"}}
+                {{template "badge" (dict "Content" "Paused" "Color" "amber")}}
+            {{else if eq .Status "past_due"}}
+                {{template "badge" (dict "Content" "Past Due" "Color" "red")}}
+            {{else if eq .Status "cancelled"}}
+                {{template "badge" (dict "Content" "Cancelled" "Color" "zinc")}}
+            {{else}}
+                {{template "badge" (dict "Content" .Status "Color" "zinc")}}
+            {{end}}
+        </div>
+    </div>
+
+    <div class="grid gap-8 lg:grid-cols-3">
+        <!-- Main Content (2/3 width) -->
+        <div class="space-y-8 lg:col-span-2">
+            <!-- Subscription Items -->
+            <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+                {{template "heading" (dict "Level" "3" "Content" "Subscription Items")}}
+
+                <div class="mt-6 overflow-x-auto">
+                    <table class="min-w-full text-left text-sm/6 text-zinc-950 dark:text-white">
+                        <thead class="text-zinc-500 dark:text-zinc-400">
+                            <tr>
+                                <th class="px-4 py-3 font-medium">Product</th>
+                                <th class="px-4 py-3 font-medium">SKU</th>
+                                <th class="px-4 py-3 font-medium text-right">Qty</th>
+                                <th class="px-4 py-3 font-medium text-right">Price</th>
+                                <th class="px-4 py-3 font-medium text-right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-950/5 dark:divide-white/5">
+                            {{range $.Items}}
+                            <tr>
+                                <td class="px-4 py-3">
+                                    <div class="font-medium">{{.ProductName}}</div>
+                                    {{if or .WeightValue.Valid .Grind.Valid}}
+                                    <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                                        {{if .WeightValue.Valid}}{{.WeightValue.String}} {{.WeightUnit.String}}{{end}}
+                                        {{if .Grind.Valid}} · {{.Grind.String}}{{end}}
+                                    </div>
+                                    {{end}}
+                                </td>
+                                <td class="px-4 py-3 text-zinc-600 dark:text-zinc-400">{{.Sku}}</td>
+                                <td class="px-4 py-3 text-right">{{.Quantity}}</td>
+                                <td class="px-4 py-3 text-right">
+                                    ${{printf "%.2f" (divf (add .UnitPriceCents 0.0) 100.0)}}
+                                </td>
+                                <td class="px-4 py-3 text-right font-medium">
+                                    ${{printf "%.2f" (divf (mulf (add .UnitPriceCents 0.0) (add .Quantity 0.0)) 100.0)}}
+                                </td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                        <tfoot class="border-t-2 border-zinc-950/10 dark:border-white/10">
+                            <tr>
+                                <td colspan="4" class="px-4 py-2 text-right text-zinc-600 dark:text-zinc-400">
+                                    Subtotal
+                                </td>
+                                <td class="px-4 py-2 text-right font-medium">
+                                    ${{printf "%.2f" (divf (add .SubtotalCents 0.0) 100.0)}}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="4" class="px-4 py-2 text-right text-zinc-600 dark:text-zinc-400">
+                                    Shipping
+                                </td>
+                                <td class="px-4 py-2 text-right font-medium">
+                                    ${{printf "%.2f" (divf (add .ShippingCents 0.0) 100.0)}}
+                                </td>
+                            </tr>
+                            {{if gt .TaxCents 0}}
+                            <tr>
+                                <td colspan="4" class="px-4 py-2 text-right text-zinc-600 dark:text-zinc-400">
+                                    Tax
+                                </td>
+                                <td class="px-4 py-2 text-right font-medium">
+                                    ${{printf "%.2f" (divf (add .TaxCents 0.0) 100.0)}}
+                                </td>
+                            </tr>
+                            {{end}}
+                            <tr>
+                                <td colspan="4" class="px-4 py-3 text-right font-semibold">
+                                    Total per delivery
+                                </td>
+                                <td class="px-4 py-3 text-right text-lg font-semibold">
+                                    ${{printf "%.2f" (divf (add .TotalCents 0.0) 100.0)}}
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Order History -->
+            {{if $.Orders}}
+            <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+                {{template "heading" (dict "Level" "3" "Content" "Order History")}}
+
+                <div class="mt-6 overflow-x-auto">
+                    <table class="min-w-full text-left text-sm/6 text-zinc-950 dark:text-white">
+                        <thead class="text-zinc-500 dark:text-zinc-400">
+                            <tr>
+                                <th class="px-4 py-3 font-medium">Order</th>
+                                <th class="px-4 py-3 font-medium">Date</th>
+                                <th class="px-4 py-3 font-medium">Status</th>
+                                <th class="px-4 py-3 font-medium text-right">Amount</th>
+                                <th class="px-4 py-3 font-medium">
+                                    <span class="sr-only">Actions</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-950/5 dark:divide-white/5">
+                            {{range $.Orders}}
+                            <tr>
+                                <td class="px-4 py-3 font-medium">{{.OrderNumber}}</td>
+                                <td class="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                                    {{if .CreatedAt.Valid}}
+                                        {{.CreatedAt.Time.Format "Jan 2, 2006"}}
+                                    {{end}}
+                                </td>
+                                <td class="px-4 py-3">
+                                    {{if eq .Status "pending"}}
+                                        {{template "badge" (dict "Content" "Pending" "Color" "amber")}}
+                                    {{else if eq .Status "processing"}}
+                                        {{template "badge" (dict "Content" "Processing" "Color" "blue")}}
+                                    {{else if eq .Status "shipped"}}
+                                        {{template "badge" (dict "Content" "Shipped" "Color" "green")}}
+                                    {{else if eq .Status "delivered"}}
+                                        {{template "badge" (dict "Content" "Delivered" "Color" "green")}}
+                                    {{else}}
+                                        {{template "badge" (dict "Content" .Status "Color" "zinc")}}
+                                    {{end}}
+                                </td>
+                                <td class="px-4 py-3 text-right font-medium">
+                                    ${{printf "%.2f" (divf (add .TotalCents 0.0) 100.0)}}
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <a href="/admin/orders/{{.ID}}"
+                                       class="text-sm/6 font-medium text-zinc-950 hover:text-zinc-700 dark:text-white dark:hover:text-zinc-300">
+                                        View
+                                    </a>
+                                </td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            {{end}}
+        </div>
+
+        <!-- Sidebar (1/3 width) -->
+        <div class="space-y-6">
+            <!-- Customer Info -->
+            <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+                {{template "heading" (dict "Level" "3" "Content" "Customer")}}
+
+                <div class="mt-4 space-y-2">
+                    {{if .CustomerName.Valid}}
+                    <div>
+                        <div class="text-sm text-zinc-600 dark:text-zinc-400">Name</div>
+                        <div class="mt-1 font-medium">{{.CustomerName.String}}</div>
+                    </div>
+                    {{end}}
+                    {{if .CustomerEmail.Valid}}
+                    <div>
+                        <div class="text-sm text-zinc-600 dark:text-zinc-400">Email</div>
+                        <div class="mt-1">{{.CustomerEmail.String}}</div>
+                    </div>
+                    {{end}}
+                </div>
+            </section>
+
+            <!-- Delivery Schedule -->
+            <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+                {{template "heading" (dict "Level" "3" "Content" "Delivery Schedule")}}
+
+                <div class="mt-4 space-y-3">
+                    <div>
+                        <div class="text-sm text-zinc-600 dark:text-zinc-400">Frequency</div>
+                        <div class="mt-1 font-medium">
+                            {{if eq .BillingInterval "weekly"}}Weekly{{end}}
+                            {{if eq .BillingInterval "biweekly"}}Every 2 weeks{{end}}
+                            {{if eq .BillingInterval "monthly"}}Monthly{{end}}
+                            {{if eq .BillingInterval "every_6_weeks"}}Every 6 weeks{{end}}
+                            {{if eq .BillingInterval "every_2_months"}}Every 2 months{{end}}
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-sm text-zinc-600 dark:text-zinc-400">Current period</div>
+                        <div class="mt-1">
+                            {{if .CurrentPeriodStart.Valid}}
+                                {{.CurrentPeriodStart.Time.Format "Jan 2"}}
+                            {{end}}
+                            {{if and .CurrentPeriodStart.Valid .CurrentPeriodEnd.Valid}} - {{end}}
+                            {{if .CurrentPeriodEnd.Valid}}
+                                {{.CurrentPeriodEnd.Time.Format "Jan 2, 2006"}}
+                            {{end}}
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-sm text-zinc-600 dark:text-zinc-400">Next billing date</div>
+                        <div class="mt-1 font-medium">
+                            {{if .NextBillingDate.Valid}}
+                                {{.NextBillingDate.Time.Format "January 2, 2006"}}
+                            {{end}}
+                        </div>
+                    </div>
+                    {{if .CancelAtPeriodEnd.Bool}}
+                    <div class="rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20">
+                        <p class="text-sm text-amber-900 dark:text-amber-300">
+                            Scheduled to cancel at period end
+                        </p>
+                    </div>
+                    {{end}}
+                </div>
+            </section>
+
+            <!-- Shipping Address -->
+            {{if or .ShippingAddressLine1.Valid .ShippingCity.Valid}}
+            <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+                {{template "heading" (dict "Level" "3" "Content" "Shipping Address")}}
+
+                <div class="mt-4 text-sm">
+                    {{if .ShippingFullName.Valid}}
+                    <div class="font-medium">{{.ShippingFullName.String}}</div>
+                    {{end}}
+                    {{if .ShippingAddressLine1.Valid}}
+                    <div>{{.ShippingAddressLine1.String}}</div>
+                    {{end}}
+                    {{if .ShippingAddressLine2.Valid}}
+                    <div>{{.ShippingAddressLine2.String}}</div>
+                    {{end}}
+                    <div>
+                        {{if .ShippingCity.Valid}}{{.ShippingCity.String}}, {{end}}
+                        {{if .ShippingState.Valid}}{{.ShippingState.String}} {{end}}
+                        {{if .ShippingPostalCode.Valid}}{{.ShippingPostalCode.String}}{{end}}
+                    </div>
+                    {{if .ShippingCountry.Valid}}
+                    <div>{{.ShippingCountry.String}}</div>
+                    {{end}}
+                </div>
+            </section>
+            {{end}}
+
+            <!-- Payment Method -->
+            {{if .PaymentMethodBrand.Valid}}
+            <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+                {{template "heading" (dict "Level" "3" "Content" "Payment Method")}}
+
+                <div class="mt-4">
+                    <div class="font-medium">
+                        {{.PaymentMethodBrand.String}}
+                        {{if .PaymentMethodLast4.Valid}} •••• {{.PaymentMethodLast4.String}}{{end}}
+                    </div>
+                    {{if and .PaymentMethodExpMonth.Valid .PaymentMethodExpYear.Valid}}
+                    <div class="text-sm text-zinc-600 dark:text-zinc-400">
+                        Expires {{.PaymentMethodExpMonth.Int32}}/{{.PaymentMethodExpYear.Int32}}
+                    </div>
+                    {{end}}
+                </div>
+            </section>
+            {{end}}
+
+            <!-- Provider Info -->
+            <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+                {{template "heading" (dict "Level" "3" "Content" "Provider Details")}}
+
+                <div class="mt-4 space-y-2 text-sm">
+                    <div>
+                        <div class="text-zinc-600 dark:text-zinc-400">Provider</div>
+                        <div class="mt-1 font-mono">{{.Provider}}</div>
+                    </div>
+                    {{if .ProviderSubscriptionID.Valid}}
+                    <div>
+                        <div class="text-zinc-600 dark:text-zinc-400">Subscription ID</div>
+                        <div class="mt-1 font-mono text-xs">{{.ProviderSubscriptionID.String}}</div>
+                    </div>
+                    {{end}}
+                    {{if .ProviderCustomerID.Valid}}
+                    <div>
+                        <div class="text-zinc-600 dark:text-zinc-400">Customer ID</div>
+                        <div class="mt-1 font-mono text-xs">{{.ProviderCustomerID.String}}</div>
+                    </div>
+                    {{end}}
+                </div>
+            </section>
+        </div>
+    </div>
+    {{end}}
+</div>
+{{end}}

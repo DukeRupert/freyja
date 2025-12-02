@@ -48,7 +48,7 @@ type Provider interface {
 
 	// CreateSubscription creates a recurring subscription.
 	// Post-MVP: For coffee subscriptions.
-	CreateSubscription(ctx context.Context, params SubscriptionParams) (*Subscription, error)
+	CreateSubscription(ctx context.Context, params CreateSubscriptionParams) (*Subscription, error)
 
 	// CreateProduct creates a billing provider product.
 	// Required for subscriptions to create Stripe Products for each subscribable SKU.

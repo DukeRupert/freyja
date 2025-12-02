@@ -143,6 +143,14 @@ func run() error {
 	}
 	logger.Info("Order service initialized")
 
+	// Initialize subscription service
+	logger.Info("Initializing subscription service...")
+	subscriptionService, err := service.NewSubscriptionService(repo, cfg.TenantID, billingProvider)
+	if err != nil {
+		return fmt.Errorf("failed to initialize subscription service: %w", err)
+	}
+	logger.Info("Subscription service initialized")
+
 	// Initialize address validator (mock for MVP)
 	logger.Info("Initializing address validator...")
 	addressValidator := address.NewMockValidator()
@@ -178,7 +186,7 @@ func run() error {
 	orderConfirmationHandler := storefront.NewOrderConfirmationHandler(renderer, cartService, orderService, repo, cfg.TenantID)
 
 	// Initialize webhook handler
-	stripeWebhookHandler := webhook.NewStripeHandler(billingProvider, orderService, webhook.StripeWebhookConfig{
+	stripeWebhookHandler := webhook.NewStripeHandler(billingProvider, orderService, subscriptionService, webhook.StripeWebhookConfig{
 		WebhookSecret: cfg.Stripe.WebhookSecret,
 		TenantID:      cfg.TenantID,
 	})

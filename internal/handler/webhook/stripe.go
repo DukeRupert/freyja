@@ -266,8 +266,17 @@ func (h *StripeHandler) handlePaymentIntentCanceled(event stripe.Event) {
 	// cartService.MarkAbandoned(paymentIntent.Metadata["cart_id"])
 }
 
+// getSubscriptionFromInvoice extracts subscription info from invoice using Stripe v83 API structure
+// Returns nil if invoice is not for a subscription
+func getSubscriptionFromInvoice(invoice *stripe.Invoice) *stripe.Subscription {
+	if invoice.Parent == nil || invoice.Parent.SubscriptionDetails == nil {
+		return nil
+	}
+	return invoice.Parent.SubscriptionDetails.Subscription
+}
+
 // handleInvoicePaymentSucceeded processes successful invoice payment events
-// Creates orders for subscription renewals when invoice.subscription is set
+// Creates orders for subscription renewals when invoice has a subscription parent
 func (h *StripeHandler) handleInvoicePaymentSucceeded(event stripe.Event) {
 	var invoice stripe.Invoice
 	if err := json.Unmarshal(event.Data.Raw, &invoice); err != nil {
@@ -280,18 +289,19 @@ func (h *StripeHandler) handleInvoicePaymentSucceeded(event stripe.Event) {
 		invoice.AmountPaid,
 		invoice.Currency)
 
-	// Check if this invoice is for a subscription
-	if invoice.Subscription == nil || invoice.Subscription.ID == "" {
+	// Check if this invoice is for a subscription (Stripe v83 API structure)
+	subscription := getSubscriptionFromInvoice(&invoice)
+	if subscription == nil || subscription.ID == "" {
 		log.Printf("Invoice %s is not for a subscription, skipping order creation", invoice.ID)
 		return
 	}
 
-	log.Printf("Creating subscription renewal order for subscription: %s", invoice.Subscription.ID)
+	log.Printf("Creating subscription renewal order for subscription: %s", subscription.ID)
 
 	// Extract metadata for tenant validation
 	var tenantID string
-	if invoice.Subscription.Metadata != nil {
-		tenantID = invoice.Subscription.Metadata["tenant_id"]
+	if subscription.Metadata != nil {
+		tenantID = subscription.Metadata["tenant_id"]
 	}
 
 	// Verify this subscription belongs to our tenant
@@ -329,7 +339,7 @@ func (h *StripeHandler) handleInvoicePaymentSucceeded(event stripe.Event) {
 	log.Printf("Subscription renewal order created successfully: %s (invoice: %s, subscription: %s)",
 		order.Order.OrderNumber,
 		invoice.ID,
-		invoice.Subscription.ID)
+		subscription.ID)
 
 	// TODO: Send subscription renewal email to customer
 	// TODO: Trigger fulfillment workflow
@@ -346,18 +356,19 @@ func (h *StripeHandler) handleInvoicePaymentFailed(event stripe.Event) {
 
 	log.Printf("Invoice payment failed: %s", invoice.ID)
 
-	// Check if this invoice is for a subscription
-	if invoice.Subscription == nil || invoice.Subscription.ID == "" {
+	// Check if this invoice is for a subscription (Stripe v83 API structure)
+	subscription := getSubscriptionFromInvoice(&invoice)
+	if subscription == nil || subscription.ID == "" {
 		log.Printf("Invoice %s is not for a subscription, skipping", invoice.ID)
 		return
 	}
 
-	log.Printf("Subscription %s payment failed", invoice.Subscription.ID)
+	log.Printf("Subscription %s payment failed", subscription.ID)
 
 	// Extract metadata for tenant validation
 	var tenantID string
-	if invoice.Subscription.Metadata != nil {
-		tenantID = invoice.Subscription.Metadata["tenant_id"]
+	if subscription.Metadata != nil {
+		tenantID = subscription.Metadata["tenant_id"]
 	}
 
 	// Verify this subscription belongs to our tenant
@@ -378,16 +389,16 @@ func (h *StripeHandler) handleInvoicePaymentFailed(event stripe.Event) {
 	ctx := context.Background()
 	err := h.subscriptionService.SyncSubscriptionFromWebhook(ctx, service.SyncSubscriptionParams{
 		TenantID:               tenantUUID,
-		ProviderSubscriptionID: invoice.Subscription.ID,
-		EventType:              event.Type,
+		ProviderSubscriptionID: subscription.ID,
+		EventType:              string(event.Type),
 		EventID:                event.ID,
 	})
 	if err != nil {
-		log.Printf("ERROR: Failed to sync subscription %s: %v", invoice.Subscription.ID, err)
+		log.Printf("ERROR: Failed to sync subscription %s: %v", subscription.ID, err)
 		return
 	}
 
-	log.Printf("Subscription %s status updated to past_due", invoice.Subscription.ID)
+	log.Printf("Subscription %s status updated to past_due", subscription.ID)
 
 	// TODO: Send payment failure email to customer
 	// TODO: Attempt retry logic based on dunning settings
@@ -429,7 +440,7 @@ func (h *StripeHandler) handleSubscriptionUpdated(event stripe.Event) {
 	err := h.subscriptionService.SyncSubscriptionFromWebhook(ctx, service.SyncSubscriptionParams{
 		TenantID:               tenantUUID,
 		ProviderSubscriptionID: subscription.ID,
-		EventType:              event.Type,
+		EventType:              string(event.Type),
 		EventID:                event.ID,
 	})
 	if err != nil {
@@ -476,7 +487,7 @@ func (h *StripeHandler) handleSubscriptionDeleted(event stripe.Event) {
 	err := h.subscriptionService.SyncSubscriptionFromWebhook(ctx, service.SyncSubscriptionParams{
 		TenantID:               tenantUUID,
 		ProviderSubscriptionID: subscription.ID,
-		EventType:              event.Type,
+		EventType:              string(event.Type),
 		EventID:                event.ID,
 	})
 	if err != nil {

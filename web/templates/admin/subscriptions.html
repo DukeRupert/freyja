@@ -1,0 +1,169 @@
+{{define "title"}}Subscriptions{{end}}
+
+{{define "content"}}
+<div class="space-y-8">
+    <!-- Page Header -->
+    {{template "page-header" (dict
+        "Title" "Subscriptions"
+        "Description" "Manage recurring coffee deliveries and subscriptions")}}
+
+    <!-- Stats Overview -->
+    {{if .Stats}}
+    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm/6 font-medium text-zinc-600 dark:text-zinc-400">Active Subscriptions</p>
+                    <p class="mt-2 text-3xl font-semibold text-zinc-950 dark:text-white">
+                        {{.Stats.ActiveCount}}
+                    </p>
+                </div>
+                <div class="rounded-lg bg-teal-100 p-3 dark:bg-teal-900/20">
+                    <svg class="h-6 w-6 text-teal-700 dark:text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm/6 font-medium text-zinc-600 dark:text-zinc-400">Paused</p>
+                    <p class="mt-2 text-3xl font-semibold text-zinc-950 dark:text-white">
+                        {{.Stats.PausedCount}}
+                    </p>
+                </div>
+                <div class="rounded-lg bg-amber-100 p-3 dark:bg-amber-900/20">
+                    <svg class="h-6 w-6 text-amber-700 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm/6 font-medium text-zinc-600 dark:text-zinc-400">Monthly Revenue</p>
+                    <p class="mt-2 text-3xl font-semibold text-zinc-950 dark:text-white">
+                        ${{printf "%.2f" (divf (add .Stats.MonthlyRecurringRevenue 0.0) 100.0)}}
+                    </p>
+                </div>
+                <div class="rounded-lg bg-green-100 p-3 dark:bg-green-900/20">
+                    <svg class="h-6 w-6 text-green-700 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm/6 font-medium text-zinc-600 dark:text-zinc-400">Total Subscriptions</p>
+                    <p class="mt-2 text-3xl font-semibold text-zinc-950 dark:text-white">
+                        {{.Stats.TotalCount}}
+                    </p>
+                </div>
+                <div class="rounded-lg bg-blue-100 p-3 dark:bg-blue-900/20">
+                    <svg class="h-6 w-6 text-blue-700 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+    {{end}}
+
+    <!-- Subscriptions Table -->
+    {{if .Subscriptions}}
+    {{template "table-start" (dict "Title" "All Subscriptions")}}
+        <table class="min-w-full text-left text-sm/6 text-zinc-950 dark:text-white">
+            <thead class="text-zinc-500 dark:text-zinc-400">
+                <tr>
+                    <th class="px-6 py-3 font-medium">Customer</th>
+                    <th class="px-6 py-3 font-medium">Product</th>
+                    <th class="px-6 py-3 font-medium">Frequency</th>
+                    <th class="px-6 py-3 font-medium">Status</th>
+                    <th class="px-6 py-3 font-medium">Amount</th>
+                    <th class="px-6 py-3 font-medium">Next Billing</th>
+                    <th class="px-6 py-3 font-medium">
+                        <span class="sr-only">Actions</span>
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-950/5 dark:divide-white/5">
+                {{range .Subscriptions}}
+                <tr class="hover:bg-zinc-950/[2.5%] dark:hover:bg-white/[2.5%]">
+                    <td class="px-6 py-4">
+                        {{if .CustomerName.Valid}}
+                        <div>
+                            <div class="font-medium text-zinc-950 dark:text-white">
+                                {{.CustomerName.String}}
+                            </div>
+                            {{if .CustomerEmail.Valid}}
+                            <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                                {{.CustomerEmail.String}}
+                            </div>
+                            {{end}}
+                        </div>
+                        {{else}}
+                        <span class="text-zinc-500 dark:text-zinc-400">Unknown</span>
+                        {{end}}
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="font-medium text-zinc-950 dark:text-white">
+                            {{.ProductName.String}}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-zinc-600 dark:text-zinc-400">
+                        {{if eq .BillingInterval "weekly"}}Weekly{{end}}
+                        {{if eq .BillingInterval "biweekly"}}Biweekly{{end}}
+                        {{if eq .BillingInterval "monthly"}}Monthly{{end}}
+                        {{if eq .BillingInterval "every_6_weeks"}}Every 6 weeks{{end}}
+                        {{if eq .BillingInterval "every_2_months"}}Every 2 months{{end}}
+                    </td>
+                    <td class="px-6 py-4">
+                        {{if eq .Status "active"}}
+                            {{template "badge" (dict "Content" "Active" "Color" "green")}}
+                        {{else if eq .Status "paused"}}
+                            {{template "badge" (dict "Content" "Paused" "Color" "amber")}}
+                        {{else if eq .Status "past_due"}}
+                            {{template "badge" (dict "Content" "Past Due" "Color" "red")}}
+                        {{else if eq .Status "cancelled"}}
+                            {{template "badge" (dict "Content" "Cancelled" "Color" "zinc")}}
+                        {{else}}
+                            {{template "badge" (dict "Content" .Status "Color" "zinc")}}
+                        {{end}}
+                    </td>
+                    <td class="px-6 py-4 text-zinc-950 dark:text-white">
+                        ${{printf "%.2f" (divf (add .TotalCents 0.0) 100.0)}}
+                    </td>
+                    <td class="px-6 py-4 text-zinc-500 dark:text-zinc-400">
+                        {{if .NextBillingDate.Valid}}
+                            {{.NextBillingDate.Time.Format "Jan 2, 2006"}}
+                        {{else}}
+                            -
+                        {{end}}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="/admin/subscriptions/{{.ID}}"
+                           class="text-sm/6 font-medium text-zinc-950 hover:text-zinc-700 dark:text-white dark:hover:text-zinc-300">
+                            View
+                        </a>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    {{template "table-end"}}
+    {{else}}
+    {{template "table-start"}}
+        {{template "empty-state" (dict
+            "Title" "No subscriptions yet"
+            "Description" "Subscriptions will appear here when customers sign up for recurring deliveries")}}
+    {{template "table-end"}}
+    {{end}}
+</div>
+{{end}}
