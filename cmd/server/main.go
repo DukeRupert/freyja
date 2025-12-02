@@ -202,6 +202,14 @@ func run() error {
 	adminCustomerListHandler := admin.NewCustomerListHandler(repo, renderer, cfg.TenantID)
 	updateOrderStatusHandler := admin.NewUpdateOrderStatusHandler(repo, cfg.TenantID)
 	createShipmentHandler := admin.NewCreateShipmentHandler(repo, cfg.TenantID)
+	adminSubscriptionListHandler := admin.NewSubscriptionListHandler(repo, renderer, cfg.TenantID)
+	adminSubscriptionDetailHandler := admin.NewSubscriptionDetailHandler(repo, renderer, cfg.TenantID)
+
+	// Initialize storefront subscription handlers
+	subscriptionListHandler := storefront.NewSubscriptionListHandler(subscriptionService, renderer, cfg.TenantID)
+	subscriptionDetailHandler := storefront.NewSubscriptionDetailHandler(subscriptionService, renderer, cfg.TenantID)
+	subscriptionPortalHandler := storefront.NewSubscriptionPortalHandler(subscriptionService, cfg.TenantID)
+	createSubscriptionHandler := storefront.NewCreateSubscriptionHandler(subscriptionService, renderer, cfg.TenantID)
 
 	// Create router with global middleware
 	r := router.New(
@@ -236,6 +244,12 @@ func run() error {
 	r.Post("/checkout/create-payment-intent", createPaymentIntentHandler.ServeHTTP)
 	r.Get("/order-confirmation", orderConfirmationHandler.ServeHTTP)
 
+	// Subscription routes (customer-facing)
+	r.Get("/account/subscriptions", subscriptionListHandler.ServeHTTP)
+	r.Get("/account/subscriptions/portal", subscriptionPortalHandler.ServeHTTP)
+	r.Get("/account/subscriptions/{id}", subscriptionDetailHandler.ServeHTTP)
+	r.Post("/subscribe", createSubscriptionHandler.ServeHTTP)
+
 	// Webhook routes (no authentication - Stripe handles signature verification)
 	r.Post("/webhooks/stripe", stripeWebhookHandler.HandleWebhook)
 
@@ -263,6 +277,10 @@ func run() error {
 
 	// Customer routes
 	adminRouter.Get("/admin/customers", adminCustomerListHandler.ServeHTTP)
+
+	// Subscription routes
+	adminRouter.Get("/admin/subscriptions", adminSubscriptionListHandler.ServeHTTP)
+	adminRouter.Get("/admin/subscriptions/{id}", adminSubscriptionDetailHandler.ServeHTTP)
 
 	// Start server
 	addr := fmt.Sprintf(":%d", cfg.Port)

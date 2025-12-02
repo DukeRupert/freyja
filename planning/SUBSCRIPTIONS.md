@@ -1,7 +1,7 @@
 # Subscription Feature Design
 
 **Created:** December 2024
-**Status:** Implementation in progress (Phase 6 partial)
+**Status:** Core implementation complete, ready for testing
 **Last Updated:** December 1, 2024
 
 ---
@@ -17,11 +17,14 @@
   - PauseSubscription, ResumeSubscription, CancelSubscription
   - CreateCustomerPortalSession, CreateProduct
 - [x] Fix Stripe v83 API compatibility (CurrentPeriodStart/End on SubscriptionItem)
+- [x] Add `GetInvoice` method to billing provider
 
 **Phase 2: SQLc Queries**
 - [x] Create `sqlc/queries/subscriptions.sql` with comprehensive queries
 - [x] Generate repository code via `sqlc generate`
 - [x] Includes: CRUD operations, user queries, admin queries, stats
+- [x] Add `subscription_id` to CreateOrder query
+- [x] Add `ListOrdersBySubscription` query for order history
 
 **Phase 3: Subscription Service**
 - [x] Create `internal/service/subscription.go` (interface + types)
@@ -29,6 +32,7 @@
 - [x] Implement CreateSubscription, GetSubscription, ListSubscriptionsForUser
 - [x] Implement PauseSubscription, ResumeSubscription, CancelSubscription
 - [x] Implement CreateCustomerPortalSession, SyncSubscriptionFromWebhook
+- [x] Implement `CreateOrderFromSubscriptionInvoice` - creates orders from paid invoices
 - [x] Initialize service in main.go
 
 **Phase 4: Webhook Handlers**
@@ -38,8 +42,9 @@
 - [x] Handle `customer.subscription.updated` → syncs subscription state
 - [x] Handle `customer.subscription.deleted` → marks as expired
 - [x] Fix Stripe v83 Invoice API (subscription now in Parent.SubscriptionDetails)
+- [x] Fix Stripe v83 Invoice.Payments API (PaymentIntent now in Payments.Data[].Payment)
 
-**Phase 6: HTTP Handlers & UI (Partial)**
+**Phase 6: HTTP Handlers & UI**
 - [x] Create `internal/handler/storefront/subscription.go`
   - SubscriptionListHandler: GET /account/subscriptions
   - SubscriptionDetailHandler: GET /account/subscriptions/{id}
@@ -53,32 +58,23 @@
   - `web/templates/storefront/subscription_detail.html`
   - `web/templates/admin/subscriptions.html`
   - `web/templates/admin/subscription_detail.html`
+- [x] Register all routes in main.go
+- [x] Add `mulf` template function for price calculations
 
 ### Remaining 🔲
-
-**Phase 4: Webhook Handlers (Completion)**
-- [ ] Implement `CreateOrderFromSubscriptionInvoice()` fully
-  - Currently documented but returns error "requires additional infrastructure"
-  - Needs: GetInvoice billing method, order creation refactoring
 
 **Phase 5: Lifecycle Operations**
 - [ ] Test pause/resume/cancel with Stripe CLI
 - [ ] Add email notifications for lifecycle events
 
-**Phase 6: HTTP Handlers & UI (Completion)**
-- [ ] Register routes in main.go
+**Phase 6: UI Polish**
 - [ ] Add authentication middleware to storefront handlers
 - [ ] Add "Subscribe" option to product detail pages
 - [ ] Create subscription creation flow UI
 
-**Phase 7: Admin UI**
-- [ ] Add ListOrdersBySubscription query for order history
-- [ ] Wire up admin UI to routes
-
-**Infrastructure Needs**
-- [ ] Add `GetInvoice` method to billing provider
-- [ ] Refactor order creation into reusable internal method
-- [ ] Add `DecrementInventory` repository method if missing
+**Testing**
+- [ ] Update test mocks to include new interface methods (ClearCart, subscription methods)
+- [ ] Add integration tests for subscription flow
 
 ### Git Commits
 
@@ -92,6 +88,8 @@
 2. **pgtype.Numeric**: No `.String()` method. Use `.Int.String()` when `.Valid` is true.
 
 3. **Authentication**: Storefront handlers have TODO placeholders for user authentication. Need to extract userID from session/context once auth middleware is wired up.
+
+4. **Test Mocks**: Test files have mock implementations that don't include new interface methods added for subscriptions. Need to update mocks for CartService, billing.Provider, and repository.Querier.
 
 ## Overview
 

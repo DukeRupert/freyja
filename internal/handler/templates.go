@@ -90,6 +90,34 @@ func TemplateFuncs() template.FuncMap {
 			}
 			return aVal - bVal
 		},
+		"mulf": func(a, b interface{}) float64 {
+			var aVal, bVal float64
+			switch v := a.(type) {
+			case int:
+				aVal = float64(v)
+			case int32:
+				aVal = float64(v)
+			case int64:
+				aVal = float64(v)
+			case float32:
+				aVal = float64(v)
+			case float64:
+				aVal = v
+			}
+			switch v := b.(type) {
+			case int:
+				bVal = float64(v)
+			case int32:
+				bVal = float64(v)
+			case int64:
+				bVal = float64(v)
+			case float32:
+				bVal = float64(v)
+			case float64:
+				bVal = v
+			}
+			return aVal * bVal
+		},
 
 		// Date/Time functions
 		"year": func() int {

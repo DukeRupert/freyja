@@ -156,9 +156,10 @@ INSERT INTO orders (
     currency,
     shipping_address_id,
     billing_address_id,
-    customer_notes
+    customer_notes,
+    subscription_id
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
 )
 RETURNING id, tenant_id, user_id, order_number, order_type, status, subtotal_cents, tax_cents, shipping_cents, discount_cents, total_cents, currency, payment_id, payment_status, shipping_address_id, billing_address_id, shipping_method, shipping_carrier, customer_notes, internal_notes, fulfillment_status, cart_id, subscription_id, metadata, paid_at, shipped_at, delivered_at, cancelled_at, created_at, updated_at
 `
@@ -178,6 +179,7 @@ type CreateOrderParams struct {
 	ShippingAddressID pgtype.UUID `json:"shipping_address_id"`
 	BillingAddressID  pgtype.UUID `json:"billing_address_id"`
 	CustomerNotes     pgtype.Text `json:"customer_notes"`
+	SubscriptionID    pgtype.UUID `json:"subscription_id"`
 }
 
 // Creates a new order record with all required fields
@@ -198,6 +200,7 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 		arg.ShippingAddressID,
 		arg.BillingAddressID,
 		arg.CustomerNotes,
+		arg.SubscriptionID,
 	)
 	var i Order
 	err := row.Scan(
@@ -1141,6 +1144,76 @@ func (q *Queries) ListOrdersByStatus(ctx context.Context, arg ListOrdersByStatus
 			&i.CreatedAt,
 			&i.CustomerEmail,
 			&i.CustomerName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrdersBySubscription = `-- name: ListOrdersBySubscription :many
+SELECT
+    o.id,
+    o.tenant_id,
+    o.order_number,
+    o.order_type,
+    o.status,
+    o.total_cents,
+    o.currency,
+    o.fulfillment_status,
+    o.created_at,
+    p.status as payment_status
+FROM orders o
+LEFT JOIN payments p ON p.id = o.payment_id
+WHERE o.tenant_id = $1
+  AND o.subscription_id = $2
+ORDER BY o.created_at DESC
+`
+
+type ListOrdersBySubscriptionParams struct {
+	TenantID       pgtype.UUID `json:"tenant_id"`
+	SubscriptionID pgtype.UUID `json:"subscription_id"`
+}
+
+type ListOrdersBySubscriptionRow struct {
+	ID                pgtype.UUID        `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	OrderNumber       string             `json:"order_number"`
+	OrderType         string             `json:"order_type"`
+	Status            string             `json:"status"`
+	TotalCents        int32              `json:"total_cents"`
+	Currency          string             `json:"currency"`
+	FulfillmentStatus string             `json:"fulfillment_status"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	PaymentStatus     pgtype.Text        `json:"payment_status"`
+}
+
+// Get all orders for a specific subscription
+// Used by subscription detail page to show order history
+func (q *Queries) ListOrdersBySubscription(ctx context.Context, arg ListOrdersBySubscriptionParams) ([]ListOrdersBySubscriptionRow, error) {
+	rows, err := q.db.Query(ctx, listOrdersBySubscription, arg.TenantID, arg.SubscriptionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOrdersBySubscriptionRow{}
+	for rows.Next() {
+		var i ListOrdersBySubscriptionRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.OrderNumber,
+			&i.OrderType,
+			&i.Status,
+			&i.TotalCents,
+			&i.Currency,
+			&i.FulfillmentStatus,
+			&i.CreatedAt,
+			&i.PaymentStatus,
 		); err != nil {
 			return nil, err
 		}

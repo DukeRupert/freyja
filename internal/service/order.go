@@ -357,6 +357,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 		ShippingAddressID: shippingAddress.ID,
 		BillingAddressID:  billingAddress.ID,
 		CustomerNotes:     makePgText(customerNotes),
+		SubscriptionID:    pgtype.UUID{}, // Not a subscription order
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create order: %w", err)

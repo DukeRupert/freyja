@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/dukerupert/freyja/internal/billing"
@@ -771,110 +772,195 @@ func (s *subscriptionService) SyncSubscriptionFromWebhook(ctx context.Context, p
 // Called from webhook handler when invoice.payment_succeeded event arrives with invoice.subscription set.
 //
 // Flow:
-// 1. Check idempotency via subscription_schedule (prevent duplicate orders for same invoice)
+// 1. Get invoice details from Stripe
 // 2. Get subscription from database by provider_subscription_id
-// 3. Get subscription items (products, quantities, pricing)
+// 3. Check idempotency via subscription_schedule (prevent duplicate orders for same invoice)
 // 4. Create order with subscription_id link
 // 5. Create order items from subscription items
 // 6. Create payment record linking to Stripe invoice
 // 7. Decrement inventory
 // 8. Create subscription_schedule event for audit trail
 func (s *subscriptionService) CreateOrderFromSubscriptionInvoice(ctx context.Context, invoiceID string, tenantID pgtype.UUID) (*OrderDetail, error) {
-	// Step 1: Check if invoice already processed (idempotency)
-	// Query subscription_schedule for event with metadata containing this invoice_id
-	// If exists, return early (already processed)
+	// Step 1: Get invoice details from Stripe
+	invoice, err := s.billingProvider.GetInvoice(ctx, billing.GetInvoiceParams{
+		InvoiceID: invoiceID,
+		TenantID:  uuidToString(tenantID),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get invoice from billing provider: %w", err)
+	}
 
-	// Step 2: Get invoice details from Stripe to extract subscription_id
-	// This requires GetInvoice method in billing provider (not yet implemented)
-	// invoice, err := s.billingProvider.GetInvoice(ctx, invoiceID)
+	// Validate it's a subscription invoice
+	if invoice.SubscriptionID == "" {
+		return nil, fmt.Errorf("invoice is not for a subscription")
+	}
 
-	// Step 3: Get local subscription by provider_subscription_id
-	// subscription, err := s.repo.GetSubscriptionByProviderID(ctx, ...)
+	// Step 2: Get local subscription by provider_subscription_id
+	subscription, err := s.repo.GetSubscriptionByProviderID(ctx, repository.GetSubscriptionByProviderIDParams{
+		TenantID:               tenantID,
+		Provider:               "stripe",
+		ProviderSubscriptionID: pgtype.Text{String: invoice.SubscriptionID, Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get subscription: %w", err)
+	}
+
+	// Step 3: Check if invoice already processed (idempotency)
+	// Query uses: tenant_id, subscription_id, and metadata->>'invoice_id' = $3
+	// The Metadata field is used as a string comparison against the JSON field
+	existingEvent, err := s.repo.GetSubscriptionScheduleEventByInvoiceID(ctx, repository.GetSubscriptionScheduleEventByInvoiceIDParams{
+		TenantID:       tenantID,
+		SubscriptionID: subscription.ID,
+		Metadata:       []byte(invoiceID), // Passed as string to compare against metadata->>'invoice_id'
+	})
+	if err == nil && existingEvent.ID.Valid {
+		// Already processed - return the existing order
+		return nil, ErrInvoiceAlreadyProcessed
+	}
+	// If error is sql.ErrNoRows, that's expected (invoice not yet processed)
 
 	// Step 4: Get subscription items
-	// items, err := s.repo.ListSubscriptionItemsForSubscription(ctx, ...)
+	items, err := s.repo.ListSubscriptionItemsForSubscription(ctx, repository.ListSubscriptionItemsForSubscriptionParams{
+		TenantID:       tenantID,
+		SubscriptionID: subscription.ID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get subscription items: %w", err)
+	}
+	if len(items) == 0 {
+		return nil, fmt.Errorf("subscription has no items")
+	}
 
 	// Step 5: Generate order number
-	// orderNumber := generateOrderNumber()
+	orderNumber, err := generateOrderNumber()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate order number: %w", err)
+	}
 
 	// Step 6: Create order record
-	// order, err := s.repo.CreateOrder(ctx, repository.CreateOrderParams{
-	//     TenantID: tenantID,
-	//     UserID: subscription.UserID,
-	//     OrderNumber: orderNumber,
-	//     SubscriptionID: pgtype.UUID{Bytes: subscription.ID.Bytes, Valid: true},
-	//     SubtotalCents: subscription.SubtotalCents,
-	//     ShippingCents: subscription.ShippingCents,
-	//     TaxCents: subscription.TaxCents,
-	//     TotalCents: subscription.TotalCents,
-	//     Currency: subscription.Currency,
-	//     ShippingAddressID: subscription.ShippingAddressID,
-	//     BillingAddressID: subscription.ShippingAddressID, // Use shipping as billing for subscriptions
-	//     Status: "confirmed", // Subscription payments are pre-authorized
-	// })
+	// Use shipping address from subscription, billing address same as shipping for subscriptions
+	order, err := s.repo.CreateOrder(ctx, repository.CreateOrderParams{
+		TenantID:          tenantID,
+		UserID:            subscription.UserID,
+		OrderNumber:       orderNumber,
+		OrderType:         "subscription",
+		Status:            "confirmed", // Subscription payments are already successful
+		SubscriptionID:    subscription.ID,
+		SubtotalCents:     subscription.SubtotalCents,
+		ShippingCents:     subscription.ShippingCents,
+		TaxCents:          subscription.TaxCents,
+		TotalCents:        subscription.TotalCents,
+		Currency:          subscription.Currency,
+		ShippingAddressID: subscription.ShippingAddressID,
+		BillingAddressID:  subscription.ShippingAddressID, // Use shipping as billing for subscriptions
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create order: %w", err)
+	}
 
 	// Step 7: Create order items from subscription items
-	// for _, item := range items {
-	//     _, err = s.repo.CreateOrderItem(ctx, repository.CreateOrderItemParams{
-	//         OrderID: order.ID,
-	//         ProductSKUID: item.ProductSKUID,
-	//         Quantity: item.Quantity,
-	//         UnitPriceCents: item.UnitPriceCents,
-	//         SubtotalCents: item.UnitPriceCents * item.Quantity,
-	//     })
-	// }
+	orderItems := make([]repository.OrderItem, 0, len(items))
+	for _, item := range items {
+		// Build variant description
+		variantDesc := ""
+		if item.WeightValue.Valid {
+			variantDesc = fmt.Sprintf("%s %s", item.WeightValue.Int.String(), item.WeightUnit)
+		}
+		if item.Grind != "" && item.Grind != "whole_bean" {
+			if variantDesc != "" {
+				variantDesc += " - "
+			}
+			variantDesc += item.Grind
+		}
+
+		orderItem, err := s.repo.CreateOrderItem(ctx, repository.CreateOrderItemParams{
+			TenantID:           tenantID,
+			OrderID:            order.ID,
+			ProductSkuID:       item.ProductSkuID,
+			ProductName:        item.ProductName,
+			Sku:                item.Sku,
+			VariantDescription: pgtype.Text{String: variantDesc, Valid: variantDesc != ""},
+			Quantity:           item.Quantity,
+			UnitPriceCents:     item.UnitPriceCents,
+			TotalPriceCents:    item.UnitPriceCents * item.Quantity,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create order item: %w", err)
+		}
+		orderItems = append(orderItems, orderItem)
+	}
 
 	// Step 8: Create payment record
-	// payment, err := s.repo.CreatePayment(ctx, repository.CreatePaymentParams{
-	//     TenantID: tenantID,
-	//     OrderID: order.ID,
-	//     Provider: "stripe",
-	//     ProviderPaymentID: invoice.PaymentIntentID, // Link to Stripe payment intent
-	//     AmountCents: subscription.TotalCents,
-	//     Currency: subscription.Currency,
-	//     Status: "succeeded",
-	// })
+	payment, err := s.repo.CreatePayment(ctx, repository.CreatePaymentParams{
+		TenantID:          tenantID,
+		BillingCustomerID: subscription.BillingCustomerID,
+		Provider:          "stripe",
+		ProviderPaymentID: invoice.PaymentIntentID,
+		AmountCents:       int32(invoice.AmountPaidCents),
+		Currency:          invoice.Currency,
+		Status:            "succeeded",
+		PaymentMethodID:   subscription.PaymentMethodID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create payment: %w", err)
+	}
 
 	// Step 9: Decrement inventory for each item
-	// for _, item := range items {
-	//     err = s.repo.DecrementInventory(ctx, repository.DecrementInventoryParams{
-	//         ProductSKUID: item.ProductSKUID,
-	//         Quantity: item.Quantity,
-	//     })
-	// }
+	for _, item := range items {
+		err := s.repo.DecrementSKUStock(ctx, repository.DecrementSKUStockParams{
+			TenantID:          tenantID,
+			ID:                item.ProductSkuID,
+			InventoryQuantity: item.Quantity,
+		})
+		if err != nil {
+			// Log warning but don't fail - inventory tracking is best-effort for MVP
+			// In production, consider alerting on low stock
+			log.Printf("WARNING: Failed to decrement stock for SKU %s: %v", item.Sku, err)
+		}
+	}
 
-	// Step 10: Create subscription_schedule event
-	// scheduleMetadata, _ := json.Marshal(map[string]string{
-	//     "event": "renewal",
-	//     "invoice_id": invoiceID,
-	//     "order_id": order.ID.String(),
-	// })
-	// _, err = s.repo.CreateSubscriptionScheduleEvent(ctx, repository.CreateSubscriptionScheduleEventParams{
-	//     TenantID: tenantID,
-	//     SubscriptionID: subscription.ID,
-	//     EventType: "billing",
-	//     Status: "completed",
-	//     ScheduledAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
-	//     OrderID: pgtype.UUID{Bytes: order.ID.Bytes, Valid: true},
-	//     PaymentID: pgtype.UUID{Bytes: payment.ID.Bytes, Valid: true},
-	//     Metadata: scheduleMetadata,
-	// })
+	// Step 10: Create subscription_schedule event for audit trail
+	// Include invoice_id in metadata for idempotency lookup
+	scheduleMetadata, _ := json.Marshal(map[string]string{
+		"event":      "renewal",
+		"invoice_id": invoiceID,
+		"order_id":   uuidToString(order.ID),
+	})
+	_, err = s.repo.CreateSubscriptionScheduleEvent(ctx, repository.CreateSubscriptionScheduleEventParams{
+		TenantID:       tenantID,
+		SubscriptionID: subscription.ID,
+		EventType:      "billing",
+		Status:         "completed",
+		ScheduledAt:    pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		OrderID:        order.ID,
+		PaymentID:      payment.ID,
+		Metadata:       scheduleMetadata,
+	})
+	if err != nil {
+		// Log warning but don't fail - schedule event is for audit trail
+		log.Printf("WARNING: Failed to create subscription schedule event: %v", err)
+	}
 
-	// Step 11: Return order detail
-	// return &OrderDetail{
-	//     Order: order,
-	//     Items: orderItems,
-	//     ShippingAddress: shippingAddress,
-	//     BillingAddress: billingAddress,
-	//     Payment: payment,
-	// }, nil
+	// Step 11: Get shipping address for response
+	shippingAddress, err := s.repo.GetAddressByID(ctx, subscription.ShippingAddressID)
+	if err != nil {
+		log.Printf("WARNING: Failed to get shipping address: %v", err)
+		// Return order detail with empty addresses if address lookup fails
+		return &OrderDetail{
+			Order:   order,
+			Items:   orderItems,
+			Payment: payment,
+		}, nil
+	}
 
-	// TODO: Complete implementation requires:
-	// - GetInvoice method in billing provider
-	// - Order creation refactored into reusable internal method
-	// - DecrementInventory repository method
-	// - Proper error handling and rollback on failures
-	return nil, fmt.Errorf("CreateOrderFromSubscriptionInvoice requires additional infrastructure: GetInvoice billing method and order service refactoring")
+	// Step 12: Return order detail
+	return &OrderDetail{
+		Order:           order,
+		Items:           orderItems,
+		ShippingAddress: shippingAddress,
+		BillingAddress:  shippingAddress, // Same as shipping for subscriptions
+		Payment:         payment,
+	}, nil
 }
 
 // Helper functions

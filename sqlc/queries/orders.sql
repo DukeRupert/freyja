@@ -24,9 +24,10 @@ INSERT INTO orders (
     currency,
     shipping_address_id,
     billing_address_id,
-    customer_notes
+    customer_notes,
+    subscription_id
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
 )
 RETURNING *;
 
@@ -341,3 +342,23 @@ FROM addresses
 WHERE tenant_id = $1
   AND address_type = 'warehouse'
 LIMIT 1;
+
+-- name: ListOrdersBySubscription :many
+-- Get all orders for a specific subscription
+-- Used by subscription detail page to show order history
+SELECT
+    o.id,
+    o.tenant_id,
+    o.order_number,
+    o.order_type,
+    o.status,
+    o.total_cents,
+    o.currency,
+    o.fulfillment_status,
+    o.created_at,
+    p.status as payment_status
+FROM orders o
+LEFT JOIN payments p ON p.id = o.payment_id
+WHERE o.tenant_id = $1
+  AND o.subscription_id = $2
+ORDER BY o.created_at DESC;

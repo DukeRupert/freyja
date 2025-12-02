@@ -198,6 +198,9 @@ type Querier interface {
 	ListOrders(ctx context.Context, arg ListOrdersParams) ([]ListOrdersRow, error)
 	// List orders filtered by status
 	ListOrdersByStatus(ctx context.Context, arg ListOrdersByStatusParams) ([]ListOrdersByStatusRow, error)
+	// Get all orders for a specific subscription
+	// Used by subscription detail page to show order history
+	ListOrdersBySubscription(ctx context.Context, arg ListOrdersBySubscriptionParams) ([]ListOrdersBySubscriptionRow, error)
 	// Lists all payment methods for a user
 	ListPaymentMethodsForUser(ctx context.Context, arg ListPaymentMethodsForUserParams) ([]PaymentMethod, error)
 	// Lists all items in a subscription with product details

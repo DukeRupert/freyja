@@ -79,6 +79,11 @@ type Provider interface {
 	// Returns session URL where customer can manage subscriptions and payment methods.
 	CreateCustomerPortalSession(ctx context.Context, params CreatePortalSessionParams) (*PortalSession, error)
 
+	// GetInvoice retrieves an invoice by ID.
+	// Required for subscription order creation from webhook events.
+	// SECURITY: Validates tenant_id in invoice/subscription metadata.
+	GetInvoice(ctx context.Context, params GetInvoiceParams) (*Invoice, error)
+
 	// RefundPayment refunds a completed payment.
 	// Post-MVP: For order cancellations and returns.
 	RefundPayment(ctx context.Context, params RefundParams) (*Refund, error)
@@ -415,6 +420,41 @@ type Subscription struct {
 	PauseCollection        *SubscriptionPauseCollection
 	Metadata               map[string]string
 	CreatedAt              time.Time
+}
+
+// GetInvoiceParams contains parameters for retrieving an invoice.
+type GetInvoiceParams struct {
+	InvoiceID string
+	TenantID  string // For ownership validation
+}
+
+// Invoice represents a Stripe invoice.
+type Invoice struct {
+	ID                 string
+	CustomerID         string
+	SubscriptionID     string // Empty if not a subscription invoice
+	Status             string // "draft", "open", "paid", "uncollectible", "void"
+	AmountDueCents     int64
+	AmountPaidCents    int64
+	Currency           string
+	PeriodStart        time.Time
+	PeriodEnd          time.Time
+	PaymentIntentID    string // For linking to payment
+	Metadata           map[string]string
+	SubscriptionMetadata map[string]string // Metadata from associated subscription
+	Lines              []InvoiceLineItem
+	CreatedAt          time.Time
+	PaidAt             *time.Time
+}
+
+// InvoiceLineItem represents a line item on an invoice.
+type InvoiceLineItem struct {
+	ID          string
+	Description string
+	Quantity    int32
+	AmountCents int64
+	PriceID     string // Stripe price ID
+	Metadata    map[string]string
 }
 
 // UpdateCustomerParams contains parameters for updating a customer.
