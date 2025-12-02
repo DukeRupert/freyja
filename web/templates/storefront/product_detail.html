@@ -55,6 +55,8 @@
             <form id="add-to-cart-form" action="/cart/add" method="POST"
                   class="mt-8 space-y-6"
                   x-data="{
+                      purchaseType: 'onetime',
+                      billingInterval: 'monthly',
                       selectedWeight: '{{if .Weights}}{{index .Weights 0}}{{end}}',
                       selectedGrind: '{{if .Grinds}}{{index .Grinds 0}}{{end}}',
                       selectedSKU: null,
@@ -76,10 +78,51 @@
                               this.selectedSKU = match.id;
                               this.price = match.price / 100;
                           }
+                      },
+                      updateFormAction() {
+                          const form = document.getElementById('add-to-cart-form');
+                          if (this.purchaseType === 'subscription') {
+                              form.action = '/subscribe';
+                          } else {
+                              form.action = '/cart/add';
+                          }
                       }
                   }"
                   x-init="findMatchingSKU()"
                   @change="findMatchingSKU()">
+
+                <!-- Purchase Type Toggle -->
+                <div class="flex rounded-lg bg-neutral-100 p-1">
+                    <button type="button"
+                            @click="purchaseType = 'onetime'; updateFormAction()"
+                            :class="purchaseType === 'onetime' ? 'bg-white shadow text-neutral-900' : 'text-neutral-600 hover:text-neutral-900'"
+                            class="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors">
+                        One-time purchase
+                    </button>
+                    <button type="button"
+                            @click="purchaseType = 'subscription'; updateFormAction()"
+                            :class="purchaseType === 'subscription' ? 'bg-white shadow text-neutral-900' : 'text-neutral-600 hover:text-neutral-900'"
+                            class="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors">
+                        Subscribe & Save
+                    </button>
+                </div>
+
+                <!-- Subscription Benefits (shown when subscription selected) -->
+                <div x-show="purchaseType === 'subscription'" x-cloak class="rounded-lg bg-teal-50 border border-teal-200 p-4">
+                    <div class="flex items-start gap-3">
+                        <svg class="h-5 w-5 text-teal-700 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <div>
+                            <p class="text-sm font-medium text-teal-800">Fresh coffee delivered automatically</p>
+                            <ul class="mt-2 space-y-1 text-sm text-teal-700">
+                                <li>Never run out of your favorite beans</li>
+                                <li>Skip, pause, or cancel anytime</li>
+                                <li>Manage easily from your account</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Weight Selection -->
                 {{if .Weights}}
@@ -140,8 +183,23 @@
                            class="block w-full rounded-md border-neutral-300 shadow-sm focus:border-teal-700 focus:ring focus:ring-teal-200 focus:ring-opacity-50 py-2 px-3 text-sm">
                 </div>
 
+                <!-- Delivery Frequency (shown when subscription selected) -->
+                <div x-show="purchaseType === 'subscription'" x-cloak>
+                    <label class="block text-sm font-medium text-neutral-700 mb-2">Delivery Frequency</label>
+                    <select name="billing_interval" x-model="billingInterval"
+                            class="block w-full rounded-md border-neutral-300 shadow-sm focus:border-teal-700 focus:ring focus:ring-teal-200 focus:ring-opacity-50 py-2 px-3 text-sm">
+                        <option value="weekly">Every week</option>
+                        <option value="biweekly">Every 2 weeks</option>
+                        <option value="monthly" selected>Every month</option>
+                        <option value="6_weeks">Every 6 weeks</option>
+                        <option value="bimonthly">Every 2 months</option>
+                    </select>
+                </div>
+
                 <!-- Hidden SKU ID -->
                 <input type="hidden" name="sku_id" x-model="selectedSKU">
+                <!-- Product SKU ID for subscription (using same field name expected by handler) -->
+                <input type="hidden" name="product_sku_id" x-model="selectedSKU">
 
                 <!-- Price Display -->
                 <div class="rounded-lg bg-neutral-50 p-4 border border-neutral-200">
@@ -155,10 +213,24 @@
                     </div>
                 </div>
 
-                <!-- Add to Cart Button -->
+                <!-- Submit Button -->
                 <button type="submit" class="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-md font-medium bg-teal-700 text-white hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-700 shadow-sm transition-colors">
-                    Add to Cart
+                    <span x-show="purchaseType === 'onetime'">Add to Cart</span>
+                    <span x-show="purchaseType === 'subscription'" x-cloak>
+                        <svg class="h-5 w-5 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Start Subscription
+                    </span>
                 </button>
+
+                <!-- Login prompt for subscriptions (when not logged in) -->
+                {{if not .User}}
+                <p x-show="purchaseType === 'subscription'" x-cloak class="text-center text-sm text-neutral-600 mt-2">
+                    <a href="/login?return_to={{.RequestPath}}" class="text-teal-700 hover:text-teal-800 font-medium">Log in</a> or
+                    <a href="/signup?return_to={{.RequestPath}}" class="text-teal-700 hover:text-teal-800 font-medium">create an account</a> to subscribe
+                </p>
+                {{end}}
             </form>
 
             <!-- Coffee Attributes -->

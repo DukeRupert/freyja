@@ -324,6 +324,12 @@ func (s *subscriptionService) GetSubscription(ctx context.Context, params GetSub
 		return nil, fmt.Errorf("failed to get subscription: %w", err)
 	}
 
+	// Validate ownership if UserID is provided
+	// This ensures customers can only view their own subscriptions
+	if params.UserID.Valid && subWithDetails.UserID != params.UserID {
+		return nil, ErrSubscriptionNotFound // Return not found to avoid leaking information
+	}
+
 	// Get subscription items
 	items, err := s.repo.ListSubscriptionItemsForSubscription(ctx, repository.ListSubscriptionItemsForSubscriptionParams{
 		SubscriptionID: params.SubscriptionID,

@@ -244,17 +244,18 @@ func run() error {
 	r.Post("/checkout/create-payment-intent", createPaymentIntentHandler.ServeHTTP)
 	r.Get("/order-confirmation", orderConfirmationHandler.ServeHTTP)
 
-	// Subscription routes (customer-facing)
-	r.Get("/account/subscriptions", subscriptionListHandler.ServeHTTP)
-	r.Get("/account/subscriptions/portal", subscriptionPortalHandler.ServeHTTP)
-	r.Get("/account/subscriptions/{id}", subscriptionDetailHandler.ServeHTTP)
-	r.Post("/subscribe", createSubscriptionHandler.ServeHTTP)
+	// Account routes (require authentication)
+	accountRouter := r.Group(middleware.RequireAuth)
+	accountRouter.Get("/account/subscriptions", subscriptionListHandler.ServeHTTP)
+	accountRouter.Get("/account/subscriptions/portal", subscriptionPortalHandler.ServeHTTP)
+	accountRouter.Get("/account/subscriptions/{id}", subscriptionDetailHandler.ServeHTTP)
+	accountRouter.Post("/subscribe", createSubscriptionHandler.ServeHTTP)
 
 	// Webhook routes (no authentication - Stripe handles signature verification)
 	r.Post("/webhooks/stripe", stripeWebhookHandler.HandleWebhook)
 
 	// Admin routes (require admin authentication)
-	adminRouter := r.Group()
+	adminRouter := r.Group(middleware.RequireAdmin)
 	adminRouter.Get("/admin", adminDashboardHandler.ServeHTTP)
 
 	// Product routes

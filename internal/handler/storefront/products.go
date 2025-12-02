@@ -35,10 +35,8 @@ func (h *ProductListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := map[string]interface{}{
-		"Products": products,
-		"Year":     2024,
-	}
+	data := BaseTemplateData(r)
+	data["Products"] = products
 
 	h.renderer.RenderHTTP(w, "products", data)
 }
@@ -105,14 +103,13 @@ func (h *ProductDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		grinds = append(grinds, g)
 	}
 
-	data := map[string]interface{}{
-		"Product": detail.Product,
-		"SKUs":    detail.SKUs,
-		"Weights": weights,
-		"Grinds":  grinds,
-		"Images":  detail.Images,
-		"Year":    2024,
-	}
+	data := BaseTemplateData(r)
+	data["Product"] = detail.Product
+	data["SKUs"] = detail.SKUs
+	data["Weights"] = weights
+	data["Grinds"] = grinds
+	data["Images"] = detail.Images
+	data["RequestPath"] = r.URL.Path
 
 	h.renderer.RenderHTTP(w, "product_detail", data)
 }

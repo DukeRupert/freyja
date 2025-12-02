@@ -102,6 +102,10 @@ type GetSubscriptionParams struct {
 	// SubscriptionID is our database subscription ID
 	SubscriptionID pgtype.UUID
 
+	// UserID is optional - if provided, validates ownership before returning
+	// Use this for customer-facing requests to ensure users can only access their own subscriptions
+	UserID pgtype.UUID
+
 	// IncludeUpcomingInvoice includes next invoice preview if true
 	IncludeUpcomingInvoice bool
 }

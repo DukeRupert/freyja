@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/dukerupert/freyja/internal/handler"
+	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/service"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -40,21 +41,16 @@ func (h *SubscriptionListHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 
 	ctx := r.Context()
 
-	// TODO: Get authenticated user ID from session/context
-	// For now, this is a placeholder - will need auth middleware
-	// userID, err := getUserIDFromContext(ctx)
-	// if err != nil {
-	//     http.Redirect(w, r, "/login?return_to=/account/subscriptions", http.StatusSeeOther)
-	//     return
-	// }
-
-	// Placeholder user ID - replace with actual auth
-	var userID pgtype.UUID
-	// userID.Scan("placeholder-user-id")
+	// Get authenticated user from context (RequireAuth middleware ensures this exists)
+	user := middleware.GetUserFromContext(ctx)
+	if user == nil {
+		http.Redirect(w, r, "/login?return_to=/account/subscriptions", http.StatusSeeOther)
+		return
+	}
 
 	subscriptions, err := h.subscriptionService.ListSubscriptionsForUser(ctx, service.ListSubscriptionsParams{
 		TenantID: h.tenantID,
-		UserID:   userID,
+		UserID:   user.ID,
 		Limit:    50,
 		Offset:   0,
 	})
@@ -100,6 +96,13 @@ func (h *SubscriptionDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 
 	ctx := r.Context()
 
+	// Get authenticated user from context
+	user := middleware.GetUserFromContext(ctx)
+	if user == nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
 	// Get subscription ID from path
 	subscriptionIDStr := r.PathValue("id")
 	if subscriptionIDStr == "" {
@@ -113,16 +116,10 @@ func (h *SubscriptionDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// TODO: Verify user owns this subscription
-	// userID, err := getUserIDFromContext(ctx)
-	// if err != nil {
-	//     http.Redirect(w, r, "/login", http.StatusSeeOther)
-	//     return
-	// }
-
 	subscription, err := h.subscriptionService.GetSubscription(ctx, service.GetSubscriptionParams{
 		TenantID:               h.tenantID,
 		SubscriptionID:         subscriptionID,
+		UserID:                 user.ID, // Include user ID for ownership validation
 		IncludeUpcomingInvoice: true,
 	})
 
@@ -165,15 +162,12 @@ func (h *SubscriptionPortalHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 
 	ctx := r.Context()
 
-	// TODO: Get authenticated user ID from session/context
-	// userID, err := getUserIDFromContext(ctx)
-	// if err != nil {
-	//     http.Redirect(w, r, "/login?return_to=/account/subscriptions/portal", http.StatusSeeOther)
-	//     return
-	// }
-
-	// Placeholder user ID
-	var userID pgtype.UUID
+	// Get authenticated user from context
+	user := middleware.GetUserFromContext(ctx)
+	if user == nil {
+		http.Redirect(w, r, "/login?return_to=/account/subscriptions/portal", http.StatusSeeOther)
+		return
+	}
 
 	// Determine return URL
 	returnURL := r.URL.Query().Get("return_to")
@@ -183,7 +177,7 @@ func (h *SubscriptionPortalHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 
 	portalURL, err := h.subscriptionService.CreateCustomerPortalSession(ctx, service.PortalSessionParams{
 		TenantID:  h.tenantID,
-		UserID:    userID,
+		UserID:    user.ID,
 		ReturnURL: returnURL,
 	})
 
@@ -225,21 +219,18 @@ func (h *CreateSubscriptionHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 
 	ctx := r.Context()
 
+	// Get authenticated user from context
+	user := middleware.GetUserFromContext(ctx)
+	if user == nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
 	// Parse form data
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Invalid form data", http.StatusBadRequest)
 		return
 	}
-
-	// TODO: Get authenticated user ID from session/context
-	// userID, err := getUserIDFromContext(ctx)
-	// if err != nil {
-	//     http.Redirect(w, r, "/login", http.StatusSeeOther)
-	//     return
-	// }
-
-	// Placeholder user ID
-	var userID pgtype.UUID
 
 	// Extract form fields
 	productSKUIDStr := r.FormValue("product_sku_id")
@@ -289,7 +280,7 @@ func (h *CreateSubscriptionHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 	// Create subscription
 	subscription, err := h.subscriptionService.CreateSubscription(ctx, service.CreateSubscriptionParams{
 		TenantID:          h.tenantID,
-		UserID:            userID,
+		UserID:            user.ID,
 		ProductSKUID:      productSKUID,
 		Quantity:          quantity,
 		BillingInterval:   billingInterval,
