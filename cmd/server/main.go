@@ -13,6 +13,7 @@ import (
 	"github.com/dukerupert/freyja/internal/billing"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/handler/admin"
+	"github.com/dukerupert/freyja/internal/handler/saas"
 	"github.com/dukerupert/freyja/internal/handler/storefront"
 	"github.com/dukerupert/freyja/internal/handler/webhook"
 	"github.com/dukerupert/freyja/internal/middleware"
@@ -217,6 +218,12 @@ func run() error {
 	subscriptionCheckoutHandler := storefront.NewSubscriptionCheckoutHandler(productService, accountService, renderer, cfg.TenantID)
 	createSubscriptionHandler := storefront.NewCreateSubscriptionHandler(subscriptionService, renderer, cfg.TenantID)
 
+	// Initialize SaaS landing page handler
+	landingHandler, err := saas.NewLandingHandler("web/templates")
+	if err != nil {
+		return fmt.Errorf("failed to initialize landing handler: %w", err)
+	}
+
 	// Create router with global middleware
 	r := router.New(
 		router.Recovery(logger),
@@ -226,6 +233,9 @@ func run() error {
 
 	// Static files
 	r.Static("/static/", "./web/static")
+
+	// SaaS landing page (root)
+	r.Get("/", landingHandler.ServeHTTP)
 
 	// Auth routes
 	r.Get("/signup", signupHandler.ServeHTTP)
