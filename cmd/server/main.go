@@ -239,27 +239,75 @@ func run() error {
 	}
 
 	// ==========================================================================
+	// Initialize middleware
+	// ==========================================================================
+
+	// Initialize Prometheus metrics
+	metrics := middleware.NewMetrics("freyja")
+
+	// Configure security headers
+	securityConfig := middleware.DefaultSecurityHeadersConfig()
+	if cfg.Env == "development" {
+		// Relax CSP in development for easier debugging
+		securityConfig.ContentSecurityPolicy = ""
+		securityConfig.HSTSMaxAge = 0 // Disable HSTS in development
+	}
+
+	// Configure CSRF protection
+	csrfConfig := middleware.DefaultCSRFConfig()
+	csrfConfig.CookieSecure = cfg.Env != "development"
+
+	// Configure rate limiting
+	defaultRateLimiter := middleware.NewRateLimiter(middleware.DefaultRateLimiterConfig())
+	authRateLimiter := middleware.NewRateLimiter(middleware.StrictRateLimiterConfig())
+
+	// ==========================================================================
 	// Create routers and register routes
 	// ==========================================================================
 
 	// Main tenant router (storefront + admin + webhooks)
 	r := router.New(
 		router.Recovery(logger),
+		middleware.RequestID,
+		metrics.Middleware,
+		middleware.SecurityHeaders(securityConfig),
+		middleware.MaxBodySize(middleware.DefaultMaxBodySize),
+		middleware.Timeout(middleware.DefaultTimeout),
+		defaultRateLimiter.Middleware,
 		router.Logger(logger),
 		middleware.WithUser(userService),
+		middleware.CSRF(csrfConfig),
 	)
 
 	// Static files
 	r.Static("/static/", "./web/static")
+
+	// Metrics endpoint (no auth required, but should be protected in production via firewall)
+	r.Get("/metrics", func(w http.ResponseWriter, req *http.Request) {
+		metrics.Handler().ServeHTTP(w, req)
+	})
+
+	// Health check endpoint
+	r.Get("/health", func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
 
 	// Register route groups
 	routes.RegisterStorefrontRoutes(r, storefrontDeps)
 	routes.RegisterAdminRoutes(r, adminDeps)
 	routes.RegisterWebhookRoutes(r, webhookDeps)
 
+	// Apply stricter rate limiting to auth endpoints
+	authRouter := r.Group(authRateLimiter.Middleware)
+	authRouter.Post("/login", storefrontDeps.LoginHandler.ServeHTTP)
+	authRouter.Post("/signup", storefrontDeps.SignupHandler.ServeHTTP)
+
 	// SaaS marketing site router (separate, can be served on different port/domain)
 	saasRouter := router.New(
 		router.Recovery(logger),
+		middleware.RequestID,
+		middleware.SecurityHeaders(securityConfig),
 		router.Logger(logger),
 	)
 	saasRouter.Static("/static/", "./web/static")
