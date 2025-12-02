@@ -521,8 +521,6 @@ func (s *StripeProvider) UpdateCustomer(ctx context.Context, customerID string, 
 
 // CreateSubscription creates a recurring subscription.
 //
-// Post-MVP feature for coffee subscriptions.
-//
 // Subscription flow:
 //  1. Customer selects subscription product and frequency
 //  2. Creates Stripe customer (via CreateCustomer)
@@ -532,12 +530,15 @@ func (s *StripeProvider) UpdateCustomer(ctx context.Context, customerID string, 
 //  6. Webhook notifies us of successful/failed charges
 //  7. We fulfill orders on successful charge
 //
+// SECURITY: Validates tenant_id is present in metadata.
+//
 // Metadata should include:
-//   - tenant_id
-//   - product_id
-//   - frequency (weekly, biweekly, monthly, etc.)
+//   - tenant_id (required)
+//   - subscription_id (our database ID)
+//   - product_sku_id
+//   - billing_interval
 func (s *StripeProvider) CreateSubscription(ctx context.Context, params SubscriptionParams) (*Subscription, error) {
-	// TODO: Post-MVP implementation
+	// TODO: Implementation
 	//
 	// Steps:
 	// 1. Validate params.CustomerID and params.PriceID
@@ -548,38 +549,152 @@ func (s *StripeProvider) CreateSubscription(ctx context.Context, params Subscrip
 	//    - PaymentBehavior: "default_incomplete" (requires payment method)
 	//    - PaymentSettings: {SaveDefaultPaymentMethod: "on_subscription"}
 	// 3. Call subscription.New()
-	// 4. Map response to Subscription
+	// 4. Map response to Subscription via buildSubscription()
 	// 5. Return Subscription
+	return nil, ErrNotImplemented
+}
+
+// CreateRecurringPrice creates a Stripe Price for recurring subscriptions.
+//
+// Each subscription item needs its own recurring price in Stripe.
+// Prices are linked to existing Stripe Products (synced from product catalog).
+//
+// SECURITY: Validates tenant_id is present in metadata.
+//
+// Returns Price with Stripe price ID (price_...) for use in CreateSubscription.
+func (s *StripeProvider) CreateRecurringPrice(ctx context.Context, params CreateRecurringPriceParams) (*Price, error) {
+	// TODO: Implementation
+	//
+	// Steps:
+	// 1. Validate params: Currency, UnitAmountCents, BillingInterval, ProductID
+	// 2. Validate tenant_id in metadata
+	// 3. Build stripe.PriceParams:
+	//    - Currency: params.Currency
+	//    - UnitAmount: params.UnitAmountCents
+	//    - Product: params.ProductID
+	//    - Recurring: {Interval: params.BillingInterval, IntervalCount: params.IntervalCount}
+	//    - Nickname: params.Nickname
+	//    - Metadata: params.Metadata
+	// 4. Call price.New()
+	// 5. Map response to Price via buildPrice()
+	// 6. Return Price
+	return nil, ErrNotImplemented
+}
+
+// GetSubscription retrieves an existing subscription.
+//
+// SECURITY: Validates tenant_id in subscription metadata before returning.
+// Returns ErrSubscriptionNotFound if subscription doesn't exist or tenant mismatch.
+func (s *StripeProvider) GetSubscription(ctx context.Context, params GetSubscriptionParams) (*Subscription, error) {
+	// TODO: Implementation
+	//
+	// Steps:
+	// 1. Validate params.SubscriptionID not empty
+	// 2. Validate params.TenantID not empty
+	// 3. Build stripe.SubscriptionParams with Expand if specified
+	// 4. Call subscription.Get()
+	// 5. Verify metadata.tenant_id matches params.TenantID
+	// 6. Map response to Subscription via buildSubscription()
+	// 7. Return Subscription
+	return nil, ErrNotImplemented
+}
+
+// PauseSubscription pauses a subscription until explicitly resumed.
+//
+// Paused subscriptions:
+//   - Stop creating invoices
+//   - Retain all settings (payment method, pricing, items)
+//   - Can be resumed at any time
+//
+// SECURITY: Validates tenant_id ownership before pausing.
+func (s *StripeProvider) PauseSubscription(ctx context.Context, params PauseSubscriptionParams) (*Subscription, error) {
+	// TODO: Implementation
+	//
+	// Steps:
+	// 1. Validate params.SubscriptionID and params.TenantID
+	// 2. Verify tenant ownership via GetSubscription
+	// 3. Build stripe.SubscriptionParams:
+	//    - PauseCollection: {Behavior: params.Behavior, ResumesAt: params.ResumesAt}
+	// 4. Call subscription.Update()
+	// 5. Map response to Subscription via buildSubscription()
+	// 6. Return Subscription
+	return nil, ErrNotImplemented
+}
+
+// ResumeSubscription resumes a paused subscription immediately.
+//
+// Resumed subscriptions:
+//   - Immediately create invoice for current period
+//   - Resume regular billing cycle
+//
+// SECURITY: Validates tenant_id ownership before resuming.
+func (s *StripeProvider) ResumeSubscription(ctx context.Context, params ResumeSubscriptionParams) (*Subscription, error) {
+	// TODO: Implementation
+	//
+	// Steps:
+	// 1. Validate params.SubscriptionID and params.TenantID
+	// 2. Verify tenant ownership via GetSubscription
+	// 3. Build stripe.SubscriptionParams:
+	//    - PauseCollection: "" (empty string to unpause)
+	// 4. Call subscription.Update()
+	// 5. Map response to Subscription via buildSubscription()
+	// 6. Return Subscription
 	return nil, ErrNotImplemented
 }
 
 // CancelSubscription cancels a subscription.
 //
-// Post-MVP feature for subscription management.
-//
-// If cancelAtPeriodEnd is true:
+// If CancelAtPeriodEnd is true:
 //   - Subscription remains active until end of current billing period
 //   - Customer can still access benefits until period ends
-//   - Useful for allowing customer to finish out paid period
 //
-// If cancelAtPeriodEnd is false:
+// If CancelAtPeriodEnd is false:
 //   - Subscription canceled immediately
 //   - Customer loses access immediately
-//   - May issue prorated refund (configurable in Stripe dashboard)
-func (s *StripeProvider) CancelSubscription(ctx context.Context, subscriptionID string, cancelAtPeriodEnd bool) error {
-	// TODO: Post-MVP implementation
+//
+// SECURITY: Validates tenant_id ownership before canceling.
+func (s *StripeProvider) CancelSubscription(ctx context.Context, params CancelSubscriptionParams) error {
+	// TODO: Implementation
 	//
 	// Steps:
-	// 1. Validate subscriptionID not empty
-	// 2. If cancelAtPeriodEnd:
+	// 1. Validate params.SubscriptionID and params.TenantID
+	// 2. Verify tenant ownership via GetSubscription
+	// 3. If params.CancelAtPeriodEnd:
 	//    - Build stripe.SubscriptionParams with CancelAtPeriodEnd: true
+	//    - Add CancellationReason to metadata if provided
 	//    - Call subscription.Update()
-	// 3. Else:
+	// 4. Else:
 	//    - Build stripe.SubscriptionCancelParams
 	//    - Call subscription.Cancel()
-	// 4. Handle errors
 	// 5. Return nil on success
 	return ErrNotImplemented
+}
+
+// CreateCustomerPortalSession creates a Stripe Customer Portal session.
+//
+// Returns session URL where customer can:
+//   - View subscription details
+//   - Update payment method
+//   - Pause/resume subscription
+//   - Cancel subscription
+//   - View invoice history
+//
+// Session expires after 60 minutes.
+//
+// SECURITY: Validates customer belongs to tenant before creating session.
+func (s *StripeProvider) CreateCustomerPortalSession(ctx context.Context, params CreatePortalSessionParams) (*PortalSession, error) {
+	// TODO: Implementation
+	//
+	// Steps:
+	// 1. Validate params.CustomerID, params.TenantID, params.ReturnURL
+	// 2. Get customer and verify tenant_id in metadata
+	// 3. Build stripe.BillingPortalSessionParams:
+	//    - Customer: params.CustomerID
+	//    - ReturnURL: params.ReturnURL
+	// 4. Call billingportal.Session.New()
+	// 5. Map response to PortalSession
+	// 6. Return PortalSession
+	return nil, ErrNotImplemented
 }
 
 // RefundPayment refunds a completed payment.

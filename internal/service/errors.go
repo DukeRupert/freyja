@@ -25,11 +25,20 @@ var (
 	ErrSessionNotFound = errors.New("session not found")
 
 	// Order-related errors
-	ErrOrderNotFound         = errors.New("order not found")
-	ErrPaymentNotSucceeded   = errors.New("payment has not succeeded")
-	ErrTenantMismatch        = errors.New("tenant ID mismatch")
-	ErrCartAlreadyConverted  = errors.New("cart already converted to order")
-	ErrInsufficientStock     = errors.New("insufficient stock for one or more items")
-	ErrMissingCartID         = errors.New("cart_id missing from payment metadata")
+	ErrOrderNotFound           = errors.New("order not found")
+	ErrPaymentNotSucceeded     = errors.New("payment has not succeeded")
+	ErrTenantMismatch          = errors.New("tenant ID mismatch")
+	ErrCartAlreadyConverted    = errors.New("cart already converted to order")
+	ErrInsufficientStock       = errors.New("insufficient stock for one or more items")
+	ErrMissingCartID           = errors.New("cart_id missing from payment metadata")
 	ErrPaymentAlreadyProcessed = errors.New("payment intent already processed")
+
+	// Subscription-related errors
+	ErrSubscriptionNotFound   = errors.New("subscription not found")
+	ErrNoPaymentMethod        = errors.New("no payment method on file")
+	ErrInvalidBillingInterval = errors.New("invalid billing interval")
+	ErrSubscriptionNotActive  = errors.New("subscription is not active")
+	ErrSubscriptionNotPaused  = errors.New("subscription is not paused")
+	ErrInvoiceNotFound        = errors.New("invoice not found")
+	ErrInvoiceAlreadyProcessed = errors.New("invoice already processed")
 )

@@ -197,10 +197,40 @@ func (m *MockProvider) CreateSubscription(ctx context.Context, params Subscripti
 	return nil, ErrNotImplemented
 }
 
+// CreateRecurringPrice creates a mock recurring price.
+func (m *MockProvider) CreateRecurringPrice(ctx context.Context, params CreateRecurringPriceParams) (*Price, error) {
+	m.CallLog = append(m.CallLog, fmt.Sprintf("CreateRecurringPrice(%s, %d)", params.ProductID, params.UnitAmountCents))
+	return nil, ErrNotImplemented
+}
+
+// GetSubscription retrieves a mock subscription.
+func (m *MockProvider) GetSubscription(ctx context.Context, params GetSubscriptionParams) (*Subscription, error) {
+	m.CallLog = append(m.CallLog, fmt.Sprintf("GetSubscription(%s)", params.SubscriptionID))
+	return nil, ErrNotImplemented
+}
+
+// PauseSubscription pauses a mock subscription.
+func (m *MockProvider) PauseSubscription(ctx context.Context, params PauseSubscriptionParams) (*Subscription, error) {
+	m.CallLog = append(m.CallLog, fmt.Sprintf("PauseSubscription(%s)", params.SubscriptionID))
+	return nil, ErrNotImplemented
+}
+
+// ResumeSubscription resumes a mock subscription.
+func (m *MockProvider) ResumeSubscription(ctx context.Context, params ResumeSubscriptionParams) (*Subscription, error) {
+	m.CallLog = append(m.CallLog, fmt.Sprintf("ResumeSubscription(%s)", params.SubscriptionID))
+	return nil, ErrNotImplemented
+}
+
 // CancelSubscription cancels a mock subscription.
-func (m *MockProvider) CancelSubscription(ctx context.Context, subscriptionID string, cancelAtPeriodEnd bool) error {
-	m.CallLog = append(m.CallLog, "CancelSubscription")
+func (m *MockProvider) CancelSubscription(ctx context.Context, params CancelSubscriptionParams) error {
+	m.CallLog = append(m.CallLog, fmt.Sprintf("CancelSubscription(%s, cancelAtPeriodEnd=%v)", params.SubscriptionID, params.CancelAtPeriodEnd))
 	return ErrNotImplemented
+}
+
+// CreateCustomerPortalSession creates a mock customer portal session.
+func (m *MockProvider) CreateCustomerPortalSession(ctx context.Context, params CreatePortalSessionParams) (*PortalSession, error) {
+	m.CallLog = append(m.CallLog, fmt.Sprintf("CreateCustomerPortalSession(%s)", params.CustomerID))
+	return nil, ErrNotImplemented
 }
 
 // RefundPayment refunds a mock payment.

@@ -50,9 +50,29 @@ type Provider interface {
 	// Post-MVP: For coffee subscriptions.
 	CreateSubscription(ctx context.Context, params SubscriptionParams) (*Subscription, error)
 
+	// CreateRecurringPrice creates a Stripe Price for recurring subscriptions.
+	// Required for subscriptions to define pricing per product SKU.
+	CreateRecurringPrice(ctx context.Context, params CreateRecurringPriceParams) (*Price, error)
+
+	// GetSubscription retrieves an existing subscription.
+	// SECURITY: Validates tenant_id in subscription metadata before returning.
+	GetSubscription(ctx context.Context, params GetSubscriptionParams) (*Subscription, error)
+
+	// PauseSubscription pauses a subscription until explicitly resumed.
+	// SECURITY: Validates tenant_id ownership before pausing.
+	PauseSubscription(ctx context.Context, params PauseSubscriptionParams) (*Subscription, error)
+
+	// ResumeSubscription resumes a paused subscription immediately.
+	// SECURITY: Validates tenant_id ownership before resuming.
+	ResumeSubscription(ctx context.Context, params ResumeSubscriptionParams) (*Subscription, error)
+
 	// CancelSubscription cancels a subscription.
 	// Post-MVP: For subscription management.
-	CancelSubscription(ctx context.Context, subscriptionID string, cancelAtPeriodEnd bool) error
+	CancelSubscription(ctx context.Context, params CancelSubscriptionParams) error
+
+	// CreateCustomerPortalSession creates a Stripe Customer Portal session.
+	// Returns session URL where customer can manage subscriptions and payment methods.
+	CreateCustomerPortalSession(ctx context.Context, params CreatePortalSessionParams) (*PortalSession, error)
 
 	// RefundPayment refunds a completed payment.
 	// Post-MVP: For order cancellations and returns.
@@ -230,6 +250,18 @@ type UpdatePaymentIntentParams struct {
 	Description string
 }
 
+// CreateSubscriptionParams contains parameters for creating a subscription.
+type CreateSubscriptionParams struct {
+	TenantID               string
+	CustomerID             string // Stripe customer ID (cus_...)
+	PriceID                string // Stripe price ID (price_...)
+	Quantity               int32
+	DefaultPaymentMethodID string // pm_...
+	CollectionMethod       string // "charge_automatically" (default) or "send_invoice"
+	Metadata               map[string]string
+	IdempotencyKey         string
+}
+
 // SubscriptionParams contains parameters for creating a subscription.
 type SubscriptionParams struct {
 	CustomerID string
@@ -238,14 +270,121 @@ type SubscriptionParams struct {
 	Metadata   map[string]string
 }
 
+// CreateRecurringPriceParams contains parameters for creating a recurring price.
+type CreateRecurringPriceParams struct {
+	// Currency code (ISO 4217 lowercase) - e.g., "usd"
+	Currency string
+
+	// UnitAmountCents is the amount per billing period in smallest currency unit
+	UnitAmountCents int32
+
+	// BillingInterval is the frequency: "week", "month"
+	BillingInterval string
+
+	// IntervalCount is the multiplier for interval (e.g., 2 for biweekly)
+	IntervalCount int32
+
+	// ProductID is the Stripe product ID (prod_...) to attach price to
+	ProductID string
+
+	// Metadata for filtering and reporting (should include tenant_id)
+	Metadata map[string]string
+
+	// Nickname for the price (e.g., "Colombia Supremo - Monthly")
+	Nickname string
+}
+
+// Price represents a Stripe price (one-time or recurring).
+type Price struct {
+	ID              string
+	ProductID       string
+	Currency        string
+	UnitAmountCents int32
+	Type            string // "one_time" or "recurring"
+	Recurring       *PriceRecurring
+	Active          bool
+	Metadata        map[string]string
+	CreatedAt       time.Time
+}
+
+// PriceRecurring contains recurring price details.
+type PriceRecurring struct {
+	Interval      string // "day", "week", "month", "year"
+	IntervalCount int32
+}
+
+// GetSubscriptionParams contains parameters for retrieving a subscription.
+type GetSubscriptionParams struct {
+	SubscriptionID string
+	TenantID       string
+	Expand         []string
+}
+
+// PauseSubscriptionParams contains parameters for pausing a subscription.
+type PauseSubscriptionParams struct {
+	SubscriptionID string
+	TenantID       string
+	Behavior       string     // "void", "keep_as_draft", "mark_uncollectible"
+	ResumesAt      *time.Time // nil for manual resume
+}
+
+// ResumeSubscriptionParams contains parameters for resuming a subscription.
+type ResumeSubscriptionParams struct {
+	SubscriptionID string
+	TenantID       string
+}
+
+// CancelSubscriptionParams contains parameters for canceling a subscription.
+type CancelSubscriptionParams struct {
+	SubscriptionID     string
+	TenantID           string
+	CancelAtPeriodEnd  bool
+	CancellationReason string
+}
+
+// CreatePortalSessionParams contains parameters for creating a customer portal session.
+type CreatePortalSessionParams struct {
+	CustomerID string
+	TenantID   string
+	ReturnURL  string
+}
+
+// PortalSession represents a Stripe Customer Portal session.
+type PortalSession struct {
+	ID        string
+	URL       string
+	CreatedAt time.Time
+	ExpiresAt time.Time
+}
+
+// SubscriptionItem represents a line item in a subscription.
+type SubscriptionItem struct {
+	ID       string
+	PriceID  string
+	Quantity int32
+	Metadata map[string]string
+}
+
+// SubscriptionPauseCollection contains pause settings for a subscription.
+type SubscriptionPauseCollection struct {
+	Behavior  string
+	ResumesAt *time.Time
+}
+
 // Subscription represents a recurring subscription.
 type Subscription struct {
-	ID                string
-	CustomerID        string
-	Status            string // active, past_due, canceled, etc.
-	CurrentPeriodEnd  time.Time
-	CancelAtPeriodEnd bool
-	CreatedAt         time.Time
+	ID                     string
+	CustomerID             string
+	Status                 string // "active", "past_due", "canceled", "incomplete", etc.
+	Items                  []SubscriptionItem
+	DefaultPaymentMethodID string
+	CurrentPeriodStart     time.Time
+	CurrentPeriodEnd       time.Time
+	CancelAtPeriodEnd      bool
+	CanceledAt             *time.Time
+	PauseCollection        *SubscriptionPauseCollection
+	Metadata               map[string]string
+	CreatedAt              time.Time
 }
 
 // UpdateCustomerParams contains parameters for updating a customer.
