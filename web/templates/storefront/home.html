@@ -1,0 +1,126 @@
+{{define "title"}}{{.StoreName}} - Fresh Roasted Coffee{{end}}
+
+{{define "content"}}
+<!-- Hero Section -->
+<section class="relative bg-neutral-900 text-white">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32">
+    <div class="max-w-2xl">
+      <h1 class="text-4xl md:text-5xl font-bold tracking-tight mb-6">
+        Fresh Roasted Coffee
+      </h1>
+      <p class="text-lg md:text-xl text-neutral-300 mb-8">
+        Small batch, specialty coffee roasted to order and shipped directly to you.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-4">
+        <a href="/products"
+           class="inline-flex items-center justify-center px-6 py-3 text-base font-medium bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors">
+          Shop Coffee
+        </a>
+        <a href="/subscribe/checkout"
+           class="inline-flex items-center justify-center px-6 py-3 text-base font-medium border border-neutral-600 hover:border-neutral-400 rounded-lg transition-colors">
+          Subscribe & Save
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Featured Products Section -->
+{{if .FeaturedProducts}}
+<section class="py-16 md:py-24">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="text-center mb-12">
+      <h2 class="text-2xl md:text-3xl font-bold text-neutral-900 mb-4">Featured Coffees</h2>
+      <p class="text-neutral-600">Our most popular roasts, fresh from the roaster.</p>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+      {{range .FeaturedProducts}}
+      <a href="/products/{{.Slug}}" class="group">
+        <div class="aspect-square bg-neutral-100 rounded-lg overflow-hidden mb-4">
+          {{if .ImageURL}}
+          <img src="{{.ImageURL}}" alt="{{.Name}}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+          {{else}}
+          <div class="w-full h-full flex items-center justify-center text-neutral-400">
+            <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          {{end}}
+        </div>
+        <h3 class="text-lg font-medium text-neutral-900 group-hover:text-teal-700 transition-colors">{{.Name}}</h3>
+        {{if .Origin}}
+        <p class="text-sm text-neutral-600">{{.Origin}}</p>
+        {{end}}
+        {{if .StartingPrice}}
+        <p class="text-sm font-medium text-neutral-900 mt-1">From ${{divf .StartingPrice 100 | printf "%.2f"}}</p>
+        {{end}}
+      </a>
+      {{end}}
+    </div>
+
+    <div class="text-center mt-12">
+      <a href="/products" class="inline-flex items-center text-teal-700 hover:text-teal-800 font-medium">
+        View all coffees
+        <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  </div>
+</section>
+{{end}}
+
+<!-- Value Props Section -->
+<section class="py-16 bg-neutral-50">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+
+      <div class="text-center">
+        <div class="w-12 h-12 mx-auto mb-4 flex items-center justify-center rounded-full bg-teal-100 text-teal-700">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-medium text-neutral-900 mb-2">Roasted Fresh</h3>
+        <p class="text-neutral-600">Every order is roasted within 24-48 hours of shipping.</p>
+      </div>
+
+      <div class="text-center">
+        <div class="w-12 h-12 mx-auto mb-4 flex items-center justify-center rounded-full bg-teal-100 text-teal-700">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-medium text-neutral-900 mb-2">Free Shipping</h3>
+        <p class="text-neutral-600">Free shipping on all subscription orders.</p>
+      </div>
+
+      <div class="text-center">
+        <div class="w-12 h-12 mx-auto mb-4 flex items-center justify-center rounded-full bg-teal-100 text-teal-700">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-medium text-neutral-900 mb-2">Ethically Sourced</h3>
+        <p class="text-neutral-600">Direct trade relationships with farmers worldwide.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- CTA Section -->
+<section class="py-16 md:py-24">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+    <h2 class="text-2xl md:text-3xl font-bold text-neutral-900 mb-4">Never Run Out of Coffee</h2>
+    <p class="text-lg text-neutral-600 mb-8 max-w-2xl mx-auto">
+      Subscribe and save 10% on every order. Pause, skip, or cancel anytime.
+    </p>
+    <a href="/subscribe/checkout"
+       class="inline-flex items-center justify-center px-8 py-3 text-base font-medium bg-teal-700 hover:bg-teal-800 text-white rounded-lg transition-colors">
+      Start Your Subscription
+    </a>
+  </div>
+</section>
+{{end}}

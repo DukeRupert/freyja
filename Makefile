@@ -1,4 +1,4 @@
-.PHONY: help dev build run test clean migrate migrate-down migrate-status sqlc-gen docker-up docker-down css-build css-watch css-clean
+.PHONY: help dev build build-server build-saas build-all run run-saas test clean migrate migrate-down migrate-status sqlc-gen docker-up docker-down css-build css-watch css-clean
 
 # Load environment variables from .env file
 ifneq (,$(wildcard ./.env))
@@ -29,13 +29,29 @@ css-clean: ## Remove generated CSS file
 	@rm -f web/static/css/output.css
 	@echo "CSS cleaned"
 
-build: css-build ## Build the application binary and CSS
-	@echo "Building application..."
+build: build-server ## Alias for build-server (default)
+
+build-server: css-build ## Build the tenant server binary
+	@echo "Building tenant server..."
 	@go build -o bin/server cmd/server/main.go
 	@echo "Build complete: bin/server"
 
-run: build ## Build and run the application
+build-saas: css-build ## Build the SaaS marketing server binary
+	@echo "Building SaaS server..."
+	@go build -o bin/saas cmd/saas/main.go
+	@echo "Build complete: bin/saas"
+
+build-all: css-build ## Build all server binaries
+	@echo "Building all servers..."
+	@go build -o bin/server cmd/server/main.go
+	@go build -o bin/saas cmd/saas/main.go
+	@echo "Build complete: bin/server, bin/saas"
+
+run: build-server ## Build and run the tenant server
 	@./bin/server
+
+run-saas: build-saas ## Build and run the SaaS marketing server
+	@./bin/saas
 
 test: ## Run all tests
 	@echo "Running tests..."

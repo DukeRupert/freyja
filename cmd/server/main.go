@@ -19,6 +19,7 @@ import (
 	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/router"
+	"github.com/dukerupert/freyja/internal/routes"
 	"github.com/dukerupert/freyja/internal/service"
 	"github.com/dukerupert/freyja/internal/shipping"
 	"github.com/dukerupert/freyja/internal/tax"
@@ -93,32 +94,12 @@ func run() error {
 	}
 	logger.Info("Templates loaded successfully")
 
-	// Initialize handlers
-	productListHandler := storefront.NewProductListHandler(productService, renderer)
-	productDetailHandler := storefront.NewProductDetailHandler(productService, renderer)
-	cartViewHandler := storefront.NewCartViewHandler(cartService, renderer, cfg.Env != "development")
-	addToCartHandler := storefront.NewAddToCartHandler(cartService, renderer, cfg.Env != "development")
-	updateCartItemHandler := storefront.NewUpdateCartItemHandler(cartService, renderer)
-	removeCartItemHandler := storefront.NewRemoveCartItemHandler(cartService, renderer)
-
-	// Auth handlers
-	signupHandler := storefront.NewSignupHandler(userService, renderer)
-	loginHandler := storefront.NewLoginHandler(userService, renderer)
-	logoutHandler := storefront.NewLogoutHandler(userService)
-
-	// Checkout handlers (will be initialized after checkout service is created)
-	var checkoutPageHandler *storefront.CheckoutPageHandler
-	var validateAddressHandler *storefront.ValidateAddressHandler
-	var getShippingRatesHandler *storefront.GetShippingRatesHandler
-	var calculateTotalHandler *storefront.CalculateTotalHandler
-	var createPaymentIntentHandler *storefront.CreatePaymentIntentHandler
-
 	// Initialize Stripe billing provider
 	logger.Info("Initializing Stripe billing provider...")
 	stripeConfig := billing.StripeConfig{
 		APIKey:          cfg.Stripe.SecretKey,
 		WebhookSecret:   cfg.Stripe.WebhookSecret,
-		EnableStripeTax: false, // Set to true if Stripe Tax is enabled
+		EnableStripeTax: false,
 		MaxRetries:      3,
 		TimeoutSeconds:  30,
 	}
@@ -183,48 +164,85 @@ func run() error {
 	}
 	logger.Info("Checkout service initialized")
 
-	// Initialize checkout handlers
-	checkoutPageHandler = storefront.NewCheckoutPageHandler(renderer, cartService, cfg.Stripe.PublishableKey)
-	validateAddressHandler = storefront.NewValidateAddressHandler(checkoutService)
-	getShippingRatesHandler = storefront.NewGetShippingRatesHandler(checkoutService)
-	calculateTotalHandler = storefront.NewCalculateTotalHandler(checkoutService)
-	createPaymentIntentHandler = storefront.NewCreatePaymentIntentHandler(checkoutService)
-	orderConfirmationHandler := storefront.NewOrderConfirmationHandler(renderer, cartService, orderService, repo, cfg.TenantID)
+	// ==========================================================================
+	// Build route dependencies
+	// ==========================================================================
 
-	// Initialize webhook handler
-	stripeWebhookHandler := webhook.NewStripeHandler(billingProvider, orderService, subscriptionService, webhook.StripeWebhookConfig{
-		WebhookSecret: cfg.Stripe.WebhookSecret,
-		TenantID:      cfg.TenantID,
-	})
-
-	// Initialize admin handlers
-	adminDashboardHandler := admin.NewDashboardHandler(repo, renderer, cfg.TenantID)
-	adminProductListHandler := admin.NewProductListHandler(repo, renderer, cfg.TenantID)
-	adminProductFormHandler := admin.NewProductFormHandler(repo, renderer, cfg.TenantID)
-	adminProductDetailHandler := admin.NewProductDetailHandler(repo, renderer, cfg.TenantID)
-	adminSKUFormHandler := admin.NewSKUFormHandler(repo, renderer, cfg.TenantID)
-	adminOrderListHandler := admin.NewOrderListHandler(repo, renderer, cfg.TenantID)
-	adminOrderDetailHandler := admin.NewOrderDetailHandler(repo, renderer, cfg.TenantID)
-	adminCustomerListHandler := admin.NewCustomerListHandler(repo, renderer, cfg.TenantID)
-	updateOrderStatusHandler := admin.NewUpdateOrderStatusHandler(repo, cfg.TenantID)
-	createShipmentHandler := admin.NewCreateShipmentHandler(repo, cfg.TenantID)
-	adminSubscriptionListHandler := admin.NewSubscriptionListHandler(repo, renderer, cfg.TenantID)
-	adminSubscriptionDetailHandler := admin.NewSubscriptionDetailHandler(repo, renderer, cfg.TenantID)
-
-	// Initialize storefront subscription handlers
-	subscriptionListHandler := storefront.NewSubscriptionListHandler(subscriptionService, renderer, cfg.TenantID)
-	subscriptionDetailHandler := storefront.NewSubscriptionDetailHandler(subscriptionService, renderer, cfg.TenantID)
-	subscriptionPortalHandler := storefront.NewSubscriptionPortalHandler(subscriptionService, cfg.TenantID)
-	subscriptionCheckoutHandler := storefront.NewSubscriptionCheckoutHandler(productService, accountService, renderer, cfg.TenantID)
-	createSubscriptionHandler := storefront.NewCreateSubscriptionHandler(subscriptionService, renderer, cfg.TenantID)
-
-	// Initialize SaaS page handler
+	// SaaS dependencies
 	saasHandler, err := saas.NewPageHandler("web/templates")
 	if err != nil {
 		return fmt.Errorf("failed to initialize saas handler: %w", err)
 	}
+	saasDeps := routes.SaaSDeps{
+		Handler: saasHandler,
+	}
 
-	// Create router with global middleware
+	// Storefront dependencies
+	storefrontDeps := routes.StorefrontDeps{
+		// Home
+		HomeHandler: storefront.NewHomeHandler(productService, renderer),
+
+		// Products
+		ProductListHandler:   storefront.NewProductListHandler(productService, renderer),
+		ProductDetailHandler: storefront.NewProductDetailHandler(productService, renderer),
+
+		// Cart
+		CartViewHandler:       storefront.NewCartViewHandler(cartService, renderer, cfg.Env != "development"),
+		AddToCartHandler:      storefront.NewAddToCartHandler(cartService, renderer, cfg.Env != "development"),
+		UpdateCartItemHandler: storefront.NewUpdateCartItemHandler(cartService, renderer),
+		RemoveCartItemHandler: storefront.NewRemoveCartItemHandler(cartService, renderer),
+
+		// Auth
+		SignupHandler: storefront.NewSignupHandler(userService, renderer),
+		LoginHandler:  storefront.NewLoginHandler(userService, renderer),
+		LogoutHandler: storefront.NewLogoutHandler(userService),
+
+		// Checkout
+		CheckoutPageHandler:        storefront.NewCheckoutPageHandler(renderer, cartService, cfg.Stripe.PublishableKey),
+		ValidateAddressHandler:     storefront.NewValidateAddressHandler(checkoutService),
+		GetShippingRatesHandler:    storefront.NewGetShippingRatesHandler(checkoutService),
+		CalculateTotalHandler:      storefront.NewCalculateTotalHandler(checkoutService),
+		CreatePaymentIntentHandler: storefront.NewCreatePaymentIntentHandler(checkoutService),
+		OrderConfirmationHandler:   storefront.NewOrderConfirmationHandler(renderer, cartService, orderService, repo, cfg.TenantID),
+
+		// Account (authenticated)
+		SubscriptionListHandler:     storefront.NewSubscriptionListHandler(subscriptionService, renderer, cfg.TenantID),
+		SubscriptionDetailHandler:   storefront.NewSubscriptionDetailHandler(subscriptionService, renderer, cfg.TenantID),
+		SubscriptionPortalHandler:   storefront.NewSubscriptionPortalHandler(subscriptionService, cfg.TenantID),
+		SubscriptionCheckoutHandler: storefront.NewSubscriptionCheckoutHandler(productService, accountService, renderer, cfg.TenantID),
+		CreateSubscriptionHandler:   storefront.NewCreateSubscriptionHandler(subscriptionService, renderer, cfg.TenantID),
+	}
+
+	// Admin dependencies
+	adminDeps := routes.AdminDeps{
+		DashboardHandler:          admin.NewDashboardHandler(repo, renderer, cfg.TenantID),
+		ProductListHandler:        admin.NewProductListHandler(repo, renderer, cfg.TenantID),
+		ProductFormHandler:        admin.NewProductFormHandler(repo, renderer, cfg.TenantID),
+		ProductDetailHandler:      admin.NewProductDetailHandler(repo, renderer, cfg.TenantID),
+		SKUFormHandler:            admin.NewSKUFormHandler(repo, renderer, cfg.TenantID),
+		OrderListHandler:          admin.NewOrderListHandler(repo, renderer, cfg.TenantID),
+		OrderDetailHandler:        admin.NewOrderDetailHandler(repo, renderer, cfg.TenantID),
+		UpdateOrderStatusHandler:  admin.NewUpdateOrderStatusHandler(repo, cfg.TenantID),
+		CreateShipmentHandler:     admin.NewCreateShipmentHandler(repo, cfg.TenantID),
+		CustomerListHandler:       admin.NewCustomerListHandler(repo, renderer, cfg.TenantID),
+		SubscriptionListHandler:   admin.NewSubscriptionListHandler(repo, renderer, cfg.TenantID),
+		SubscriptionDetailHandler: admin.NewSubscriptionDetailHandler(repo, renderer, cfg.TenantID),
+	}
+
+	// Webhook dependencies
+	stripeWebhookHandler := webhook.NewStripeHandler(billingProvider, orderService, subscriptionService, webhook.StripeWebhookConfig{
+		WebhookSecret: cfg.Stripe.WebhookSecret,
+		TenantID:      cfg.TenantID,
+	})
+	webhookDeps := routes.WebhookDeps{
+		StripeHandler: stripeWebhookHandler.HandleWebhook,
+	}
+
+	// ==========================================================================
+	// Create routers and register routes
+	// ==========================================================================
+
+	// Main tenant router (storefront + admin + webhooks)
 	r := router.New(
 		router.Recovery(logger),
 		router.Logger(logger),
@@ -234,79 +252,38 @@ func run() error {
 	// Static files
 	r.Static("/static/", "./web/static")
 
-	// SaaS marketing pages
-	r.Get("/", saasHandler.Landing())
-	r.Get("/about", saasHandler.About())
-	r.Get("/contact", saasHandler.Contact())
-	r.Get("/privacy", saasHandler.Privacy())
-	r.Get("/terms", saasHandler.Terms())
+	// Register route groups
+	routes.RegisterStorefrontRoutes(r, storefrontDeps)
+	routes.RegisterAdminRoutes(r, adminDeps)
+	routes.RegisterWebhookRoutes(r, webhookDeps)
 
-	// Auth routes
-	r.Get("/signup", signupHandler.ServeHTTP)
-	r.Post("/signup", signupHandler.ServeHTTP)
-	r.Get("/login", loginHandler.ServeHTTP)
-	r.Post("/login", loginHandler.ServeHTTP)
-	r.Post("/logout", logoutHandler.ServeHTTP)
+	// SaaS marketing site router (separate, can be served on different port/domain)
+	saasRouter := router.New(
+		router.Recovery(logger),
+		router.Logger(logger),
+	)
+	saasRouter.Static("/static/", "./web/static")
+	routes.RegisterSaaSRoutes(saasRouter, saasDeps)
 
-	// Storefront routes
-	r.Get("/products", productListHandler.ServeHTTP)
-	r.Get("/products/{slug}", productDetailHandler.ServeHTTP)
-	r.Get("/cart", cartViewHandler.ServeHTTP)
-	r.Post("/cart/add", addToCartHandler.ServeHTTP)
-	r.Post("/cart/update", updateCartItemHandler.ServeHTTP)
-	r.Post("/cart/remove", removeCartItemHandler.ServeHTTP)
+	// ==========================================================================
+	// Start servers
+	// ==========================================================================
 
-	// Checkout routes
-	r.Get("/checkout", checkoutPageHandler.ServeHTTP)
-	r.Post("/checkout/validate-address", validateAddressHandler.ServeHTTP)
-	r.Post("/checkout/shipping-rates", getShippingRatesHandler.ServeHTTP)
-	r.Post("/checkout/calculate-total", calculateTotalHandler.ServeHTTP)
-	r.Post("/checkout/create-payment-intent", createPaymentIntentHandler.ServeHTTP)
-	r.Get("/order-confirmation", orderConfirmationHandler.ServeHTTP)
+	// For MVP: serve both on same port, SaaS on separate port
+	// In production: SaaS would be on freyja.app, tenant on {tenant}.shop.freyja.app
 
-	// Account routes (require authentication)
-	accountRouter := r.Group(middleware.RequireAuth)
-	accountRouter.Get("/account/subscriptions", subscriptionListHandler.ServeHTTP)
-	accountRouter.Get("/account/subscriptions/portal", subscriptionPortalHandler.ServeHTTP)
-	accountRouter.Get("/account/subscriptions/{id}", subscriptionDetailHandler.ServeHTTP)
-	accountRouter.Get("/subscribe/checkout", subscriptionCheckoutHandler.ServeHTTP)
-	accountRouter.Post("/subscribe", createSubscriptionHandler.ServeHTTP)
+	// Start SaaS server on port 3001
+	saasAddr := ":3001"
+	go func() {
+		logger.Info("Starting SaaS marketing server", "address", saasAddr)
+		if err := http.ListenAndServe(saasAddr, saasRouter); err != nil {
+			logger.Error("SaaS server failed", "error", err)
+		}
+	}()
 
-	// Webhook routes (no authentication - Stripe handles signature verification)
-	r.Post("/webhooks/stripe", stripeWebhookHandler.HandleWebhook)
-
-	// Admin routes (require admin authentication)
-	adminRouter := r.Group(middleware.RequireAdmin)
-	adminRouter.Get("/admin", adminDashboardHandler.ServeHTTP)
-
-	// Product routes
-	adminRouter.Get("/admin/products", adminProductListHandler.ServeHTTP)
-	adminRouter.Get("/admin/products/new", adminProductFormHandler.ServeHTTP)
-	adminRouter.Post("/admin/products/new", adminProductFormHandler.ServeHTTP)
-	adminRouter.Get("/admin/products/{id}", adminProductDetailHandler.ServeHTTP)
-	adminRouter.Get("/admin/products/{id}/edit", adminProductFormHandler.ServeHTTP)
-	adminRouter.Post("/admin/products/{id}/edit", adminProductFormHandler.ServeHTTP)
-	adminRouter.Get("/admin/products/{product_id}/skus/new", adminSKUFormHandler.ServeHTTP)
-	adminRouter.Post("/admin/products/{product_id}/skus/new", adminSKUFormHandler.ServeHTTP)
-	adminRouter.Get("/admin/products/{product_id}/skus/{sku_id}/edit", adminSKUFormHandler.ServeHTTP)
-	adminRouter.Post("/admin/products/{product_id}/skus/{sku_id}/edit", adminSKUFormHandler.ServeHTTP)
-
-	// Order routes
-	adminRouter.Get("/admin/orders", adminOrderListHandler.ServeHTTP)
-	adminRouter.Get("/admin/orders/{id}", adminOrderDetailHandler.ServeHTTP)
-	adminRouter.Post("/admin/orders/{id}/status", updateOrderStatusHandler.ServeHTTP)
-	adminRouter.Post("/admin/orders/{id}/shipments", createShipmentHandler.ServeHTTP)
-
-	// Customer routes
-	adminRouter.Get("/admin/customers", adminCustomerListHandler.ServeHTTP)
-
-	// Subscription routes
-	adminRouter.Get("/admin/subscriptions", adminSubscriptionListHandler.ServeHTTP)
-	adminRouter.Get("/admin/subscriptions/{id}", adminSubscriptionDetailHandler.ServeHTTP)
-
-	// Start server
+	// Start main tenant server on configured port
 	addr := fmt.Sprintf(":%d", cfg.Port)
-	logger.Info("Starting server", "address", addr)
+	logger.Info("Starting tenant server", "address", addr)
 
 	if err := http.ListenAndServe(addr, r); err != nil {
 		return fmt.Errorf("server failed: %w", err)
