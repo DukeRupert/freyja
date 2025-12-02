@@ -27,6 +27,9 @@ var (
 
 	// ErrAmountTooSmall is returned when payment amount is below Stripe's minimum.
 	ErrAmountTooSmall = errors.New("billing: amount too small (minimum $0.50 USD)")
+
+	// ErrSubscriptionNotFound is returned when subscription does not exist or tenant mismatch.
+	ErrSubscriptionNotFound = errors.New("billing: subscription not found")
 )
 
 // StripeError wraps a Stripe API error with additional context.

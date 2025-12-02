@@ -7,8 +7,11 @@ import (
 	"time"
 
 	"github.com/stripe/stripe-go/v83"
+	"github.com/stripe/stripe-go/v83/billingportal/session"
 	"github.com/stripe/stripe-go/v83/customer"
 	"github.com/stripe/stripe-go/v83/paymentintent"
+	"github.com/stripe/stripe-go/v83/price"
+	"github.com/stripe/stripe-go/v83/subscription"
 	"github.com/stripe/stripe-go/v83/webhook"
 )
 
@@ -537,21 +540,61 @@ func (s *StripeProvider) UpdateCustomer(ctx context.Context, customerID string, 
 //   - subscription_id (our database ID)
 //   - product_sku_id
 //   - billing_interval
-func (s *StripeProvider) CreateSubscription(ctx context.Context, params SubscriptionParams) (*Subscription, error) {
-	// TODO: Implementation
-	//
-	// Steps:
-	// 1. Validate params.CustomerID and params.PriceID
-	// 2. Build stripe.SubscriptionParams:
-	//    - Customer: params.CustomerID
-	//    - Items: []{Price: params.PriceID, Quantity: params.Quantity}
-	//    - Metadata: params.Metadata (ensure tenant_id)
-	//    - PaymentBehavior: "default_incomplete" (requires payment method)
-	//    - PaymentSettings: {SaveDefaultPaymentMethod: "on_subscription"}
-	// 3. Call subscription.New()
-	// 4. Map response to Subscription via buildSubscription()
-	// 5. Return Subscription
-	return nil, ErrNotImplemented
+func (s *StripeProvider) CreateSubscription(ctx context.Context, params CreateSubscriptionParams) (*Subscription, error) {
+	// Validate required params
+	if params.CustomerID == "" {
+		return nil, fmt.Errorf("customer ID is required")
+	}
+	if params.PriceID == "" {
+		return nil, fmt.Errorf("price ID is required")
+	}
+	if params.Quantity <= 0 {
+		return nil, fmt.Errorf("quantity must be greater than 0")
+	}
+
+	// CRITICAL: Validate tenant_id is present for multi-tenant isolation
+	if params.TenantID == "" {
+		return nil, fmt.Errorf("tenant_id is required for multi-tenant isolation")
+	}
+	if params.Metadata == nil {
+		params.Metadata = make(map[string]string)
+	}
+	params.Metadata["tenant_id"] = params.TenantID
+
+	// Build Stripe subscription parameters
+	subParams := &stripe.SubscriptionParams{
+		Customer: stripe.String(params.CustomerID),
+		Items: []*stripe.SubscriptionItemsParams{
+			{
+				Price:    stripe.String(params.PriceID),
+				Quantity: stripe.Int64(int64(params.Quantity)),
+			},
+		},
+		Metadata: params.Metadata,
+	}
+
+	// Set default payment method if provided
+	if params.DefaultPaymentMethodID != "" {
+		subParams.DefaultPaymentMethod = stripe.String(params.DefaultPaymentMethodID)
+	}
+
+	// Set collection method (default: charge_automatically)
+	if params.CollectionMethod != "" {
+		subParams.CollectionMethod = stripe.String(params.CollectionMethod)
+	}
+
+	// Set idempotency key if provided
+	if params.IdempotencyKey != "" {
+		subParams.IdempotencyKey = stripe.String(params.IdempotencyKey)
+	}
+
+	// Create subscription in Stripe
+	stripeSubscription, err := subscription.New(subParams)
+	if err != nil {
+		return nil, wrapStripeError(err)
+	}
+
+	return buildSubscription(stripeSubscription), nil
 }
 
 // CreateRecurringPrice creates a Stripe Price for recurring subscriptions.
@@ -563,22 +606,51 @@ func (s *StripeProvider) CreateSubscription(ctx context.Context, params Subscrip
 //
 // Returns Price with Stripe price ID (price_...) for use in CreateSubscription.
 func (s *StripeProvider) CreateRecurringPrice(ctx context.Context, params CreateRecurringPriceParams) (*Price, error) {
-	// TODO: Implementation
-	//
-	// Steps:
-	// 1. Validate params: Currency, UnitAmountCents, BillingInterval, ProductID
-	// 2. Validate tenant_id in metadata
-	// 3. Build stripe.PriceParams:
-	//    - Currency: params.Currency
-	//    - UnitAmount: params.UnitAmountCents
-	//    - Product: params.ProductID
-	//    - Recurring: {Interval: params.BillingInterval, IntervalCount: params.IntervalCount}
-	//    - Nickname: params.Nickname
-	//    - Metadata: params.Metadata
-	// 4. Call price.New()
-	// 5. Map response to Price via buildPrice()
-	// 6. Return Price
-	return nil, ErrNotImplemented
+	// Validate required params
+	if params.Currency == "" {
+		return nil, fmt.Errorf("currency is required")
+	}
+	if params.UnitAmountCents <= 0 {
+		return nil, fmt.Errorf("unit amount must be greater than 0")
+	}
+	if params.BillingInterval == "" {
+		return nil, fmt.Errorf("billing interval is required")
+	}
+	if params.ProductID == "" {
+		return nil, fmt.Errorf("product ID is required")
+	}
+
+	// CRITICAL: Validate tenant_id is present for multi-tenant isolation
+	if params.Metadata == nil || params.Metadata["tenant_id"] == "" {
+		return nil, fmt.Errorf("tenant_id is required in metadata for multi-tenant isolation")
+	}
+
+	// Build Stripe price parameters
+	priceParams := &stripe.PriceParams{
+		Currency:   stripe.String(strings.ToLower(params.Currency)),
+		UnitAmount: stripe.Int64(int64(params.UnitAmountCents)),
+		Product:    stripe.String(params.ProductID),
+		Recurring: &stripe.PriceRecurringParams{
+			Interval:      stripe.String(params.BillingInterval),
+			IntervalCount: stripe.Int64(int64(params.IntervalCount)),
+		},
+	}
+
+	if params.Nickname != "" {
+		priceParams.Nickname = stripe.String(params.Nickname)
+	}
+
+	if params.Metadata != nil {
+		priceParams.Metadata = params.Metadata
+	}
+
+	// Create price in Stripe
+	stripePrice, err := price.New(priceParams)
+	if err != nil {
+		return nil, wrapStripeError(err)
+	}
+
+	return buildPrice(stripePrice), nil
 }
 
 // GetSubscription retrieves an existing subscription.
@@ -586,17 +658,40 @@ func (s *StripeProvider) CreateRecurringPrice(ctx context.Context, params Create
 // SECURITY: Validates tenant_id in subscription metadata before returning.
 // Returns ErrSubscriptionNotFound if subscription doesn't exist or tenant mismatch.
 func (s *StripeProvider) GetSubscription(ctx context.Context, params GetSubscriptionParams) (*Subscription, error) {
-	// TODO: Implementation
-	//
-	// Steps:
-	// 1. Validate params.SubscriptionID not empty
-	// 2. Validate params.TenantID not empty
-	// 3. Build stripe.SubscriptionParams with Expand if specified
-	// 4. Call subscription.Get()
-	// 5. Verify metadata.tenant_id matches params.TenantID
-	// 6. Map response to Subscription via buildSubscription()
-	// 7. Return Subscription
-	return nil, ErrNotImplemented
+	// Validate required params
+	if params.SubscriptionID == "" {
+		return nil, fmt.Errorf("subscription ID is required")
+	}
+	if params.TenantID == "" {
+		return nil, fmt.Errorf("tenant_id is required for multi-tenant isolation")
+	}
+
+	// Build Stripe subscription parameters
+	subParams := &stripe.SubscriptionParams{}
+
+	// Add expand parameters if specified
+	if len(params.Expand) > 0 {
+		for _, expand := range params.Expand {
+			subParams.AddExpand(expand)
+		}
+	}
+
+	// Get subscription from Stripe
+	stripeSubscription, err := subscription.Get(params.SubscriptionID, subParams)
+	if err != nil {
+		stripeErr, ok := err.(*stripe.Error)
+		if ok && stripeErr.Code == stripe.ErrorCodeResourceMissing {
+			return nil, ErrSubscriptionNotFound
+		}
+		return nil, wrapStripeError(err)
+	}
+
+	// CRITICAL: Verify the subscription belongs to the requesting tenant
+	if stripeSubscription.Metadata == nil || stripeSubscription.Metadata["tenant_id"] != params.TenantID {
+		return nil, ErrSubscriptionNotFound // Don't leak existence to other tenants
+	}
+
+	return buildSubscription(stripeSubscription), nil
 }
 
 // PauseSubscription pauses a subscription until explicitly resumed.
@@ -608,17 +703,42 @@ func (s *StripeProvider) GetSubscription(ctx context.Context, params GetSubscrip
 //
 // SECURITY: Validates tenant_id ownership before pausing.
 func (s *StripeProvider) PauseSubscription(ctx context.Context, params PauseSubscriptionParams) (*Subscription, error) {
-	// TODO: Implementation
-	//
-	// Steps:
-	// 1. Validate params.SubscriptionID and params.TenantID
-	// 2. Verify tenant ownership via GetSubscription
-	// 3. Build stripe.SubscriptionParams:
-	//    - PauseCollection: {Behavior: params.Behavior, ResumesAt: params.ResumesAt}
-	// 4. Call subscription.Update()
-	// 5. Map response to Subscription via buildSubscription()
-	// 6. Return Subscription
-	return nil, ErrNotImplemented
+	// Validate required params
+	if params.SubscriptionID == "" {
+		return nil, fmt.Errorf("subscription ID is required")
+	}
+	if params.TenantID == "" {
+		return nil, fmt.Errorf("tenant_id is required for multi-tenant isolation")
+	}
+
+	// Verify tenant ownership
+	_, err := s.GetSubscription(ctx, GetSubscriptionParams{
+		SubscriptionID: params.SubscriptionID,
+		TenantID:       params.TenantID,
+	})
+	if err != nil {
+		return nil, err // Returns ErrSubscriptionNotFound if tenant mismatch
+	}
+
+	// Build Stripe subscription update parameters
+	subParams := &stripe.SubscriptionParams{
+		PauseCollection: &stripe.SubscriptionPauseCollectionParams{
+			Behavior: stripe.String(params.Behavior),
+		},
+	}
+
+	// Set ResumesAt if provided
+	if params.ResumesAt != nil {
+		subParams.PauseCollection.ResumesAt = stripe.Int64(params.ResumesAt.Unix())
+	}
+
+	// Update subscription in Stripe
+	stripeSubscription, err := subscription.Update(params.SubscriptionID, subParams)
+	if err != nil {
+		return nil, wrapStripeError(err)
+	}
+
+	return buildSubscription(stripeSubscription), nil
 }
 
 // ResumeSubscription resumes a paused subscription immediately.
@@ -629,17 +749,36 @@ func (s *StripeProvider) PauseSubscription(ctx context.Context, params PauseSubs
 //
 // SECURITY: Validates tenant_id ownership before resuming.
 func (s *StripeProvider) ResumeSubscription(ctx context.Context, params ResumeSubscriptionParams) (*Subscription, error) {
-	// TODO: Implementation
-	//
-	// Steps:
-	// 1. Validate params.SubscriptionID and params.TenantID
-	// 2. Verify tenant ownership via GetSubscription
-	// 3. Build stripe.SubscriptionParams:
-	//    - PauseCollection: "" (empty string to unpause)
-	// 4. Call subscription.Update()
-	// 5. Map response to Subscription via buildSubscription()
-	// 6. Return Subscription
-	return nil, ErrNotImplemented
+	// Validate required params
+	if params.SubscriptionID == "" {
+		return nil, fmt.Errorf("subscription ID is required")
+	}
+	if params.TenantID == "" {
+		return nil, fmt.Errorf("tenant_id is required for multi-tenant isolation")
+	}
+
+	// Verify tenant ownership
+	_, err := s.GetSubscription(ctx, GetSubscriptionParams{
+		SubscriptionID: params.SubscriptionID,
+		TenantID:       params.TenantID,
+	})
+	if err != nil {
+		return nil, err // Returns ErrSubscriptionNotFound if tenant mismatch
+	}
+
+	// Build Stripe subscription update parameters
+	// Setting PauseCollection to empty string resumes the subscription
+	subParams := &stripe.SubscriptionParams{
+		PauseCollection: &stripe.SubscriptionPauseCollectionParams{},
+	}
+
+	// Update subscription in Stripe
+	stripeSubscription, err := subscription.Update(params.SubscriptionID, subParams)
+	if err != nil {
+		return nil, wrapStripeError(err)
+	}
+
+	return buildSubscription(stripeSubscription), nil
 }
 
 // CancelSubscription cancels a subscription.
@@ -654,20 +793,53 @@ func (s *StripeProvider) ResumeSubscription(ctx context.Context, params ResumeSu
 //
 // SECURITY: Validates tenant_id ownership before canceling.
 func (s *StripeProvider) CancelSubscription(ctx context.Context, params CancelSubscriptionParams) error {
-	// TODO: Implementation
-	//
-	// Steps:
-	// 1. Validate params.SubscriptionID and params.TenantID
-	// 2. Verify tenant ownership via GetSubscription
-	// 3. If params.CancelAtPeriodEnd:
-	//    - Build stripe.SubscriptionParams with CancelAtPeriodEnd: true
-	//    - Add CancellationReason to metadata if provided
-	//    - Call subscription.Update()
-	// 4. Else:
-	//    - Build stripe.SubscriptionCancelParams
-	//    - Call subscription.Cancel()
-	// 5. Return nil on success
-	return ErrNotImplemented
+	// Validate required params
+	if params.SubscriptionID == "" {
+		return fmt.Errorf("subscription ID is required")
+	}
+	if params.TenantID == "" {
+		return fmt.Errorf("tenant_id is required for multi-tenant isolation")
+	}
+
+	// Verify tenant ownership
+	_, err := s.GetSubscription(ctx, GetSubscriptionParams{
+		SubscriptionID: params.SubscriptionID,
+		TenantID:       params.TenantID,
+	})
+	if err != nil {
+		return err // Returns ErrSubscriptionNotFound if tenant mismatch
+	}
+
+	if params.CancelAtPeriodEnd {
+		// Schedule cancellation at end of period
+		subParams := &stripe.SubscriptionParams{
+			CancelAtPeriodEnd: stripe.Bool(true),
+		}
+
+		// Add cancellation reason to metadata if provided
+		if params.CancellationReason != "" {
+			subParams.AddMetadata("cancellation_reason", params.CancellationReason)
+		}
+
+		_, err = subscription.Update(params.SubscriptionID, subParams)
+		if err != nil {
+			return wrapStripeError(err)
+		}
+	} else {
+		// Cancel immediately
+		cancelParams := &stripe.SubscriptionCancelParams{}
+
+		_, err = subscription.Cancel(params.SubscriptionID, cancelParams)
+		if err != nil {
+			stripeErr, ok := err.(*stripe.Error)
+			if ok && stripeErr.Code == stripe.ErrorCodeResourceMissing {
+				return ErrSubscriptionNotFound
+			}
+			return wrapStripeError(err)
+		}
+	}
+
+	return nil
 }
 
 // CreateCustomerPortalSession creates a Stripe Customer Portal session.
@@ -683,18 +855,51 @@ func (s *StripeProvider) CancelSubscription(ctx context.Context, params CancelSu
 //
 // SECURITY: Validates customer belongs to tenant before creating session.
 func (s *StripeProvider) CreateCustomerPortalSession(ctx context.Context, params CreatePortalSessionParams) (*PortalSession, error) {
-	// TODO: Implementation
-	//
-	// Steps:
-	// 1. Validate params.CustomerID, params.TenantID, params.ReturnURL
-	// 2. Get customer and verify tenant_id in metadata
-	// 3. Build stripe.BillingPortalSessionParams:
-	//    - Customer: params.CustomerID
-	//    - ReturnURL: params.ReturnURL
-	// 4. Call billingportal.Session.New()
-	// 5. Map response to PortalSession
-	// 6. Return PortalSession
-	return nil, ErrNotImplemented
+	// Validate required params
+	if params.CustomerID == "" {
+		return nil, fmt.Errorf("customer ID is required")
+	}
+	if params.TenantID == "" {
+		return nil, fmt.Errorf("tenant_id is required for multi-tenant isolation")
+	}
+	if params.ReturnURL == "" {
+		return nil, fmt.Errorf("return URL is required")
+	}
+
+	// Get customer and verify tenant ownership
+	stripeCustomer, err := customer.Get(params.CustomerID, nil)
+	if err != nil {
+		stripeErr, ok := err.(*stripe.Error)
+		if ok && stripeErr.Code == stripe.ErrorCodeResourceMissing {
+			return nil, fmt.Errorf("customer not found")
+		}
+		return nil, wrapStripeError(err)
+	}
+
+	// Verify customer belongs to tenant
+	if stripeCustomer.Metadata == nil || stripeCustomer.Metadata["tenant_id"] != params.TenantID {
+		return nil, fmt.Errorf("customer does not belong to tenant")
+	}
+
+	// Build portal session parameters
+	sessionParams := &stripe.BillingPortalSessionParams{
+		Customer:  stripe.String(params.CustomerID),
+		ReturnURL: stripe.String(params.ReturnURL),
+	}
+
+	// Create portal session
+	portalSession, err := session.New(sessionParams)
+	if err != nil {
+		return nil, wrapStripeError(err)
+	}
+
+	// Map to PortalSession
+	return &PortalSession{
+		ID:        portalSession.ID,
+		URL:       portalSession.URL,
+		CreatedAt: time.Unix(portalSession.Created, 0),
+		ExpiresAt: time.Unix(portalSession.Created+3600, 0), // Sessions expire after 1 hour
+	}, nil
 }
 
 // RefundPayment refunds a completed payment.
@@ -800,6 +1005,89 @@ func wrapStripeError(err error) error {
 		RequestID:     stripeErr.RequestID,
 		OriginalError: err,
 	}
+}
+
+// buildPrice maps Stripe Price to our Price type.
+// Centralizes mapping logic used by CreateRecurringPrice method.
+func buildPrice(stripePrice *stripe.Price) *Price {
+	if stripePrice == nil {
+		return nil
+	}
+
+	price := &Price{
+		ID:              stripePrice.ID,
+		ProductID:       stripePrice.Product.ID,
+		Currency:        string(stripePrice.Currency),
+		UnitAmountCents: int32(stripePrice.UnitAmount),
+		Type:            string(stripePrice.Type),
+		Active:          stripePrice.Active,
+		Metadata:        stripePrice.Metadata,
+		CreatedAt:       time.Unix(stripePrice.Created, 0),
+	}
+
+	if stripePrice.Recurring != nil {
+		price.Recurring = &PriceRecurring{
+			Interval:      string(stripePrice.Recurring.Interval),
+			IntervalCount: int32(stripePrice.Recurring.IntervalCount),
+		}
+	}
+
+	return price
+}
+
+// buildSubscription maps Stripe Subscription to our Subscription type.
+// Centralizes mapping logic used by subscription methods.
+func buildSubscription(stripeSub *stripe.Subscription) *Subscription {
+	if stripeSub == nil {
+		return nil
+	}
+
+	subscription := &Subscription{
+		ID:                     stripeSub.ID,
+		CustomerID:             stripeSub.Customer.ID,
+		Status:                 string(stripeSub.Status),
+		DefaultPaymentMethodID: "",
+		CurrentPeriodStart:     time.Unix(stripeSub.CurrentPeriodStart, 0),
+		CurrentPeriodEnd:       time.Unix(stripeSub.CurrentPeriodEnd, 0),
+		CancelAtPeriodEnd:      stripeSub.CancelAtPeriodEnd,
+		Metadata:               stripeSub.Metadata,
+		CreatedAt:              time.Unix(stripeSub.Created, 0),
+	}
+
+	// Set default payment method if present
+	if stripeSub.DefaultPaymentMethod != nil {
+		subscription.DefaultPaymentMethodID = stripeSub.DefaultPaymentMethod.ID
+	}
+
+	// Set canceled at timestamp if present
+	if stripeSub.CanceledAt > 0 {
+		canceledAt := time.Unix(stripeSub.CanceledAt, 0)
+		subscription.CanceledAt = &canceledAt
+	}
+
+	// Map subscription items
+	subscription.Items = make([]SubscriptionItem, len(stripeSub.Items.Data))
+	for i, item := range stripeSub.Items.Data {
+		subscription.Items[i] = SubscriptionItem{
+			ID:       item.ID,
+			PriceID:  item.Price.ID,
+			Quantity: int32(item.Quantity),
+			Metadata: item.Metadata,
+		}
+	}
+
+	// Map pause collection if present
+	if stripeSub.PauseCollection != nil {
+		subscription.PauseCollection = &SubscriptionPauseCollection{
+			Behavior: string(stripeSub.PauseCollection.Behavior),
+		}
+		if stripeSub.PauseCollection.ResumesAt > 0 {
+			resumesAt := time.Unix(stripeSub.PauseCollection.ResumesAt, 0)
+			subscription.PauseCollection.ResumesAt = &resumesAt
+		}
+	}
+
+	return subscription
 }
 
 // validateAmount checks if amount meets Stripe's minimum requirements.
