@@ -22,12 +22,18 @@ type Querier interface {
 	ClearCart(ctx context.Context, cartID pgtype.UUID) error
 	// Mark a job as completed
 	CompleteJob(ctx context.Context, id pgtype.UUID) error
+	// Count addresses for a user (for account dashboard)
+	CountAddressesForUser(ctx context.Context, arg CountAddressesForUserParams) (CountAddressesForUserRow, error)
 	// Count invoices for pagination
 	CountInvoices(ctx context.Context, tenantID pgtype.UUID) (int64, error)
 	// Count jobs by status
 	CountJobsByStatus(ctx context.Context, arg CountJobsByStatusParams) (int64, error)
 	// Count total orders for pagination
 	CountOrders(ctx context.Context, tenantID pgtype.UUID) (int64, error)
+	// Count orders for a user (for account dashboard)
+	CountOrdersForUser(ctx context.Context, arg CountOrdersForUserParams) (int64, error)
+	// Count payment methods for a user (for account dashboard)
+	CountPaymentMethodsForUser(ctx context.Context, arg CountPaymentMethodsForUserParams) (CountPaymentMethodsForUserRow, error)
 	// Count recent password reset requests for a specific user (rate limiting)
 	CountRecentResetRequestsByEmail(ctx context.Context, arg CountRecentResetRequestsByEmailParams) (int64, error)
 	// Count recent password reset requests from a specific IP address (rate limiting)
@@ -282,12 +288,14 @@ type Querier interface {
 	// Retrieves subscription by Stripe subscription ID
 	// Used for webhook processing to find local subscription
 	GetSubscriptionByProviderID(ctx context.Context, arg GetSubscriptionByProviderIDParams) (Subscription, error)
+	// Subscription summary for customer account page
+	// Get subscription counts by status for a user (for account dashboard)
+	GetSubscriptionCountsForUser(ctx context.Context, arg GetSubscriptionCountsForUserParams) (GetSubscriptionCountsForUserRow, error)
 	// Checks if an invoice has already been processed (idempotency)
 	// Invoice ID is stored in metadata->>'invoice_id'
 	GetSubscriptionScheduleEventByInvoiceID(ctx context.Context, arg GetSubscriptionScheduleEventByInvoiceIDParams) (SubscriptionSchedule, error)
 	// Get subscription statistics for dashboard
 	GetSubscriptionStats(ctx context.Context, tenantID pgtype.UUID) (GetSubscriptionStatsRow, error)
-	// Subscription summary for customer account page
 	// Get subscription summaries with primary product info for customer display
 	GetSubscriptionSummariesForUser(ctx context.Context, arg GetSubscriptionSummariesForUserParams) ([]GetSubscriptionSummariesForUserRow, error)
 	// Retrieves subscription with joined user, address, and payment method details

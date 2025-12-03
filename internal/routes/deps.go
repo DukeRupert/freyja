@@ -37,7 +37,8 @@ type StorefrontDeps struct {
 	// Checkout
 	CheckoutHandler *storefront.CheckoutHandler
 
-	// Account (authenticated) - subscriptions still use http.Handler for now
+	// Account (authenticated)
+	AccountDashboardHandler     *storefront.AccountDashboardHandler
 	SubscriptionListHandler     http.Handler
 	SubscriptionDetailHandler   http.Handler
 	SubscriptionPortalHandler   http.Handler

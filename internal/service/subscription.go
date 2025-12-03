@@ -64,6 +64,17 @@ type SubscriptionService interface {
 	// Called from webhook handler for "invoice.payment_succeeded" events
 	// where invoice.subscription is set.
 	CreateOrderFromSubscriptionInvoice(ctx context.Context, invoiceID string, tenantID pgtype.UUID) (*OrderDetail, error)
+
+	// GetSubscriptionCountsForUser returns subscription counts by status for the account dashboard.
+	GetSubscriptionCountsForUser(ctx context.Context, tenantID, userID pgtype.UUID) (SubscriptionCounts, error)
+}
+
+// SubscriptionCounts contains subscription counts by status for the account dashboard.
+type SubscriptionCounts struct {
+	TotalCount     int
+	ActiveCount    int
+	PausedCount    int
+	CancelledCount int
 }
 
 // CreateSubscriptionParams contains parameters for creating a subscription.

@@ -979,3 +979,21 @@ func formatTimePtr(t *time.Time) string {
 	}
 	return t.Format(time.RFC3339)
 }
+
+// GetSubscriptionCountsForUser returns subscription counts by status for the account dashboard.
+func (s *subscriptionService) GetSubscriptionCountsForUser(ctx context.Context, tenantID, userID pgtype.UUID) (SubscriptionCounts, error) {
+	counts, err := s.repo.GetSubscriptionCountsForUser(ctx, repository.GetSubscriptionCountsForUserParams{
+		UserID:   userID,
+		TenantID: tenantID,
+	})
+	if err != nil {
+		return SubscriptionCounts{}, fmt.Errorf("failed to get subscription counts: %w", err)
+	}
+
+	return SubscriptionCounts{
+		TotalCount:     int(counts.TotalCount),
+		ActiveCount:    int(counts.ActiveCount),
+		PausedCount:    int(counts.PausedCount),
+		CancelledCount: int(counts.CancelledCount),
+	}, nil
+}

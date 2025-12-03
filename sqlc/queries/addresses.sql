@@ -146,3 +146,13 @@ DELETE FROM customer_addresses
 WHERE tenant_id = $1
   AND user_id = $2
   AND address_id = $3;
+
+-- name: CountAddressesForUser :one
+-- Count addresses for a user (for account dashboard)
+SELECT
+    COUNT(*) as address_count,
+    COALESCE(BOOL_OR(is_default_shipping), false) as has_default_shipping,
+    COALESCE(BOOL_OR(is_default_billing), false) as has_default_billing
+FROM customer_addresses
+WHERE tenant_id = $1
+  AND user_id = $2;

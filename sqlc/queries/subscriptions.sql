@@ -316,6 +316,17 @@ WHERE tenant_id = $1;
 
 -- Subscription summary for customer account page
 
+-- name: GetSubscriptionCountsForUser :one
+-- Get subscription counts by status for a user (for account dashboard)
+SELECT
+    COUNT(*) as total_count,
+    COUNT(*) FILTER (WHERE status = 'active') as active_count,
+    COUNT(*) FILTER (WHERE status = 'paused') as paused_count,
+    COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled_count
+FROM subscriptions
+WHERE user_id = $1
+  AND tenant_id = $2;
+
 -- name: GetSubscriptionSummariesForUser :many
 -- Get subscription summaries with primary product info for customer display
 SELECT

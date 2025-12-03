@@ -1,0 +1,173 @@
+{{define "title"}}My Account{{end}}
+
+{{define "content"}}
+<div class="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+    <!-- Page Header -->
+    <div class="mb-8">
+        {{template "sf-heading" (dict "Level" "1" "Content" "My Account")}}
+        <p class="mt-2 text-base text-neutral-600">
+            Welcome back, {{.User.FirstName}}
+        </p>
+    </div>
+
+    <!-- User Info Card -->
+    <div class="mb-8 rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
+        <div class="flex items-center gap-4">
+            <div class="flex h-14 w-14 items-center justify-center rounded-full bg-teal-100 text-teal-700">
+                <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+            </div>
+            <div>
+                <h2 class="text-lg font-semibold text-neutral-900">
+                    {{.User.FirstName}} {{.User.LastName}}
+                </h2>
+                <p class="text-sm text-neutral-600">{{.User.Email}}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Account Sections Grid -->
+    <div class="grid gap-6 sm:grid-cols-2">
+
+        <!-- Subscriptions Card -->
+        <a href="/account/subscriptions" class="group block rounded-lg bg-white border border-neutral-200 shadow-sm p-6 transition-all hover:border-teal-300 hover:shadow-md">
+            <div class="flex items-start justify-between">
+                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-teal-50 text-teal-600 group-hover:bg-teal-100">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <svg class="h-5 w-5 text-neutral-400 group-hover:text-teal-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+            </div>
+            <h3 class="mt-4 text-lg font-semibold text-neutral-900">Subscriptions</h3>
+            <p class="mt-1 text-sm text-neutral-600">
+                {{if gt .SubscriptionCounts.ActiveCount 0}}
+                    {{.SubscriptionCounts.ActiveCount}} active subscription{{if gt .SubscriptionCounts.ActiveCount 1}}s{{end}}
+                {{else}}
+                    No active subscriptions
+                {{end}}
+            </p>
+            {{if gt .SubscriptionCounts.PausedCount 0}}
+            <p class="mt-1 text-xs text-amber-600">
+                {{.SubscriptionCounts.PausedCount}} paused
+            </p>
+            {{end}}
+        </a>
+
+        <!-- Order History Card -->
+        <div class="rounded-lg bg-white border border-neutral-200 shadow-sm p-6 opacity-75">
+            <div class="flex items-start justify-between">
+                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                    </svg>
+                </div>
+                <span class="inline-flex items-center rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-600">
+                    Coming soon
+                </span>
+            </div>
+            <h3 class="mt-4 text-lg font-semibold text-neutral-900">Order History</h3>
+            <p class="mt-1 text-sm text-neutral-600">
+                {{if gt .AccountSummary.OrderCount 0}}
+                    {{.AccountSummary.OrderCount}} order{{if gt .AccountSummary.OrderCount 1}}s{{end}}
+                {{else}}
+                    No orders yet
+                {{end}}
+            </p>
+        </div>
+
+        <!-- Addresses Card -->
+        <div class="rounded-lg bg-white border border-neutral-200 shadow-sm p-6 opacity-75">
+            <div class="flex items-start justify-between">
+                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </div>
+                <span class="inline-flex items-center rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-600">
+                    Coming soon
+                </span>
+            </div>
+            <h3 class="mt-4 text-lg font-semibold text-neutral-900">Saved Addresses</h3>
+            <p class="mt-1 text-sm text-neutral-600">
+                {{if gt .AccountSummary.AddressCount 0}}
+                    {{.AccountSummary.AddressCount}} address{{if gt .AccountSummary.AddressCount 1}}es{{end}} on file
+                {{else}}
+                    No saved addresses
+                {{end}}
+            </p>
+            {{if and (gt .AccountSummary.AddressCount 0) .AccountSummary.HasDefaultShipping}}
+            <p class="mt-1 text-xs text-teal-600">
+                Default shipping set
+            </p>
+            {{end}}
+        </div>
+
+        <!-- Payment Methods Card -->
+        <div class="rounded-lg bg-white border border-neutral-200 shadow-sm p-6 opacity-75">
+            <div class="flex items-start justify-between">
+                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                </div>
+                <span class="inline-flex items-center rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-600">
+                    Coming soon
+                </span>
+            </div>
+            <h3 class="mt-4 text-lg font-semibold text-neutral-900">Payment Methods</h3>
+            <p class="mt-1 text-sm text-neutral-600">
+                {{if gt .AccountSummary.PaymentMethodCount 0}}
+                    {{.AccountSummary.PaymentMethodCount}} card{{if gt .AccountSummary.PaymentMethodCount 1}}s{{end}} on file
+                {{else}}
+                    No saved payment methods
+                {{end}}
+            </p>
+            {{if and (gt .AccountSummary.PaymentMethodCount 0) .AccountSummary.HasDefaultPayment}}
+            <p class="mt-1 text-xs text-teal-600">
+                Default payment set
+            </p>
+            {{end}}
+        </div>
+
+    </div>
+
+    <!-- Subscription Management CTA -->
+    {{if gt .SubscriptionCounts.TotalCount 0}}
+    <div class="mt-8 rounded-lg bg-teal-50 border border-teal-200 p-6 text-center">
+        <h3 class="font-semibold text-teal-900">Manage your subscriptions</h3>
+        <p class="mt-2 text-sm text-teal-700">
+            Update delivery frequency, pause, or change payment methods
+        </p>
+        <a href="/account/subscriptions/portal"
+           class="mt-4 inline-flex items-center gap-2 rounded-lg bg-teal-700 px-6 py-3 text-sm font-medium text-white hover:bg-teal-800 transition-colors">
+            Open Subscription Portal
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+        </a>
+    </div>
+    {{end}}
+
+    <!-- Quick Actions for New Users -->
+    {{if and (eq .SubscriptionCounts.TotalCount 0) (eq .AccountSummary.OrderCount 0)}}
+    <div class="mt-8 rounded-lg bg-neutral-50 border border-neutral-200 p-6 text-center">
+        <h3 class="font-semibold text-neutral-900">Ready to start?</h3>
+        <p class="mt-2 text-sm text-neutral-600">
+            Browse our selection of fresh-roasted specialty coffee
+        </p>
+        <a href="/products"
+           class="mt-4 inline-flex items-center gap-2 rounded-lg bg-teal-700 px-6 py-3 text-sm font-medium text-white hover:bg-teal-800 transition-colors">
+            Shop Coffee
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+        </a>
+    </div>
+    {{end}}
+</div>
+{{end}}

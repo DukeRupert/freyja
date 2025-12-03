@@ -164,3 +164,13 @@ SET
 WHERE tenant_id = $1
   AND id = $2
 RETURNING *;
+
+-- name: CountPaymentMethodsForUser :one
+-- Count payment methods for a user (for account dashboard)
+SELECT
+    COUNT(*) as payment_method_count,
+    COALESCE(BOOL_OR(pm.is_default), false) as has_default_payment
+FROM payment_methods pm
+INNER JOIN billing_customers bc ON bc.id = pm.billing_customer_id
+WHERE bc.tenant_id = $1
+  AND bc.user_id = $2;

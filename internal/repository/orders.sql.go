@@ -25,6 +25,26 @@ func (q *Queries) CountOrders(ctx context.Context, tenantID pgtype.UUID) (int64,
 	return count, err
 }
 
+const countOrdersForUser = `-- name: CountOrdersForUser :one
+SELECT COUNT(*) as order_count
+FROM orders
+WHERE tenant_id = $1
+  AND user_id = $2
+`
+
+type CountOrdersForUserParams struct {
+	TenantID pgtype.UUID `json:"tenant_id"`
+	UserID   pgtype.UUID `json:"user_id"`
+}
+
+// Count orders for a user (for account dashboard)
+func (q *Queries) CountOrdersForUser(ctx context.Context, arg CountOrdersForUserParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countOrdersForUser, arg.TenantID, arg.UserID)
+	var order_count int64
+	err := row.Scan(&order_count)
+	return order_count, err
+}
+
 const createOrder = `-- name: CreateOrder :one
 INSERT INTO orders (
     tenant_id,

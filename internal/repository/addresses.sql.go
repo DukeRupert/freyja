@@ -11,6 +11,35 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countAddressesForUser = `-- name: CountAddressesForUser :one
+SELECT
+    COUNT(*) as address_count,
+    COALESCE(BOOL_OR(is_default_shipping), false) as has_default_shipping,
+    COALESCE(BOOL_OR(is_default_billing), false) as has_default_billing
+FROM customer_addresses
+WHERE tenant_id = $1
+  AND user_id = $2
+`
+
+type CountAddressesForUserParams struct {
+	TenantID pgtype.UUID `json:"tenant_id"`
+	UserID   pgtype.UUID `json:"user_id"`
+}
+
+type CountAddressesForUserRow struct {
+	AddressCount       int64       `json:"address_count"`
+	HasDefaultShipping interface{} `json:"has_default_shipping"`
+	HasDefaultBilling  interface{} `json:"has_default_billing"`
+}
+
+// Count addresses for a user (for account dashboard)
+func (q *Queries) CountAddressesForUser(ctx context.Context, arg CountAddressesForUserParams) (CountAddressesForUserRow, error) {
+	row := q.db.QueryRow(ctx, countAddressesForUser, arg.TenantID, arg.UserID)
+	var i CountAddressesForUserRow
+	err := row.Scan(&i.AddressCount, &i.HasDefaultShipping, &i.HasDefaultBilling)
+	return i, err
+}
+
 const createAddress = `-- name: CreateAddress :one
 INSERT INTO addresses (
     tenant_id,

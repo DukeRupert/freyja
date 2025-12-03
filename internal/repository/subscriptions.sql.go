@@ -520,6 +520,44 @@ func (q *Queries) GetSubscriptionByProviderID(ctx context.Context, arg GetSubscr
 	return i, err
 }
 
+const getSubscriptionCountsForUser = `-- name: GetSubscriptionCountsForUser :one
+
+SELECT
+    COUNT(*) as total_count,
+    COUNT(*) FILTER (WHERE status = 'active') as active_count,
+    COUNT(*) FILTER (WHERE status = 'paused') as paused_count,
+    COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled_count
+FROM subscriptions
+WHERE user_id = $1
+  AND tenant_id = $2
+`
+
+type GetSubscriptionCountsForUserParams struct {
+	UserID   pgtype.UUID `json:"user_id"`
+	TenantID pgtype.UUID `json:"tenant_id"`
+}
+
+type GetSubscriptionCountsForUserRow struct {
+	TotalCount     int64 `json:"total_count"`
+	ActiveCount    int64 `json:"active_count"`
+	PausedCount    int64 `json:"paused_count"`
+	CancelledCount int64 `json:"cancelled_count"`
+}
+
+// Subscription summary for customer account page
+// Get subscription counts by status for a user (for account dashboard)
+func (q *Queries) GetSubscriptionCountsForUser(ctx context.Context, arg GetSubscriptionCountsForUserParams) (GetSubscriptionCountsForUserRow, error) {
+	row := q.db.QueryRow(ctx, getSubscriptionCountsForUser, arg.UserID, arg.TenantID)
+	var i GetSubscriptionCountsForUserRow
+	err := row.Scan(
+		&i.TotalCount,
+		&i.ActiveCount,
+		&i.PausedCount,
+		&i.CancelledCount,
+	)
+	return i, err
+}
+
 const getSubscriptionScheduleEventByInvoiceID = `-- name: GetSubscriptionScheduleEventByInvoiceID :one
 SELECT id, tenant_id, subscription_id, event_type, status, order_id, payment_id, error_message, retry_count, scheduled_at, processed_at, failed_at, metadata, created_at, updated_at FROM subscription_schedule
 WHERE tenant_id = $1
@@ -597,7 +635,6 @@ func (q *Queries) GetSubscriptionStats(ctx context.Context, tenantID pgtype.UUID
 }
 
 const getSubscriptionSummariesForUser = `-- name: GetSubscriptionSummariesForUser :many
-
 SELECT
     s.id,
     s.status,
@@ -637,7 +674,6 @@ type GetSubscriptionSummariesForUserRow struct {
 	ProductImageUrl   pgtype.Text        `json:"product_image_url"`
 }
 
-// Subscription summary for customer account page
 // Get subscription summaries with primary product info for customer display
 func (q *Queries) GetSubscriptionSummariesForUser(ctx context.Context, arg GetSubscriptionSummariesForUserParams) ([]GetSubscriptionSummariesForUserRow, error) {
 	rows, err := q.db.Query(ctx, getSubscriptionSummariesForUser, arg.UserID, arg.TenantID)

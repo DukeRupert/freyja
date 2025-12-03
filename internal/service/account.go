@@ -14,6 +14,19 @@ type AccountService interface {
 
 	// ListPaymentMethods returns all saved payment methods for a user.
 	ListPaymentMethods(ctx context.Context, tenantID, userID pgtype.UUID) ([]UserPaymentMethod, error)
+
+	// GetAccountSummary returns aggregate counts for the account dashboard.
+	GetAccountSummary(ctx context.Context, tenantID, userID pgtype.UUID) (AccountSummary, error)
+}
+
+// AccountSummary contains aggregate counts for the account dashboard.
+type AccountSummary struct {
+	AddressCount       int
+	PaymentMethodCount int
+	OrderCount         int
+	HasDefaultShipping bool
+	HasDefaultBilling  bool
+	HasDefaultPayment  bool
 }
 
 // UserAddress represents a user's saved address with metadata.
@@ -110,4 +123,50 @@ func (s *accountServiceImpl) ListPaymentMethods(ctx context.Context, tenantID, u
 	}
 
 	return methods, nil
+}
+
+// GetAccountSummary returns aggregate counts for the account dashboard.
+func (s *accountServiceImpl) GetAccountSummary(ctx context.Context, tenantID, userID pgtype.UUID) (AccountSummary, error) {
+	var summary AccountSummary
+
+	// Get address counts
+	addressCounts, err := s.repo.CountAddressesForUser(ctx, repository.CountAddressesForUserParams{
+		TenantID: tenantID,
+		UserID:   userID,
+	})
+	if err != nil {
+		return summary, err
+	}
+	summary.AddressCount = int(addressCounts.AddressCount)
+	if v, ok := addressCounts.HasDefaultShipping.(bool); ok {
+		summary.HasDefaultShipping = v
+	}
+	if v, ok := addressCounts.HasDefaultBilling.(bool); ok {
+		summary.HasDefaultBilling = v
+	}
+
+	// Get payment method counts
+	paymentCounts, err := s.repo.CountPaymentMethodsForUser(ctx, repository.CountPaymentMethodsForUserParams{
+		TenantID: tenantID,
+		UserID:   userID,
+	})
+	if err != nil {
+		return summary, err
+	}
+	summary.PaymentMethodCount = int(paymentCounts.PaymentMethodCount)
+	if v, ok := paymentCounts.HasDefaultPayment.(bool); ok {
+		summary.HasDefaultPayment = v
+	}
+
+	// Get order count
+	orderCount, err := s.repo.CountOrdersForUser(ctx, repository.CountOrdersForUserParams{
+		TenantID: tenantID,
+		UserID:   userID,
+	})
+	if err != nil {
+		return summary, err
+	}
+	summary.OrderCount = int(orderCount)
+
+	return summary, nil
 }

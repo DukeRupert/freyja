@@ -11,6 +11,34 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countPaymentMethodsForUser = `-- name: CountPaymentMethodsForUser :one
+SELECT
+    COUNT(*) as payment_method_count,
+    COALESCE(BOOL_OR(pm.is_default), false) as has_default_payment
+FROM payment_methods pm
+INNER JOIN billing_customers bc ON bc.id = pm.billing_customer_id
+WHERE bc.tenant_id = $1
+  AND bc.user_id = $2
+`
+
+type CountPaymentMethodsForUserParams struct {
+	TenantID pgtype.UUID `json:"tenant_id"`
+	UserID   pgtype.UUID `json:"user_id"`
+}
+
+type CountPaymentMethodsForUserRow struct {
+	PaymentMethodCount int64       `json:"payment_method_count"`
+	HasDefaultPayment  interface{} `json:"has_default_payment"`
+}
+
+// Count payment methods for a user (for account dashboard)
+func (q *Queries) CountPaymentMethodsForUser(ctx context.Context, arg CountPaymentMethodsForUserParams) (CountPaymentMethodsForUserRow, error) {
+	row := q.db.QueryRow(ctx, countPaymentMethodsForUser, arg.TenantID, arg.UserID)
+	var i CountPaymentMethodsForUserRow
+	err := row.Scan(&i.PaymentMethodCount, &i.HasDefaultPayment)
+	return i, err
+}
+
 const createBillingCustomer = `-- name: CreateBillingCustomer :one
 INSERT INTO billing_customers (
     tenant_id,

@@ -137,6 +137,13 @@ SELECT COUNT(*)
 FROM orders
 WHERE tenant_id = $1;
 
+-- name: CountOrdersForUser :one
+-- Count orders for a user (for account dashboard)
+SELECT COUNT(*) as order_count
+FROM orders
+WHERE tenant_id = $1
+  AND user_id = $2;
+
 -- name: ListOrdersByStatus :many
 -- List orders filtered by status
 SELECT
