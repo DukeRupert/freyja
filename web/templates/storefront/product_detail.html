@@ -92,6 +92,7 @@
                   }"
                   x-init="findMatchingSKU()"
                   @change="findMatchingSKU()">
+                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
 
                 <!-- Purchase Type Toggle -->
                 <div class="flex rounded-lg bg-neutral-100 p-1">

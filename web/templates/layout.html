@@ -48,6 +48,7 @@
               Account
             </a>
             <form method="POST" action="/logout" class="inline">
+              <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
               <button type="submit" class="text-sm font-medium text-neutral-700 hover:text-teal-700">
                 Logout
               </button>

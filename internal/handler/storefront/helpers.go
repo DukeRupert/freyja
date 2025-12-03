@@ -19,5 +19,11 @@ func BaseTemplateData(r *http.Request) map[string]interface{} {
 		data["User"] = user
 	}
 
+	// Add CSRF token for forms
+	csrfToken := middleware.GetCSRFToken(r.Context())
+	if csrfToken != "" {
+		data["CSRFToken"] = csrfToken
+	}
+
 	return data
 }

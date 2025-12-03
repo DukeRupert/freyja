@@ -23,6 +23,7 @@
     <!-- Signup Form -->
     <div class="bg-white border border-neutral-200 rounded-lg shadow-sm p-8">
       <form method="POST" action="/signup" class="space-y-6">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
 
         <!-- Email -->
         <div>

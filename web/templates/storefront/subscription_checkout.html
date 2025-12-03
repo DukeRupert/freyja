@@ -34,6 +34,7 @@
     </div>
 
     <form action="/subscribe" method="POST" class="lg:grid lg:grid-cols-5 lg:gap-8">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
       <!-- Checkout Form (3/5 width) -->
       <div class="lg:col-span-3 space-y-6">
 
