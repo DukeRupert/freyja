@@ -38,6 +38,10 @@ type Querier interface {
 	CountRecentResetRequestsByEmail(ctx context.Context, arg CountRecentResetRequestsByEmailParams) (int64, error)
 	// Count recent password reset requests from a specific IP address (rate limiting)
 	CountRecentResetRequestsByIP(ctx context.Context, arg CountRecentResetRequestsByIPParams) (int64, error)
+	// Count recent email verification requests from a specific IP address (rate limiting)
+	CountRecentVerificationRequestsByIP(ctx context.Context, arg CountRecentVerificationRequestsByIPParams) (int64, error)
+	// Count recent email verification requests for a specific user (rate limiting)
+	CountRecentVerificationRequestsByUser(ctx context.Context, arg CountRecentVerificationRequestsByUserParams) (int64, error)
 	// Count total subscriptions for pagination
 	CountSubscriptions(ctx context.Context, tenantID pgtype.UUID) (int64, error)
 	// Counts subscriptions by status for pagination
@@ -55,6 +59,8 @@ type Querier interface {
 	CreateCart(ctx context.Context, arg CreateCartParams) (Cart, error)
 	// Link an address to a user
 	CreateCustomerAddress(ctx context.Context, arg CreateCustomerAddressParams) (CustomerAddress, error)
+	// Create a new email verification token
+	CreateEmailVerificationToken(ctx context.Context, arg CreateEmailVerificationTokenParams) (EmailVerificationToken, error)
 	// Invoice Queries
 	// Manages wholesale billing invoices
 	// =============================================================================
@@ -131,6 +137,8 @@ type Querier interface {
 	DecrementSKUStock(ctx context.Context, arg DecrementSKUStockParams) error
 	// Remove association between user and address
 	DeleteCustomerAddress(ctx context.Context, arg DeleteCustomerAddressParams) error
+	// Delete expired email verification tokens (cleanup job)
+	DeleteExpiredEmailVerificationTokens(ctx context.Context) error
 	// Delete expired password reset tokens (cleanup job)
 	DeleteExpiredPasswordResetTokens(ctx context.Context) error
 	// Clean up expired sessions (for background job)
@@ -196,6 +204,8 @@ type Querier interface {
 	GetDefaultPriceList(ctx context.Context, tenantID pgtype.UUID) (PriceList, error)
 	// Get the default shipping address for a user
 	GetDefaultShippingAddress(ctx context.Context, arg GetDefaultShippingAddressParams) (GetDefaultShippingAddressRow, error)
+	// Get a valid (unused, non-expired) email verification token with user details
+	GetEmailVerificationToken(ctx context.Context, arg GetEmailVerificationTokenParams) (GetEmailVerificationTokenRow, error)
 	// Get invoice by ID
 	GetInvoiceByID(ctx context.Context, arg GetInvoiceByIDParams) (Invoice, error)
 	// Get invoice by invoice number
@@ -251,6 +261,8 @@ type Querier interface {
 	GetPaymentTermsByCode(ctx context.Context, arg GetPaymentTermsByCodeParams) (PaymentTerm, error)
 	// Get payment terms by ID
 	GetPaymentTermsByID(ctx context.Context, arg GetPaymentTermsByIDParams) (PaymentTerm, error)
+	// Check if user has any pending (unused, non-expired) verification token
+	GetPendingVerificationByUser(ctx context.Context, userID pgtype.UUID) (bool, error)
 	// Get the price for a specific SKU on a price list
 	GetPriceForSKU(ctx context.Context, arg GetPriceForSKUParams) (PriceListEntry, error)
 	// Get a price list by ID
@@ -333,6 +345,9 @@ type Querier interface {
 	// =============================================================================
 	// Get wholesale customer with payment terms details
 	GetWholesaleCustomer(ctx context.Context, id pgtype.UUID) (GetWholesaleCustomerRow, error)
+	// Mark all unused email verification tokens for a user as used
+	// (Called after successful email verification to invalidate other tokens)
+	InvalidateUserEmailVerificationTokens(ctx context.Context, arg InvalidateUserEmailVerificationTokensParams) error
 	// Mark all unused password reset tokens for a user as used
 	// (Called after successful password reset to invalidate other tokens)
 	InvalidateUserPasswordResetTokens(ctx context.Context, arg InvalidateUserPasswordResetTokensParams) error
@@ -403,6 +418,8 @@ type Querier interface {
 	// =============================================================================
 	// List wholesale orders with customer details
 	ListWholesaleOrders(ctx context.Context, arg ListWholesaleOrdersParams) ([]ListWholesaleOrdersRow, error)
+	// Mark an email verification token as used
+	MarkEmailVerificationTokenUsed(ctx context.Context, arg MarkEmailVerificationTokenUsedParams) error
 	// Mark invoice as viewed (first view only)
 	MarkInvoiceViewed(ctx context.Context, arg MarkInvoiceViewedParams) error
 	// Mark a password reset token as used

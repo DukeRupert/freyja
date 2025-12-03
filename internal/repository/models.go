@@ -129,6 +129,23 @@ type EmailTemplate struct {
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
+// Email verification tokens with rate limiting
+type EmailVerificationToken struct {
+	ID       pgtype.UUID `json:"id"`
+	TenantID pgtype.UUID `json:"tenant_id"`
+	UserID   pgtype.UUID `json:"user_id"`
+	// SHA-256 hash of the token (raw token sent to user via email)
+	TokenHash string             `json:"token_hash"`
+	Used      bool               `json:"used"`
+	UsedAt    pgtype.Timestamptz `json:"used_at"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	// IP address that requested verification (for rate limiting)
+	IpAddress pgtype.Text `json:"ip_address"`
+	// User agent of the request (for logging/debugging)
+	UserAgent pgtype.Text        `json:"user_agent"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 // Wholesale billing invoices
 type Invoice struct {
 	ID            pgtype.UUID `json:"id"`

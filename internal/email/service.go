@@ -131,6 +131,29 @@ func (s *Service) SendPasswordReset(ctx context.Context, data PasswordResetEmail
 	return nil
 }
 
+// SendEmailVerification sends an email verification email
+func (s *Service) SendEmailVerification(ctx context.Context, data EmailVerificationEmail) error {
+	htmlBody, textBody, err := s.renderTemplate(data.TemplateName(), data)
+	if err != nil {
+		return fmt.Errorf("failed to render email verification template: %w", err)
+	}
+
+	email := &Email{
+		To:       []string{data.Email},
+		From:     fmt.Sprintf("%s <%s>", s.fromName, s.fromAddress),
+		Subject:  data.Subject(),
+		HTMLBody: htmlBody,
+		TextBody: textBody,
+	}
+
+	_, err = s.sender.Send(ctx, email)
+	if err != nil {
+		return fmt.Errorf("failed to send email verification email: %w", err)
+	}
+
+	return nil
+}
+
 // SendOrderConfirmation sends an order confirmation email
 func (s *Service) SendOrderConfirmation(ctx context.Context, data OrderConfirmationEmail) error {
 	htmlBody, textBody, err := s.renderTemplate(data.TemplateName(), data)

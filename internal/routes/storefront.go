@@ -26,6 +26,7 @@ func RegisterStorefrontRoutes(r *router.Router, deps StorefrontDeps) {
 
 	// Authentication (GET routes only - POST routes registered separately with rate limiting)
 	r.Get("/signup", deps.SignupHandler.ShowForm)
+	r.Get("/signup-success", deps.SignupSuccessHandler.ServeHTTP)
 	r.Get("/login", deps.LoginHandler.ShowForm)
 	r.Post("/logout", deps.LogoutHandler.HandleSubmit)
 
@@ -34,6 +35,11 @@ func RegisterStorefrontRoutes(r *router.Router, deps StorefrontDeps) {
 	r.Post("/forgot-password", deps.ForgotPasswordHandler.HandleSubmit)
 	r.Get("/reset-password", deps.ResetPasswordHandler.ShowForm)
 	r.Post("/reset-password", deps.ResetPasswordHandler.HandleSubmit)
+
+	// Email Verification
+	r.Get("/verify-email", deps.VerifyEmailHandler.HandleVerify)
+	r.Get("/resend-verification", deps.ResendVerificationHandler.ShowForm)
+	r.Post("/resend-verification", deps.ResendVerificationHandler.HandleSubmit)
 
 	// Checkout flow
 	r.Get("/checkout", deps.CheckoutHandler.Page)

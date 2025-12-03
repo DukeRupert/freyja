@@ -26,13 +26,18 @@ type StorefrontDeps struct {
 	CartHandler *storefront.CartHandler
 
 	// Auth
-	SignupHandler *storefront.SignupHandler
-	LoginHandler  *storefront.LoginHandler
-	LogoutHandler *storefront.LogoutHandler
+	SignupHandler        *storefront.SignupHandler
+	SignupSuccessHandler *storefront.SignupSuccessHandler
+	LoginHandler         *storefront.LoginHandler
+	LogoutHandler        *storefront.LogoutHandler
 
 	// Password Reset
 	ForgotPasswordHandler *storefront.ForgotPasswordHandler
 	ResetPasswordHandler  *storefront.ResetPasswordHandler
+
+	// Email Verification
+	VerifyEmailHandler        *storefront.VerifyEmailHandler
+	ResendVerificationHandler *storefront.ResendVerificationHandler
 
 	// Checkout
 	CheckoutHandler *storefront.CheckoutHandler

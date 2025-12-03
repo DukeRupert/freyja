@@ -20,6 +20,7 @@ var (
 	ErrInvalidPassword  = errors.New("invalid password")
 	ErrAccountSuspended = errors.New("account is suspended")
 	ErrAccountPending   = errors.New("account is pending approval")
+	ErrEmailNotVerified = errors.New("email has not been verified")
 )
 
 // SessionData represents the data stored in a session
@@ -149,6 +150,11 @@ func (s *userService) Authenticate(ctx context.Context, email, password string) 
 			return nil, ErrInvalidPassword
 		}
 		return nil, fmt.Errorf("failed to verify password: %w", err)
+	}
+
+	// Check if email is verified
+	if !user.EmailVerified {
+		return nil, ErrEmailNotVerified
 	}
 
 	return &user, nil

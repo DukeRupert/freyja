@@ -8,6 +8,7 @@ import (
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/service"
+	"github.com/google/uuid"
 )
 
 const (
@@ -17,15 +18,24 @@ const (
 
 // SignupHandler handles the signup page and form submission
 type SignupHandler struct {
-	userService service.UserService
-	renderer    *handler.Renderer
+	userService         service.UserService
+	verificationService service.EmailVerificationService
+	renderer            *handler.Renderer
+	tenantID            uuid.UUID
 }
 
 // NewSignupHandler creates a new signup handler
-func NewSignupHandler(userService service.UserService, renderer *handler.Renderer) *SignupHandler {
+func NewSignupHandler(
+	userService service.UserService,
+	verificationService service.EmailVerificationService,
+	renderer *handler.Renderer,
+	tenantID uuid.UUID,
+) *SignupHandler {
 	return &SignupHandler{
-		userService: userService,
-		renderer:    renderer,
+		userService:         userService,
+		verificationService: verificationService,
+		renderer:            renderer,
+		tenantID:            tenantID,
 	}
 }
 
@@ -89,30 +99,29 @@ func (h *SignupHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 
 	logger.Info("signup: user registered successfully", "email", email, "userID", user.ID)
 
-	// Create session
-	userIDStr := fmt.Sprintf("%x-%x-%x-%x-%x",
-		user.ID.Bytes[0:4], user.ID.Bytes[4:6], user.ID.Bytes[6:8],
-		user.ID.Bytes[8:10], user.ID.Bytes[10:16])
-	token, err := h.userService.CreateSession(ctx, userIDStr)
+	// Convert user ID from pgtype.UUID to uuid.UUID
+	userID, err := uuid.FromBytes(user.ID.Bytes[:])
 	if err != nil {
-		logger.Error("signup: failed to create session", "userID", userIDStr, "error", err)
-		http.Error(w, "Failed to create session", http.StatusInternalServerError)
+		logger.Error("signup: failed to convert user ID", "error", err)
+		http.Error(w, "Failed to create account", http.StatusInternalServerError)
 		return
 	}
 
-	// Set session cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookieName,
-		Value:    token,
-		Path:     "/",
-		MaxAge:   sessionMaxAge,
-		HttpOnly: true,
-		Secure:   r.TLS != nil, // Only secure if using HTTPS
-		SameSite: http.SameSiteLaxMode,
-	})
+	// Get IP and user agent for rate limiting
+	ipAddress := r.RemoteAddr
+	userAgent := r.UserAgent()
 
-	// Redirect to home page
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	// Send verification email
+	err = h.verificationService.SendVerificationEmail(ctx, h.tenantID, userID, email, firstName, ipAddress, userAgent)
+	if err != nil {
+		logger.Error("signup: failed to send verification email", "error", err)
+		// Still show success - the user was created, just the email failed
+	}
+
+	logger.Info("signup: verification email sent", "email", email)
+
+	// Redirect to verification pending page
+	http.Redirect(w, r, "/signup-success?email="+email, http.StatusSeeOther)
 }
 
 // LoginHandler handles the login page and form submission
@@ -176,6 +185,11 @@ func (h *LoginHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 	// Authenticate user
 	user, err := h.userService.Authenticate(ctx, email, password)
 	if err != nil {
+		if errors.Is(err, service.ErrEmailNotVerified) {
+			// Redirect to resend verification page
+			http.Redirect(w, r, "/resend-verification?email="+email, http.StatusSeeOther)
+			return
+		}
 		var errMsg string
 		if errors.Is(err, service.ErrInvalidPassword) || errors.Is(err, service.ErrUserNotFound) {
 			errMsg = "Invalid email or password"
@@ -255,4 +269,29 @@ func (h *LogoutHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 
 	// Redirect to home page
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+// SignupSuccessHandler handles the signup success page
+type SignupSuccessHandler struct {
+	renderer *handler.Renderer
+}
+
+// NewSignupSuccessHandler creates a new signup success handler
+func NewSignupSuccessHandler(renderer *handler.Renderer) *SignupSuccessHandler {
+	return &SignupSuccessHandler{
+		renderer: renderer,
+	}
+}
+
+// ServeHTTP handles GET /signup-success - displays the verification pending page
+func (h *SignupSuccessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	data := BaseTemplateData(r)
+
+	// Get email from query params
+	email := r.URL.Query().Get("email")
+	if email != "" {
+		data["Email"] = email
+	}
+
+	h.renderer.RenderHTTP(w, "signup_success", data)
 }

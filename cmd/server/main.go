@@ -99,6 +99,7 @@ func run() error {
 	}
 
 	passwordResetService := service.NewPasswordResetService(repo)
+	emailVerificationService := service.NewEmailVerificationService(repo)
 
 	// Initialize email service
 	logger.Info("Initializing email service...")
@@ -257,13 +258,18 @@ func run() error {
 		CartHandler: storefront.NewCartHandler(cartService, renderer, cfg.Env != "development"),
 
 		// Auth
-		SignupHandler: storefront.NewSignupHandler(userService, renderer),
-		LoginHandler:  storefront.NewLoginHandler(userService, renderer),
-		LogoutHandler: storefront.NewLogoutHandler(userService),
+		SignupHandler:        storefront.NewSignupHandler(userService, emailVerificationService, renderer, tenantUUID),
+		SignupSuccessHandler: storefront.NewSignupSuccessHandler(renderer),
+		LoginHandler:         storefront.NewLoginHandler(userService, renderer),
+		LogoutHandler:        storefront.NewLogoutHandler(userService),
 
 		// Password Reset
 		ForgotPasswordHandler: storefront.NewForgotPasswordHandler(renderer, passwordResetService, tenantUUID),
 		ResetPasswordHandler:  storefront.NewResetPasswordHandler(renderer, passwordResetService, userService, tenantUUID),
+
+		// Email Verification
+		VerifyEmailHandler:        storefront.NewVerifyEmailHandler(emailVerificationService, renderer, tenantUUID),
+		ResendVerificationHandler: storefront.NewResendVerificationHandler(emailVerificationService, repo, renderer, tenantUUID),
 
 		// Checkout (consolidated handler)
 		CheckoutHandler: storefront.NewCheckoutHandler(

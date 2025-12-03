@@ -24,6 +24,22 @@ func (e PasswordResetEmail) TemplateName() string {
 	return "password_reset.html"
 }
 
+// EmailVerificationEmail represents an email verification email
+type EmailVerificationEmail struct {
+	Email     string
+	FirstName string
+	VerifyURL string
+	ExpiresAt time.Time
+}
+
+func (e EmailVerificationEmail) Subject() string {
+	return "Verify Your Email Address"
+}
+
+func (e EmailVerificationEmail) TemplateName() string {
+	return "email_verification.html"
+}
+
 // OrderConfirmationEmail represents an order confirmation email
 type OrderConfirmationEmail struct {
 	OrderNumber   string

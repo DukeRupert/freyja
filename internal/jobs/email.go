@@ -16,6 +16,7 @@ import (
 // Job type constants for email jobs
 const (
 	JobTypePasswordReset             = "email:password_reset"
+	JobTypeEmailVerification         = "email:email_verification"
 	JobTypeOrderConfirmation         = "email:order_confirmation"
 	JobTypeShippingConfirmation      = "email:shipping_confirmation"
 	JobTypeSubscriptionWelcome       = "email:subscription_welcome"
@@ -30,6 +31,14 @@ type PasswordResetPayload struct {
 	Email     string    `json:"email"`
 	FirstName string    `json:"first_name"`
 	ResetURL  string    `json:"reset_url"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// EmailVerificationPayload represents the payload for an email verification job
+type EmailVerificationPayload struct {
+	Email     string    `json:"email"`
+	FirstName string    `json:"first_name"`
+	VerifyURL string    `json:"verify_url"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
@@ -100,6 +109,31 @@ func EnqueuePasswordResetEmail(ctx context.Context, q repository.Querier, tenant
 		Queue:      "email",
 		Payload:    payloadJSON,
 		Priority:   50, // Higher priority for password resets
+		MaxRetries: 3,
+		ScheduledAt: pgtype.Timestamptz{
+			Time:  time.Now(),
+			Valid: true,
+		},
+		TimeoutSeconds: 30,
+		Metadata:       []byte("{}"),
+	})
+
+	return err
+}
+
+// EnqueueEmailVerification enqueues an email verification email job
+func EnqueueEmailVerification(ctx context.Context, q repository.Querier, tenantID uuid.UUID, payload EmailVerificationPayload) error {
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	_, err = q.EnqueueJob(ctx, repository.EnqueueJobParams{
+		TenantID:   pgtype.UUID{Bytes: tenantID, Valid: true},
+		JobType:    JobTypeEmailVerification,
+		Queue:      "email",
+		Payload:    payloadJSON,
+		Priority:   50, // Higher priority for email verification
 		MaxRetries: 3,
 		ScheduledAt: pgtype.Timestamptz{
 			Time:  time.Now(),
@@ -254,6 +288,21 @@ func ProcessEmailJob(ctx context.Context, job *repository.Job, emailService *ema
 		}
 
 		return emailService.SendPasswordReset(ctx, emailData)
+
+	case JobTypeEmailVerification:
+		var payload EmailVerificationPayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal email verification payload: %w", err)
+		}
+
+		emailData := email.EmailVerificationEmail{
+			Email:     payload.Email,
+			FirstName: payload.FirstName,
+			VerifyURL: payload.VerifyURL,
+			ExpiresAt: payload.ExpiresAt,
+		}
+
+		return emailService.SendEmailVerification(ctx, emailData)
 
 	case JobTypeOrderConfirmation:
 		var payload OrderConfirmationPayload
