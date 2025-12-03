@@ -88,7 +88,7 @@ type SubscriptionCancelledPayload struct {
 // Job enqueueing functions
 
 // EnqueuePasswordResetEmail enqueues a password reset email job
-func EnqueuePasswordResetEmail(ctx context.Context, q *repository.Queries, tenantID uuid.UUID, payload PasswordResetPayload) error {
+func EnqueuePasswordResetEmail(ctx context.Context, q repository.Querier, tenantID uuid.UUID, payload PasswordResetPayload) error {
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
@@ -113,7 +113,7 @@ func EnqueuePasswordResetEmail(ctx context.Context, q *repository.Queries, tenan
 }
 
 // EnqueueOrderConfirmationEmail enqueues an order confirmation email job
-func EnqueueOrderConfirmationEmail(ctx context.Context, q *repository.Queries, tenantID uuid.UUID, payload OrderConfirmationPayload) error {
+func EnqueueOrderConfirmationEmail(ctx context.Context, q repository.Querier, tenantID uuid.UUID, payload OrderConfirmationPayload) error {
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
@@ -138,7 +138,7 @@ func EnqueueOrderConfirmationEmail(ctx context.Context, q *repository.Queries, t
 }
 
 // EnqueueShippingConfirmationEmail enqueues a shipping confirmation email job
-func EnqueueShippingConfirmationEmail(ctx context.Context, q *repository.Queries, tenantID uuid.UUID, payload ShippingConfirmationPayload) error {
+func EnqueueShippingConfirmationEmail(ctx context.Context, q repository.Querier, tenantID uuid.UUID, payload ShippingConfirmationPayload) error {
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
@@ -163,7 +163,7 @@ func EnqueueShippingConfirmationEmail(ctx context.Context, q *repository.Queries
 }
 
 // EnqueueSubscriptionWelcomeEmail enqueues a subscription welcome email job
-func EnqueueSubscriptionWelcomeEmail(ctx context.Context, q *repository.Queries, tenantID uuid.UUID, payload SubscriptionWelcomePayload) error {
+func EnqueueSubscriptionWelcomeEmail(ctx context.Context, q repository.Querier, tenantID uuid.UUID, payload SubscriptionWelcomePayload) error {
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
@@ -188,7 +188,7 @@ func EnqueueSubscriptionWelcomeEmail(ctx context.Context, q *repository.Queries,
 }
 
 // EnqueueSubscriptionPaymentFailedEmail enqueues a subscription payment failed email job
-func EnqueueSubscriptionPaymentFailedEmail(ctx context.Context, q *repository.Queries, tenantID uuid.UUID, payload SubscriptionPaymentFailedPayload) error {
+func EnqueueSubscriptionPaymentFailedEmail(ctx context.Context, q repository.Querier, tenantID uuid.UUID, payload SubscriptionPaymentFailedPayload) error {
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
@@ -213,7 +213,7 @@ func EnqueueSubscriptionPaymentFailedEmail(ctx context.Context, q *repository.Qu
 }
 
 // EnqueueSubscriptionCancelledEmail enqueues a subscription cancelled email job
-func EnqueueSubscriptionCancelledEmail(ctx context.Context, q *repository.Queries, tenantID uuid.UUID, payload SubscriptionCancelledPayload) error {
+func EnqueueSubscriptionCancelledEmail(ctx context.Context, q repository.Querier, tenantID uuid.UUID, payload SubscriptionCancelledPayload) error {
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
@@ -239,52 +239,113 @@ func EnqueueSubscriptionCancelledEmail(ctx context.Context, q *repository.Querie
 
 // ProcessEmailJob processes an email job based on its type
 func ProcessEmailJob(ctx context.Context, job *repository.Job, emailService *email.Service, queries *repository.Queries) error {
-	// TODO: Implement job processing logic
-	// 1. Switch on job.JobType
-	// 2. Unmarshal job.Payload into appropriate payload struct
-	// 3. Fetch additional data from database if needed (order details, addresses, etc.)
-	// 4. Call appropriate emailService.Send* method
-	// 5. Return error if sending fails (job will be retried)
-
 	switch job.JobType {
 	case JobTypePasswordReset:
-		// var payload PasswordResetPayload
-		// json.Unmarshal(job.Payload, &payload)
-		// return emailService.SendPasswordReset(ctx, ...)
-		return fmt.Errorf("not implemented: %s", job.JobType)
+		var payload PasswordResetPayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal password reset payload: %w", err)
+		}
+
+		emailData := email.PasswordResetEmail{
+			Email:     payload.Email,
+			FirstName: payload.FirstName,
+			ResetURL:  payload.ResetURL,
+			ExpiresAt: payload.ExpiresAt,
+		}
+
+		return emailService.SendPasswordReset(ctx, emailData)
 
 	case JobTypeOrderConfirmation:
-		// var payload OrderConfirmationPayload
-		// json.Unmarshal(job.Payload, &payload)
-		// Fetch order details, line items, addresses from database
-		// return emailService.SendOrderConfirmation(ctx, ...)
-		return fmt.Errorf("not implemented: %s", job.JobType)
+		var payload OrderConfirmationPayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal order confirmation payload: %w", err)
+		}
+
+		emailData := email.OrderConfirmationEmail{
+			OrderNumber:   payload.OrderNumber,
+			CustomerName:  payload.Email,
+			OrderDate:     payload.OrderDate,
+			Items:         []email.OrderItem{},
+			SubtotalCents: payload.SubtotalCents,
+			ShippingCents: payload.ShippingCents,
+			TaxCents:      payload.TaxCents,
+			TotalCents:    payload.TotalCents,
+			ShippingAddr:  email.Address{},
+			BillingAddr:   email.Address{},
+		}
+
+		return emailService.SendOrderConfirmation(ctx, emailData)
 
 	case JobTypeShippingConfirmation:
-		// var payload ShippingConfirmationPayload
-		// json.Unmarshal(job.Payload, &payload)
-		// Fetch order details, line items, shipping address from database
-		// return emailService.SendShippingConfirmation(ctx, ...)
-		return fmt.Errorf("not implemented: %s", job.JobType)
+		var payload ShippingConfirmationPayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal shipping confirmation payload: %w", err)
+		}
+
+		emailData := email.ShippingConfirmationEmail{
+			OrderNumber:    payload.OrderNumber,
+			CustomerName:   payload.Email,
+			ShippedDate:    time.Now(),
+			Items:          []email.OrderItem{},
+			ShippingAddr:   email.Address{},
+			Carrier:        payload.Carrier,
+			TrackingNumber: payload.TrackingNumber,
+			TrackingURL:    payload.TrackingURL,
+		}
+
+		return emailService.SendShippingConfirmation(ctx, emailData)
 
 	case JobTypeSubscriptionWelcome:
-		// var payload SubscriptionWelcomePayload
-		// json.Unmarshal(job.Payload, &payload)
-		// Fetch subscription details from database
-		// return emailService.SendSubscriptionWelcome(ctx, ...)
-		return fmt.Errorf("not implemented: %s", job.JobType)
+		var payload SubscriptionWelcomePayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal subscription welcome payload: %w", err)
+		}
+
+		emailData := email.SubscriptionWelcomeEmail{
+			CustomerName:      payload.Email,
+			ProductName:       payload.ProductName,
+			Frequency:         payload.Frequency,
+			NextDeliveryDate:  time.Now().AddDate(0, 0, 14),
+			ManagementURL:     "/account/subscriptions",
+			ShippingAddr:      email.Address{},
+			SubscriptionTotal: 0,
+		}
+
+		return emailService.SendSubscriptionWelcome(ctx, emailData)
 
 	case JobTypeSubscriptionPaymentFailed:
-		// var payload SubscriptionPaymentFailedPayload
-		// json.Unmarshal(job.Payload, &payload)
-		// return emailService.SendSubscriptionPaymentFailed(ctx, ...)
-		return fmt.Errorf("not implemented: %s", job.JobType)
+		var payload SubscriptionPaymentFailedPayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal subscription payment failed payload: %w", err)
+		}
+
+		emailData := email.SubscriptionPaymentFailedEmail{
+			CustomerName:     payload.Email,
+			ProductName:      payload.ProductName,
+			FailedDate:       payload.FailedDate,
+			RetryDate:        payload.RetryDate,
+			UpdatePaymentURL: "/account/payment-methods",
+			ManagementURL:    "/account/subscriptions",
+		}
+
+		return emailService.SendSubscriptionPaymentFailed(ctx, emailData)
 
 	case JobTypeSubscriptionCancelled:
-		// var payload SubscriptionCancelledPayload
-		// json.Unmarshal(job.Payload, &payload)
-		// return emailService.SendSubscriptionCancelled(ctx, ...)
-		return fmt.Errorf("not implemented: %s", job.JobType)
+		var payload SubscriptionCancelledPayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal subscription cancelled payload: %w", err)
+		}
+
+		emailData := email.SubscriptionCancelledEmail{
+			CustomerName:      payload.Email,
+			ProductName:       payload.ProductName,
+			CancelledDate:     payload.CancelledDate,
+			FinalDeliveryDate: time.Time{},
+			HasFinalDelivery:  false,
+			ReactivationURL:   "/subscriptions",
+		}
+
+		return emailService.SendSubscriptionCancelled(ctx, emailData)
 
 	default:
 		return fmt.Errorf("unknown job type: %s", job.JobType)

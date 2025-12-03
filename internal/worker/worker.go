@@ -166,15 +166,11 @@ func (w *Worker) claimAndProcess(ctx context.Context) {
 
 // processJob processes a single job
 func (w *Worker) processJob(ctx context.Context, job *repository.Job) error {
-	// TODO: Add timeout handling using job.TimeoutSeconds
-	// Create a context with timeout
-	// ctx, cancel := context.WithTimeout(ctx, time.Duration(job.TimeoutSeconds)*time.Second)
-	// defer cancel()
+	jobCtx, cancel := context.WithTimeout(ctx, time.Duration(job.TimeoutSeconds)*time.Second)
+	defer cancel()
 
-	// Route to appropriate job processor based on job type
-	// For now, we only have email jobs
 	if isEmailJob(job.JobType) {
-		return jobs.ProcessEmailJob(ctx, job, w.emailService, w.queries)
+		return jobs.ProcessEmailJob(jobCtx, job, w.emailService, w.queries)
 	}
 
 	return fmt.Errorf("unknown job type: %s", job.JobType)

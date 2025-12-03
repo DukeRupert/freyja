@@ -21,17 +21,19 @@ type Config struct {
 }
 
 type StripeConfig struct {
-	SecretKey       string
-	PublishableKey  string
-	WebhookSecret   string
+	SecretKey      string
+	PublishableKey string
+	WebhookSecret  string
 }
 
 type EmailConfig struct {
-	Host     string
-	Port     uint16
-	Username string
-	Password string
-	From     string
+	Host          string
+	Port          uint16
+	Username      string
+	Password      string
+	From          string
+	FromName      string
+	PostmarkToken string
 }
 
 func NewConfig() (*Config, error) {
@@ -66,11 +68,13 @@ func NewConfig() (*Config, error) {
 			WebhookSecret:  getEnv("STRIPE_WEBHOOK_SECRET", "whsec_your_webhook_secret_here"),
 		},
 		Email: EmailConfig{
-			Host:     getEnv("SMTP_HOST", "localhost"),
-			Port:     getEnvInt("SMTP_PORT", 1025),
-			Username: getEnv("SMTP_USERNAME", ""),
-			Password: getEnv("SMTP_PASSWORD", ""),
-			From:     getEnv("SMTP_FROM", "noreply@freyja.local"),
+			Host:          getEnv("SMTP_HOST", "localhost"),
+			Port:          getEnvInt("SMTP_PORT", 1025),
+			Username:      getEnv("SMTP_USERNAME", ""),
+			Password:      getEnv("SMTP_PASSWORD", ""),
+			From:          getEnv("EMAIL_FROM_ADDRESS", "noreply@freyja.local"),
+			FromName:      getEnv("EMAIL_FROM_NAME", "Freyja Coffee"),
+			PostmarkToken: getEnv("POSTMARK_API_TOKEN", ""),
 		},
 	}
 

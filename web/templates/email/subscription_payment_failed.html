@@ -1,0 +1,35 @@
+{{define "email_title"}}Subscription Payment Issue - Freyja Coffee{{end}}
+
+{{define "email_content"}}
+<h2>Payment Issue with Your Subscription</h2>
+
+<p>Hi {{.CustomerName}},</p>
+
+<p>
+  We had trouble processing the payment for your {{.ProductName}} subscription.
+</p>
+
+<p style="margin: 24px 0; padding: 16px; background-color: #fff3cd; border-left: 4px solid #B5873A; border-radius: 6px;">
+  <strong>Failed on:</strong> {{.FailedDate.Format "January 2, 2006"}}<br>
+  <strong>Next retry:</strong> {{.RetryDate.Format "January 2, 2006"}}
+</p>
+
+<p>
+  We'll automatically retry your payment on the retry date shown above. To avoid any interruption
+  to your subscription, please update your payment method.
+</p>
+
+<p style="text-align: center; margin: 32px 0;">
+  <a href="{{.UpdatePaymentURL}}" class="button">Update Payment Method</a>
+</p>
+
+<p style="text-align: center; margin: 16px 0;">
+  <a href="{{.ManagementURL}}" style="color: #2a7d7d; text-decoration: none;">Manage Subscription</a>
+</p>
+
+<div class="divider" style="margin: 32px 0;"></div>
+
+<p style="color: #737373; font-size: 14px;">
+  If you have questions or need help, please contact us at hello@freyjacoffee.com.
+</p>
+{{end}}

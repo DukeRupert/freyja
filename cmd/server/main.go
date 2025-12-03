@@ -7,10 +7,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/dukerupert/freyja/internal"
 	"github.com/dukerupert/freyja/internal/address"
 	"github.com/dukerupert/freyja/internal/billing"
+	"github.com/dukerupert/freyja/internal/email"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/handler/admin"
 	"github.com/dukerupert/freyja/internal/handler/saas"
@@ -23,6 +27,7 @@ import (
 	"github.com/dukerupert/freyja/internal/service"
 	"github.com/dukerupert/freyja/internal/shipping"
 	"github.com/dukerupert/freyja/internal/tax"
+	"github.com/dukerupert/freyja/internal/worker"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -94,6 +99,41 @@ func run() error {
 	}
 
 	passwordResetService := service.NewPasswordResetService(repo)
+
+	// Initialize email service
+	logger.Info("Initializing email service...")
+	var emailSender email.Sender
+	if cfg.Email.PostmarkToken != "" {
+		logger.Info("Using Postmark email sender")
+		emailSender = email.NewPostmarkSender(cfg.Email.PostmarkToken)
+	} else {
+		logger.Info("Using SMTP email sender (development)")
+		emailSender = email.NewSMTPSender(
+			cfg.Email.Host,
+			int(cfg.Email.Port),
+			cfg.Email.Username,
+			cfg.Email.Password,
+			cfg.Email.From,
+		)
+	}
+
+	emailService, err := email.NewService(emailSender, cfg.Email.From, cfg.Email.FromName, "web/templates")
+	if err != nil {
+		return fmt.Errorf("failed to initialize email service: %w", err)
+	}
+	logger.Info("Email service initialized")
+
+	// Initialize background worker
+	logger.Info("Initializing background worker...")
+	workerConfig := worker.Config{
+		WorkerID:       fmt.Sprintf("worker-%s", uuid.New().String()[:8]),
+		PollInterval:   1 * time.Second,
+		MaxConcurrency: 5,
+		Queue:          "email",
+		TenantID:       &tenantUUID,
+	}
+	bgWorker := worker.NewWorker(repo, emailService, workerConfig, logger)
+	logger.Info("Background worker initialized")
 
 	// Load templates with renderer
 	logger.Info("Loading templates...")
@@ -327,29 +367,77 @@ func run() error {
 	routes.RegisterSaaSRoutes(saasRouter, saasDeps)
 
 	// ==========================================================================
-	// Start servers
+	// Start servers and background workers
 	// ==========================================================================
+
+	// Create a context for graceful shutdown
+	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
+	defer shutdownCancel()
+
+	// Start background worker
+	go func() {
+		logger.Info("Starting background worker")
+		if err := bgWorker.Start(shutdownCtx); err != nil && err != context.Canceled {
+			logger.Error("Background worker error", "error", err)
+		}
+	}()
 
 	// For MVP: serve both on same port, SaaS on separate port
 	// In production: SaaS would be on freyja.app, tenant on {tenant}.shop.freyja.app
 
 	// Start SaaS server on port 3001
 	saasAddr := ":3001"
+	saasServer := &http.Server{
+		Addr:    saasAddr,
+		Handler: saasRouter,
+	}
 	go func() {
 		logger.Info("Starting SaaS marketing server", "address", saasAddr)
-		if err := http.ListenAndServe(saasAddr, saasRouter); err != nil {
+		if err := saasServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("SaaS server failed", "error", err)
 		}
 	}()
 
 	// Start main tenant server on configured port
 	addr := fmt.Sprintf(":%d", cfg.Port)
-	logger.Info("Starting tenant server", "address", addr)
-
-	if err := http.ListenAndServe(addr, r); err != nil {
-		return fmt.Errorf("server failed: %w", err)
+	mainServer := &http.Server{
+		Addr:    addr,
+		Handler: r,
 	}
 
+	// Channel to listen for interrupt signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	// Start main server in goroutine
+	go func() {
+		logger.Info("Starting tenant server", "address", addr)
+		if err := mainServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("Main server failed", "error", err)
+		}
+	}()
+
+	// Wait for interrupt signal
+	<-sigChan
+	logger.Info("Shutdown signal received, initiating graceful shutdown...")
+
+	// Cancel worker context to stop background jobs
+	shutdownCancel()
+
+	// Create shutdown context with timeout
+	shutdownTimeout := 30 * time.Second
+	shutdownTimeoutCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	// Shutdown servers gracefully
+	if err := mainServer.Shutdown(shutdownTimeoutCtx); err != nil {
+		logger.Error("Main server shutdown error", "error", err)
+	}
+	if err := saasServer.Shutdown(shutdownTimeoutCtx); err != nil {
+		logger.Error("SaaS server shutdown error", "error", err)
+	}
+
+	logger.Info("Graceful shutdown complete")
 	return nil
 }
 

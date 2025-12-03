@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/auth"
+	"github.com/dukerupert/freyja/internal/jobs"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -140,8 +141,19 @@ func (s *passwordResetService) RequestPasswordReset(
 		return "", nil
 	}
 
-	// Log the reset URL for now (email service not implemented)
-	fmt.Printf("Password reset requested for %s. Reset URL: /reset-password?token=%s\n", email, rawToken)
+	// Queue email job
+	resetURL := fmt.Sprintf("/reset-password?token=%s", rawToken)
+	emailPayload := jobs.PasswordResetPayload{
+		Email:     email,
+		FirstName: user.FirstName.String,
+		ResetURL:  resetURL,
+		ExpiresAt: expiresAt,
+	}
+
+	err = jobs.EnqueuePasswordResetEmail(ctx, s.repo, tenantID, emailPayload)
+	if err != nil {
+		fmt.Printf("error queueing password reset email: %v\n", err)
+	}
 
 	// Return nil to prevent user enumeration (caller should always show success)
 	return "", nil

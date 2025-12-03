@@ -1,0 +1,45 @@
+{{define "email_title"}}Subscription Cancelled - Freyja Coffee{{end}}
+
+{{define "email_content"}}
+<h2>Subscription Cancelled</h2>
+
+<p>Hi {{.CustomerName}},</p>
+
+<p>
+  Your {{.ProductName}} subscription has been cancelled as requested.
+</p>
+
+<p style="margin: 24px 0; padding: 16px; background-color: #f5f5f5; border-radius: 6px;">
+  <strong>Product:</strong> {{.ProductName}}<br>
+  <strong>Cancelled on:</strong> {{.CancelledDate.Format "January 2, 2006"}}
+  {{if .HasFinalDelivery}}
+  <br><strong>Final delivery:</strong> {{.FinalDeliveryDate.Format "January 2, 2006"}}
+  {{end}}
+</p>
+
+{{if .HasFinalDelivery}}
+<p>
+  You have one final shipment scheduled for {{.FinalDeliveryDate.Format "January 2, 2006"}}
+  that was already processed. After that, no further charges or shipments will occur.
+</p>
+{{else}}
+<p>
+  No further charges or shipments will occur.
+</p>
+{{end}}
+
+<p>
+  We're sorry to see you go! If you'd like to restart your subscription or try a different coffee,
+  you can do so at any time.
+</p>
+
+<p style="text-align: center; margin: 32px 0;">
+  <a href="{{.ReactivationURL}}" class="button">Browse Subscriptions</a>
+</p>
+
+<div class="divider" style="margin: 32px 0;"></div>
+
+<p style="color: #737373; font-size: 14px;">
+  If you cancelled by mistake or have questions, please contact us at hello@freyjacoffee.com.
+</p>
+{{end}}

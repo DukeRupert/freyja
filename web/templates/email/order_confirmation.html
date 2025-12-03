@@ -1,0 +1,72 @@
+{{define "email_title"}}Order Confirmation - {{.OrderNumber}} - Freyja Coffee{{end}}
+
+{{define "email_content"}}
+<h2>Order Confirmed</h2>
+
+<p>Hi {{.CustomerName}},</p>
+
+<p>
+  Thank you for your order! We've received your order and will begin processing it shortly.
+</p>
+
+<p style="margin: 24px 0; padding: 16px; background-color: #f5f5f5; border-radius: 6px;">
+  <strong>Order Number:</strong> {{.OrderNumber}}<br>
+  <strong>Order Date:</strong> {{.OrderDate.Format "January 2, 2006"}}
+</p>
+
+<h3 style="margin-top: 32px; font-size: 18px;">Order Details</h3>
+
+<table style="width: 100%; margin: 16px 0; border-collapse: collapse;">
+  {{range .Items}}
+  <tr style="border-bottom: 1px solid #e5e5e5;">
+    <td style="padding: 12px 0;">
+      <strong>{{.ProductName}}</strong><br>
+      <span style="font-size: 14px; color: #737373;">{{.VariantName}}</span>
+    </td>
+    <td style="padding: 12px 0; text-align: center;">
+      <span style="color: #737373;">Qty: {{.Quantity}}</span>
+    </td>
+    <td style="padding: 12px 0; text-align: right;">
+      ${{printf "%.2f" (divf .TotalCents 100)}}
+    </td>
+  </tr>
+  {{end}}
+</table>
+
+<table style="width: 100%; margin: 24px 0;">
+  <tr>
+    <td style="text-align: right; padding: 4px 0; color: #737373;">Subtotal:</td>
+    <td style="text-align: right; padding: 4px 0; width: 100px;">${{printf "%.2f" (divf .SubtotalCents 100)}}</td>
+  </tr>
+  <tr>
+    <td style="text-align: right; padding: 4px 0; color: #737373;">Shipping:</td>
+    <td style="text-align: right; padding: 4px 0;">${{printf "%.2f" (divf .ShippingCents 100)}}</td>
+  </tr>
+  {{if gt .TaxCents 0}}
+  <tr>
+    <td style="text-align: right; padding: 4px 0; color: #737373;">Tax:</td>
+    <td style="text-align: right; padding: 4px 0;">${{printf "%.2f" (divf .TaxCents 100)}}</td>
+  </tr>
+  {{end}}
+  <tr style="border-top: 2px solid #1a1a1a;">
+    <td style="text-align: right; padding: 12px 0 4px 0; font-size: 18px; font-weight: 600;">Total:</td>
+    <td style="text-align: right; padding: 12px 0 4px 0; font-size: 18px; font-weight: 600;">${{printf "%.2f" (divf .TotalCents 100)}}</td>
+  </tr>
+</table>
+
+<h3 style="margin-top: 32px; font-size: 18px;">Shipping Address</h3>
+<p style="margin: 8px 0; color: #404040;">
+  {{.ShippingAddr.Name}}<br>
+  {{if .ShippingAddr.Company}}{{.ShippingAddr.Company}}<br>{{end}}
+  {{.ShippingAddr.Line1}}<br>
+  {{if .ShippingAddr.Line2}}{{.ShippingAddr.Line2}}<br>{{end}}
+  {{.ShippingAddr.City}}, {{.ShippingAddr.State}} {{.ShippingAddr.PostalCode}}<br>
+  {{.ShippingAddr.Country}}
+</p>
+
+<div class="divider" style="margin: 32px 0;"></div>
+
+<p style="color: #737373; font-size: 14px;">
+  We'll send you another email when your order ships with tracking information.
+</p>
+{{end}}
