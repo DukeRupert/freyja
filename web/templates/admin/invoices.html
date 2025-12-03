@@ -1,0 +1,161 @@
+{{define "title"}}Invoices{{end}}
+
+{{define "content"}}
+<div class="space-y-8">
+    <!-- Page Header -->
+    {{template "page-header" (dict
+        "Title" "Invoices"
+        "Description" "Manage wholesale invoices and payments"
+        "Action" (dict
+            "Text" "Create Invoice"
+            "Href" "/admin/invoices/new"))}}
+
+    <!-- Stats Cards -->
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <!-- Draft -->
+        <div class="rounded-lg border border-zinc-950/10 bg-white p-6 dark:border-white/10 dark:bg-zinc-900">
+            <div class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Draft</div>
+            <div class="mt-2 text-2xl font-semibold text-zinc-950 dark:text-white">{{.Stats.DraftCount}}</div>
+        </div>
+        <!-- Sent/Outstanding -->
+        <div class="rounded-lg border border-zinc-950/10 bg-white p-6 dark:border-white/10 dark:bg-zinc-900">
+            <div class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Outstanding</div>
+            <div class="mt-2 text-2xl font-semibold text-zinc-950 dark:text-white">{{.Stats.SentCount}}</div>
+        </div>
+        <!-- Overdue -->
+        <div class="rounded-lg border border-zinc-950/10 bg-white p-6 dark:border-white/10 dark:bg-zinc-900">
+            <div class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Overdue</div>
+            <div class="mt-2 text-2xl font-semibold text-red-600 dark:text-red-400">{{.Stats.OverdueCount}}</div>
+        </div>
+        <!-- Total Owed -->
+        <div class="rounded-lg border border-zinc-950/10 bg-white p-6 dark:border-white/10 dark:bg-zinc-900">
+            <div class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Total Owed</div>
+            <div class="mt-2 text-2xl font-semibold text-zinc-950 dark:text-white">${{printf "%.2f" (divf (add .Stats.TotalOwed 0.0) 100.0)}}</div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex items-center gap-4">
+        <form method="get" action="/admin/invoices" class="flex items-center gap-4">
+            <select name="status"
+                    onchange="this.form.submit()"
+                    class="block rounded-lg border border-zinc-950/10 bg-white px-3 py-2 text-sm text-zinc-950 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:border-white/10 dark:bg-zinc-900 dark:text-white">
+                <option value="" {{if eq .StatusFilter ""}}selected{{end}}>All Invoices</option>
+                <option value="draft" {{if eq .StatusFilter "draft"}}selected{{end}}>Draft</option>
+                <option value="sent" {{if eq .StatusFilter "sent"}}selected{{end}}>Sent</option>
+                <option value="viewed" {{if eq .StatusFilter "viewed"}}selected{{end}}>Viewed</option>
+                <option value="paid" {{if eq .StatusFilter "paid"}}selected{{end}}>Paid</option>
+                <option value="overdue" {{if eq .StatusFilter "overdue"}}selected{{end}}>Overdue</option>
+                <option value="void" {{if eq .StatusFilter "void"}}selected{{end}}>Void</option>
+            </select>
+        </form>
+    </div>
+
+    <!-- Invoices Table -->
+    {{if .Invoices}}
+    {{template "table-start" (dict "Title" "All Invoices")}}
+        <table class="min-w-full text-left text-sm/6 text-zinc-950 dark:text-white">
+            <thead class="text-zinc-500 dark:text-zinc-400">
+                <tr>
+                    <th class="px-6 py-3 font-medium">Invoice</th>
+                    <th class="px-6 py-3 font-medium">Customer</th>
+                    <th class="px-6 py-3 font-medium">Status</th>
+                    <th class="px-6 py-3 font-medium">Total</th>
+                    <th class="px-6 py-3 font-medium">Balance</th>
+                    <th class="px-6 py-3 font-medium">Due Date</th>
+                    <th class="px-6 py-3 font-medium">
+                        <span class="sr-only">Actions</span>
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-950/5 dark:divide-white/5">
+                {{range .Invoices}}
+                <tr class="hover:bg-zinc-950/[2.5%] dark:hover:bg-white/[2.5%]">
+                    <td class="px-6 py-4">
+                        <div>
+                            <div class="font-medium text-zinc-950 dark:text-white">
+                                {{.InvoiceNumber}}
+                            </div>
+                            {{if .IsProforma}}
+                            <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                                Proforma
+                            </div>
+                            {{end}}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div>
+                            {{if .CustomerName}}
+                            <div class="text-zinc-950 dark:text-white">
+                                {{.CustomerName}}
+                            </div>
+                            {{end}}
+                            {{if .CompanyName.Valid}}
+                            <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                                {{.CompanyName.String}}
+                            </div>
+                            {{end}}
+                            {{if .CustomerEmail}}
+                            <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                                {{.CustomerEmail}}
+                            </div>
+                            {{end}}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        {{if eq .Status "draft"}}
+                            {{template "badge" (dict "Content" "Draft" "Color" "zinc")}}
+                        {{else if eq .Status "sent"}}
+                            {{template "badge" (dict "Content" "Sent" "Color" "blue")}}
+                        {{else if eq .Status "viewed"}}
+                            {{template "badge" (dict "Content" "Viewed" "Color" "amber")}}
+                        {{else if eq .Status "paid"}}
+                            {{template "badge" (dict "Content" "Paid" "Color" "green")}}
+                        {{else if eq .Status "overdue"}}
+                            {{template "badge" (dict "Content" "Overdue" "Color" "red")}}
+                        {{else if eq .Status "void"}}
+                            {{template "badge" (dict "Content" "Void" "Color" "zinc")}}
+                        {{else}}
+                            {{template "badge" (dict "Content" .Status "Color" "zinc")}}
+                        {{end}}
+                    </td>
+                    <td class="px-6 py-4 text-zinc-950 dark:text-white">
+                        ${{printf "%.2f" (divf (add .TotalCents 0.0) 100.0)}}
+                    </td>
+                    <td class="px-6 py-4">
+                        {{if eq .BalanceCents 0}}
+                        <span class="text-green-600 dark:text-green-400">Paid</span>
+                        {{else}}
+                        <span class="text-zinc-950 dark:text-white">${{printf "%.2f" (divf (add .BalanceCents 0.0) 100.0)}}</span>
+                        {{end}}
+                    </td>
+                    <td class="px-6 py-4 text-zinc-500 dark:text-zinc-400">
+                        {{if .DueDate.Valid}}
+                            {{.DueDate.Time.Format "Jan 2, 2006"}}
+                        {{else}}
+                            -
+                        {{end}}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="/admin/invoices/{{.ID}}"
+                           class="text-sm/6 font-medium text-zinc-950 hover:text-zinc-700 dark:text-white dark:hover:text-zinc-300">
+                            View
+                        </a>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    {{template "table-end"}}
+    {{else}}
+    {{template "table-start"}}
+        {{template "empty-state" (dict
+            "Title" "No invoices yet"
+            "Description" "Invoices will appear here once you start billing wholesale customers"
+            "Action" (dict
+                "Text" "Create Invoice"
+                "Href" "/admin/invoices/new"))}}
+    {{template "table-end"}}
+    {{end}}
+</div>
+{{end}}

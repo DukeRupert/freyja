@@ -1,0 +1,72 @@
+{{define "title"}}Create Invoice{{end}}
+
+{{define "content"}}
+<div class="space-y-8">
+    <!-- Back Link -->
+    <div>
+        <a href="/admin/invoices"
+           class="inline-flex items-center gap-2 text-sm/6 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white">
+            ← Back to Invoices
+        </a>
+    </div>
+
+    <!-- Page Header -->
+    <div>
+        {{template "heading" (dict "Level" "2" "Content" "Create Invoice")}}
+        <p class="mt-2 text-base/7 text-zinc-600 dark:text-zinc-400">
+            Select a wholesale customer to create an invoice for.
+        </p>
+    </div>
+
+    <!-- Customer Selection -->
+    <div class="mx-auto max-w-xl">
+        <form method="POST" action="/admin/invoices/new"
+              class="rounded-2xl bg-white p-8 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+
+            <div class="space-y-6">
+                <!-- Customer Selection -->
+                <div>
+                    <label for="customer_id" class="block text-sm/6 font-medium text-zinc-950 dark:text-white">
+                        Wholesale Customer
+                    </label>
+                    <select name="customer_id"
+                            id="customer_id"
+                            required
+                            class="mt-2 block w-full rounded-lg border border-zinc-950/10 bg-white py-2.5 px-3 text-sm text-zinc-950 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:border-white/10 dark:bg-zinc-900 dark:text-white">
+                        <option value="">Select a customer...</option>
+                        {{range .Customers}}
+                        <option value="{{.ID}}">
+                            {{if .CompanyName.Valid}}{{.CompanyName.String}} - {{end}}{{.FirstName}} {{.LastName}} ({{.Email}})
+                        </option>
+                        {{end}}
+                    </select>
+                    <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                        Only customers with wholesale accounts are shown.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="mt-8 flex items-center justify-end gap-4">
+                <a href="/admin/invoices"
+                   class="text-sm/6 font-medium text-zinc-950 hover:text-zinc-700 dark:text-white dark:hover:text-zinc-300">
+                    Cancel
+                </a>
+                {{template "button" (dict
+                    "Content" "Continue"
+                    "Type" "submit"
+                    "Variant" "solid"
+                    "Color" "dark")}}
+            </div>
+        </form>
+    </div>
+
+    {{if not .Customers}}
+    <div class="mx-auto max-w-xl text-center">
+        <p class="text-sm text-zinc-500 dark:text-zinc-400">
+            No wholesale customers found. Customers must have an approved wholesale account to receive invoices.
+        </p>
+    </div>
+    {{end}}
+</div>
+{{end}}

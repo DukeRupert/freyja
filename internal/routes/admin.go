@@ -39,8 +39,20 @@ func RegisterAdminRoutes(r *router.Router, deps AdminDeps) {
 
 	// Customer management
 	admin.Get("/admin/customers", deps.CustomerListHandler.ServeHTTP)
+	admin.Get("/admin/customers/{id}", deps.CustomerDetailHandler.ServeHTTP)
+	admin.Post("/admin/customers/{id}/wholesale/{action}", deps.WholesaleApprovalHandler.ServeHTTP)
 
 	// Subscription management
 	admin.Get("/admin/subscriptions", deps.SubscriptionListHandler.ServeHTTP)
 	admin.Get("/admin/subscriptions/{id}", deps.SubscriptionDetailHandler.ServeHTTP)
+
+	// Invoice management
+	admin.Get("/admin/invoices", deps.InvoiceListHandler.ServeHTTP)
+	admin.Get("/admin/invoices/new", deps.CreateInvoiceHandler.ServeHTTP)
+	admin.Post("/admin/invoices/new", deps.CreateInvoiceHandler.ServeHTTP)
+	admin.Get("/admin/invoices/{id}", deps.InvoiceDetailHandler.ServeHTTP)
+	admin.Post("/admin/invoices/{id}/send", deps.SendInvoiceHandler.ServeHTTP)
+	admin.Post("/admin/invoices/{id}/void", deps.VoidInvoiceHandler.ServeHTTP)
+	admin.Get("/admin/invoices/{id}/payment", deps.RecordPaymentHandler.ServeHTTP)
+	admin.Post("/admin/invoices/{id}/payment", deps.RecordPaymentHandler.ServeHTTP)
 }

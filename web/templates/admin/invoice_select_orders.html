@@ -1,0 +1,120 @@
+{{define "title"}}Select Orders - Create Invoice{{end}}
+
+{{define "content"}}
+<div class="space-y-8">
+    <!-- Back Link -->
+    <div>
+        <a href="/admin/invoices/new"
+           class="inline-flex items-center gap-2 text-sm/6 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white">
+            ← Back to Customer Selection
+        </a>
+    </div>
+
+    <!-- Page Header -->
+    <div>
+        {{template "heading" (dict "Level" "2" "Content" "Select Orders to Invoice")}}
+        <p class="mt-2 text-base/7 text-zinc-600 dark:text-zinc-400">
+            Select the orders you want to include in this invoice.
+        </p>
+    </div>
+
+    {{if .Orders}}
+    <form method="POST" action="/admin/invoices/new">
+        <input type="hidden" name="customer_id" value="{{.CustomerID}}">
+
+        <!-- Orders Table -->
+        {{template "table-start" (dict "Title" "Uninvoiced Orders")}}
+            <table class="min-w-full text-left text-sm/6 text-zinc-950 dark:text-white">
+                <thead class="text-zinc-500 dark:text-zinc-400">
+                    <tr>
+                        <th class="px-6 py-3 font-medium">
+                            <input type="checkbox"
+                                   id="select-all"
+                                   class="h-4 w-4 rounded border-zinc-300 text-teal-600 focus:ring-teal-500 dark:border-zinc-600 dark:bg-zinc-800">
+                        </th>
+                        <th class="px-6 py-3 font-medium">Order</th>
+                        <th class="px-6 py-3 font-medium">Status</th>
+                        <th class="px-6 py-3 font-medium">Total</th>
+                        <th class="px-6 py-3 font-medium">Date</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-zinc-950/5 dark:divide-white/5">
+                    {{range .Orders}}
+                    <tr class="hover:bg-zinc-950/[2.5%] dark:hover:bg-white/[2.5%]">
+                        <td class="px-6 py-4">
+                            <input type="checkbox"
+                                   name="order_ids"
+                                   value="{{.ID}}"
+                                   class="order-checkbox h-4 w-4 rounded border-zinc-300 text-teal-600 focus:ring-teal-500 dark:border-zinc-600 dark:bg-zinc-800">
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="font-medium text-zinc-950 dark:text-white">
+                                {{.OrderNumber}}
+                            </div>
+                            {{if .CustomerPoNumber.Valid}}
+                            <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                                PO: {{.CustomerPoNumber.String}}
+                            </div>
+                            {{end}}
+                        </td>
+                        <td class="px-6 py-4">
+                            {{if eq .Status "paid"}}
+                                {{template "badge" (dict "Content" "Paid" "Color" "green")}}
+                            {{else if eq .Status "processing"}}
+                                {{template "badge" (dict "Content" "Processing" "Color" "blue")}}
+                            {{else if eq .Status "shipped"}}
+                                {{template "badge" (dict "Content" "Shipped" "Color" "amber")}}
+                            {{else if eq .Status "delivered"}}
+                                {{template "badge" (dict "Content" "Delivered" "Color" "green")}}
+                            {{else}}
+                                {{template "badge" (dict "Content" .Status "Color" "zinc")}}
+                            {{end}}
+                        </td>
+                        <td class="px-6 py-4 text-zinc-950 dark:text-white">
+                            ${{printf "%.2f" (divf (add .TotalCents 0.0) 100.0)}}
+                        </td>
+                        <td class="px-6 py-4 text-zinc-500 dark:text-zinc-400">
+                            {{.CreatedAt.Format "Jan 2, 2006"}}
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        {{template "table-end"}}
+
+        <!-- Actions -->
+        <div class="mt-6 flex items-center justify-end gap-4">
+            <a href="/admin/invoices/new"
+               class="text-sm/6 font-medium text-zinc-950 hover:text-zinc-700 dark:text-white dark:hover:text-zinc-300">
+                Cancel
+            </a>
+            {{template "button" (dict
+                "Content" "Create Invoice"
+                "Type" "submit"
+                "Variant" "solid"
+                "Color" "dark")}}
+        </div>
+    </form>
+
+    <script>
+        // Select all checkbox functionality
+        document.getElementById('select-all').addEventListener('change', function() {
+            var checkboxes = document.querySelectorAll('.order-checkbox');
+            checkboxes.forEach(function(checkbox) {
+                checkbox.checked = this.checked;
+            }, this);
+        });
+    </script>
+
+    {{else}}
+    {{template "table-start"}}
+        {{template "empty-state" (dict
+            "Title" "No uninvoiced orders"
+            "Description" "This customer has no orders that need to be invoiced."
+            "Action" (dict
+                "Text" "Back to Invoices"
+                "Href" "/admin/invoices"))}}
+    {{template "table-end"}}
+    {{end}}
+</div>
+{{end}}

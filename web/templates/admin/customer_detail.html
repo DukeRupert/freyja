@@ -1,0 +1,285 @@
+{{define "title"}}Customer - {{.FullName}}{{end}}
+
+{{define "content"}}
+<div class="space-y-8">
+    <!-- Back Link -->
+    <div>
+        <a href="/admin/customers"
+           class="inline-flex items-center gap-2 text-sm/6 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white">
+            ← Back to Customers
+        </a>
+    </div>
+
+    <!-- Page Header with Actions -->
+    <div class="flex items-start justify-between">
+        <div>
+            {{template "heading" (dict "Level" "2" "Content" (or .FullName .Customer.Email))}}
+            <p class="mt-2 text-base/7 text-zinc-600 dark:text-zinc-400">
+                {{.Customer.Email}}
+                {{if .Customer.CompanyName.Valid}}
+                • {{.Customer.CompanyName.String}}
+                {{end}}
+            </p>
+        </div>
+        <div class="flex items-center gap-3">
+            {{if eq .Customer.AccountType "wholesale"}}
+                {{if and .Customer.WholesaleApplicationStatus.Valid (eq .Customer.WholesaleApplicationStatus.String "pending")}}
+                <form method="POST" action="/admin/customers/{{.Customer.ID}}/wholesale/approve">
+                    {{template "button" (dict
+                        "Content" "Approve"
+                        "Type" "submit"
+                        "Variant" "solid"
+                        "Color" "green")}}
+                </form>
+                <form method="POST" action="/admin/customers/{{.Customer.ID}}/wholesale/reject"
+                      onsubmit="return confirm('Are you sure you want to reject this wholesale application?')">
+                    {{template "button" (dict
+                        "Content" "Reject"
+                        "Type" "submit"
+                        "Variant" "outline"
+                        "Color" "red")}}
+                </form>
+                {{end}}
+            {{end}}
+        </div>
+    </div>
+
+    <div class="grid gap-8 lg:grid-cols-3">
+        <!-- Main Content (2/3 width) -->
+        <div class="space-y-8 lg:col-span-2">
+            <!-- Contact Information -->
+            <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+                {{template "heading" (dict "Level" "3" "Content" "Contact Information")}}
+
+                <dl class="mt-6 grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <dt class="text-sm text-zinc-500 dark:text-zinc-400">Email</dt>
+                        <dd class="mt-1 text-zinc-950 dark:text-white">{{.Customer.Email}}</dd>
+                    </div>
+                    {{if .Customer.Phone.Valid}}
+                    <div>
+                        <dt class="text-sm text-zinc-500 dark:text-zinc-400">Phone</dt>
+                        <dd class="mt-1 text-zinc-950 dark:text-white">{{.Customer.Phone.String}}</dd>
+                    </div>
+                    {{end}}
+                    {{if .Customer.FirstName.Valid}}
+                    <div>
+                        <dt class="text-sm text-zinc-500 dark:text-zinc-400">First Name</dt>
+                        <dd class="mt-1 text-zinc-950 dark:text-white">{{.Customer.FirstName.String}}</dd>
+                    </div>
+                    {{end}}
+                    {{if .Customer.LastName.Valid}}
+                    <div>
+                        <dt class="text-sm text-zinc-500 dark:text-zinc-400">Last Name</dt>
+                        <dd class="mt-1 text-zinc-950 dark:text-white">{{.Customer.LastName.String}}</dd>
+                    </div>
+                    {{end}}
+                    {{if .Customer.CompanyName.Valid}}
+                    <div>
+                        <dt class="text-sm text-zinc-500 dark:text-zinc-400">Company</dt>
+                        <dd class="mt-1 text-zinc-950 dark:text-white">{{.Customer.CompanyName.String}}</dd>
+                    </div>
+                    {{end}}
+                </dl>
+            </section>
+
+            <!-- Addresses -->
+            {{if .Addresses}}
+            <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+                {{template "heading" (dict "Level" "3" "Content" "Addresses")}}
+
+                <div class="mt-6 grid gap-4 sm:grid-cols-2">
+                    {{range .Addresses}}
+                    <div class="rounded-lg border border-zinc-950/10 p-4 dark:border-white/10">
+                        <div class="flex items-start justify-between">
+                            <div>
+                                {{if .FullName}}
+                                <div class="font-medium text-zinc-950 dark:text-white">{{.FullName}}</div>
+                                {{end}}
+                                {{if .Company.Valid}}
+                                <div class="text-sm text-zinc-600 dark:text-zinc-400">{{.Company.String}}</div>
+                                {{end}}
+                                <div class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                                    {{.AddressLine1}}<br>
+                                    {{if .AddressLine2.Valid}}{{.AddressLine2.String}}<br>{{end}}
+                                    {{.City}}, {{.State}} {{.PostalCode}}<br>
+                                    {{.Country}}
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                {{if .IsDefaultShipping}}
+                                {{template "badge" (dict "Content" "Shipping" "Color" "blue")}}
+                                {{end}}
+                                {{if .IsDefaultBilling}}
+                                {{template "badge" (dict "Content" "Billing" "Color" "green")}}
+                                {{end}}
+                            </div>
+                        </div>
+                    </div>
+                    {{end}}
+                </div>
+            </section>
+            {{end}}
+
+            <!-- Invoices (Wholesale only) -->
+            {{if and (eq .Customer.AccountType "wholesale") .Invoices}}
+            <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+                {{template "heading" (dict "Level" "3" "Content" "Recent Invoices")}}
+
+                <div class="mt-6 overflow-x-auto">
+                    <table class="min-w-full text-left text-sm/6 text-zinc-950 dark:text-white">
+                        <thead class="text-zinc-500 dark:text-zinc-400">
+                            <tr>
+                                <th class="px-4 py-3 font-medium">Invoice</th>
+                                <th class="px-4 py-3 font-medium">Status</th>
+                                <th class="px-4 py-3 font-medium text-right">Total</th>
+                                <th class="px-4 py-3 font-medium text-right">Balance</th>
+                                <th class="px-4 py-3 font-medium">Due Date</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-950/5 dark:divide-white/5">
+                            {{range .Invoices}}
+                            <tr class="hover:bg-zinc-950/[2.5%] dark:hover:bg-white/[2.5%]">
+                                <td class="px-4 py-3">
+                                    <a href="/admin/invoices/{{.ID}}" class="font-medium hover:underline">
+                                        {{.InvoiceNumber}}
+                                    </a>
+                                </td>
+                                <td class="px-4 py-3">
+                                    {{if eq .Status "draft"}}
+                                        {{template "badge" (dict "Content" "Draft" "Color" "zinc")}}
+                                    {{else if eq .Status "sent"}}
+                                        {{template "badge" (dict "Content" "Sent" "Color" "blue")}}
+                                    {{else if eq .Status "paid"}}
+                                        {{template "badge" (dict "Content" "Paid" "Color" "green")}}
+                                    {{else if eq .Status "overdue"}}
+                                        {{template "badge" (dict "Content" "Overdue" "Color" "red")}}
+                                    {{else}}
+                                        {{template "badge" (dict "Content" .Status "Color" "zinc")}}
+                                    {{end}}
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    ${{printf "%.2f" (divf (add .TotalCents 0.0) 100.0)}}
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    {{if eq .BalanceCents 0}}
+                                    <span class="text-green-600 dark:text-green-400">Paid</span>
+                                    {{else}}
+                                    ${{printf "%.2f" (divf (add .BalanceCents 0.0) 100.0)}}
+                                    {{end}}
+                                </td>
+                                <td class="px-4 py-3 text-zinc-500 dark:text-zinc-400">
+                                    {{if .DueDate.Valid}}
+                                        {{.DueDate.Time.Format "Jan 2, 2006"}}
+                                    {{else}}
+                                        -
+                                    {{end}}
+                                </td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            {{end}}
+        </div>
+
+        <!-- Sidebar (1/3 width) -->
+        <div class="space-y-6">
+            <!-- Account Status -->
+            <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+                {{template "heading" (dict "Level" "3" "Content" "Account")}}
+
+                <div class="mt-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-zinc-600 dark:text-zinc-400">Account Type</span>
+                        {{if eq .Customer.AccountType "retail"}}
+                            {{template "badge" (dict "Content" "Retail" "Color" "blue")}}
+                        {{else if eq .Customer.AccountType "wholesale"}}
+                            {{template "badge" (dict "Content" "Wholesale" "Color" "amber")}}
+                        {{else}}
+                            {{template "badge" (dict "Content" .Customer.AccountType "Color" "zinc")}}
+                        {{end}}
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-zinc-600 dark:text-zinc-400">Status</span>
+                        {{if eq .Customer.Status "active"}}
+                            {{template "badge" (dict "Content" "Active" "Color" "green")}}
+                        {{else if eq .Customer.Status "inactive"}}
+                            {{template "badge" (dict "Content" "Inactive" "Color" "zinc")}}
+                        {{else if eq .Customer.Status "suspended"}}
+                            {{template "badge" (dict "Content" "Suspended" "Color" "red")}}
+                        {{else}}
+                            {{template "badge" (dict "Content" .Customer.Status "Color" "zinc")}}
+                        {{end}}
+                    </div>
+                    {{if .Customer.CreatedAt.Valid}}
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-zinc-600 dark:text-zinc-400">Member Since</span>
+                        <span class="text-sm font-medium">{{.Customer.CreatedAt.Time.Format "Jan 2, 2006"}}</span>
+                    </div>
+                    {{end}}
+                </div>
+            </section>
+
+            <!-- Wholesale Info -->
+            {{if eq .Customer.AccountType "wholesale"}}
+            <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+                {{template "heading" (dict "Level" "3" "Content" "Wholesale Details")}}
+
+                <div class="mt-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-zinc-600 dark:text-zinc-400">Application</span>
+                        {{if .Customer.WholesaleApplicationStatus.Valid}}
+                            {{if eq .Customer.WholesaleApplicationStatus.String "pending"}}
+                                {{template "badge" (dict "Content" "Pending" "Color" "amber")}}
+                            {{else if eq .Customer.WholesaleApplicationStatus.String "approved"}}
+                                {{template "badge" (dict "Content" "Approved" "Color" "green")}}
+                            {{else if eq .Customer.WholesaleApplicationStatus.String "rejected"}}
+                                {{template "badge" (dict "Content" "Rejected" "Color" "red")}}
+                            {{else}}
+                                {{template "badge" (dict "Content" .Customer.WholesaleApplicationStatus.String "Color" "zinc")}}
+                            {{end}}
+                        {{else}}
+                            <span class="text-sm">-</span>
+                        {{end}}
+                    </div>
+                    {{if .PaymentTerms}}
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-zinc-600 dark:text-zinc-400">Payment Terms</span>
+                        <span class="text-sm font-medium">{{.PaymentTerms.Name}}</span>
+                    </div>
+                    {{end}}
+                    {{if .Customer.WholesaleApprovedAt.Valid}}
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-zinc-600 dark:text-zinc-400">Approved On</span>
+                        <span class="text-sm font-medium">{{.Customer.WholesaleApprovedAt.Time.Format "Jan 2, 2006"}}</span>
+                    </div>
+                    {{end}}
+                    {{if .Customer.CreditLimitCents}}
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-zinc-600 dark:text-zinc-400">Credit Limit</span>
+                        <span class="text-sm font-medium">${{printf "%.2f" (divf (add .Customer.CreditLimitCents 0.0) 100.0)}}</span>
+                    </div>
+                    {{end}}
+                </div>
+            </section>
+            {{end}}
+
+            <!-- Quick Actions -->
+            <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+                {{template "heading" (dict "Level" "3" "Content" "Actions")}}
+
+                <div class="mt-4 space-y-2">
+                    {{if eq .Customer.AccountType "wholesale"}}
+                    <a href="/admin/invoices/new?customer_id={{.Customer.ID}}"
+                       class="block w-full rounded-lg border border-zinc-950/10 px-4 py-2 text-center text-sm font-medium text-zinc-950 hover:bg-zinc-50 dark:border-white/10 dark:text-white dark:hover:bg-zinc-800">
+                        Create Invoice
+                    </a>
+                    {{end}}
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+{{end}}

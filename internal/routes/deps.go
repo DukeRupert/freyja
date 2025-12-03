@@ -69,11 +69,21 @@ type AdminDeps struct {
 	CreateShipmentHandler    http.Handler
 
 	// Customers
-	CustomerListHandler http.Handler
+	CustomerListHandler     http.Handler
+	CustomerDetailHandler   http.Handler
+	WholesaleApprovalHandler http.Handler
 
 	// Subscriptions
 	SubscriptionListHandler   http.Handler
 	SubscriptionDetailHandler http.Handler
+
+	// Invoices
+	InvoiceListHandler    http.Handler
+	InvoiceDetailHandler  http.Handler
+	SendInvoiceHandler    http.Handler
+	VoidInvoiceHandler    http.Handler
+	RecordPaymentHandler  http.Handler
+	CreateInvoiceHandler  http.Handler
 }
 
 // WebhookDeps contains dependencies for webhook routes

@@ -295,9 +295,17 @@ func run() error {
 		OrderDetailHandler:        admin.NewOrderDetailHandler(repo, renderer, cfg.TenantID),
 		UpdateOrderStatusHandler:  admin.NewUpdateOrderStatusHandler(repo, cfg.TenantID),
 		CreateShipmentHandler:     admin.NewCreateShipmentHandler(repo, cfg.TenantID),
-		CustomerListHandler:       admin.NewCustomerListHandler(repo, renderer, cfg.TenantID),
+		CustomerListHandler:        admin.NewCustomerListHandler(repo, renderer, cfg.TenantID),
+		CustomerDetailHandler:      admin.NewCustomerDetailHandler(repo, invoiceService, renderer, cfg.TenantID),
+		WholesaleApprovalHandler:   admin.NewWholesaleApprovalHandler(repo, cfg.TenantID),
 		SubscriptionListHandler:   admin.NewSubscriptionListHandler(repo, renderer, cfg.TenantID),
 		SubscriptionDetailHandler: admin.NewSubscriptionDetailHandler(repo, renderer, cfg.TenantID),
+		InvoiceListHandler:        admin.NewInvoiceListHandler(invoiceService, renderer),
+		InvoiceDetailHandler:      admin.NewInvoiceDetailHandler(invoiceService, repo, renderer, cfg.TenantID),
+		SendInvoiceHandler:        admin.NewSendInvoiceHandler(invoiceService),
+		VoidInvoiceHandler:        admin.NewVoidInvoiceHandler(invoiceService),
+		RecordPaymentHandler:      admin.NewRecordPaymentHandler(invoiceService, renderer),
+		CreateInvoiceHandler:      admin.NewCreateInvoiceHandler(invoiceService, repo, renderer, cfg.TenantID),
 	}
 
 	// Webhook dependencies
