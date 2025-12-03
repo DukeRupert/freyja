@@ -54,8 +54,20 @@ func DefaultSecurityHeadersConfig() SecurityHeadersConfig {
 	}
 }
 
-// SecurityHeaders adds security headers to all responses
-func SecurityHeaders(config SecurityHeadersConfig) func(http.Handler) http.Handler {
+// SecurityHeaders adds security headers to all responses.
+// If config is nil or zero-valued, sensible defaults are used.
+func SecurityHeaders(config ...SecurityHeadersConfig) func(http.Handler) http.Handler {
+	var cfg SecurityHeadersConfig
+	if len(config) > 0 {
+		cfg = config[0]
+	} else {
+		cfg = DefaultSecurityHeadersConfig()
+	}
+
+	return securityHeadersWithConfig(cfg)
+}
+
+func securityHeadersWithConfig(config SecurityHeadersConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// X-Frame-Options - prevent clickjacking

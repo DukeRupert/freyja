@@ -8,8 +8,20 @@ import (
 )
 
 // MaxBodySize limits the size of request bodies.
+// If no size is provided, DefaultMaxBodySize (10MB) is used.
 // If the request body exceeds maxBytes, it returns 413 Request Entity Too Large.
-func MaxBodySize(maxBytes int64) func(http.Handler) http.Handler {
+func MaxBodySize(maxBytes ...int64) func(http.Handler) http.Handler {
+	var limit int64
+	if len(maxBytes) > 0 {
+		limit = maxBytes[0]
+	} else {
+		limit = DefaultMaxBodySize
+	}
+
+	return maxBodySizeWithLimit(limit)
+}
+
+func maxBodySizeWithLimit(maxBytes int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Only limit if there's a body
@@ -41,8 +53,20 @@ const (
 )
 
 // Timeout adds a timeout to request processing.
+// If no duration is provided, DefaultTimeout (30s) is used.
 // If the handler doesn't complete within the timeout, it returns 503 Service Unavailable.
-func Timeout(timeout time.Duration) func(http.Handler) http.Handler {
+func Timeout(timeout ...time.Duration) func(http.Handler) http.Handler {
+	var duration time.Duration
+	if len(timeout) > 0 {
+		duration = timeout[0]
+	} else {
+		duration = DefaultTimeout
+	}
+
+	return timeoutWithDuration(duration)
+}
+
+func timeoutWithDuration(timeout time.Duration) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Create a context with timeout
