@@ -343,6 +343,7 @@ func run() error {
 		middleware.RateLimit(),
 		router.Logger(logger),
 		middleware.WithUser(userService),
+		middleware.WithRequestLogger(logger),
 		middleware.CSRF(csrfConfig),
 	)
 
