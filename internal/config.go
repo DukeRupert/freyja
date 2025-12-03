@@ -16,6 +16,7 @@ type Config struct {
 	DatabaseUrl   string
 	TenantID      string
 	SessionSecret string
+	BaseURL       string
 	Stripe        StripeConfig
 	Email         EmailConfig
 }
@@ -62,6 +63,7 @@ func NewConfig() (*Config, error) {
 		DatabaseUrl:   getEnv("DATABASE_URL", "postgres://freyja:password@localhost:5432/freyja?sslmode=disable"),
 		TenantID:      getEnv("TENANT_ID", "00000000-0000-0000-0000-000000000001"),
 		SessionSecret: getEnv("SESSION_SECRET", "dev-secret-change-in-production"),
+		BaseURL:       getEnv("BASE_URL", "http://localhost:3000"),
 		Stripe: StripeConfig{
 			SecretKey:      getEnv("STRIPE_SECRET_KEY", "sk_test_your_key_here"),
 			PublishableKey: getEnv("STRIPE_PUBLISHABLE_KEY", "pk_test_your_key_here"),

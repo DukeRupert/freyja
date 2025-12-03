@@ -57,13 +57,16 @@ type EmailVerificationService interface {
 }
 
 type emailVerificationService struct {
-	repo repository.Querier
+	repo    repository.Querier
+	baseURL string
 }
 
 // NewEmailVerificationService creates a new email verification service
-func NewEmailVerificationService(repo repository.Querier) EmailVerificationService {
+// baseURL should be the full base URL of the application (e.g., "https://example.com")
+func NewEmailVerificationService(repo repository.Querier, baseURL string) EmailVerificationService {
 	return &emailVerificationService{
-		repo: repo,
+		repo:    repo,
+		baseURL: baseURL,
 	}
 }
 
@@ -125,8 +128,8 @@ func (s *emailVerificationService) SendVerificationEmail(
 		return fmt.Errorf("error creating email verification token: %w", err)
 	}
 
-	// Queue email job
-	verifyURL := fmt.Sprintf("/verify-email?token=%s", rawToken)
+	// Queue email job with absolute URL
+	verifyURL := fmt.Sprintf("%s/verify-email?token=%s", s.baseURL, rawToken)
 	emailPayload := jobs.EmailVerificationPayload{
 		Email:     email,
 		FirstName: firstName,

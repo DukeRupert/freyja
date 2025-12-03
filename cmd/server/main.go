@@ -99,7 +99,7 @@ func run() error {
 	}
 
 	passwordResetService := service.NewPasswordResetService(repo)
-	emailVerificationService := service.NewEmailVerificationService(repo)
+	emailVerificationService := service.NewEmailVerificationService(repo, cfg.BaseURL)
 
 	// Initialize email service
 	logger.Info("Initializing email service...")
