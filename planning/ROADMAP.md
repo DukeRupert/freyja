@@ -4,16 +4,23 @@
 
 This roadmap defines the path to MVP launch and the six months following. The MVP focuses on complete, reliable functionality for core use cases rather than breadth of features.
 
-**Last updated:** December 2024
+**Last updated:** December 2, 2024
 
 ---
 
 ## Current Status
 
 ✅ **Phases 1-3 Complete** — Full B2C e-commerce with working checkout and payments
-⏳ **Phase 4 Partial** — Flat-rate shipping working, advanced shipping not started
+⏳ **Phase 4 Partial** — Flat-rate shipping working, carrier integration not started
 ✅ **Phase 5 Complete** — Subscriptions fully implemented with Stripe Billing
-🔲 **Phase 6** — Wholesale & invoicing not started
+🔲 **Phase 6 Not Started** — Wholesale & invoicing (schema ready, no service layer)
+
+**Codebase Metrics:**
+- 99 Go source files (~15,000 lines)
+- 17 database migrations (44 tables)
+- 57 HTML templates
+- 30+ HTTP handlers
+- 3,100+ lines of test code
 
 ---
 
@@ -33,6 +40,7 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 
 **Customer Accounts** ✅
 - ✅ Email/password authentication (bcrypt hashing)
+- ✅ Password reset flow (forgot password → email token → reset)
 - ⏳ Magic link authentication (passwordless option) — not implemented
 - ✅ Account types: retail and wholesale (schema ready)
 - ⏳ Profile management with saved addresses — partial
@@ -322,7 +330,7 @@ These are noted for architectural awareness but not scheduled:
 | Component | Status | Details |
 |-----------|--------|---------|
 | Product Catalog | ✅ Complete | Full CRUD, SKU variants, coffee-specific attributes |
-| Customer Auth | ✅ Complete | Signup, login, sessions with bcrypt |
+| Customer Auth | ✅ Complete | Signup, login, password reset, sessions with bcrypt |
 | Price Lists | ✅ Complete | Multi-tier pricing, customer assignment |
 | Shopping Cart | ✅ Complete | Add/update/remove, htmx updates |
 | Checkout | ✅ Complete | 5-step flow, address validation, Stripe Elements |
@@ -333,22 +341,25 @@ These are noted for architectural awareness but not scheduled:
 | Subscriptions | ✅ Complete | Full Stripe Billing integration, checkout flow, webhooks |
 | Invoicing | 🔲 Schema only | 4 tables ready, no service layer |
 | Email | 🔲 Interface only | Provider interface defined, no implementation |
+| Background Jobs | 🔲 Schema only | jobs table ready, no worker implementation |
 
 ### Architecture Highlights
 
-- **44 database tables** across 16 migrations
+- **44 database tables** across 17 migrations
 - **30+ HTTP handlers** for storefront, admin, and webhooks
-- **5 service layers** with comprehensive test coverage
+- **8 service layers** (product, cart, user, order, checkout, subscription, account, password reset)
 - **Interface-based abstractions** for billing, shipping, email, storage, tax
-- **Multi-tenant isolation** on all queries
+- **Multi-tenant isolation** on all queries (tenant_id scoping)
 - **Idempotent webhook processing** for payment reliability
+- **Comprehensive test coverage** for checkout (1,735 lines) and orders (1,374 lines)
 
 ### Remaining MVP Work
 
 1. ~~**Subscriptions**~~ ✅ Complete — Full Stripe Billing integration with checkout flow
-2. **Wholesale/Invoicing** — InvoiceService, net terms, consolidated billing
-3. **Email notifications** — Provider implementation, transactional emails
-4. **Polish** — Product filters, wholesale minimums, pick lists
+2. **Email Notifications** (High Priority) — Provider implementation (Postmark/Resend), order confirmations, shipping updates
+3. **Wholesale/Invoicing** — InvoiceService, net terms, consolidated billing, approval workflow
+4. **Carrier Integration** (Optional for MVP) — EasyPost/Shippo, real-time rates, label purchasing
+5. **Polish** — Product filters, wholesale minimums, pick lists, customer profile editing
 
 ---
 
