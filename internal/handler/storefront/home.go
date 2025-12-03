@@ -30,6 +30,7 @@ type HomePageData struct {
 	Year             int
 	User             interface{}
 	CartCount        int
+	CSRFToken        string
 }
 
 // FeaturedProduct is a simplified product for the home page
@@ -73,6 +74,7 @@ func (h *HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		FeaturedProducts: featured,
 		Year:             time.Now().Year(),
 		User:             middleware.GetUserFromContext(ctx),
+		CSRFToken:        middleware.GetCSRFToken(ctx),
 	}
 
 	// Get cart count if available

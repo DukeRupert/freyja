@@ -63,11 +63,10 @@ func (h *CheckoutPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	data := map[string]interface{}{
-		"Cart":                 cartSummary,
-		"CartID":               cart.ID.String(),
-		"StripePublishableKey": h.stripePublishableKey,
-	}
+	data := BaseTemplateData(r)
+	data["Cart"] = cartSummary
+	data["CartID"] = cart.ID.String()
+	data["StripePublishableKey"] = h.stripePublishableKey
 
 	h.renderer.RenderHTTP(w, "storefront/checkout", data)
 }

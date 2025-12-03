@@ -49,10 +49,8 @@ func (h *CartViewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	data := map[string]interface{}{
-		"Summary": summary,
-		"Year":    2024,
-	}
+	data := BaseTemplateData(r)
+	data["Summary"] = summary
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	h.renderer.RenderHTTP(w, "cart", data)
