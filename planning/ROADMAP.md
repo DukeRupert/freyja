@@ -13,14 +13,14 @@ This roadmap defines the path to MVP launch and the six months following. The MV
 ✅ **Phases 1-3 Complete** — Full B2C e-commerce with working checkout and payments
 ⏳ **Phase 4 Partial** — Flat-rate shipping working, carrier integration not started
 ✅ **Phase 5 Complete** — Subscriptions fully implemented with Stripe Billing
-⏳ **Phase 6 Partial** — Wholesale service layer complete, admin UI not started
+✅ **Phase 6 Complete** — Wholesale invoicing with full admin UI
 ✅ **Email Notifications Complete** — Postmark/SMTP, background worker, 6 email types
 
 **Codebase Metrics:**
-- 100+ Go source files (~17,000 lines)
+- 100+ Go source files (~18,000 lines)
 - 17 database migrations (44 tables)
-- 63 HTML templates (including 7 email templates)
-- 30+ HTTP handlers
+- 70+ HTML templates (including 7 email templates)
+- 40+ HTTP handlers
 - 3,100+ lines of test code
 
 ---
@@ -157,7 +157,7 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 - ⏳ Skip next delivery — deferred to post-MVP
 - ⏳ Change frequency/quantity in-app — uses Stripe Portal for now
 
-### Phase 6: Wholesale & Invoicing ⏳ PARTIAL
+### Phase 6: Wholesale & Invoicing ✅ COMPLETE
 
 **Database Schema** ✅
 - ✅ invoices table
@@ -191,18 +191,19 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 - ✅ invoice:send_reminder — Payment reminder scheduling
 - ✅ invoice:sync_stripe — Stripe webhook synchronization
 
-**Wholesale Account Management** 🔲
-- 🔲 Application review queue for admin
-- 🔲 Approval workflow with price list and terms assignment
-- 🔲 Wholesale-specific dashboard view
+**Wholesale Account Management** ✅
+- ✅ Customer detail view with wholesale info
+- ✅ Approval/rejection workflow for wholesale applications
+- ⏳ Wholesale-specific dashboard view — not implemented
 
-**Admin UI** 🔲
-- 🔲 Invoice list and detail views
-- 🔲 Manual invoice creation
-- 🔲 Payment recording interface
-- 🔲 Wholesale customer management
+**Admin UI** ✅
+- ✅ Invoice list with stats and filtering
+- ✅ Invoice detail with line items, payments, linked orders
+- ✅ Manual invoice creation from orders
+- ✅ Payment recording interface
+- ✅ Wholesale customer management (detail view, approval workflow)
 
-### MVP Admin Dashboard ⏳ PARTIAL
+### MVP Admin Dashboard ✅ COMPLETE
 
 **Implemented** ✅
 - ✅ Dashboard with order/revenue statistics
@@ -210,13 +211,17 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 - ✅ SKU variant management
 - ✅ Order list with status filtering
 - ✅ Order detail with fulfillment actions (status updates, shipment creation)
-- ✅ Customer list view
+- ✅ Customer list view with account type filtering
+- ✅ Customer detail view with addresses and wholesale info
+- ✅ Wholesale approval workflow (approve/reject applications)
+- ✅ Invoice list with stats and filtering
+- ✅ Invoice detail with line items, payments, linked orders
+- ✅ Manual invoice creation from orders
+- ✅ Payment recording interface
 
 **Not Yet Implemented** 🔲
 - 🔲 Customer editing and price list assignment
-- 🔲 Wholesale approval workflow
-- 🔲 Subscription overview
-- 🔲 Invoice management
+- 🔲 Subscription admin overview
 
 ### MVP Email Notifications ✅ COMPLETE
 
@@ -365,9 +370,10 @@ These are noted for architectural awareness but not scheduled:
 | Payments | ✅ Complete | Payment intents, webhooks, idempotent processing |
 | Orders | ✅ Complete | Creation, status tracking, admin management |
 | Shipping | ⏳ Partial | Flat-rate working, no carrier integration |
-| Admin Dashboard | ⏳ Partial | Products, orders, customers, subscriptions; missing invoices |
+| Admin Dashboard | ✅ Complete | Products, orders, customers, invoices, wholesale approval |
 | Subscriptions | ✅ Complete | Full Stripe Billing integration, checkout flow, webhooks |
-| Invoicing | ⏳ Partial | Service layer complete, admin UI pending |
+| Invoicing | ✅ Complete | Full service layer + admin UI (list, detail, create, payments) |
+| Wholesale | ✅ Complete | Customer management, approval workflow, invoicing |
 | Email | ✅ Complete | Postmark + SMTP, 6 templates, background worker |
 | Background Jobs | ✅ Complete | Worker with concurrency, retry logic, graceful shutdown |
 
@@ -387,7 +393,7 @@ These are noted for architectural awareness but not scheduled:
 1. ~~**Subscriptions**~~ ✅ Complete — Full Stripe Billing integration with checkout flow
 2. ~~**Email Notifications**~~ ✅ Complete — Postmark + SMTP, background worker, 6 email templates
 3. ~~**Wholesale Service Layer**~~ ✅ Complete — InvoiceService, PaymentTermsService, FulfillmentService, Stripe Invoicing
-4. **Wholesale Admin UI** — Invoice list/detail, payment recording, wholesale approval workflow
+4. ~~**Wholesale Admin UI**~~ ✅ Complete — Invoice list/detail, payment recording, wholesale approval workflow
 5. **Carrier Integration** (Optional for MVP) — EasyPost/Shippo, real-time rates, label purchasing
 6. **Polish** — Product filters, wholesale minimums, pick lists, customer profile editing
 
@@ -400,7 +406,7 @@ These are noted for architectural awareness but not scheduled:
 | Phase 1-3 | ✅ Complete | B2C checkout with Stripe payments |
 | Phase 4 | ⏳ Partial | Flat-rate shipping, fulfillment workflow |
 | Phase 5 | ✅ Complete | Subscriptions with Stripe Billing |
-| Phase 6 | ⏳ Partial | Wholesale service layer (admin UI pending) |
+| Phase 6 | ✅ Complete | Wholesale invoicing with full admin UI |
 | MVP + 2 mo | — | Shipping provider integration, automated labels |
 | MVP + 4 mo | — | Inventory management, discounts, reviews |
 | MVP + 6 mo | — | Accounting integration, platform hardening |
