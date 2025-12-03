@@ -1,0 +1,33 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Build artifacts
+*.tar.gz
+freyja
+
+# Documentation
+*.md
+!web/**/*.md
+planning/
+
+# Development files
+.env
+.env.*
+!.env.example
+docker-compose.yml
+deploy/
+
+# Test files
+*_test.go
+**/*_test.go
+
+# Temporary files
+tmp/
+*.log

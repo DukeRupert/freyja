@@ -1,0 +1,54 @@
+services:
+  app:
+    image: freyja:latest
+    container_name: freyja-app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - ENV=prod
+      - PORT=3000
+      - DATABASE_URL=postgres://freyja:${POSTGRES_PASSWORD}@postgres:5432/freyja?sslmode=disable
+      - TENANT_ID=${TENANT_ID}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - uploads:/app/uploads
+    networks:
+      - freyja-network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: freyja-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: freyja
+      POSTGRES_USER: freyja
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U freyja"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - freyja-network
+
+volumes:
+  postgres_data:
+  uploads:
+
+networks:
+  freyja-network:
+    driver: bridge
