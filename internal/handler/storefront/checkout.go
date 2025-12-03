@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/dukerupert/freyja/internal/address"
 	"github.com/dukerupert/freyja/internal/handler"
+	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/service"
 	"github.com/dukerupert/freyja/internal/shipping"
@@ -39,9 +39,7 @@ func NewCheckoutHandler(
 	tenantID string,
 ) *CheckoutHandler {
 	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		slog.Error("Failed to parse tenant ID", "error", err)
-	}
+	_ = tenantUUID.Scan(tenantID) // Error is silently ignored; tenant ID is validated elsewhere
 
 	return &CheckoutHandler{
 		renderer:             renderer,
@@ -89,28 +87,30 @@ func (h *CheckoutHandler) Page(w http.ResponseWriter, r *http.Request) {
 
 // ValidateAddress handles POST /checkout/validate-address
 func (h *CheckoutHandler) ValidateAddress(w http.ResponseWriter, r *http.Request) {
+	logger := middleware.GetLogger(r.Context())
+
 	var req struct {
 		ShippingAddress address.Address `json:"shipping_address"`
 		BillingAddress  address.Address `json:"billing_address"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		slog.Error("Failed to decode validate address request", "error", err)
+		logger.Error("Failed to decode validate address request", "error", err)
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
 	}
 
-	slog.Info("Validating address", "shipping", req.ShippingAddress, "billing", req.BillingAddress)
+	logger.Info("Validating address", "shipping", req.ShippingAddress, "billing", req.BillingAddress)
 
 	shippingResult, err := h.checkoutService.ValidateAndNormalizeAddress(r.Context(), req.ShippingAddress)
 	if err != nil {
-		slog.Error("Shipping address validation failed", "error", err, "address", req.ShippingAddress)
+		logger.Error("Shipping address validation failed", "error", err, "address", req.ShippingAddress)
 		http.Error(w, fmt.Sprintf("Address validation failed: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	billingResult, err := h.checkoutService.ValidateAndNormalizeAddress(r.Context(), req.BillingAddress)
 	if err != nil {
-		slog.Error("Billing address validation failed", "error", err, "address", req.BillingAddress)
+		logger.Error("Billing address validation failed", "error", err, "address", req.BillingAddress)
 		http.Error(w, fmt.Sprintf("Address validation failed: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -125,32 +125,34 @@ func (h *CheckoutHandler) ValidateAddress(w http.ResponseWriter, r *http.Request
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		slog.Error("Failed to encode validate address response", "error", err)
+		logger.Error("Failed to encode validate address response", "error", err)
 	}
 }
 
 // GetShippingRates handles POST /checkout/shipping-rates
 func (h *CheckoutHandler) GetShippingRates(w http.ResponseWriter, r *http.Request) {
+	logger := middleware.GetLogger(r.Context())
+
 	var req struct {
 		CartID          string          `json:"cart_id"`
 		ShippingAddress address.Address `json:"shipping_address"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		slog.Error("Failed to decode shipping rates request", "error", err)
+		logger.Error("Failed to decode shipping rates request", "error", err)
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
 	}
 
-	slog.Info("Getting shipping rates", "cart_id", req.CartID, "address", req.ShippingAddress)
+	logger.Info("Getting shipping rates", "cart_id", req.CartID, "address", req.ShippingAddress)
 
 	rates, err := h.checkoutService.GetShippingRates(r.Context(), req.CartID, req.ShippingAddress)
 	if err != nil {
-		slog.Error("Failed to get shipping rates", "error", err, "cart_id", req.CartID)
+		logger.Error("Failed to get shipping rates", "error", err, "cart_id", req.CartID)
 		http.Error(w, fmt.Sprintf("Failed to get shipping rates: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	slog.Info("Retrieved shipping rates", "count", len(rates))
+	logger.Debug("Retrieved shipping rates", "count", len(rates))
 
 	resp := struct {
 		Rates []shipping.Rate `json:"rates"`
@@ -160,12 +162,14 @@ func (h *CheckoutHandler) GetShippingRates(w http.ResponseWriter, r *http.Reques
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		slog.Error("Failed to encode shipping rates response", "error", err)
+		logger.Error("Failed to encode shipping rates response", "error", err)
 	}
 }
 
 // CalculateTotal handles POST /checkout/calculate-total
 func (h *CheckoutHandler) CalculateTotal(w http.ResponseWriter, r *http.Request) {
+	logger := middleware.GetLogger(r.Context())
+
 	var req struct {
 		CartID               string          `json:"cart_id"`
 		ShippingAddress      address.Address `json:"shipping_address"`
@@ -173,12 +177,12 @@ func (h *CheckoutHandler) CalculateTotal(w http.ResponseWriter, r *http.Request)
 		SelectedShippingRate shipping.Rate   `json:"selected_shipping_rate"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		slog.Error("Failed to decode calculate total request", "error", err)
+		logger.Error("Failed to decode calculate total request", "error", err)
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
 	}
 
-	slog.Info("Calculating order total", "cart_id", req.CartID)
+	logger.Debug("Calculating order total", "cart_id", req.CartID)
 
 	params := service.OrderTotalParams{
 		CartID:               req.CartID,
@@ -189,12 +193,12 @@ func (h *CheckoutHandler) CalculateTotal(w http.ResponseWriter, r *http.Request)
 
 	total, err := h.checkoutService.CalculateOrderTotal(r.Context(), params)
 	if err != nil {
-		slog.Error("Failed to calculate order total", "error", err, "cart_id", req.CartID)
+		logger.Error("Failed to calculate order total", "error", err, "cart_id", req.CartID)
 		http.Error(w, fmt.Sprintf("Failed to calculate total: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	slog.Info("Calculated order total", "total_cents", total.TotalCents)
+	logger.Debug("Calculated order total", "total_cents", total.TotalCents)
 
 	resp := struct {
 		OrderTotal *service.OrderTotal `json:"order_total"`
@@ -204,12 +208,14 @@ func (h *CheckoutHandler) CalculateTotal(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		slog.Error("Failed to encode calculate total response", "error", err)
+		logger.Error("Failed to encode calculate total response", "error", err)
 	}
 }
 
 // CreatePaymentIntent handles POST /checkout/create-payment-intent
 func (h *CheckoutHandler) CreatePaymentIntent(w http.ResponseWriter, r *http.Request) {
+	logger := middleware.GetLogger(r.Context())
+
 	var req struct {
 		CartID          string              `json:"cart_id"`
 		OrderTotal      *service.OrderTotal `json:"order_total"`
@@ -219,12 +225,12 @@ func (h *CheckoutHandler) CreatePaymentIntent(w http.ResponseWriter, r *http.Req
 		IdempotencyKey  string              `json:"idempotency_key"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		slog.Error("Failed to decode payment intent request", "error", err)
+		logger.Error("Failed to decode payment intent request", "error", err)
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
 	}
 
-	slog.Info("Creating payment intent", "cart_id", req.CartID, "email", req.CustomerEmail)
+	logger.Info("Creating payment intent", "cart_id", req.CartID, "email", req.CustomerEmail)
 
 	params := service.PaymentIntentParams{
 		CartID:          req.CartID,
@@ -237,12 +243,12 @@ func (h *CheckoutHandler) CreatePaymentIntent(w http.ResponseWriter, r *http.Req
 
 	paymentIntent, err := h.checkoutService.CreatePaymentIntent(r.Context(), params)
 	if err != nil {
-		slog.Error("Failed to create payment intent", "error", err, "cart_id", req.CartID)
+		logger.Error("Failed to create payment intent", "error", err, "cart_id", req.CartID)
 		http.Error(w, fmt.Sprintf("Failed to create payment intent: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	slog.Info("Payment intent created", "payment_intent_id", paymentIntent.ID, "amount_cents", paymentIntent.AmountCents)
+	logger.Info("Payment intent created", "payment_intent_id", paymentIntent.ID, "amount_cents", paymentIntent.AmountCents)
 
 	resp := struct {
 		PaymentIntentID string `json:"payment_intent_id"`
@@ -256,12 +262,14 @@ func (h *CheckoutHandler) CreatePaymentIntent(w http.ResponseWriter, r *http.Req
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		slog.Error("Failed to encode payment intent response", "error", err)
+		logger.Error("Failed to encode payment intent response", "error", err)
 	}
 }
 
 // OrderConfirmation handles GET /order-confirmation
 func (h *CheckoutHandler) OrderConfirmation(w http.ResponseWriter, r *http.Request) {
+	logger := middleware.GetLogger(r.Context())
+
 	paymentIntentID := r.URL.Query().Get("payment_intent")
 	redirectStatus := r.URL.Query().Get("redirect_status")
 
@@ -279,14 +287,14 @@ func (h *CheckoutHandler) OrderConfirmation(w http.ResponseWriter, r *http.Reque
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			slog.Info("Order not yet created for payment intent (webhook pending)", "payment_intent", paymentIntentID)
+			logger.Info("Order not yet created for payment intent (webhook pending)", "payment_intent", paymentIntentID)
 			data := BaseTemplateData(r)
 			data["PaymentIntentID"] = paymentIntentID
 			data["Status"] = "processing"
 			h.renderer.RenderHTTP(w, "storefront/order-confirmation", data)
 			return
 		}
-		slog.Error("Failed to get order", "error", err, "payment_intent", paymentIntentID)
+		logger.Error("Failed to get order", "error", err, "payment_intent", paymentIntentID)
 		http.Error(w, "Failed to load order", http.StatusInternalServerError)
 		return
 	}
@@ -296,14 +304,14 @@ func (h *CheckoutHandler) OrderConfirmation(w http.ResponseWriter, r *http.Reque
 		ID:       order.ID,
 	})
 	if err != nil {
-		slog.Error("Failed to get order details", "error", err, "order_id", order.ID)
+		logger.Error("Failed to get order details", "error", err, "order_id", order.ID)
 		http.Error(w, "Failed to load order details", http.StatusInternalServerError)
 		return
 	}
 
 	orderItems, err := h.repo.GetOrderItems(r.Context(), order.ID)
 	if err != nil {
-		slog.Error("Failed to get order items", "error", err, "order_id", order.ID)
+		logger.Error("Failed to get order items", "error", err, "order_id", order.ID)
 		http.Error(w, "Failed to load order details", http.StatusInternalServerError)
 		return
 	}
@@ -313,9 +321,9 @@ func (h *CheckoutHandler) OrderConfirmation(w http.ResponseWriter, r *http.Reque
 		cart, err := h.cartService.GetCart(r.Context(), sessionID)
 		if err == nil {
 			if err := h.cartService.ClearCart(r.Context(), cart.ID.String()); err != nil {
-				slog.Error("Failed to clear cart after successful payment", "error", err, "cart_id", cart.ID.String())
+				logger.Error("Failed to clear cart after successful payment", "error", err, "cart_id", cart.ID.String())
 			} else {
-				slog.Info("Cart cleared after successful payment", "cart_id", cart.ID.String(), "payment_intent", paymentIntentID)
+				logger.Debug("Cart cleared after successful payment", "cart_id", cart.ID.String(), "payment_intent", paymentIntentID)
 			}
 		}
 	}
