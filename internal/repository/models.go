@@ -321,6 +321,23 @@ type OrderStatusHistory struct {
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
+// Secure password reset tokens with rate limiting
+type PasswordResetToken struct {
+	ID       pgtype.UUID `json:"id"`
+	TenantID pgtype.UUID `json:"tenant_id"`
+	UserID   pgtype.UUID `json:"user_id"`
+	// SHA-256 hash of the token (raw token sent to user via email)
+	TokenHash string             `json:"token_hash"`
+	Used      bool               `json:"used"`
+	UsedAt    pgtype.Timestamptz `json:"used_at"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	// IP address that requested the reset (for rate limiting)
+	IpAddress pgtype.Text `json:"ip_address"`
+	// User agent of the request (for logging/debugging)
+	UserAgent pgtype.Text        `json:"user_agent"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 // Payment transactions and status tracking
 type Payment struct {
 	ID                  pgtype.UUID        `json:"id"`

@@ -17,6 +17,10 @@ type Querier interface {
 	ClearCart(ctx context.Context, cartID pgtype.UUID) error
 	// Count total orders for pagination
 	CountOrders(ctx context.Context, tenantID pgtype.UUID) (int64, error)
+	// Count recent password reset requests for a specific user (rate limiting)
+	CountRecentResetRequestsByEmail(ctx context.Context, arg CountRecentResetRequestsByEmailParams) (int64, error)
+	// Count recent password reset requests from a specific IP address (rate limiting)
+	CountRecentResetRequestsByIP(ctx context.Context, arg CountRecentResetRequestsByIPParams) (int64, error)
 	// Count total subscriptions for pagination
 	CountSubscriptions(ctx context.Context, tenantID pgtype.UUID) (int64, error)
 	// Counts subscriptions by status for pagination
@@ -38,6 +42,8 @@ type Querier interface {
 	// Creates an order line item linked to a specific order
 	// Captures product state at time of purchase
 	CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItem, error)
+	// Create a new password reset token
+	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
 	// Create a new payment record
 	CreatePayment(ctx context.Context, arg CreatePaymentParams) (Payment, error)
 	// Create a new payment method
@@ -74,6 +80,8 @@ type Querier interface {
 	DecrementSKUStock(ctx context.Context, arg DecrementSKUStockParams) error
 	// Remove association between user and address
 	DeleteCustomerAddress(ctx context.Context, arg DeleteCustomerAddressParams) error
+	// Delete expired password reset tokens (cleanup job)
+	DeleteExpiredPasswordResetTokens(ctx context.Context) error
 	// Clean up expired sessions (for background job)
 	DeleteExpiredSessions(ctx context.Context) error
 	// Delete a payment method
@@ -133,6 +141,8 @@ type Querier interface {
 	GetOrderStats(ctx context.Context, arg GetOrderStatsParams) (GetOrderStatsRow, error)
 	// Get complete order details including addresses and payment info
 	GetOrderWithDetails(ctx context.Context, arg GetOrderWithDetailsParams) (GetOrderWithDetailsRow, error)
+	// Get a valid (unused, non-expired) password reset token with user details
+	GetPasswordResetToken(ctx context.Context, arg GetPasswordResetTokenParams) (GetPasswordResetTokenRow, error)
 	// Retrieves a single payment by ID
 	GetPaymentByID(ctx context.Context, id pgtype.UUID) (Payment, error)
 	// Get a payment by provider payment ID
@@ -198,6 +208,9 @@ type Querier interface {
 	GetWebhookEventByProviderID(ctx context.Context, arg GetWebhookEventByProviderIDParams) (WebhookEvent, error)
 	// Get all white-label products for a specific customer
 	GetWhiteLabelProductsForCustomer(ctx context.Context, arg GetWhiteLabelProductsForCustomerParams) ([]Product, error)
+	// Mark all unused password reset tokens for a user as used
+	// (Called after successful password reset to invalidate other tokens)
+	InvalidateUserPasswordResetTokens(ctx context.Context, arg InvalidateUserPasswordResetTokensParams) error
 	// List all active products for a tenant with their primary image
 	ListActiveProducts(ctx context.Context, tenantID pgtype.UUID) ([]ListActiveProductsRow, error)
 	// Lists only active/trial subscriptions for a customer
@@ -241,6 +254,8 @@ type Querier interface {
 	ListUsersByAccountType(ctx context.Context, arg ListUsersByAccountTypeParams) ([]User, error)
 	// List pending wholesale applications
 	ListWholesaleApplications(ctx context.Context, tenantID pgtype.UUID) ([]ListWholesaleApplicationsRow, error)
+	// Mark a password reset token as used
+	MarkPasswordResetTokenUsed(ctx context.Context, arg MarkPasswordResetTokenUsedParams) error
 	// Remove an item from cart
 	RemoveCartItem(ctx context.Context, arg RemoveCartItemParams) error
 	// Set a payment method as the default for a billing customer

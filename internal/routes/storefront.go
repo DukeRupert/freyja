@@ -29,6 +29,12 @@ func RegisterStorefrontRoutes(r *router.Router, deps StorefrontDeps) {
 	r.Get("/login", deps.LoginHandler.ServeHTTP)
 	r.Post("/logout", deps.LogoutHandler.ServeHTTP)
 
+	// Password Reset
+	r.Get("/forgot-password", deps.ForgotPasswordHandler.ServeHTTP)
+	r.Post("/forgot-password", deps.ForgotPasswordHandler.ServeHTTP)
+	r.Get("/reset-password", deps.ResetPasswordHandler.ServeHTTP)
+	r.Post("/reset-password", deps.ResetPasswordHandler.ServeHTTP)
+
 	// Checkout flow
 	r.Get("/checkout", deps.CheckoutPageHandler.ServeHTTP)
 	r.Post("/checkout/validate-address", deps.ValidateAddressHandler.ServeHTTP)

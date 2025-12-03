@@ -31,6 +31,10 @@ type StorefrontDeps struct {
 	LoginHandler  http.Handler
 	LogoutHandler http.Handler
 
+	// Password Reset
+	ForgotPasswordHandler http.Handler
+	ResetPasswordHandler  http.Handler
+
 	// Checkout
 	CheckoutPageHandler      http.Handler
 	ValidateAddressHandler   http.Handler
