@@ -106,7 +106,21 @@ POSTMARK_FROM=orders@yourdomain.com
 **Interface**: `billing.Provider`
 
 **Implementations**:
-- `StripeProvider`: Stripe payment processing
+- `StripeProvider`: Stripe payment processing and invoicing
+
+**Core Payment Methods**:
+- `CreateCustomer` / `UpdateCustomer` / `GetCustomer`: Customer management
+- `CreatePaymentIntent`: One-time payment processing
+- `CreateSubscription` / `UpdateSubscription` / `CancelSubscription`: Recurring billing
+
+**Invoice Methods** (for wholesale/B2B):
+- `CreateInvoice`: Create draft invoice for a customer
+- `AddInvoiceItem`: Add line items to invoice
+- `FinalizeInvoice`: Finalize draft invoice
+- `SendInvoice`: Send invoice to customer via Stripe
+- `VoidInvoice`: Cancel/void an open invoice
+- `PayInvoice`: Mark invoice as paid (for manual payments)
+- `GetInvoice`: Retrieve invoice details from Stripe
 
 **Usage**:
 ```go
@@ -118,12 +132,22 @@ billingProvider := billing.NewStripeProvider(
 
 // Services depend on the interface
 checkoutService := service.NewCheckoutService(repo, billingProvider, tenantID)
+invoiceService := service.NewInvoiceService(repo, paymentTerms, billingProvider, tenantID)
 
-// Create payment intent
+// Create payment intent (B2C)
 intent, err := billingProvider.CreatePaymentIntent(ctx, billing.PaymentIntentParams{
     Amount:   totalCents,
     Currency: "usd",
     CustomerID: stripeCustomerID,
+})
+
+// Create invoice (B2B wholesale)
+invoice, err := billingProvider.CreateInvoice(ctx, billing.CreateInvoiceParams{
+    CustomerID:     stripeCustomerID,
+    TenantID:       tenantID,
+    DaysUntilDue:   30,
+    CollectionMethod: "send_invoice",
+    Description:    "Wholesale order #12345",
 })
 ```
 

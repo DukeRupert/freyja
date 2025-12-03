@@ -13,7 +13,7 @@ This roadmap defines the path to MVP launch and the six months following. The MV
 ✅ **Phases 1-3 Complete** — Full B2C e-commerce with working checkout and payments
 ⏳ **Phase 4 Partial** — Flat-rate shipping working, carrier integration not started
 ✅ **Phase 5 Complete** — Subscriptions fully implemented with Stripe Billing
-🔲 **Phase 6 Not Started** — Wholesale & invoicing (schema ready, no service layer)
+⏳ **Phase 6 Partial** — Wholesale service layer complete, admin UI not started
 ✅ **Email Notifications Complete** — Postmark/SMTP, background worker, 6 email types
 
 **Codebase Metrics:**
@@ -157,30 +157,50 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 - ⏳ Skip next delivery — deferred to post-MVP
 - ⏳ Change frequency/quantity in-app — uses Stripe Portal for now
 
-### Phase 6: Wholesale & Invoicing 🔲 NOT STARTED
+### Phase 6: Wholesale & Invoicing ⏳ PARTIAL
 
 **Database Schema** ✅
 - ✅ invoices table
 - ✅ invoice_items table
 - ✅ invoice_payments table
 - ✅ invoice_status_history table
+- ✅ payment_terms table
+- ✅ invoice_orders linking table (consolidated invoicing)
+
+**Service Layer** ✅
+- ✅ PaymentTermsService — CRUD for payment terms (Net 15/30/60), due date calculation
+- ✅ FulfillmentService — Partial shipment tracking, quantity_dispatched management
+- ✅ InvoiceService — Full invoice lifecycle management
+- ✅ Billing Provider Extensions — Stripe Invoicing methods (create, finalize, send, void, pay)
+
+**Invoice Billing** ✅
+- ✅ Net terms configuration per account (Net 15, Net 30, etc.)
+- ✅ Invoice generation from single or multiple orders
+- ✅ Invoice status tracking: draft, sent, viewed, paid, overdue, void
+- ✅ Stripe Invoice integration for payment collection
+- ✅ Payment recording with balance tracking
+
+**Consolidated Billing** ✅
+- ✅ Billing period configuration on invoices
+- ✅ Accumulate multiple orders into single invoice
+- ✅ Generate consolidated invoice on cycle close
+
+**Background Jobs** ✅
+- ✅ invoice:generate_consolidated — Create consolidated invoices
+- ✅ invoice:mark_overdue — Nightly job to detect and mark overdue invoices
+- ✅ invoice:send_reminder — Payment reminder scheduling
+- ✅ invoice:sync_stripe — Stripe webhook synchronization
 
 **Wholesale Account Management** 🔲
 - 🔲 Application review queue for admin
 - 🔲 Approval workflow with price list and terms assignment
 - 🔲 Wholesale-specific dashboard view
 
-**Invoice Billing** 🔲
-- 🔲 Net terms configuration per account (Net 15, Net 30, etc.)
-- 🔲 Invoice generation on order placement
-- 🔲 Invoice status tracking: draft, sent, paid, overdue
-- 🔲 Stripe Invoice integration for payment collection
-
-**Consolidated Billing** 🔲
-- 🔲 Billing cycle configuration per account (weekly, biweekly, monthly)
-- 🔲 Accumulate orders within billing period
-- 🔲 Generate consolidated invoice on cycle close
-- 🔲 Manual invoice generation option for admin
+**Admin UI** 🔲
+- 🔲 Invoice list and detail views
+- 🔲 Manual invoice creation
+- 🔲 Payment recording interface
+- 🔲 Wholesale customer management
 
 ### MVP Admin Dashboard ⏳ PARTIAL
 
@@ -347,27 +367,29 @@ These are noted for architectural awareness but not scheduled:
 | Shipping | ⏳ Partial | Flat-rate working, no carrier integration |
 | Admin Dashboard | ⏳ Partial | Products, orders, customers, subscriptions; missing invoices |
 | Subscriptions | ✅ Complete | Full Stripe Billing integration, checkout flow, webhooks |
-| Invoicing | 🔲 Schema only | 4 tables ready, no service layer |
+| Invoicing | ⏳ Partial | Service layer complete, admin UI pending |
 | Email | ✅ Complete | Postmark + SMTP, 6 templates, background worker |
 | Background Jobs | ✅ Complete | Worker with concurrency, retry logic, graceful shutdown |
 
 ### Architecture Highlights
 
-- **44 database tables** across 17 migrations
+- **44+ database tables** across 18 migrations
 - **30+ HTTP handlers** for storefront, admin, and webhooks
-- **8 service layers** (product, cart, user, order, checkout, subscription, account, password reset)
+- **11 service layers** (product, cart, user, order, checkout, subscription, account, password reset, payment terms, fulfillment, invoice)
 - **Interface-based abstractions** for billing, shipping, email, storage, tax
 - **Multi-tenant isolation** on all queries (tenant_id scoping)
 - **Idempotent webhook processing** for payment reliability
 - **Comprehensive test coverage** for checkout (1,735 lines) and orders (1,374 lines)
+- **Stripe Invoicing integration** for wholesale billing
 
 ### Remaining MVP Work
 
 1. ~~**Subscriptions**~~ ✅ Complete — Full Stripe Billing integration with checkout flow
 2. ~~**Email Notifications**~~ ✅ Complete — Postmark + SMTP, background worker, 6 email templates
-3. **Wholesale/Invoicing** — InvoiceService, net terms, consolidated billing, approval workflow
-4. **Carrier Integration** (Optional for MVP) — EasyPost/Shippo, real-time rates, label purchasing
-5. **Polish** — Product filters, wholesale minimums, pick lists, customer profile editing
+3. ~~**Wholesale Service Layer**~~ ✅ Complete — InvoiceService, PaymentTermsService, FulfillmentService, Stripe Invoicing
+4. **Wholesale Admin UI** — Invoice list/detail, payment recording, wholesale approval workflow
+5. **Carrier Integration** (Optional for MVP) — EasyPost/Shippo, real-time rates, label purchasing
+6. **Polish** — Product filters, wholesale minimums, pick lists, customer profile editing
 
 ---
 
@@ -378,7 +400,7 @@ These are noted for architectural awareness but not scheduled:
 | Phase 1-3 | ✅ Complete | B2C checkout with Stripe payments |
 | Phase 4 | ⏳ Partial | Flat-rate shipping, fulfillment workflow |
 | Phase 5 | ✅ Complete | Subscriptions with Stripe Billing |
-| Phase 6 | 🔲 Not started | Wholesale & invoicing |
+| Phase 6 | ⏳ Partial | Wholesale service layer (admin UI pending) |
 | MVP + 2 mo | — | Shipping provider integration, automated labels |
 | MVP + 4 mo | — | Inventory management, discounts, reviews |
 | MVP + 6 mo | — | Accounting integration, platform hardening |
