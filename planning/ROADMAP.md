@@ -14,13 +14,16 @@ This roadmap defines the path to MVP launch and the six months following. The MV
 ✅ **Phase 4 Complete** — Flat-rate shipping + EasyPost carrier integration
 ✅ **Phase 5 Complete** — Subscriptions fully implemented with Stripe Billing
 ✅ **Phase 6 Complete** — Wholesale invoicing with full admin UI
-✅ **Email Notifications Complete** — Postmark/SMTP, background worker, 6 email types
+✅ **Email Notifications Complete** — Postmark/SMTP, background worker, 8 email types
+✅ **Email Verification Complete** — Signup requires email verification before login
+✅ **Account Dashboard Complete** — User account overview page
 
 **Codebase Metrics:**
-- 100+ Go source files (~18,000 lines)
-- 17 database migrations (44 tables)
-- 70+ HTML templates (including 7 email templates)
+- 110+ Go source files (~20,000 lines)
+- 20 database migrations (45+ tables)
+- 75+ HTML templates (including 8 email templates)
 - 40+ HTTP handlers
+- 12+ service layers
 - 3,100+ lines of test code
 
 ---
@@ -42,8 +45,10 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 **Customer Accounts** ✅
 - ✅ Email/password authentication (bcrypt hashing)
 - ✅ Password reset flow (forgot password → email token → reset)
+- ✅ Email verification required before login (rate-limited, secure tokens)
 - ⏳ Magic link authentication (passwordless option) — not implemented
 - ✅ Account types: retail and wholesale (schema ready)
+- ✅ Account dashboard with overview page
 - ⏳ Profile management with saved addresses — partial
 - ⏳ Wholesale account application flow — schema ready, UI not implemented
 
@@ -242,6 +247,7 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 - ✅ Email templates with base layout
 
 **Transactional Emails** ✅
+- ✅ Email verification
 - ✅ Password reset
 - ✅ Order confirmation
 - ✅ Shipping confirmation with tracking
@@ -249,10 +255,15 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 - ✅ Subscription payment failed
 - ✅ Subscription cancelled
 
+**Background Jobs** ✅
+- ✅ Email job processing with retry logic
+- ✅ Invoice jobs (generate, mark overdue, reminders, sync)
+- ✅ Token cleanup job (expired verification/reset tokens)
+
 **Not Yet Implemented** 🔲
-- 🔲 Invoice sent (requires wholesale/invoicing feature)
-- 🔲 Invoice payment reminder
-- 🔲 Invoice overdue
+- 🔲 Invoice sent email
+- 🔲 Invoice payment reminder email
+- 🔲 Invoice overdue email
 
 ---
 
@@ -373,7 +384,7 @@ These are noted for architectural awareness but not scheduled:
 | Component | Status | Details |
 |-----------|--------|---------|
 | Product Catalog | ✅ Complete | Full CRUD, SKU variants, coffee-specific attributes |
-| Customer Auth | ✅ Complete | Signup, login, password reset, sessions with bcrypt |
+| Customer Auth | ✅ Complete | Signup, login, password reset, email verification, sessions |
 | Price Lists | ✅ Complete | Multi-tier pricing, customer assignment |
 | Shopping Cart | ✅ Complete | Add/update/remove, htmx updates |
 | Checkout | ✅ Complete | 5-step flow, address validation, Stripe Elements |
@@ -384,19 +395,21 @@ These are noted for architectural awareness but not scheduled:
 | Subscriptions | ✅ Complete | Full Stripe Billing integration, checkout flow, webhooks |
 | Invoicing | ✅ Complete | Full service layer + admin UI (list, detail, create, payments) |
 | Wholesale | ✅ Complete | Customer management, approval workflow, invoicing |
-| Email | ✅ Complete | Postmark + SMTP, 6 templates, background worker |
-| Background Jobs | ✅ Complete | Worker with concurrency, retry logic, graceful shutdown |
+| Email | ✅ Complete | Postmark + SMTP, 8 templates, background worker |
+| Background Jobs | ✅ Complete | Worker with concurrency, retry logic, cleanup jobs |
+| Account Dashboard | ✅ Complete | User account overview, subscriptions list |
 
 ### Architecture Highlights
 
-- **44+ database tables** across 18 migrations
-- **30+ HTTP handlers** for storefront, admin, and webhooks
-- **11 service layers** (product, cart, user, order, checkout, subscription, account, password reset, payment terms, fulfillment, invoice)
+- **45+ database tables** across 20 migrations
+- **40+ HTTP handlers** for storefront, admin, and webhooks
+- **12+ service layers** (product, cart, user, order, checkout, subscription, account, password reset, email verification, payment terms, fulfillment, invoice)
 - **Interface-based abstractions** for billing, shipping, email, storage, tax
 - **Multi-tenant isolation** on all queries (tenant_id scoping)
 - **Idempotent webhook processing** for payment reliability
 - **Comprehensive test coverage** for checkout (1,735 lines) and orders (1,374 lines)
 - **Stripe Invoicing integration** for wholesale billing
+- **Security hardening** for email verification (rate limiting, token hashing, atomic transactions)
 
 ### Remaining MVP Work
 

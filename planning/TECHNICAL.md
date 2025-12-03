@@ -264,7 +264,22 @@ id := r.PathValue("id")
 
 **Authentication Methods:**
 - Email/password with bcrypt hashing
-- Magic link (email-based passwordless login)
+- Magic link (email-based passwordless login) — planned
+
+**Email Verification:**
+- Required before login (prevents account enumeration via timing)
+- Cryptographically secure tokens (32 bytes via `crypto/rand`)
+- Tokens stored as SHA-256 hashes (not plaintext)
+- 24-hour expiration window
+- Rate limiting: 5 requests/user/hour, 10 requests/IP/hour (tenant-scoped)
+- Atomic verification flow via database transactions
+- Resend capability with same security constraints
+
+**Password Reset:**
+- Secure token generation and hashing (same pattern as email verification)
+- Rate limiting per user and IP address
+- Token expiration after 1 hour
+- Single-use tokens (invalidated after use)
 
 ---
 
@@ -297,24 +312,35 @@ id := r.PathValue("id")
 
 ## Email
 
-### Choice: Transactional Email Service (Provider TBD)
+### Choice: Postmark (Primary) + SMTP (Development)
 
-**Candidates:**
-- Postmark: Best deliverability reputation, simple API
-- Resend: Modern API, good developer experience
-- AWS SES: Cheapest at volume, more configuration required
+**Package:** Custom `email.Sender` interface with implementations
 
 **Rationale:**
-- Reliable delivery for transactional emails (orders, invoices)
-- Deliverability monitoring
-- Template management options
+- Postmark: Best deliverability reputation, simple API, chosen for production
+- SMTP: Local development with Mailhog for email inspection
+- Interface abstraction allows provider swapping
 
-**Abstraction:**
-- Email sender interface in application
-- Provider implementation behind interface
-- Templates stored in application (Go templates)
+**Implementation:**
+- `email.Sender` interface defines `Send(ctx, to, subject, htmlBody, textBody)`
+- `PostmarkSender` implementation using Postmark API token
+- `SMTPSender` implementation for local development
+- `email.Service` wraps sender with template rendering
 
-**Implementation Note:** Defer provider selection until needed. Start with a simple interface and implement the chosen provider.
+**Email Types Implemented:**
+- Email verification (signup flow)
+- Password reset
+- Order confirmation
+- Shipping confirmation with tracking
+- Subscription welcome
+- Subscription payment failed
+- Subscription cancelled
+
+**Template System:**
+- Go HTML templates in `/web/templates/email/`
+- Base layout with consistent branding
+- Template functions for date/currency formatting
+- Both HTML and plain text versions
 
 ---
 
@@ -337,9 +363,22 @@ id := r.PathValue("id")
 
 **Implementation:**
 - Jobs table with status, payload, retry count, scheduled time
-- Worker goroutines polling the queue
+- Worker goroutines polling the queue with configurable concurrency
 - Exponential backoff on failure
 - Dead letter handling for inspection
+- Job history table for completed/failed jobs
+
+**Job Types Implemented:**
+- Email jobs: password reset, email verification, order confirmation, shipping, subscription lifecycle
+- Invoice jobs: generate consolidated, mark overdue, send reminders, sync from Stripe
+- Cleanup jobs: delete expired verification/reset tokens
+
+**Worker Configuration:**
+- Configurable poll interval (default 1s)
+- Configurable max concurrency (default 5)
+- Queue-specific processing
+- Tenant-scoped job processing
+- Graceful shutdown on context cancellation
 
 **Future Migration:**
 - If scale demands, can migrate to dedicated queue (e.g., River for Go/PostgreSQL)
@@ -650,6 +689,12 @@ Significant decisions should be recorded here as the project evolves.
 |------|----------|-----------|
 | (Project Start) | Initial technical choices documented | Baseline architecture |
 | 2024-12-03 | EasyPost for shipping integration | Pay-per-label pricing, mature Go SDK, USPS Commercial Plus rates, PirateShip has no API |
+| 2024-12-03 | Postmark for transactional email | Best deliverability, simple API, good DX |
+| 2024-12-03 | Email verification required before login | Prevents abuse, ensures valid contact info, industry standard |
+| 2024-12-03 | Token hashing with SHA-256 | Tokens stored as hashes, not plaintext; prevents database breach from exposing valid tokens |
+| 2024-12-03 | Rate limiting scoped by tenant_id | Multi-tenant isolation for rate limits; prevents cross-tenant interference |
+| 2024-12-03 | Atomic verification via transactions | Prevents race conditions on concurrent verification attempts |
+| 2024-12-03 | Client IP extraction via proxy headers | Supports X-Forwarded-For/X-Real-IP for Caddy/nginx deployments |
 
 ---
 
