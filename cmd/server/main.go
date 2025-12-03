@@ -23,6 +23,7 @@ import (
 	"github.com/dukerupert/freyja/internal/service"
 	"github.com/dukerupert/freyja/internal/shipping"
 	"github.com/dukerupert/freyja/internal/tax"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -85,6 +86,14 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize user service: %w", err)
 	}
+
+	// Parse tenant ID as UUID for password reset service
+	tenantUUID, err := uuid.Parse(cfg.TenantID)
+	if err != nil {
+		return fmt.Errorf("failed to parse tenant ID: %w", err)
+	}
+
+	passwordResetService := service.NewPasswordResetService(repo)
 
 	// Load templates with renderer
 	logger.Info("Loading templates...")
@@ -196,6 +205,10 @@ func run() error {
 		SignupHandler: storefront.NewSignupHandler(userService, renderer),
 		LoginHandler:  storefront.NewLoginHandler(userService, renderer),
 		LogoutHandler: storefront.NewLogoutHandler(userService),
+
+		// Password Reset
+		ForgotPasswordHandler: storefront.NewForgotPasswordHandler(renderer, passwordResetService, tenantUUID),
+		ResetPasswordHandler:  storefront.NewResetPasswordHandler(renderer, passwordResetService, userService, tenantUUID),
 
 		// Checkout
 		CheckoutPageHandler:        storefront.NewCheckoutPageHandler(renderer, cartService, cfg.Stripe.PublishableKey),

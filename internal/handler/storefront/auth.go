@@ -152,6 +152,11 @@ func (h *LoginHandler) showLoginForm(w http.ResponseWriter, r *http.Request, for
 		data["Email"] = email
 	}
 
+	// Check for password reset success message
+	if r.URL.Query().Get("reset") == "success" {
+		data["Success"] = "Your password has been reset successfully. Please log in with your new password."
+	}
+
 	h.renderer.RenderHTTP(w, "login", data)
 }
 

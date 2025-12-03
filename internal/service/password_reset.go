@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dukerupert/freyja/internal/auth"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -71,15 +72,79 @@ func (s *passwordResetService) RequestPasswordReset(
 	ipAddress string,
 	userAgent string,
 ) (string, error) {
-	// TODO: Implement password reset request logic
-	// 1. Validate email and get user by email (GetUserByEmail)
-	// 2. Check rate limits for email (CountRecentResetRequestsByEmail)
-	// 3. Check rate limits for IP address (CountRecentResetRequestsByIP)
-	// 4. Generate secure token (generateToken)
-	// 5. Hash the token (hashToken)
-	// 6. Store token in database (CreatePasswordResetToken)
-	// 7. Return raw token to be sent via email
-	return "", fmt.Errorf("not implemented")
+	// Get user by email
+	user, err := s.repo.GetUserByEmail(ctx, repository.GetUserByEmailParams{
+		TenantID: uuidToPgtype(tenantID),
+		Email:    email,
+	})
+	if err != nil {
+		// Always return nil to prevent user enumeration
+		// Log the error internally but don't expose to caller
+		fmt.Printf("password reset request for non-existent email: %s\n", email)
+		return "", nil
+	}
+
+	// Check rate limit for this email
+	rateLimitCutoff := time.Now().Add(-RateLimitWindow)
+	emailCount, err := s.repo.CountRecentResetRequestsByEmail(ctx, repository.CountRecentResetRequestsByEmailParams{
+		UserID:    user.ID,
+		CreatedAt: pgtype.Timestamptz{Time: rateLimitCutoff, Valid: true},
+	})
+	if err != nil {
+		fmt.Printf("error checking email rate limit: %v\n", err)
+		return "", nil
+	}
+	if emailCount >= RateLimitPerEmail {
+		// Log rate limit exceeded but still return nil to prevent enumeration
+		fmt.Printf("rate limit exceeded for email: %s\n", email)
+		return "", nil
+	}
+
+	// Check rate limit for IP address
+	ipCount, err := s.repo.CountRecentResetRequestsByIP(ctx, repository.CountRecentResetRequestsByIPParams{
+		IpAddress: pgtype.Text{String: ipAddress, Valid: true},
+		CreatedAt: pgtype.Timestamptz{Time: rateLimitCutoff, Valid: true},
+	})
+	if err != nil {
+		fmt.Printf("error checking IP rate limit: %v\n", err)
+		return "", nil
+	}
+	if ipCount >= RateLimitPerIP {
+		// Log rate limit exceeded but still return nil to prevent enumeration
+		fmt.Printf("rate limit exceeded for IP: %s\n", ipAddress)
+		return "", nil
+	}
+
+	// Generate secure token
+	rawToken, err := generateToken()
+	if err != nil {
+		fmt.Printf("error generating token: %v\n", err)
+		return "", nil
+	}
+
+	// Hash the token for storage
+	hashedToken := hashToken(rawToken)
+
+	// Store token in database
+	expiresAt := time.Now().Add(TokenExpiry)
+	_, err = s.repo.CreatePasswordResetToken(ctx, repository.CreatePasswordResetTokenParams{
+		TenantID:  uuidToPgtype(tenantID),
+		UserID:    user.ID,
+		TokenHash: hashedToken,
+		ExpiresAt: pgtype.Timestamptz{Time: expiresAt, Valid: true},
+		IpAddress: pgtype.Text{String: ipAddress, Valid: true},
+		UserAgent: pgtype.Text{String: userAgent, Valid: true},
+	})
+	if err != nil {
+		fmt.Printf("error creating password reset token: %v\n", err)
+		return "", nil
+	}
+
+	// Log the reset URL for now (email service not implemented)
+	fmt.Printf("Password reset requested for %s. Reset URL: /reset-password?token=%s\n", email, rawToken)
+
+	// Return nil to prevent user enumeration (caller should always show success)
+	return "", nil
 }
 
 // ValidateResetToken verifies a reset token and returns the associated user ID
@@ -88,13 +153,30 @@ func (s *passwordResetService) ValidateResetToken(
 	tenantID uuid.UUID,
 	rawToken string,
 ) (uuid.UUID, error) {
-	// TODO: Implement token validation logic
-	// 1. Hash the raw token
-	// 2. Query database for valid token (GetPasswordResetToken)
-	// 3. Check if token exists, is not used, and not expired (handled by query)
-	// 4. Check user account status
-	// 5. Return user ID if valid, or ErrInvalidToken
-	return uuid.Nil, fmt.Errorf("not implemented")
+	// Hash the raw token
+	hashedToken := hashToken(rawToken)
+
+	// Query database for valid token (checks: not used, not expired)
+	tokenRecord, err := s.repo.GetPasswordResetToken(ctx, repository.GetPasswordResetTokenParams{
+		TenantID:  uuidToPgtype(tenantID),
+		TokenHash: hashedToken,
+	})
+	if err != nil {
+		return uuid.Nil, ErrInvalidToken
+	}
+
+	// Check user account status
+	if tokenRecord.UserStatus == "suspended" || tokenRecord.UserStatus == "closed" {
+		return uuid.Nil, ErrInvalidToken
+	}
+
+	// Convert pgtype.UUID to uuid.UUID
+	userID, err := pgtypeToUUID(tokenRecord.UserID)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid user ID in token: %w", err)
+	}
+
+	return userID, nil
 }
 
 // ResetPassword completes the password reset using a valid token
@@ -104,14 +186,47 @@ func (s *passwordResetService) ResetPassword(
 	rawToken string,
 	newPassword string,
 ) error {
-	// TODO: Implement password reset logic
-	// 1. Validate token and get user ID (ValidateResetToken)
-	// 2. Hash new password (auth.HashPassword)
-	// 3. Update user password (UpdateUserPassword)
-	// 4. Mark token as used (MarkPasswordResetTokenUsed)
-	// 5. Invalidate all other tokens for user (InvalidateUserPasswordResetTokens)
-	// 6. Consider: Delete user sessions to force re-login (optional security measure)
-	return fmt.Errorf("not implemented")
+	// Validate token and get user ID
+	userID, err := s.ValidateResetToken(ctx, tenantID, rawToken)
+	if err != nil {
+		return err
+	}
+
+	// Hash new password
+	passwordHash, err := auth.HashPassword(newPassword)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// Update user password
+	err = s.repo.UpdateUserPassword(ctx, repository.UpdateUserPasswordParams{
+		ID:           uuidToPgtype(userID),
+		PasswordHash: pgtype.Text{String: passwordHash, Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+
+	// Mark this token as used
+	hashedToken := hashToken(rawToken)
+	err = s.repo.MarkPasswordResetTokenUsed(ctx, repository.MarkPasswordResetTokenUsedParams{
+		TenantID:  uuidToPgtype(tenantID),
+		TokenHash: hashedToken,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to mark token as used: %w", err)
+	}
+
+	// Invalidate all other tokens for this user
+	err = s.repo.InvalidateUserPasswordResetTokens(ctx, repository.InvalidateUserPasswordResetTokensParams{
+		TenantID: uuidToPgtype(tenantID),
+		UserID:   uuidToPgtype(userID),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to invalidate other tokens: %w", err)
+	}
+
+	return nil
 }
 
 // generateToken creates a cryptographically secure random token

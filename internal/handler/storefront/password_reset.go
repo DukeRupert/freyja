@@ -1,6 +1,7 @@
 package storefront
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/dukerupert/freyja/internal/handler"
@@ -48,28 +49,46 @@ func (h *ForgotPasswordHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 
 // ShowForm displays the forgot password form
 func (h *ForgotPasswordHandler) ShowForm(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement form rendering
-	// 1. Create template data with BaseTemplateData(r)
-	// 2. Add any error/success messages from query params
-	// 3. Render "forgot_password" template
 	data := BaseTemplateData(r)
+
+	// Check for success message from query params
+	if r.URL.Query().Get("success") == "true" {
+		data["Success"] = "If an account exists with that email, you will receive a password reset link shortly."
+	}
+
 	h.renderer.RenderHTTP(w, "forgot_password", data)
 }
 
 // HandleSubmit processes the forgot password form submission
 func (h *ForgotPasswordHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement password reset request logic
-	// 1. Parse form data (email)
-	// 2. Validate email format
-	// 3. Get IP address from request (r.RemoteAddr)
-	// 4. Get user agent from request (r.UserAgent())
-	// 5. Call passwordResetService.RequestPasswordReset()
-	// 6. Handle rate limiting errors gracefully
-	// 7. Send reset email with token (when email service available)
-	// 8. Always show success message (even if email not found - security)
-	// 9. Redirect to success page or re-render with success message
+	ctx := r.Context()
 
-	http.Error(w, "Not implemented", http.StatusNotImplemented)
+	// Parse form data
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, "/forgot-password", http.StatusSeeOther)
+		return
+	}
+
+	email := r.FormValue("email")
+
+	// Basic validation
+	if email == "" {
+		data := BaseTemplateData(r)
+		data["Error"] = "Email is required"
+		data["Email"] = email
+		h.renderer.RenderHTTP(w, "forgot_password", data)
+		return
+	}
+
+	// Get IP address and user agent
+	ipAddress := r.RemoteAddr
+	userAgent := r.UserAgent()
+
+	// Request password reset (always returns nil to prevent enumeration)
+	_, _ = h.passwordResetService.RequestPasswordReset(ctx, h.tenantID, email, ipAddress, userAgent)
+
+	// Always redirect to success page (security: don't reveal if email exists)
+	http.Redirect(w, r, "/forgot-password?success=true", http.StatusSeeOther)
 }
 
 // ResetPasswordHandler handles the password reset completion flow
@@ -114,35 +133,82 @@ func (h *ResetPasswordHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 // ShowForm displays the reset password form
 func (h *ResetPasswordHandler) ShowForm(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement form rendering
-	// 1. Get token from query params
-	// 2. Validate token exists
-	// 3. Optionally validate token immediately (or defer to POST)
-	// 4. Create template data with BaseTemplateData(r)
-	// 5. Add token to template data
-	// 6. Add any error messages
-	// 7. Render "reset_password" template
-
+	ctx := r.Context()
 	data := BaseTemplateData(r)
+
 	token := r.URL.Query().Get("token")
+	if token == "" {
+		data["Error"] = "Invalid or missing reset token"
+		h.renderer.RenderHTTP(w, "reset_password", data)
+		return
+	}
+
+	// Validate token immediately to provide early feedback
+	_, err := h.passwordResetService.ValidateResetToken(ctx, h.tenantID, token)
+	if err != nil {
+		data["Error"] = "This password reset link is invalid or has expired"
+		h.renderer.RenderHTTP(w, "reset_password", data)
+		return
+	}
+
 	data["Token"] = token
 	h.renderer.RenderHTTP(w, "reset_password", data)
 }
 
 // HandleSubmit processes the password reset form submission
 func (h *ResetPasswordHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement password reset completion logic
-	// 1. Parse form data (token, new_password, confirm_password)
-	// 2. Validate passwords match
-	// 3. Validate password strength (min length, etc.)
-	// 4. Call passwordResetService.ResetPassword()
-	// 5. Handle errors (invalid token, expired, etc.)
-	// 6. On success:
-	//    a. Show success message
-	//    b. Optionally auto-login user (create session)
-	//    c. Redirect to login or dashboard
-	// 7. On error:
-	//    a. Re-render form with error message
+	ctx := r.Context()
 
-	http.Error(w, "Not implemented", http.StatusNotImplemented)
+	// Parse form data
+	if err := r.ParseForm(); err != nil {
+		data := BaseTemplateData(r)
+		data["Error"] = "Invalid form data"
+		h.renderer.RenderHTTP(w, "reset_password", data)
+		return
+	}
+
+	token := r.FormValue("token")
+	newPassword := r.FormValue("password")
+	confirmPassword := r.FormValue("password_confirm")
+
+	data := BaseTemplateData(r)
+	data["Token"] = token
+
+	// Validate required fields
+	if token == "" || newPassword == "" || confirmPassword == "" {
+		data["Error"] = "All fields are required"
+		h.renderer.RenderHTTP(w, "reset_password", data)
+		return
+	}
+
+	// Validate passwords match
+	if newPassword != confirmPassword {
+		data["Error"] = "Passwords do not match"
+		h.renderer.RenderHTTP(w, "reset_password", data)
+		return
+	}
+
+	// Validate password length (minimum 8 characters)
+	if len(newPassword) < 8 {
+		data["Error"] = "Password must be at least 8 characters"
+		h.renderer.RenderHTTP(w, "reset_password", data)
+		return
+	}
+
+	// Reset password
+	err := h.passwordResetService.ResetPassword(ctx, h.tenantID, token, newPassword)
+	if err != nil {
+		var errMsg string
+		if errors.Is(err, service.ErrInvalidToken) {
+			errMsg = "This password reset link is invalid or has expired"
+		} else {
+			errMsg = "Failed to reset password. Please try again."
+		}
+		data["Error"] = errMsg
+		h.renderer.RenderHTTP(w, "reset_password", data)
+		return
+	}
+
+	// Redirect to login with success message
+	http.Redirect(w, r, "/login?reset=success", http.StatusSeeOther)
 }
