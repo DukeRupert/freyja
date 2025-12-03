@@ -24,11 +24,9 @@ func RegisterStorefrontRoutes(r *router.Router, deps StorefrontDeps) {
 	r.Post("/cart/update", deps.UpdateCartItemHandler.ServeHTTP)
 	r.Post("/cart/remove", deps.RemoveCartItemHandler.ServeHTTP)
 
-	// Authentication
+	// Authentication (GET routes only - POST routes registered separately with rate limiting)
 	r.Get("/signup", deps.SignupHandler.ServeHTTP)
-	r.Post("/signup", deps.SignupHandler.ServeHTTP)
 	r.Get("/login", deps.LoginHandler.ServeHTTP)
-	r.Post("/login", deps.LoginHandler.ServeHTTP)
 	r.Post("/logout", deps.LogoutHandler.ServeHTTP)
 
 	// Checkout flow
