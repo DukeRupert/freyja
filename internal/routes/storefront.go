@@ -19,29 +19,29 @@ func RegisterStorefrontRoutes(r *router.Router, deps StorefrontDeps) {
 	r.Get("/products/{slug}", deps.ProductDetailHandler.ServeHTTP)
 
 	// Shopping cart
-	r.Get("/cart", deps.CartViewHandler.ServeHTTP)
-	r.Post("/cart/add", deps.AddToCartHandler.ServeHTTP)
-	r.Post("/cart/update", deps.UpdateCartItemHandler.ServeHTTP)
-	r.Post("/cart/remove", deps.RemoveCartItemHandler.ServeHTTP)
+	r.Get("/cart", deps.CartHandler.View)
+	r.Post("/cart/add", deps.CartHandler.Add)
+	r.Post("/cart/update", deps.CartHandler.Update)
+	r.Post("/cart/remove", deps.CartHandler.Remove)
 
 	// Authentication (GET routes only - POST routes registered separately with rate limiting)
-	r.Get("/signup", deps.SignupHandler.ServeHTTP)
-	r.Get("/login", deps.LoginHandler.ServeHTTP)
-	r.Post("/logout", deps.LogoutHandler.ServeHTTP)
+	r.Get("/signup", deps.SignupHandler.ShowForm)
+	r.Get("/login", deps.LoginHandler.ShowForm)
+	r.Post("/logout", deps.LogoutHandler.HandleSubmit)
 
 	// Password Reset
-	r.Get("/forgot-password", deps.ForgotPasswordHandler.ServeHTTP)
-	r.Post("/forgot-password", deps.ForgotPasswordHandler.ServeHTTP)
-	r.Get("/reset-password", deps.ResetPasswordHandler.ServeHTTP)
-	r.Post("/reset-password", deps.ResetPasswordHandler.ServeHTTP)
+	r.Get("/forgot-password", deps.ForgotPasswordHandler.ShowForm)
+	r.Post("/forgot-password", deps.ForgotPasswordHandler.HandleSubmit)
+	r.Get("/reset-password", deps.ResetPasswordHandler.ShowForm)
+	r.Post("/reset-password", deps.ResetPasswordHandler.HandleSubmit)
 
 	// Checkout flow
-	r.Get("/checkout", deps.CheckoutPageHandler.ServeHTTP)
-	r.Post("/checkout/validate-address", deps.ValidateAddressHandler.ServeHTTP)
-	r.Post("/checkout/shipping-rates", deps.GetShippingRatesHandler.ServeHTTP)
-	r.Post("/checkout/calculate-total", deps.CalculateTotalHandler.ServeHTTP)
-	r.Post("/checkout/create-payment-intent", deps.CreatePaymentIntentHandler.ServeHTTP)
-	r.Get("/order-confirmation", deps.OrderConfirmationHandler.ServeHTTP)
+	r.Get("/checkout", deps.CheckoutHandler.Page)
+	r.Post("/checkout/validate-address", deps.CheckoutHandler.ValidateAddress)
+	r.Post("/checkout/shipping-rates", deps.CheckoutHandler.GetShippingRates)
+	r.Post("/checkout/calculate-total", deps.CheckoutHandler.CalculateTotal)
+	r.Post("/checkout/create-payment-intent", deps.CheckoutHandler.CreatePaymentIntent)
+	r.Get("/order-confirmation", deps.CheckoutHandler.OrderConfirmation)
 
 	// Account routes (require authentication)
 	account := r.Group(middleware.RequireAuth)

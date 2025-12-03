@@ -253,11 +253,8 @@ func run() error {
 		ProductListHandler:   storefront.NewProductListHandler(productService, renderer),
 		ProductDetailHandler: storefront.NewProductDetailHandler(productService, renderer),
 
-		// Cart
-		CartViewHandler:       storefront.NewCartViewHandler(cartService, renderer, cfg.Env != "development"),
-		AddToCartHandler:      storefront.NewAddToCartHandler(cartService, renderer, cfg.Env != "development"),
-		UpdateCartItemHandler: storefront.NewUpdateCartItemHandler(cartService, renderer),
-		RemoveCartItemHandler: storefront.NewRemoveCartItemHandler(cartService, renderer),
+		// Cart (consolidated handler)
+		CartHandler: storefront.NewCartHandler(cartService, renderer, cfg.Env != "development"),
 
 		// Auth
 		SignupHandler: storefront.NewSignupHandler(userService, renderer),
@@ -268,13 +265,16 @@ func run() error {
 		ForgotPasswordHandler: storefront.NewForgotPasswordHandler(renderer, passwordResetService, tenantUUID),
 		ResetPasswordHandler:  storefront.NewResetPasswordHandler(renderer, passwordResetService, userService, tenantUUID),
 
-		// Checkout
-		CheckoutPageHandler:        storefront.NewCheckoutPageHandler(renderer, cartService, cfg.Stripe.PublishableKey),
-		ValidateAddressHandler:     storefront.NewValidateAddressHandler(checkoutService),
-		GetShippingRatesHandler:    storefront.NewGetShippingRatesHandler(checkoutService),
-		CalculateTotalHandler:      storefront.NewCalculateTotalHandler(checkoutService),
-		CreatePaymentIntentHandler: storefront.NewCreatePaymentIntentHandler(checkoutService),
-		OrderConfirmationHandler:   storefront.NewOrderConfirmationHandler(renderer, cartService, orderService, repo, cfg.TenantID),
+		// Checkout (consolidated handler)
+		CheckoutHandler: storefront.NewCheckoutHandler(
+			renderer,
+			cartService,
+			checkoutService,
+			orderService,
+			repo,
+			cfg.Stripe.PublishableKey,
+			cfg.TenantID,
+		),
 
 		// Account (authenticated)
 		SubscriptionListHandler:     storefront.NewSubscriptionListHandler(subscriptionService, renderer, cfg.TenantID),
@@ -284,28 +284,14 @@ func run() error {
 		CreateSubscriptionHandler:   storefront.NewCreateSubscriptionHandler(subscriptionService, renderer, cfg.TenantID),
 	}
 
-	// Admin dependencies
+	// Admin dependencies (consolidated handlers)
 	adminDeps := routes.AdminDeps{
-		DashboardHandler:          admin.NewDashboardHandler(repo, renderer, cfg.TenantID),
-		ProductListHandler:        admin.NewProductListHandler(repo, renderer, cfg.TenantID),
-		ProductFormHandler:        admin.NewProductFormHandler(repo, renderer, cfg.TenantID),
-		ProductDetailHandler:      admin.NewProductDetailHandler(repo, renderer, cfg.TenantID),
-		SKUFormHandler:            admin.NewSKUFormHandler(repo, renderer, cfg.TenantID),
-		OrderListHandler:          admin.NewOrderListHandler(repo, renderer, cfg.TenantID),
-		OrderDetailHandler:        admin.NewOrderDetailHandler(repo, renderer, cfg.TenantID),
-		UpdateOrderStatusHandler:  admin.NewUpdateOrderStatusHandler(repo, cfg.TenantID),
-		CreateShipmentHandler:     admin.NewCreateShipmentHandler(repo, cfg.TenantID),
-		CustomerListHandler:        admin.NewCustomerListHandler(repo, renderer, cfg.TenantID),
-		CustomerDetailHandler:      admin.NewCustomerDetailHandler(repo, invoiceService, renderer, cfg.TenantID),
-		WholesaleApprovalHandler:   admin.NewWholesaleApprovalHandler(repo, cfg.TenantID),
-		SubscriptionListHandler:   admin.NewSubscriptionListHandler(repo, renderer, cfg.TenantID),
-		SubscriptionDetailHandler: admin.NewSubscriptionDetailHandler(repo, renderer, cfg.TenantID),
-		InvoiceListHandler:        admin.NewInvoiceListHandler(invoiceService, renderer),
-		InvoiceDetailHandler:      admin.NewInvoiceDetailHandler(invoiceService, repo, renderer, cfg.TenantID),
-		SendInvoiceHandler:        admin.NewSendInvoiceHandler(invoiceService),
-		VoidInvoiceHandler:        admin.NewVoidInvoiceHandler(invoiceService),
-		RecordPaymentHandler:      admin.NewRecordPaymentHandler(invoiceService, renderer),
-		CreateInvoiceHandler:      admin.NewCreateInvoiceHandler(invoiceService, repo, renderer, cfg.TenantID),
+		DashboardHandler:    admin.NewDashboardHandler(repo, renderer, cfg.TenantID),
+		ProductHandler:      admin.NewProductHandler(repo, renderer, cfg.TenantID),
+		OrderHandler:        admin.NewOrderHandler(repo, renderer, cfg.TenantID),
+		CustomerHandler:     admin.NewCustomerHandler(repo, invoiceService, renderer, cfg.TenantID),
+		SubscriptionHandler: admin.NewSubscriptionHandler(repo, renderer, cfg.TenantID),
+		InvoiceHandler:      admin.NewInvoiceHandler(invoiceService, repo, renderer, cfg.TenantID),
 	}
 
 	// Webhook dependencies
@@ -379,8 +365,8 @@ func run() error {
 
 	// Apply stricter rate limiting to auth endpoints
 	authRouter := r.Group(authRateLimiter.Middleware)
-	authRouter.Post("/login", storefrontDeps.LoginHandler.ServeHTTP)
-	authRouter.Post("/signup", storefrontDeps.SignupHandler.ServeHTTP)
+	authRouter.Post("/login", storefrontDeps.LoginHandler.HandleSubmit)
+	authRouter.Post("/signup", storefrontDeps.SignupHandler.HandleSubmit)
 
 	// SaaS marketing site router (separate, can be served on different port/domain)
 	saasRouter := router.New(

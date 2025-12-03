@@ -29,22 +29,12 @@ func NewSignupHandler(userService service.UserService, renderer *handler.Rendere
 	}
 }
 
-// ServeHTTP handles GET /signup and POST /signup
-func (h *SignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		h.showSignupForm(w, r, nil)
-		return
-	}
-
-	if r.Method == http.MethodPost {
-		h.handleSignup(w, r)
-		return
-	}
-
-	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+// ShowForm handles GET /signup - displays the signup form
+func (h *SignupHandler) ShowForm(w http.ResponseWriter, r *http.Request) {
+	h.showFormWithError(w, r, nil)
 }
 
-func (h *SignupHandler) showSignupForm(w http.ResponseWriter, r *http.Request, formError *string) {
+func (h *SignupHandler) showFormWithError(w http.ResponseWriter, r *http.Request, formError *string) {
 	data := BaseTemplateData(r)
 
 	if formError != nil {
@@ -54,7 +44,8 @@ func (h *SignupHandler) showSignupForm(w http.ResponseWriter, r *http.Request, f
 	h.renderer.RenderHTTP(w, "signup", data)
 }
 
-func (h *SignupHandler) handleSignup(w http.ResponseWriter, r *http.Request) {
+// HandleSubmit handles POST /signup - processes the signup form
+func (h *SignupHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	slog.Debug("signup: handling POST request")
@@ -63,7 +54,7 @@ func (h *SignupHandler) handleSignup(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		slog.Error("signup: failed to parse form", "error", err)
 		errMsg := "Invalid form data"
-		h.showSignupForm(w, r, &errMsg)
+		h.showFormWithError(w, r, &errMsg)
 		return
 	}
 
@@ -82,7 +73,7 @@ func (h *SignupHandler) handleSignup(w http.ResponseWriter, r *http.Request) {
 	if email == "" || password == "" {
 		slog.Warn("signup: missing required fields", "email", email, "hasPassword", password != "")
 		errMsg := "Email and password are required"
-		h.showSignupForm(w, r, &errMsg)
+		h.showFormWithError(w, r, &errMsg)
 		return
 	}
 
@@ -100,7 +91,7 @@ func (h *SignupHandler) handleSignup(w http.ResponseWriter, r *http.Request) {
 		} else {
 			errMsg = "Failed to create account. Please try again."
 		}
-		h.showSignupForm(w, r, &errMsg)
+		h.showFormWithError(w, r, &errMsg)
 		return
 	}
 
@@ -151,22 +142,12 @@ func NewLoginHandler(userService service.UserService, renderer *handler.Renderer
 	}
 }
 
-// ServeHTTP handles GET /login and POST /login
-func (h *LoginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		h.showLoginForm(w, r, nil, "")
-		return
-	}
-
-	if r.Method == http.MethodPost {
-		h.handleLogin(w, r)
-		return
-	}
-
-	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+// ShowForm handles GET /login - displays the login form
+func (h *LoginHandler) ShowForm(w http.ResponseWriter, r *http.Request) {
+	h.showFormWithError(w, r, nil, "")
 }
 
-func (h *LoginHandler) showLoginForm(w http.ResponseWriter, r *http.Request, formError *string, email string) {
+func (h *LoginHandler) showFormWithError(w http.ResponseWriter, r *http.Request, formError *string, email string) {
 	data := BaseTemplateData(r)
 
 	if formError != nil {
@@ -184,13 +165,14 @@ func (h *LoginHandler) showLoginForm(w http.ResponseWriter, r *http.Request, for
 	h.renderer.RenderHTTP(w, "login", data)
 }
 
-func (h *LoginHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
+// HandleSubmit handles POST /login - processes the login form
+func (h *LoginHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Parse form data
 	if err := r.ParseForm(); err != nil {
 		errMsg := "Invalid form data"
-		h.showLoginForm(w, r, &errMsg, "")
+		h.showFormWithError(w, r, &errMsg, "")
 		return
 	}
 
@@ -200,7 +182,7 @@ func (h *LoginHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Validate required fields
 	if email == "" || password == "" {
 		errMsg := "Email and password are required"
-		h.showLoginForm(w, r, &errMsg, email)
+		h.showFormWithError(w, r, &errMsg, email)
 		return
 	}
 
@@ -217,7 +199,7 @@ func (h *LoginHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		} else {
 			errMsg = "Login failed. Please try again."
 		}
-		h.showLoginForm(w, r, &errMsg, email)
+		h.showFormWithError(w, r, &errMsg, email)
 		return
 	}
 
@@ -262,13 +244,8 @@ func NewLogoutHandler(userService service.UserService) *LogoutHandler {
 	}
 }
 
-// ServeHTTP handles POST /logout
-func (h *LogoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+// HandleSubmit handles POST /logout - logs out the user
+func (h *LogoutHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Get session cookie

@@ -1,63 +1,79 @@
 package storefront
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/dukerupert/freyja/internal/address"
 	"github.com/dukerupert/freyja/internal/handler"
+	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/service"
 	"github.com/dukerupert/freyja/internal/shipping"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// CheckoutPageHandler displays the checkout page with cart summary
-type CheckoutPageHandler struct {
+// CheckoutHandler handles all checkout-related storefront routes
+type CheckoutHandler struct {
 	renderer             *handler.Renderer
 	cartService          service.CartService
+	checkoutService      service.CheckoutService
+	orderService         service.OrderService
+	repo                 repository.Querier
 	stripePublishableKey string
+	tenantID             pgtype.UUID
 }
 
-// NewCheckoutPageHandler creates a new checkout page handler
-func NewCheckoutPageHandler(renderer *handler.Renderer, cartService service.CartService, stripePublishableKey string) *CheckoutPageHandler {
-	return &CheckoutPageHandler{
+// NewCheckoutHandler creates a new checkout handler
+func NewCheckoutHandler(
+	renderer *handler.Renderer,
+	cartService service.CartService,
+	checkoutService service.CheckoutService,
+	orderService service.OrderService,
+	repo repository.Querier,
+	stripePublishableKey string,
+	tenantID string,
+) *CheckoutHandler {
+	var tenantUUID pgtype.UUID
+	if err := tenantUUID.Scan(tenantID); err != nil {
+		slog.Error("Failed to parse tenant ID", "error", err)
+	}
+
+	return &CheckoutHandler{
 		renderer:             renderer,
 		cartService:          cartService,
+		checkoutService:      checkoutService,
+		orderService:         orderService,
+		repo:                 repo,
 		stripePublishableKey: stripePublishableKey,
+		tenantID:             tenantUUID,
 	}
 }
 
-func (h *CheckoutPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Get session ID from cookie
+// Page handles GET /checkout
+func (h *CheckoutHandler) Page(w http.ResponseWriter, r *http.Request) {
 	sessionID := GetSessionIDFromCookie(r)
 	if sessionID == "" {
-		// No session, redirect to cart page
 		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
 	}
 
-	// Get cart by session ID
 	cart, err := h.cartService.GetCart(r.Context(), sessionID)
 	if err != nil {
-		// No cart found, redirect to cart page
 		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
 	}
 
-	// Load cart summary
 	cartSummary, err := h.cartService.GetCartSummary(r.Context(), cart.ID.String())
 	if err != nil {
 		http.Error(w, "Failed to load cart details", http.StatusInternalServerError)
 		return
 	}
 
-	// Check if cart is empty
 	if len(cartSummary.Items) == 0 {
 		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
@@ -71,36 +87,12 @@ func (h *CheckoutPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	h.renderer.RenderHTTP(w, "storefront/checkout", data)
 }
 
-// ValidateAddressHandler validates shipping and billing addresses
-type ValidateAddressHandler struct {
-	checkoutService service.CheckoutService
-}
-
-// NewValidateAddressHandler creates a new address validation handler
-func NewValidateAddressHandler(checkoutService service.CheckoutService) *ValidateAddressHandler {
-	return &ValidateAddressHandler{
-		checkoutService: checkoutService,
+// ValidateAddress handles POST /checkout/validate-address
+func (h *CheckoutHandler) ValidateAddress(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ShippingAddress address.Address `json:"shipping_address"`
+		BillingAddress  address.Address `json:"billing_address"`
 	}
-}
-
-type ValidateAddressRequest struct {
-	ShippingAddress address.Address `json:"shipping_address"`
-	BillingAddress  address.Address `json:"billing_address"`
-}
-
-type ValidateAddressResponse struct {
-	ShippingResult *address.ValidationResult `json:"shipping_result"`
-	BillingResult  *address.ValidationResult `json:"billing_result"`
-}
-
-func (h *ValidateAddressHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		slog.Error("Invalid method for validate address", "method", r.Method)
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req ValidateAddressRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		slog.Error("Failed to decode validate address request", "error", err)
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
@@ -109,7 +101,6 @@ func (h *ValidateAddressHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 
 	slog.Info("Validating address", "shipping", req.ShippingAddress, "billing", req.BillingAddress)
 
-	// Validate shipping address
 	shippingResult, err := h.checkoutService.ValidateAndNormalizeAddress(r.Context(), req.ShippingAddress)
 	if err != nil {
 		slog.Error("Shipping address validation failed", "error", err, "address", req.ShippingAddress)
@@ -117,7 +108,6 @@ func (h *ValidateAddressHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Validate billing address
 	billingResult, err := h.checkoutService.ValidateAndNormalizeAddress(r.Context(), req.BillingAddress)
 	if err != nil {
 		slog.Error("Billing address validation failed", "error", err, "address", req.BillingAddress)
@@ -125,7 +115,10 @@ func (h *ValidateAddressHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	resp := ValidateAddressResponse{
+	resp := struct {
+		ShippingResult *address.ValidationResult `json:"shipping_result"`
+		BillingResult  *address.ValidationResult `json:"billing_result"`
+	}{
 		ShippingResult: shippingResult,
 		BillingResult:  billingResult,
 	}
@@ -136,35 +129,12 @@ func (h *ValidateAddressHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-// GetShippingRatesHandler calculates shipping rates for the cart
-type GetShippingRatesHandler struct {
-	checkoutService service.CheckoutService
-}
-
-// NewGetShippingRatesHandler creates a new shipping rates handler
-func NewGetShippingRatesHandler(checkoutService service.CheckoutService) *GetShippingRatesHandler {
-	return &GetShippingRatesHandler{
-		checkoutService: checkoutService,
+// GetShippingRates handles POST /checkout/shipping-rates
+func (h *CheckoutHandler) GetShippingRates(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		CartID          string          `json:"cart_id"`
+		ShippingAddress address.Address `json:"shipping_address"`
 	}
-}
-
-type GetShippingRatesRequest struct {
-	CartID          string          `json:"cart_id"`
-	ShippingAddress address.Address `json:"shipping_address"`
-}
-
-type GetShippingRatesResponse struct {
-	Rates []shipping.Rate `json:"rates"`
-}
-
-func (h *GetShippingRatesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		slog.Error("Invalid method for get shipping rates", "method", r.Method)
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req GetShippingRatesRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		slog.Error("Failed to decode shipping rates request", "error", err)
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
@@ -173,7 +143,6 @@ func (h *GetShippingRatesHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 
 	slog.Info("Getting shipping rates", "cart_id", req.CartID, "address", req.ShippingAddress)
 
-	// Get shipping rates
 	rates, err := h.checkoutService.GetShippingRates(r.Context(), req.CartID, req.ShippingAddress)
 	if err != nil {
 		slog.Error("Failed to get shipping rates", "error", err, "cart_id", req.CartID)
@@ -183,7 +152,9 @@ func (h *GetShippingRatesHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 
 	slog.Info("Retrieved shipping rates", "count", len(rates))
 
-	resp := GetShippingRatesResponse{
+	resp := struct {
+		Rates []shipping.Rate `json:"rates"`
+	}{
 		Rates: rates,
 	}
 
@@ -193,37 +164,14 @@ func (h *GetShippingRatesHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-// CalculateTotalHandler calculates the complete order total
-type CalculateTotalHandler struct {
-	checkoutService service.CheckoutService
-}
-
-// NewCalculateTotalHandler creates a new calculate total handler
-func NewCalculateTotalHandler(checkoutService service.CheckoutService) *CalculateTotalHandler {
-	return &CalculateTotalHandler{
-		checkoutService: checkoutService,
+// CalculateTotal handles POST /checkout/calculate-total
+func (h *CheckoutHandler) CalculateTotal(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		CartID               string          `json:"cart_id"`
+		ShippingAddress      address.Address `json:"shipping_address"`
+		BillingAddress       address.Address `json:"billing_address"`
+		SelectedShippingRate shipping.Rate   `json:"selected_shipping_rate"`
 	}
-}
-
-type CalculateTotalRequest struct {
-	CartID               string          `json:"cart_id"`
-	ShippingAddress      address.Address `json:"shipping_address"`
-	BillingAddress       address.Address `json:"billing_address"`
-	SelectedShippingRate shipping.Rate   `json:"selected_shipping_rate"`
-}
-
-type CalculateTotalResponse struct {
-	OrderTotal *service.OrderTotal `json:"order_total"`
-}
-
-func (h *CalculateTotalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		slog.Error("Invalid method for calculate total", "method", r.Method)
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req CalculateTotalRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		slog.Error("Failed to decode calculate total request", "error", err)
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
@@ -232,7 +180,6 @@ func (h *CalculateTotalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 
 	slog.Info("Calculating order total", "cart_id", req.CartID)
 
-	// Calculate order total
 	params := service.OrderTotalParams{
 		CartID:               req.CartID,
 		ShippingAddress:      req.ShippingAddress,
@@ -249,7 +196,9 @@ func (h *CalculateTotalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 
 	slog.Info("Calculated order total", "total_cents", total.TotalCents)
 
-	resp := CalculateTotalResponse{
+	resp := struct {
+		OrderTotal *service.OrderTotal `json:"order_total"`
+	}{
 		OrderTotal: total,
 	}
 
@@ -259,41 +208,16 @@ func (h *CalculateTotalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	}
 }
 
-// CreatePaymentIntentHandler creates a Stripe payment intent
-type CreatePaymentIntentHandler struct {
-	checkoutService service.CheckoutService
-}
-
-// NewCreatePaymentIntentHandler creates a new payment intent handler
-func NewCreatePaymentIntentHandler(checkoutService service.CheckoutService) *CreatePaymentIntentHandler {
-	return &CreatePaymentIntentHandler{
-		checkoutService: checkoutService,
+// CreatePaymentIntent handles POST /checkout/create-payment-intent
+func (h *CheckoutHandler) CreatePaymentIntent(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		CartID          string              `json:"cart_id"`
+		OrderTotal      *service.OrderTotal `json:"order_total"`
+		ShippingAddress address.Address     `json:"shipping_address"`
+		BillingAddress  address.Address     `json:"billing_address"`
+		CustomerEmail   string              `json:"customer_email"`
+		IdempotencyKey  string              `json:"idempotency_key"`
 	}
-}
-
-type CreatePaymentIntentRequest struct {
-	CartID          string              `json:"cart_id"`
-	OrderTotal      *service.OrderTotal `json:"order_total"`
-	ShippingAddress address.Address     `json:"shipping_address"`
-	BillingAddress  address.Address     `json:"billing_address"`
-	CustomerEmail   string              `json:"customer_email"`
-	IdempotencyKey  string              `json:"idempotency_key"`
-}
-
-type CreatePaymentIntentResponse struct {
-	PaymentIntentID string `json:"payment_intent_id"`
-	ClientSecret    string `json:"client_secret"`
-	AmountCents     int32  `json:"amount_cents"`
-}
-
-func (h *CreatePaymentIntentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		slog.Error("Invalid method for create payment intent", "method", r.Method)
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req CreatePaymentIntentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		slog.Error("Failed to decode payment intent request", "error", err)
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
@@ -302,7 +226,6 @@ func (h *CreatePaymentIntentHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 
 	slog.Info("Creating payment intent", "cart_id", req.CartID, "email", req.CustomerEmail)
 
-	// Create payment intent
 	params := service.PaymentIntentParams{
 		CartID:          req.CartID,
 		OrderTotal:      req.OrderTotal,
@@ -321,7 +244,11 @@ func (h *CreatePaymentIntentHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 
 	slog.Info("Payment intent created", "payment_intent_id", paymentIntent.ID, "amount_cents", paymentIntent.AmountCents)
 
-	resp := CreatePaymentIntentResponse{
+	resp := struct {
+		PaymentIntentID string `json:"payment_intent_id"`
+		ClientSecret    string `json:"client_secret"`
+		AmountCents     int32  `json:"amount_cents"`
+	}{
 		PaymentIntentID: paymentIntent.ID,
 		ClientSecret:    paymentIntent.ClientSecret,
 		AmountCents:     paymentIntent.AmountCents,
@@ -331,4 +258,138 @@ func (h *CreatePaymentIntentHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		slog.Error("Failed to encode payment intent response", "error", err)
 	}
+}
+
+// OrderConfirmation handles GET /order-confirmation
+func (h *CheckoutHandler) OrderConfirmation(w http.ResponseWriter, r *http.Request) {
+	paymentIntentID := r.URL.Query().Get("payment_intent")
+	redirectStatus := r.URL.Query().Get("redirect_status")
+
+	if redirectStatus != "succeeded" {
+		data := BaseTemplateData(r)
+		data["PaymentIntentID"] = paymentIntentID
+		data["Status"] = redirectStatus
+		h.renderer.RenderHTTP(w, "storefront/order-confirmation", data)
+		return
+	}
+
+	order, err := h.repo.GetOrderByPaymentIntentID(r.Context(), repository.GetOrderByPaymentIntentIDParams{
+		TenantID:          h.tenantID,
+		ProviderPaymentID: paymentIntentID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			slog.Info("Order not yet created for payment intent (webhook pending)", "payment_intent", paymentIntentID)
+			data := BaseTemplateData(r)
+			data["PaymentIntentID"] = paymentIntentID
+			data["Status"] = "processing"
+			h.renderer.RenderHTTP(w, "storefront/order-confirmation", data)
+			return
+		}
+		slog.Error("Failed to get order", "error", err, "payment_intent", paymentIntentID)
+		http.Error(w, "Failed to load order", http.StatusInternalServerError)
+		return
+	}
+
+	orderDetails, err := h.repo.GetOrderWithDetails(r.Context(), repository.GetOrderWithDetailsParams{
+		TenantID: h.tenantID,
+		ID:       order.ID,
+	})
+	if err != nil {
+		slog.Error("Failed to get order details", "error", err, "order_id", order.ID)
+		http.Error(w, "Failed to load order details", http.StatusInternalServerError)
+		return
+	}
+
+	orderItems, err := h.repo.GetOrderItems(r.Context(), order.ID)
+	if err != nil {
+		slog.Error("Failed to get order items", "error", err, "order_id", order.ID)
+		http.Error(w, "Failed to load order details", http.StatusInternalServerError)
+		return
+	}
+
+	sessionID := GetSessionIDFromCookie(r)
+	if sessionID != "" {
+		cart, err := h.cartService.GetCart(r.Context(), sessionID)
+		if err == nil {
+			if err := h.cartService.ClearCart(r.Context(), cart.ID.String()); err != nil {
+				slog.Error("Failed to clear cart after successful payment", "error", err, "cart_id", cart.ID.String())
+			} else {
+				slog.Info("Cart cleared after successful payment", "cart_id", cart.ID.String(), "payment_intent", paymentIntentID)
+			}
+		}
+	}
+
+	type OrderItem struct {
+		ProductName    string
+		SKU            string
+		Quantity       int32
+		UnitPriceCents int32
+		LineSubtotal   int32
+	}
+
+	type Address struct {
+		Name       string
+		Address1   string
+		Address2   string
+		City       string
+		State      string
+		PostalCode string
+	}
+
+	type OrderData struct {
+		OrderNumber                  string
+		Email                        string
+		CreatedAt                    time.Time
+		SubtotalCents                int32
+		ShippingCents                int32
+		TaxCents                     int32
+		TotalCents                   int32
+		BillingAddressSameAsShipping bool
+	}
+
+	items := make([]OrderItem, 0, len(orderItems))
+	for _, item := range orderItems {
+		items = append(items, OrderItem{
+			ProductName:    item.ProductName,
+			SKU:            item.Sku,
+			Quantity:       item.Quantity,
+			UnitPriceCents: item.UnitPriceCents,
+			LineSubtotal:   item.Quantity * item.UnitPriceCents,
+		})
+	}
+
+	billingAddressSameAsShipping := orderDetails.ShippingAddressLine1.String == orderDetails.BillingAddressLine1.String
+
+	data := BaseTemplateData(r)
+	data["Status"] = "succeeded"
+	data["Order"] = OrderData{
+		OrderNumber:                  orderDetails.OrderNumber,
+		Email:                        orderDetails.CustomerEmail.String,
+		CreatedAt:                    orderDetails.CreatedAt.Time,
+		SubtotalCents:                orderDetails.SubtotalCents,
+		ShippingCents:                orderDetails.ShippingCents,
+		TaxCents:                     orderDetails.TaxCents,
+		TotalCents:                   orderDetails.TotalCents,
+		BillingAddressSameAsShipping: billingAddressSameAsShipping,
+	}
+	data["Items"] = items
+	data["ShippingAddress"] = Address{
+		Name:       orderDetails.ShippingName.String,
+		Address1:   orderDetails.ShippingAddressLine1.String,
+		Address2:   orderDetails.ShippingAddressLine2.String,
+		City:       orderDetails.ShippingCity.String,
+		State:      orderDetails.ShippingState.String,
+		PostalCode: orderDetails.ShippingPostalCode.String,
+	}
+	data["BillingAddress"] = Address{
+		Name:       orderDetails.BillingName.String,
+		Address1:   orderDetails.BillingAddressLine1.String,
+		Address2:   orderDetails.BillingAddressLine2.String,
+		City:       orderDetails.BillingCity.String,
+		State:      orderDetails.BillingState.String,
+		PostalCode: orderDetails.BillingPostalCode.String,
+	}
+
+	h.renderer.RenderHTTP(w, "storefront/order-confirmation", data)
 }
