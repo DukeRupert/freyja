@@ -12,7 +12,9 @@ import (
 	"github.com/dukerupert/freyja/internal/jobs"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
@@ -58,14 +60,17 @@ type EmailVerificationService interface {
 
 type emailVerificationService struct {
 	repo    repository.Querier
+	pool    *pgxpool.Pool
 	baseURL string
 }
 
 // NewEmailVerificationService creates a new email verification service
 // baseURL should be the full base URL of the application (e.g., "https://example.com")
-func NewEmailVerificationService(repo repository.Querier, baseURL string) EmailVerificationService {
+// pool is used for transaction support in the VerifyEmail method
+func NewEmailVerificationService(repo repository.Querier, pool *pgxpool.Pool, baseURL string) EmailVerificationService {
 	return &emailVerificationService{
 		repo:    repo,
+		pool:    pool,
 		baseURL: baseURL,
 	}
 }
@@ -147,7 +152,9 @@ func (s *emailVerificationService) SendVerificationEmail(
 	return nil
 }
 
-// VerifyEmail completes the email verification using a valid token
+// VerifyEmail completes the email verification using a valid token.
+// This method uses a database transaction to ensure atomicity of the verification process:
+// marking the user as verified, marking the token as used, and invalidating other tokens.
 func (s *emailVerificationService) VerifyEmail(
 	ctx context.Context,
 	tenantID uuid.UUID,
@@ -157,6 +164,7 @@ func (s *emailVerificationService) VerifyEmail(
 	hashedToken := hashVerificationToken(rawToken)
 
 	// Query database for valid token (checks: not used, not expired)
+	// This is done outside the transaction to fail fast on invalid tokens
 	tokenRecord, err := s.repo.GetEmailVerificationToken(ctx, repository.GetEmailVerificationTokenParams{
 		TenantID:  uuidToPgtype(tenantID),
 		TokenHash: hashedToken,
@@ -181,14 +189,31 @@ func (s *emailVerificationService) VerifyEmail(
 		return fmt.Errorf("invalid user ID in token: %w", err)
 	}
 
+	// Use a transaction to atomically:
+	// 1. Mark email as verified
+	// 2. Mark this token as used
+	// 3. Invalidate all other tokens for this user
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	// Create a transaction-scoped repository
+	txRepo := s.repo.(*repository.Queries).WithTx(tx)
+
 	// Mark email as verified
-	err = s.repo.VerifyUserEmail(ctx, uuidToPgtype(userID))
+	err = txRepo.VerifyUserEmail(ctx, uuidToPgtype(userID))
 	if err != nil {
 		return fmt.Errorf("failed to verify email: %w", err)
 	}
 
 	// Mark this token as used
-	err = s.repo.MarkEmailVerificationTokenUsed(ctx, repository.MarkEmailVerificationTokenUsedParams{
+	err = txRepo.MarkEmailVerificationTokenUsed(ctx, repository.MarkEmailVerificationTokenUsedParams{
 		TenantID:  uuidToPgtype(tenantID),
 		TokenHash: hashedToken,
 	})
@@ -197,12 +222,17 @@ func (s *emailVerificationService) VerifyEmail(
 	}
 
 	// Invalidate all other tokens for this user
-	err = s.repo.InvalidateUserEmailVerificationTokens(ctx, repository.InvalidateUserEmailVerificationTokensParams{
+	err = txRepo.InvalidateUserEmailVerificationTokens(ctx, repository.InvalidateUserEmailVerificationTokensParams{
 		TenantID: uuidToPgtype(tenantID),
 		UserID:   uuidToPgtype(userID),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to invalidate other tokens: %w", err)
+	}
+
+	// Commit the transaction
+	if err = tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil
