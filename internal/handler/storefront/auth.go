@@ -3,6 +3,7 @@ package storefront
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/dukerupert/freyja/internal/handler"
@@ -56,8 +57,11 @@ func (h *SignupHandler) showSignupForm(w http.ResponseWriter, r *http.Request, f
 func (h *SignupHandler) handleSignup(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	slog.Debug("signup: handling POST request")
+
 	// Parse form data
 	if err := r.ParseForm(); err != nil {
+		slog.Error("signup: failed to parse form", "error", err)
 		errMsg := "Invalid form data"
 		h.showSignupForm(w, r, &errMsg)
 		return
@@ -68,16 +72,28 @@ func (h *SignupHandler) handleSignup(w http.ResponseWriter, r *http.Request) {
 	firstName := r.FormValue("first_name")
 	lastName := r.FormValue("last_name")
 
+	slog.Debug("signup: form values parsed",
+		"email", email,
+		"firstName", firstName,
+		"lastName", lastName,
+		"hasPassword", password != "")
+
 	// Validate required fields
 	if email == "" || password == "" {
+		slog.Warn("signup: missing required fields", "email", email, "hasPassword", password != "")
 		errMsg := "Email and password are required"
 		h.showSignupForm(w, r, &errMsg)
 		return
 	}
 
 	// Register user
+	slog.Debug("signup: calling userService.Register", "email", email)
 	user, err := h.userService.Register(ctx, email, password, firstName, lastName)
 	if err != nil {
+		slog.Error("signup: registration failed",
+			"email", email,
+			"error", err,
+			"isUserExists", errors.Is(err, service.ErrUserExists))
 		var errMsg string
 		if errors.Is(err, service.ErrUserExists) {
 			errMsg = "An account with this email already exists"
@@ -88,15 +104,21 @@ func (h *SignupHandler) handleSignup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	slog.Info("signup: user registered successfully", "email", email, "userID", user.ID)
+
 	// Create session
 	userIDStr := fmt.Sprintf("%x-%x-%x-%x-%x",
 		user.ID.Bytes[0:4], user.ID.Bytes[4:6], user.ID.Bytes[6:8],
 		user.ID.Bytes[8:10], user.ID.Bytes[10:16])
+	slog.Debug("signup: creating session", "userID", userIDStr)
 	token, err := h.userService.CreateSession(ctx, userIDStr)
 	if err != nil {
+		slog.Error("signup: failed to create session", "userID", userIDStr, "error", err)
 		http.Error(w, "Failed to create session", http.StatusInternalServerError)
 		return
 	}
+
+	slog.Debug("signup: session created, setting cookie")
 
 	// Set session cookie
 	http.SetCookie(w, &http.Cookie{
@@ -108,6 +130,8 @@ func (h *SignupHandler) handleSignup(w http.ResponseWriter, r *http.Request) {
 		Secure:   r.TLS != nil, // Only secure if using HTTPS
 		SameSite: http.SameSiteLaxMode,
 	})
+
+	slog.Info("signup: complete, redirecting to home", "email", email)
 
 	// Redirect to home page
 	http.Redirect(w, r, "/", http.StatusSeeOther)
