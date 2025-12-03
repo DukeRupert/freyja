@@ -14,11 +14,12 @@ This roadmap defines the path to MVP launch and the six months following. The MV
 ⏳ **Phase 4 Partial** — Flat-rate shipping working, carrier integration not started
 ✅ **Phase 5 Complete** — Subscriptions fully implemented with Stripe Billing
 🔲 **Phase 6 Not Started** — Wholesale & invoicing (schema ready, no service layer)
+✅ **Email Notifications Complete** — Postmark/SMTP, background worker, 6 email types
 
 **Codebase Metrics:**
-- 99 Go source files (~15,000 lines)
+- 100+ Go source files (~17,000 lines)
 - 17 database migrations (44 tables)
-- 57 HTML templates
+- 63 HTML templates (including 7 email templates)
 - 30+ HTTP handlers
 - 3,100+ lines of test code
 
@@ -197,19 +198,26 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 - 🔲 Subscription overview
 - 🔲 Invoice management
 
-### MVP Email Notifications 🔲 NOT STARTED
+### MVP Email Notifications ✅ COMPLETE
 
-**Interface Ready** ✅
-- ✅ Email provider interface defined
-- ✅ Mock provider for testing
+**Infrastructure** ✅
+- ✅ Email provider interface with Postmark implementation
+- ✅ SMTP fallback for development (Mailhog)
+- ✅ Background job worker for async sending
+- ✅ Job queue with retry logic and concurrency control
+- ✅ Email templates with base layout
 
-**Notifications to Implement** 🔲
-- 🔲 Order confirmation
-- 🔲 Shipping confirmation with tracking
-- 🔲 Subscription renewal reminder
-- 🔲 Subscription payment failed
-- 🔲 Invoice sent
-- 🔲 Invoice payment reminder (approaching due date)
+**Transactional Emails** ✅
+- ✅ Password reset
+- ✅ Order confirmation
+- ✅ Shipping confirmation with tracking
+- ✅ Subscription welcome
+- ✅ Subscription payment failed
+- ✅ Subscription cancelled
+
+**Not Yet Implemented** 🔲
+- 🔲 Invoice sent (requires wholesale/invoicing feature)
+- 🔲 Invoice payment reminder
 - 🔲 Invoice overdue
 
 ---
@@ -340,8 +348,8 @@ These are noted for architectural awareness but not scheduled:
 | Admin Dashboard | ⏳ Partial | Products, orders, customers, subscriptions; missing invoices |
 | Subscriptions | ✅ Complete | Full Stripe Billing integration, checkout flow, webhooks |
 | Invoicing | 🔲 Schema only | 4 tables ready, no service layer |
-| Email | 🔲 Interface only | Provider interface defined, no implementation |
-| Background Jobs | 🔲 Schema only | jobs table ready, no worker implementation |
+| Email | ✅ Complete | Postmark + SMTP, 6 templates, background worker |
+| Background Jobs | ✅ Complete | Worker with concurrency, retry logic, graceful shutdown |
 
 ### Architecture Highlights
 
@@ -356,7 +364,7 @@ These are noted for architectural awareness but not scheduled:
 ### Remaining MVP Work
 
 1. ~~**Subscriptions**~~ ✅ Complete — Full Stripe Billing integration with checkout flow
-2. **Email Notifications** (High Priority) — Provider implementation (Postmark/Resend), order confirmations, shipping updates
+2. ~~**Email Notifications**~~ ✅ Complete — Postmark + SMTP, background worker, 6 email templates
 3. **Wholesale/Invoicing** — InvoiceService, net terms, consolidated billing, approval workflow
 4. **Carrier Integration** (Optional for MVP) — EasyPost/Shippo, real-time rates, label purchasing
 5. **Polish** — Product filters, wholesale minimums, pick lists, customer profile editing
