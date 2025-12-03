@@ -440,8 +440,9 @@ Questions? Reply to this email.
 **Migration: Add SaaS onboarding tables**
 1. Add Stripe columns to tenants table
 2. Create tenant_operators table
-3. Create operator_sessions table
+3. Create operator_sessions table (with token_hash)
 4. Update tenants status constraint
+5. Migrate existing `sessions` table: rename `token` → `token_hash` for consistent security
 
 **Slug generation utility**
 1. Create `internal/tenant/slug.go`
@@ -674,9 +675,25 @@ After launch, track:
 
 ## Resolved Decisions
 
+### Business Decisions
+
 | Question | Decision | Rationale |
 |----------|----------|-----------|
 | Resend setup link | **Build it** | Self-service from day one, reduces support burden |
 | Billing portal access | **Both places** | Header menu for quick access + settings page for discoverability |
 | Data retention | **90 days** | Longer window for reactivation; soft-delete after |
 | Reactivation flow | **New checkout** | Simpler than resurrection flow; data restored if within 90-day window |
+| Billing portal return | **Dashboard** | Natural "home" after managing billing |
+
+### Architecture Decisions
+
+| Question | Decision | Rationale |
+|----------|----------|-----------|
+| Cookie scoping | **Path-based** | Operator cookie `path=/admin`, customer cookie `path=/`; prevents conflicts |
+| Session token storage | **Hash both** | SHA-256 for operator AND customer sessions; consistent security model |
+| Tenant pending state | **Block both** | Block storefront and admin until setup complete; no confusing empty stores |
+| SaaS webhook idempotency | **Master tenant** | Use existing `webhook_events` table with master tenant ID for platform events |
+| Slug collisions | **Append numbers** | Auto-generate `-2`, `-3` suffixes; reduces friction |
+| Grace period calculation | **168 hours** | Exactly 7 days from `grace_period_started_at` timestamp |
+| Email rate limiting | **IP + email** | Rate limit by both IP (3/hr) and email address (3/hr); prevents abuse |
+| Role checks | **Defer** | MVP is single user; add role middleware when multi-user is implemented |
