@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/handler"
+	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/service"
 )
 
@@ -71,7 +72,7 @@ func (h *HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		StoreName:        "Freyja Coffee", // TODO: Get from tenant config
 		FeaturedProducts: featured,
 		Year:             time.Now().Year(),
-		User:             ctx.Value("user"),
+		User:             middleware.GetUserFromContext(ctx),
 	}
 
 	// Get cart count if available
