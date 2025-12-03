@@ -347,6 +347,124 @@ id := r.PathValue("id")
 
 ---
 
+## Shipping
+
+### Choice: EasyPost
+
+**Package:** `github.com/EasyPost/easypost-go/v5`
+
+**Rationale:**
+- Pay-per-label pricing (no monthly minimums, good for MVP)
+- First-class Go SDK with good documentation
+- USPS Commercial Plus rates (similar discounts to PirateShip)
+- Simple REST API with comprehensive features
+- Address verification included
+
+**Capabilities:**
+- Real-time rates from USPS, UPS, FedEx, DHL, and 100+ carriers
+- Label purchasing with automatic tracking numbers
+- Label voiding/refunds
+- Shipment tracking with event history
+- Address validation with suggestions
+
+**Abstraction:**
+- `shipping.Provider` interface defined in application
+- EasyPost implementation behind the interface
+- FlatRate provider for simple configurations
+- Mock provider for testing
+
+### Configuration
+
+**Environment Variables:**
+```bash
+EASYPOST_API_KEY=your_api_key_here
+```
+
+### Usage
+
+**Initialize the provider:**
+```go
+import "github.com/dukerupert/freyja/internal/shipping"
+
+provider, err := shipping.NewEasyPostProvider(shipping.EasyPostConfig{
+    APIKey: os.Getenv("EASYPOST_API_KEY"),
+    Logger: slog.Default(), // Optional, defaults to slog.Default()
+})
+```
+
+**Get shipping rates:**
+```go
+rates, err := provider.GetRates(ctx, shipping.RateParams{
+    TenantID: tenantID,  // Required for multi-tenant security
+    OriginAddress: shipping.ShippingAddress{
+        Name:       "My Coffee Roaster",
+        Line1:      "123 Roaster Lane",
+        City:       "Portland",
+        State:      "OR",
+        PostalCode: "97201",
+        Country:    "US",
+    },
+    DestinationAddress: shipping.ShippingAddress{
+        Name:       "John Doe",
+        Line1:      "456 Customer St",
+        City:       "Seattle",
+        State:      "WA",
+        PostalCode: "98101",
+        Country:    "US",
+    },
+    Packages: []shipping.Package{
+        {
+            WeightGrams: 340,  // 12oz coffee
+            LengthCm:    20,
+            WidthCm:     15,
+            HeightCm:    8,
+        },
+    },
+})
+```
+
+**Purchase a label:**
+```go
+label, err := provider.CreateLabel(ctx, shipping.LabelParams{
+    TenantID:           tenantID,
+    RateID:             selectedRate.RateID,  // From GetRates
+    OriginAddress:      origin,
+    DestinationAddress: destination,
+    Package:            pkg,
+})
+// label.TrackingNumber, label.LabelURL available
+```
+
+**Track a shipment:**
+```go
+tracking, err := provider.TrackShipment(ctx, "9400111899223456789012")
+// tracking.Status, tracking.Events available
+```
+
+**Validate an address:**
+```go
+result, err := provider.ValidateAddress(ctx, shipping.ValidateAddressParams{
+    TenantID: tenantID,
+    Address:  customerAddress,
+})
+// result.Status: AddressValid, AddressValidWithChanges, or AddressInvalid
+// result.SuggestedAddress available if changes recommended
+```
+
+### Security Features
+
+- **Tenant isolation:** TenantID stored in EasyPost shipment reference, validated on all operations
+- **Idempotency:** CreateLabel returns existing label if already purchased (prevents duplicates)
+- **Rate expiration:** Rates include ExpiresAt field (24 hours from creation)
+
+### Alternatives Considered
+
+- **Shippo:** Good alternative, similar pricing, but EasyPost Go SDK is more mature
+- **ShipEngine:** Owned by Stamps.com, good rates but less Go community support
+- **PirateShip:** No API available (why we chose EasyPost)
+
+---
+
 ## File Storage
 
 ### Choice: Local Filesystem (MVP) → S3-Compatible (Post-MVP)
@@ -500,6 +618,7 @@ freyja/
 | sqlc (generated) | Type-safe queries | MIT |
 | goose | Migrations | MIT |
 | stripe-go | Stripe API | MIT |
+| easypost-go | Shipping API | MIT |
 | gorilla/sessions | Session management | BSD-3 |
 | validator | Input validation | MIT |
 | slog (stdlib) | Logging | (stdlib) |
@@ -530,6 +649,7 @@ Significant decisions should be recorded here as the project evolves.
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | (Project Start) | Initial technical choices documented | Baseline architecture |
+| 2024-12-03 | EasyPost for shipping integration | Pay-per-label pricing, mature Go SDK, USPS Commercial Plus rates, PirateShip has no API |
 
 ---
 

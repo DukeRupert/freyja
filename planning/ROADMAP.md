@@ -4,14 +4,14 @@
 
 This roadmap defines the path to MVP launch and the six months following. The MVP focuses on complete, reliable functionality for core use cases rather than breadth of features.
 
-**Last updated:** December 2, 2024
+**Last updated:** December 3, 2024
 
 ---
 
 ## Current Status
 
 ✅ **Phases 1-3 Complete** — Full B2C e-commerce with working checkout and payments
-⏳ **Phase 4 Partial** — Flat-rate shipping working, carrier integration not started
+✅ **Phase 4 Complete** — Flat-rate shipping + EasyPost carrier integration
 ✅ **Phase 5 Complete** — Subscriptions fully implemented with Stripe Billing
 ✅ **Phase 6 Complete** — Wholesale invoicing with full admin UI
 ✅ **Email Notifications Complete** — Postmark/SMTP, background worker, 6 email types
@@ -103,17 +103,26 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 - ✅ Order number generation
 - ✅ Inventory decrement on order creation
 
-### Phase 4: Shipping ⏳ PARTIAL
+### Phase 4: Shipping ✅ COMPLETE
 
 **Shipping Interface** ✅
 - ✅ Abstract shipping provider interface
-- ✅ Methods: get rates, validate address
-- ⏳ Create label, track shipment — interface defined, not implemented
+- ✅ Methods: get rates, create label, void label, track shipment, validate address
+- ✅ TenantID on all params for multi-tenant security
+- ✅ Rate expiration tracking (24-hour validity)
 
 **Flat-Rate Provider** ✅
 - ✅ Standard Shipping: $7.95 (5-7 days)
 - ✅ Express Shipping: $14.95 (2-3 days)
 - ✅ Rate selection in checkout
+
+**EasyPost Provider** ✅
+- ✅ Real-time rates from USPS, UPS, FedEx, DHL
+- ✅ Label purchasing with idempotency protection
+- ✅ Label voiding/refunds with tenant validation
+- ✅ Shipment tracking with event history
+- ✅ Address validation with suggestions
+- ✅ Structured logging for observability
 
 **Fulfillment Workflow** ⏳
 - ✅ Shipment creation with carrier/tracking number
@@ -251,19 +260,20 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 
 Target: Operational efficiency, customer retention tools, and preparation for scale.
 
-### Month 1-2: Shipping Provider Integration
+### Month 1-2: Shipping Provider Integration ✅ COMPLETE (Done Early)
 
-**Shipping Rate Calculation**
-- Integrate EasyPost, Shippo, or ShipStation (evaluate based on pricing and Go SDK quality)
-- Real-time rate fetching at checkout
-- Support for multiple carriers (USPS, UPS, FedEx)
-- Flat rate and free shipping threshold options
+**Shipping Rate Calculation** ✅
+- ✅ Integrated EasyPost (chosen for Go SDK quality and pay-per-label pricing)
+- ✅ Real-time rate fetching via API
+- ✅ Support for multiple carriers (USPS, UPS, FedEx, DHL)
+- ✅ Flat rate provider for simple configurations
 
-**Label Purchasing**
-- Purchase labels from admin interface
-- Batch label printing for multiple orders
-- Automatic tracking number population
-- Shipping cost tracking for margin analysis
+**Label Purchasing** ✅
+- ✅ Label purchasing via EasyPost API
+- ✅ Idempotency protection (prevents duplicate purchases)
+- ✅ Automatic tracking number retrieval
+- ⏳ Batch label printing for multiple orders — not implemented
+- ⏳ Admin UI for label purchasing — not implemented (API ready)
 
 ### Month 2-3: Inventory & Operations
 
@@ -369,7 +379,7 @@ These are noted for architectural awareness but not scheduled:
 | Checkout | ✅ Complete | 5-step flow, address validation, Stripe Elements |
 | Payments | ✅ Complete | Payment intents, webhooks, idempotent processing |
 | Orders | ✅ Complete | Creation, status tracking, admin management |
-| Shipping | ⏳ Partial | Flat-rate working, no carrier integration |
+| Shipping | ✅ Complete | Flat-rate + EasyPost carrier integration |
 | Admin Dashboard | ✅ Complete | Products, orders, customers, invoices, wholesale approval |
 | Subscriptions | ✅ Complete | Full Stripe Billing integration, checkout flow, webhooks |
 | Invoicing | ✅ Complete | Full service layer + admin UI (list, detail, create, payments) |
@@ -394,7 +404,7 @@ These are noted for architectural awareness but not scheduled:
 2. ~~**Email Notifications**~~ ✅ Complete — Postmark + SMTP, background worker, 6 email templates
 3. ~~**Wholesale Service Layer**~~ ✅ Complete — InvoiceService, PaymentTermsService, FulfillmentService, Stripe Invoicing
 4. ~~**Wholesale Admin UI**~~ ✅ Complete — Invoice list/detail, payment recording, wholesale approval workflow
-5. **Carrier Integration** (Optional for MVP) — EasyPost/Shippo, real-time rates, label purchasing
+5. ~~**Carrier Integration**~~ ✅ Complete — EasyPost integration with rates, labels, tracking, address validation
 6. **Polish** — Product filters, wholesale minimums, pick lists, customer profile editing
 
 ---
@@ -404,9 +414,9 @@ These are noted for architectural awareness but not scheduled:
 | Milestone | Status | Key Deliverable |
 |-----------|--------|-----------------|
 | Phase 1-3 | ✅ Complete | B2C checkout with Stripe payments |
-| Phase 4 | ⏳ Partial | Flat-rate shipping, fulfillment workflow |
+| Phase 4 | ✅ Complete | Flat-rate + EasyPost shipping integration |
 | Phase 5 | ✅ Complete | Subscriptions with Stripe Billing |
 | Phase 6 | ✅ Complete | Wholesale invoicing with full admin UI |
-| MVP + 2 mo | — | Shipping provider integration, automated labels |
+| MVP + 2 mo | ✅ Complete | Shipping provider integration (done early) |
 | MVP + 4 mo | — | Inventory management, discounts, reviews |
 | MVP + 6 mo | — | Accounting integration, platform hardening |
