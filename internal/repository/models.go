@@ -160,6 +160,14 @@ type Invoice struct {
 	VoidedAt          pgtype.Timestamptz `json:"voided_at"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	// Payment terms applied to this invoice
+	PaymentTermsID pgtype.UUID `json:"payment_terms_id"`
+	// Start of billing period for consolidated invoices
+	BillingPeriodStart pgtype.Date `json:"billing_period_start"`
+	// End of billing period for consolidated invoices
+	BillingPeriodEnd pgtype.Date `json:"billing_period_end"`
+	// True for preliminary invoices (not final billing)
+	IsProforma bool `json:"is_proforma"`
 }
 
 // Line items on invoices
@@ -177,6 +185,17 @@ type InvoiceItem struct {
 	Metadata        []byte             `json:"metadata"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Links orders to invoices for consolidated billing
+type InvoiceOrder struct {
+	ID              pgtype.UUID        `json:"id"`
+	TenantID        pgtype.UUID        `json:"tenant_id"`
+	InvoiceID       pgtype.UUID        `json:"invoice_id"`
+	OrderID         pgtype.UUID        `json:"order_id"`
+	OrderNumber     string             `json:"order_number"`
+	OrderTotalCents int32              `json:"order_total_cents"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
 // Payments applied to invoices
@@ -288,6 +307,10 @@ type Order struct {
 	CancelledAt       pgtype.Timestamptz `json:"cancelled_at"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	// Customer purchase order number for B2B tracking
+	CustomerPoNumber pgtype.Text `json:"customer_po_number"`
+	// Customer-requested delivery date
+	RequestedDeliveryDate pgtype.Date `json:"requested_delivery_date"`
 }
 
 // Line items in orders
@@ -306,6 +329,8 @@ type OrderItem struct {
 	Metadata           []byte             `json:"metadata"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	// Units shipped (for partial fulfillment tracking)
+	QuantityDispatched int32 `json:"quantity_dispatched"`
 }
 
 // Audit trail for order status changes
@@ -376,6 +401,22 @@ type PaymentMethod struct {
 	Metadata                []byte             `json:"metadata"`
 	CreatedAt               pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Reusable payment terms for wholesale invoicing
+type PaymentTerm struct {
+	ID       pgtype.UUID `json:"id"`
+	TenantID pgtype.UUID `json:"tenant_id"`
+	Name     string      `json:"name"`
+	Code     string      `json:"code"`
+	// Days until payment due (0 = due on receipt)
+	Days        int32              `json:"days"`
+	IsDefault   bool               `json:"is_default"`
+	IsActive    bool               `json:"is_active"`
+	SortOrder   int32              `json:"sort_order"`
+	Description pgtype.Text        `json:"description"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
 // Named pricing tiers (retail, wholesale, custom)
@@ -771,6 +812,24 @@ type User struct {
 	Metadata     []byte             `json:"metadata"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	// Admin-only notes hidden from customer (e.g., "prefers Thursday delivery")
+	InternalNote pgtype.Text `json:"internal_note"`
+	// Minimum order value in cents for this customer
+	MinimumSpendCents pgtype.Int4 `json:"minimum_spend_cents"`
+	// Email(s) for order confirmations (comma-separated)
+	EmailOrders pgtype.Text `json:"email_orders"`
+	// Email(s) for shipping notifications (comma-separated)
+	EmailDispatches pgtype.Text `json:"email_dispatches"`
+	// Email(s) for invoice delivery (comma-separated)
+	EmailInvoices pgtype.Text `json:"email_invoices"`
+	// Assigned payment terms for wholesale invoicing
+	PaymentTermsID pgtype.UUID `json:"payment_terms_id"`
+	// Billing frequency: weekly, biweekly, monthly, or on_order (invoice per order)
+	BillingCycle pgtype.Text `json:"billing_cycle"`
+	// Day of week (1-7) or month (1-28) to generate consolidated invoice
+	BillingCycleDay pgtype.Int4 `json:"billing_cycle_day"`
+	// Your internal customer reference (visible to customer)
+	CustomerReference pgtype.Text `json:"customer_reference"`
 }
 
 // Price list assignment to users

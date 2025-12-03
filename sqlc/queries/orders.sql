@@ -25,9 +25,11 @@ INSERT INTO orders (
     shipping_address_id,
     billing_address_id,
     customer_notes,
-    subscription_id
+    subscription_id,
+    customer_po_number,
+    requested_delivery_date
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
 )
 RETURNING *;
 
@@ -304,3 +306,163 @@ LEFT JOIN payments p ON p.id = o.payment_id
 WHERE o.tenant_id = $1
   AND o.subscription_id = $2
 ORDER BY o.created_at DESC;
+
+-- =============================================================================
+-- WHOLESALE ORDER QUERIES
+-- =============================================================================
+
+-- name: ListWholesaleOrders :many
+-- List wholesale orders with customer details
+SELECT
+    o.id,
+    o.tenant_id,
+    o.order_number,
+    o.order_type,
+    o.status,
+    o.fulfillment_status,
+    o.total_cents,
+    o.currency,
+    o.customer_po_number,
+    o.requested_delivery_date,
+    o.created_at,
+    u.email as customer_email,
+    u.company_name,
+    CONCAT(u.first_name, ' ', u.last_name) as customer_name
+FROM orders o
+JOIN users u ON u.id = o.user_id
+WHERE o.tenant_id = $1
+  AND o.order_type = 'wholesale'
+ORDER BY o.created_at DESC
+LIMIT $2 OFFSET $3;
+
+-- name: GetOrderWithWholesaleDetails :one
+-- Get order with wholesale-specific fields
+SELECT
+    o.*,
+    u.email as customer_email,
+    u.first_name as customer_first_name,
+    u.last_name as customer_last_name,
+    u.company_name,
+    u.payment_terms_id,
+    pt.name as payment_terms_name,
+    pt.days as payment_terms_days
+FROM orders o
+JOIN users u ON u.id = o.user_id
+LEFT JOIN payment_terms pt ON pt.id = u.payment_terms_id
+WHERE o.tenant_id = $1
+  AND o.id = $2
+LIMIT 1;
+
+-- =============================================================================
+-- PARTIAL FULFILLMENT QUERIES
+-- =============================================================================
+
+-- name: UpdateOrderItemDispatchedQuantity :exec
+-- Update the dispatched quantity for an order item
+UPDATE order_items
+SET
+    quantity_dispatched = quantity_dispatched + $3,
+    fulfillment_status = CASE
+        WHEN quantity_dispatched + $3 >= quantity THEN 'fulfilled'
+        ELSE fulfillment_status
+    END,
+    updated_at = NOW()
+WHERE tenant_id = $1
+  AND id = $2;
+
+-- name: GetOrderItemsWithFulfillment :many
+-- Get order items with fulfillment status for partial shipment display
+SELECT
+    oi.id,
+    oi.order_id,
+    oi.product_sku_id,
+    oi.product_name,
+    oi.sku,
+    oi.variant_description,
+    oi.quantity,
+    oi.quantity_dispatched,
+    oi.unit_price_cents,
+    oi.total_price_cents,
+    oi.fulfillment_status,
+    (oi.quantity - oi.quantity_dispatched) as quantity_remaining
+FROM order_items oi
+WHERE oi.order_id = $1
+ORDER BY oi.created_at ASC;
+
+-- name: GetUnfulfilledOrderItems :many
+-- Get order items that still need to be shipped
+SELECT
+    oi.id,
+    oi.order_id,
+    oi.product_sku_id,
+    oi.product_name,
+    oi.sku,
+    oi.variant_description,
+    oi.quantity,
+    oi.quantity_dispatched,
+    (oi.quantity - oi.quantity_dispatched) as quantity_remaining
+FROM order_items oi
+WHERE oi.order_id = $1
+  AND oi.quantity_dispatched < oi.quantity
+ORDER BY oi.created_at ASC;
+
+-- name: RecalculateOrderFulfillmentStatus :exec
+-- Update order fulfillment status based on item statuses
+UPDATE orders
+SET
+    fulfillment_status = (
+        SELECT CASE
+            WHEN COUNT(*) FILTER (WHERE oi.quantity_dispatched < oi.quantity) = 0 THEN 'fulfilled'
+            WHEN COUNT(*) FILTER (WHERE oi.quantity_dispatched > 0) > 0 THEN 'partial'
+            ELSE 'unfulfilled'
+        END
+        FROM order_items oi
+        WHERE oi.order_id = orders.id
+    ),
+    updated_at = NOW()
+WHERE orders.tenant_id = $1
+  AND orders.id = $2;
+
+-- =============================================================================
+-- SHIPMENT ITEM QUERIES
+-- =============================================================================
+
+-- name: CreateShipmentItem :one
+-- Create a shipment line item for partial fulfillment
+INSERT INTO shipment_items (
+    tenant_id,
+    shipment_id,
+    order_item_id,
+    quantity
+) VALUES ($1, $2, $3, $4)
+RETURNING *;
+
+-- name: GetShipmentItems :many
+-- Get items in a shipment
+SELECT
+    si.id,
+    si.shipment_id,
+    si.order_item_id,
+    si.quantity,
+    oi.product_name,
+    oi.sku,
+    oi.variant_description
+FROM shipment_items si
+JOIN order_items oi ON oi.id = si.order_item_id
+WHERE si.shipment_id = $1
+ORDER BY oi.created_at ASC;
+
+-- name: GetShipmentHistory :many
+-- Get shipment history for an order item
+SELECT
+    s.id as shipment_id,
+    s.shipment_number,
+    s.carrier,
+    s.tracking_number,
+    s.status,
+    s.shipped_at,
+    si.quantity
+FROM shipment_items si
+JOIN shipments s ON s.id = si.shipment_id
+WHERE si.order_item_id = $1
+ORDER BY s.created_at DESC;

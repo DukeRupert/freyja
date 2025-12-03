@@ -39,7 +39,7 @@ INSERT INTO users (
     status
 ) VALUES (
     $1, $2, $3, $4, $5, 'retail', 'active'
-) RETURNING id, tenant_id, email, password_hash, email_verified, account_type, first_name, last_name, phone, company_name, tax_id, business_type, status, wholesale_application_status, wholesale_application_notes, wholesale_approved_at, wholesale_approved_by, payment_terms, metadata, created_at, updated_at
+) RETURNING id, tenant_id, email, password_hash, email_verified, account_type, first_name, last_name, phone, company_name, tax_id, business_type, status, wholesale_application_status, wholesale_application_notes, wholesale_approved_at, wholesale_approved_by, payment_terms, metadata, created_at, updated_at, internal_note, minimum_spend_cents, email_orders, email_dispatches, email_invoices, payment_terms_id, billing_cycle, billing_cycle_day, customer_reference
 `
 
 type CreateUserParams struct {
@@ -82,12 +82,87 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.InternalNote,
+		&i.MinimumSpendCents,
+		&i.EmailOrders,
+		&i.EmailDispatches,
+		&i.EmailInvoices,
+		&i.PaymentTermsID,
+		&i.BillingCycle,
+		&i.BillingCycleDay,
+		&i.CustomerReference,
 	)
 	return i, err
 }
 
+const getCustomersForBillingCycle = `-- name: GetCustomersForBillingCycle :many
+SELECT
+    u.id,
+    u.tenant_id,
+    u.email,
+    u.company_name,
+    u.billing_cycle,
+    u.billing_cycle_day,
+    u.payment_terms_id,
+    pt.days as payment_terms_days
+FROM users u
+LEFT JOIN payment_terms pt ON pt.id = u.payment_terms_id
+WHERE u.tenant_id = $1
+  AND u.account_type = 'wholesale'
+  AND u.status = 'active'
+  AND u.billing_cycle = $2
+  AND u.billing_cycle IS NOT NULL
+`
+
+type GetCustomersForBillingCycleParams struct {
+	TenantID     pgtype.UUID `json:"tenant_id"`
+	BillingCycle pgtype.Text `json:"billing_cycle"`
+}
+
+type GetCustomersForBillingCycleRow struct {
+	ID               pgtype.UUID `json:"id"`
+	TenantID         pgtype.UUID `json:"tenant_id"`
+	Email            string      `json:"email"`
+	CompanyName      pgtype.Text `json:"company_name"`
+	BillingCycle     pgtype.Text `json:"billing_cycle"`
+	BillingCycleDay  pgtype.Int4 `json:"billing_cycle_day"`
+	PaymentTermsID   pgtype.UUID `json:"payment_terms_id"`
+	PaymentTermsDays pgtype.Int4 `json:"payment_terms_days"`
+}
+
+// Get wholesale customers due for consolidated invoice generation
+// Used by billing cycle job to find accounts ready for invoicing
+func (q *Queries) GetCustomersForBillingCycle(ctx context.Context, arg GetCustomersForBillingCycleParams) ([]GetCustomersForBillingCycleRow, error) {
+	rows, err := q.db.Query(ctx, getCustomersForBillingCycle, arg.TenantID, arg.BillingCycle)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetCustomersForBillingCycleRow{}
+	for rows.Next() {
+		var i GetCustomersForBillingCycleRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Email,
+			&i.CompanyName,
+			&i.BillingCycle,
+			&i.BillingCycleDay,
+			&i.PaymentTermsID,
+			&i.PaymentTermsDays,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, tenant_id, email, password_hash, email_verified, account_type, first_name, last_name, phone, company_name, tax_id, business_type, status, wholesale_application_status, wholesale_application_notes, wholesale_approved_at, wholesale_approved_by, payment_terms, metadata, created_at, updated_at
+SELECT id, tenant_id, email, password_hash, email_verified, account_type, first_name, last_name, phone, company_name, tax_id, business_type, status, wholesale_application_status, wholesale_application_notes, wholesale_approved_at, wholesale_approved_by, payment_terms, metadata, created_at, updated_at, internal_note, minimum_spend_cents, email_orders, email_dispatches, email_invoices, payment_terms_id, billing_cycle, billing_cycle_day, customer_reference
 FROM users
 WHERE tenant_id = $1
   AND email = $2
@@ -126,12 +201,21 @@ func (q *Queries) GetUserByEmail(ctx context.Context, arg GetUserByEmailParams) 
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.InternalNote,
+		&i.MinimumSpendCents,
+		&i.EmailOrders,
+		&i.EmailDispatches,
+		&i.EmailInvoices,
+		&i.PaymentTermsID,
+		&i.BillingCycle,
+		&i.BillingCycleDay,
+		&i.CustomerReference,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, tenant_id, email, password_hash, email_verified, account_type, first_name, last_name, phone, company_name, tax_id, business_type, status, wholesale_application_status, wholesale_application_notes, wholesale_approved_at, wholesale_approved_by, payment_terms, metadata, created_at, updated_at
+SELECT id, tenant_id, email, password_hash, email_verified, account_type, first_name, last_name, phone, company_name, tax_id, business_type, status, wholesale_application_status, wholesale_application_notes, wholesale_approved_at, wholesale_approved_by, payment_terms, metadata, created_at, updated_at, internal_note, minimum_spend_cents, email_orders, email_dispatches, email_invoices, payment_terms_id, billing_cycle, billing_cycle_day, customer_reference
 FROM users
 WHERE id = $1
   AND status != 'closed'
@@ -164,6 +248,48 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.InternalNote,
+		&i.MinimumSpendCents,
+		&i.EmailOrders,
+		&i.EmailDispatches,
+		&i.EmailInvoices,
+		&i.PaymentTermsID,
+		&i.BillingCycle,
+		&i.BillingCycleDay,
+		&i.CustomerReference,
+	)
+	return i, err
+}
+
+const getUserNotificationEmails = `-- name: GetUserNotificationEmails :one
+SELECT
+    id,
+    email,
+    COALESCE(NULLIF(email_orders, ''), email) as email_for_orders,
+    COALESCE(NULLIF(email_dispatches, ''), email) as email_for_dispatches,
+    COALESCE(NULLIF(email_invoices, ''), email) as email_for_invoices
+FROM users
+WHERE id = $1
+`
+
+type GetUserNotificationEmailsRow struct {
+	ID                 pgtype.UUID `json:"id"`
+	Email              string      `json:"email"`
+	EmailForOrders     string      `json:"email_for_orders"`
+	EmailForDispatches string      `json:"email_for_dispatches"`
+	EmailForInvoices   string      `json:"email_for_invoices"`
+}
+
+// Get notification email addresses for a user (with fallback to primary email)
+func (q *Queries) GetUserNotificationEmails(ctx context.Context, id pgtype.UUID) (GetUserNotificationEmailsRow, error) {
+	row := q.db.QueryRow(ctx, getUserNotificationEmails, id)
+	var i GetUserNotificationEmailsRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.EmailForOrders,
+		&i.EmailForDispatches,
+		&i.EmailForInvoices,
 	)
 	return i, err
 }
@@ -199,8 +325,109 @@ func (q *Queries) GetUserStats(ctx context.Context, tenantID pgtype.UUID) (GetUs
 	return i, err
 }
 
+const getWholesaleCustomer = `-- name: GetWholesaleCustomer :one
+
+SELECT
+    u.id, u.tenant_id, u.email, u.password_hash, u.email_verified, u.account_type, u.first_name, u.last_name, u.phone, u.company_name, u.tax_id, u.business_type, u.status, u.wholesale_application_status, u.wholesale_application_notes, u.wholesale_approved_at, u.wholesale_approved_by, u.payment_terms, u.metadata, u.created_at, u.updated_at, u.internal_note, u.minimum_spend_cents, u.email_orders, u.email_dispatches, u.email_invoices, u.payment_terms_id, u.billing_cycle, u.billing_cycle_day, u.customer_reference,
+    pt.name as payment_terms_name,
+    pt.code as payment_terms_code,
+    pt.days as payment_terms_days,
+    pl.name as price_list_name
+FROM users u
+LEFT JOIN payment_terms pt ON pt.id = u.payment_terms_id
+LEFT JOIN user_price_lists upl ON upl.user_id = u.id
+LEFT JOIN price_lists pl ON pl.id = upl.price_list_id
+WHERE u.id = $1
+  AND u.account_type = 'wholesale'
+  AND u.status != 'closed'
+LIMIT 1
+`
+
+type GetWholesaleCustomerRow struct {
+	ID                         pgtype.UUID        `json:"id"`
+	TenantID                   pgtype.UUID        `json:"tenant_id"`
+	Email                      string             `json:"email"`
+	PasswordHash               pgtype.Text        `json:"password_hash"`
+	EmailVerified              bool               `json:"email_verified"`
+	AccountType                string             `json:"account_type"`
+	FirstName                  pgtype.Text        `json:"first_name"`
+	LastName                   pgtype.Text        `json:"last_name"`
+	Phone                      pgtype.Text        `json:"phone"`
+	CompanyName                pgtype.Text        `json:"company_name"`
+	TaxID                      pgtype.Text        `json:"tax_id"`
+	BusinessType               pgtype.Text        `json:"business_type"`
+	Status                     string             `json:"status"`
+	WholesaleApplicationStatus pgtype.Text        `json:"wholesale_application_status"`
+	WholesaleApplicationNotes  pgtype.Text        `json:"wholesale_application_notes"`
+	WholesaleApprovedAt        pgtype.Timestamptz `json:"wholesale_approved_at"`
+	WholesaleApprovedBy        pgtype.UUID        `json:"wholesale_approved_by"`
+	PaymentTerms               pgtype.Text        `json:"payment_terms"`
+	Metadata                   []byte             `json:"metadata"`
+	CreatedAt                  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                  pgtype.Timestamptz `json:"updated_at"`
+	InternalNote               pgtype.Text        `json:"internal_note"`
+	MinimumSpendCents          pgtype.Int4        `json:"minimum_spend_cents"`
+	EmailOrders                pgtype.Text        `json:"email_orders"`
+	EmailDispatches            pgtype.Text        `json:"email_dispatches"`
+	EmailInvoices              pgtype.Text        `json:"email_invoices"`
+	PaymentTermsID             pgtype.UUID        `json:"payment_terms_id"`
+	BillingCycle               pgtype.Text        `json:"billing_cycle"`
+	BillingCycleDay            pgtype.Int4        `json:"billing_cycle_day"`
+	CustomerReference          pgtype.Text        `json:"customer_reference"`
+	PaymentTermsName           pgtype.Text        `json:"payment_terms_name"`
+	PaymentTermsCode           pgtype.Text        `json:"payment_terms_code"`
+	PaymentTermsDays           pgtype.Int4        `json:"payment_terms_days"`
+	PriceListName              pgtype.Text        `json:"price_list_name"`
+}
+
+// =============================================================================
+// WHOLESALE CUSTOMER QUERIES
+// =============================================================================
+// Get wholesale customer with payment terms details
+func (q *Queries) GetWholesaleCustomer(ctx context.Context, id pgtype.UUID) (GetWholesaleCustomerRow, error) {
+	row := q.db.QueryRow(ctx, getWholesaleCustomer, id)
+	var i GetWholesaleCustomerRow
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.EmailVerified,
+		&i.AccountType,
+		&i.FirstName,
+		&i.LastName,
+		&i.Phone,
+		&i.CompanyName,
+		&i.TaxID,
+		&i.BusinessType,
+		&i.Status,
+		&i.WholesaleApplicationStatus,
+		&i.WholesaleApplicationNotes,
+		&i.WholesaleApprovedAt,
+		&i.WholesaleApprovedBy,
+		&i.PaymentTerms,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.InternalNote,
+		&i.MinimumSpendCents,
+		&i.EmailOrders,
+		&i.EmailDispatches,
+		&i.EmailInvoices,
+		&i.PaymentTermsID,
+		&i.BillingCycle,
+		&i.BillingCycleDay,
+		&i.CustomerReference,
+		&i.PaymentTermsName,
+		&i.PaymentTermsCode,
+		&i.PaymentTermsDays,
+		&i.PriceListName,
+	)
+	return i, err
+}
+
 const listUsers = `-- name: ListUsers :many
-SELECT id, tenant_id, email, password_hash, email_verified, account_type, first_name, last_name, phone, company_name, tax_id, business_type, status, wholesale_application_status, wholesale_application_notes, wholesale_approved_at, wholesale_approved_by, payment_terms, metadata, created_at, updated_at
+SELECT id, tenant_id, email, password_hash, email_verified, account_type, first_name, last_name, phone, company_name, tax_id, business_type, status, wholesale_application_status, wholesale_application_notes, wholesale_approved_at, wholesale_approved_by, payment_terms, metadata, created_at, updated_at, internal_note, minimum_spend_cents, email_orders, email_dispatches, email_invoices, payment_terms_id, billing_cycle, billing_cycle_day, customer_reference
 FROM users
 WHERE tenant_id = $1
   AND status != 'closed'
@@ -246,6 +473,15 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.InternalNote,
+			&i.MinimumSpendCents,
+			&i.EmailOrders,
+			&i.EmailDispatches,
+			&i.EmailInvoices,
+			&i.PaymentTermsID,
+			&i.BillingCycle,
+			&i.BillingCycleDay,
+			&i.CustomerReference,
 		); err != nil {
 			return nil, err
 		}
@@ -258,7 +494,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 }
 
 const listUsersByAccountType = `-- name: ListUsersByAccountType :many
-SELECT id, tenant_id, email, password_hash, email_verified, account_type, first_name, last_name, phone, company_name, tax_id, business_type, status, wholesale_application_status, wholesale_application_notes, wholesale_approved_at, wholesale_approved_by, payment_terms, metadata, created_at, updated_at
+SELECT id, tenant_id, email, password_hash, email_verified, account_type, first_name, last_name, phone, company_name, tax_id, business_type, status, wholesale_application_status, wholesale_application_notes, wholesale_approved_at, wholesale_approved_by, payment_terms, metadata, created_at, updated_at, internal_note, minimum_spend_cents, email_orders, email_dispatches, email_invoices, payment_terms_id, billing_cycle, billing_cycle_day, customer_reference
 FROM users
 WHERE tenant_id = $1
   AND account_type = $2
@@ -303,6 +539,15 @@ func (q *Queries) ListUsersByAccountType(ctx context.Context, arg ListUsersByAcc
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.InternalNote,
+			&i.MinimumSpendCents,
+			&i.EmailOrders,
+			&i.EmailDispatches,
+			&i.EmailInvoices,
+			&i.PaymentTermsID,
+			&i.BillingCycle,
+			&i.BillingCycleDay,
+			&i.CustomerReference,
 		); err != nil {
 			return nil, err
 		}
@@ -360,6 +605,95 @@ func (q *Queries) ListWholesaleApplications(ctx context.Context, tenantID pgtype
 			&i.WholesaleApplicationStatus,
 			&i.WholesaleApplicationNotes,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWholesaleCustomers = `-- name: ListWholesaleCustomers :many
+SELECT
+    u.id,
+    u.tenant_id,
+    u.email,
+    u.first_name,
+    u.last_name,
+    u.company_name,
+    u.phone,
+    u.status,
+    u.billing_cycle,
+    u.minimum_spend_cents,
+    u.customer_reference,
+    u.created_at,
+    pt.name as payment_terms_name,
+    pt.days as payment_terms_days,
+    pl.name as price_list_name
+FROM users u
+LEFT JOIN payment_terms pt ON pt.id = u.payment_terms_id
+LEFT JOIN user_price_lists upl ON upl.user_id = u.id
+LEFT JOIN price_lists pl ON pl.id = upl.price_list_id
+WHERE u.tenant_id = $1
+  AND u.account_type = 'wholesale'
+  AND u.status != 'closed'
+ORDER BY u.company_name ASC, u.created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListWholesaleCustomersParams struct {
+	TenantID pgtype.UUID `json:"tenant_id"`
+	Limit    int32       `json:"limit"`
+	Offset   int32       `json:"offset"`
+}
+
+type ListWholesaleCustomersRow struct {
+	ID                pgtype.UUID        `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	Email             string             `json:"email"`
+	FirstName         pgtype.Text        `json:"first_name"`
+	LastName          pgtype.Text        `json:"last_name"`
+	CompanyName       pgtype.Text        `json:"company_name"`
+	Phone             pgtype.Text        `json:"phone"`
+	Status            string             `json:"status"`
+	BillingCycle      pgtype.Text        `json:"billing_cycle"`
+	MinimumSpendCents pgtype.Int4        `json:"minimum_spend_cents"`
+	CustomerReference pgtype.Text        `json:"customer_reference"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	PaymentTermsName  pgtype.Text        `json:"payment_terms_name"`
+	PaymentTermsDays  pgtype.Int4        `json:"payment_terms_days"`
+	PriceListName     pgtype.Text        `json:"price_list_name"`
+}
+
+// List wholesale customers with payment terms and billing info
+func (q *Queries) ListWholesaleCustomers(ctx context.Context, arg ListWholesaleCustomersParams) ([]ListWholesaleCustomersRow, error) {
+	rows, err := q.db.Query(ctx, listWholesaleCustomers, arg.TenantID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWholesaleCustomersRow{}
+	for rows.Next() {
+		var i ListWholesaleCustomersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Email,
+			&i.FirstName,
+			&i.LastName,
+			&i.CompanyName,
+			&i.Phone,
+			&i.Status,
+			&i.BillingCycle,
+			&i.MinimumSpendCents,
+			&i.CustomerReference,
+			&i.CreatedAt,
+			&i.PaymentTermsName,
+			&i.PaymentTermsDays,
+			&i.PriceListName,
 		); err != nil {
 			return nil, err
 		}
@@ -460,6 +794,90 @@ func (q *Queries) UpdateWholesaleApplication(ctx context.Context, arg UpdateWhol
 		arg.WholesaleApplicationNotes,
 		arg.WholesaleApprovedBy,
 		arg.PaymentTerms,
+	)
+	return err
+}
+
+const updateWholesaleApplicationWithTerms = `-- name: UpdateWholesaleApplicationWithTerms :exec
+UPDATE users
+SET
+    wholesale_application_status = $2,
+    wholesale_application_notes = $3,
+    wholesale_approved_at = CASE WHEN $2 = 'approved' THEN NOW() ELSE NULL END,
+    wholesale_approved_by = CASE WHEN $2 = 'approved' THEN $4 ELSE NULL END,
+    account_type = CASE WHEN $2 = 'approved' THEN 'wholesale' ELSE account_type END,
+    payment_terms_id = CASE WHEN $2 = 'approved' THEN $5 ELSE payment_terms_id END,
+    billing_cycle = CASE WHEN $2 = 'approved' THEN $6 ELSE billing_cycle END
+WHERE id = $1
+`
+
+type UpdateWholesaleApplicationWithTermsParams struct {
+	ID                         pgtype.UUID `json:"id"`
+	WholesaleApplicationStatus pgtype.Text `json:"wholesale_application_status"`
+	WholesaleApplicationNotes  pgtype.Text `json:"wholesale_application_notes"`
+	WholesaleApprovedBy        pgtype.UUID `json:"wholesale_approved_by"`
+	PaymentTermsID             pgtype.UUID `json:"payment_terms_id"`
+	BillingCycle               pgtype.Text `json:"billing_cycle"`
+}
+
+// Approve wholesale application with payment terms assignment
+func (q *Queries) UpdateWholesaleApplicationWithTerms(ctx context.Context, arg UpdateWholesaleApplicationWithTermsParams) error {
+	_, err := q.db.Exec(ctx, updateWholesaleApplicationWithTerms,
+		arg.ID,
+		arg.WholesaleApplicationStatus,
+		arg.WholesaleApplicationNotes,
+		arg.WholesaleApprovedBy,
+		arg.PaymentTermsID,
+		arg.BillingCycle,
+	)
+	return err
+}
+
+const updateWholesaleCustomer = `-- name: UpdateWholesaleCustomer :exec
+UPDATE users
+SET
+    company_name = COALESCE($2, company_name),
+    payment_terms_id = $3,
+    billing_cycle = $4,
+    billing_cycle_day = $5,
+    minimum_spend_cents = $6,
+    customer_reference = $7,
+    internal_note = $8,
+    email_orders = $9,
+    email_dispatches = $10,
+    email_invoices = $11,
+    updated_at = NOW()
+WHERE id = $1
+`
+
+type UpdateWholesaleCustomerParams struct {
+	ID                pgtype.UUID `json:"id"`
+	CompanyName       pgtype.Text `json:"company_name"`
+	PaymentTermsID    pgtype.UUID `json:"payment_terms_id"`
+	BillingCycle      pgtype.Text `json:"billing_cycle"`
+	BillingCycleDay   pgtype.Int4 `json:"billing_cycle_day"`
+	MinimumSpendCents pgtype.Int4 `json:"minimum_spend_cents"`
+	CustomerReference pgtype.Text `json:"customer_reference"`
+	InternalNote      pgtype.Text `json:"internal_note"`
+	EmailOrders       pgtype.Text `json:"email_orders"`
+	EmailDispatches   pgtype.Text `json:"email_dispatches"`
+	EmailInvoices     pgtype.Text `json:"email_invoices"`
+}
+
+// Update wholesale customer settings
+func (q *Queries) UpdateWholesaleCustomer(ctx context.Context, arg UpdateWholesaleCustomerParams) error {
+	_, err := q.db.Exec(ctx, updateWholesaleCustomer,
+		arg.ID,
+		arg.CompanyName,
+		arg.PaymentTermsID,
+		arg.BillingCycle,
+		arg.BillingCycleDay,
+		arg.MinimumSpendCents,
+		arg.CustomerReference,
+		arg.InternalNote,
+		arg.EmailOrders,
+		arg.EmailDispatches,
+		arg.EmailInvoices,
 	)
 	return err
 }

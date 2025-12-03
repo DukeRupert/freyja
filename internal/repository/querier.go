@@ -22,6 +22,8 @@ type Querier interface {
 	ClearCart(ctx context.Context, cartID pgtype.UUID) error
 	// Mark a job as completed
 	CompleteJob(ctx context.Context, id pgtype.UUID) error
+	// Count invoices for pagination
+	CountInvoices(ctx context.Context, tenantID pgtype.UUID) (int64, error)
 	// Count jobs by status
 	CountJobsByStatus(ctx context.Context, arg CountJobsByStatusParams) (int64, error)
 	// Count total orders for pagination
@@ -37,6 +39,8 @@ type Querier interface {
 	// Admin queries
 	// Count total users for pagination
 	CountUsers(ctx context.Context, tenantID pgtype.UUID) (int64, error)
+	// Count users using specific payment terms (for safe deletion check)
+	CountUsersWithPaymentTerms(ctx context.Context, paymentTermsID pgtype.UUID) (int64, error)
 	// Create a new address
 	CreateAddress(ctx context.Context, arg CreateAddressParams) (Address, error)
 	// Create a new billing customer
@@ -45,6 +49,29 @@ type Querier interface {
 	CreateCart(ctx context.Context, arg CreateCartParams) (Cart, error)
 	// Link an address to a user
 	CreateCustomerAddress(ctx context.Context, arg CreateCustomerAddressParams) (CustomerAddress, error)
+	// Invoice Queries
+	// Manages wholesale billing invoices
+	// =============================================================================
+	// INVOICE CRUD
+	// =============================================================================
+	// Create a new invoice
+	CreateInvoice(ctx context.Context, arg CreateInvoiceParams) (Invoice, error)
+	// =============================================================================
+	// INVOICE ITEMS
+	// =============================================================================
+	// Create an invoice line item
+	CreateInvoiceItem(ctx context.Context, arg CreateInvoiceItemParams) (InvoiceItem, error)
+	// =============================================================================
+	// INVOICE-ORDER LINKING (Consolidated Invoicing)
+	// =============================================================================
+	// Link an order to an invoice
+	CreateInvoiceOrder(ctx context.Context, arg CreateInvoiceOrderParams) (InvoiceOrder, error)
+	// =============================================================================
+	// INVOICE PAYMENTS
+	// =============================================================================
+	// Record a payment against an invoice
+	// Note: The update_invoice_balance trigger automatically updates invoice totals
+	CreateInvoicePayment(ctx context.Context, arg CreateInvoicePaymentParams) (InvoicePayment, error)
 	// Creates a new order record with all required fields
 	// Returns the complete order with generated ID and timestamps
 	CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error)
@@ -57,6 +84,10 @@ type Querier interface {
 	CreatePayment(ctx context.Context, arg CreatePaymentParams) (Payment, error)
 	// Create a new payment method
 	CreatePaymentMethod(ctx context.Context, arg CreatePaymentMethodParams) (PaymentMethod, error)
+	// Payment Terms Queries
+	// Manages reusable payment terms for wholesale invoicing
+	// Create a new payment terms record
+	CreatePaymentTerms(ctx context.Context, arg CreatePaymentTermsParams) (PaymentTerm, error)
 	// Admin queries
 	// Create a new price list entry for a SKU
 	CreatePriceListEntry(ctx context.Context, arg CreatePriceListEntryParams) (PriceListEntry, error)
@@ -70,6 +101,11 @@ type Querier interface {
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	// Create a shipment record for an order
 	CreateShipment(ctx context.Context, arg CreateShipmentParams) (Shipment, error)
+	// =============================================================================
+	// SHIPMENT ITEM QUERIES
+	// =============================================================================
+	// Create a shipment line item for partial fulfillment
+	CreateShipmentItem(ctx context.Context, arg CreateShipmentItemParams) (ShipmentItem, error)
 	// Subscription queries for the SubscriptionService
 	// Creates a new subscription record
 	// Returns the complete subscription with generated ID and timestamps
@@ -98,6 +134,8 @@ type Querier interface {
 	DeleteOldCompletedJobs(ctx context.Context, processingCompletedAt pgtype.Timestamptz) error
 	// Delete a payment method
 	DeletePaymentMethod(ctx context.Context, arg DeletePaymentMethodParams) error
+	// Soft delete by deactivating (preserves referential integrity)
+	DeletePaymentTerms(ctx context.Context, arg DeletePaymentTermsParams) error
 	// Soft delete a product (set status to 'archived')
 	DeleteProduct(ctx context.Context, arg DeleteProductParams) error
 	// Delete a product image
@@ -111,6 +149,9 @@ type Querier interface {
 	// Mark a job as failed or reschedule it for retry
 	// If retry_count < max_retries, reschedule; otherwise mark as failed
 	FailJob(ctx context.Context, arg FailJobParams) (Job, error)
+	// Generate next invoice number for a tenant
+	// Format: INV-YYYYMM-XXXX (e.g., INV-202412-0001)
+	GenerateInvoiceNumber(ctx context.Context, tenantID pgtype.UUID) (interface{}, error)
 	// Get a single address by ID (no user validation - for system use)
 	GetAddressByID(ctx context.Context, id pgtype.UUID) (Address, error)
 	// Get a single address by ID (validates user ownership via customer_addresses)
@@ -134,16 +175,42 @@ type Querier interface {
 	GetCartItemCount(ctx context.Context, cartID pgtype.UUID) (int32, error)
 	// Get all items in a cart with product details
 	GetCartItems(ctx context.Context, cartID pgtype.UUID) ([]GetCartItemsRow, error)
+	// Get wholesale customers due for consolidated invoice generation
+	// Used by billing cycle job to find accounts ready for invoicing
+	GetCustomersForBillingCycle(ctx context.Context, arg GetCustomersForBillingCycleParams) ([]GetCustomersForBillingCycleRow, error)
 	// Get the default payment method for a user
 	GetDefaultPaymentMethod(ctx context.Context, arg GetDefaultPaymentMethodParams) (GetDefaultPaymentMethodRow, error)
 	// Payment method queries
 	// Retrieves user's default payment method
 	// Required for subscription creation
 	GetDefaultPaymentMethodForUser(ctx context.Context, arg GetDefaultPaymentMethodForUserParams) (PaymentMethod, error)
+	// Get the default payment terms for a tenant
+	GetDefaultPaymentTerms(ctx context.Context, tenantID pgtype.UUID) (PaymentTerm, error)
 	// Get the default price list for a tenant (used for guests and unassigned users)
 	GetDefaultPriceList(ctx context.Context, tenantID pgtype.UUID) (PriceList, error)
 	// Get the default shipping address for a user
 	GetDefaultShippingAddress(ctx context.Context, arg GetDefaultShippingAddressParams) (GetDefaultShippingAddressRow, error)
+	// Get invoice by ID
+	GetInvoiceByID(ctx context.Context, arg GetInvoiceByIDParams) (Invoice, error)
+	// Get invoice by invoice number
+	GetInvoiceByNumber(ctx context.Context, arg GetInvoiceByNumberParams) (Invoice, error)
+	// Get invoice by billing provider ID (for Stripe webhook handling)
+	GetInvoiceByProviderID(ctx context.Context, arg GetInvoiceByProviderIDParams) (Invoice, error)
+	// Get the invoice linked to a specific order (if any)
+	GetInvoiceForOrder(ctx context.Context, orderID pgtype.UUID) (Invoice, error)
+	// Get all items for an invoice
+	GetInvoiceItems(ctx context.Context, invoiceID pgtype.UUID) ([]InvoiceItem, error)
+	// Get all orders linked to an invoice
+	GetInvoiceOrders(ctx context.Context, invoiceID pgtype.UUID) ([]GetInvoiceOrdersRow, error)
+	// Get all payments for an invoice
+	GetInvoicePayments(ctx context.Context, invoiceID pgtype.UUID) ([]InvoicePayment, error)
+	// =============================================================================
+	// STATISTICS
+	// =============================================================================
+	// Get invoice statistics for dashboard
+	GetInvoiceStats(ctx context.Context, tenantID pgtype.UUID) (GetInvoiceStatsRow, error)
+	// Get complete invoice with customer and payment terms details
+	GetInvoiceWithDetails(ctx context.Context, arg GetInvoiceWithDetailsParams) (GetInvoiceWithDetailsRow, error)
 	// Fetch a job by ID
 	GetJobByID(ctx context.Context, id pgtype.UUID) (Job, error)
 	// Get job queue statistics
@@ -158,10 +225,14 @@ type Querier interface {
 	GetOrderByPaymentIntentID(ctx context.Context, arg GetOrderByPaymentIntentIDParams) (Order, error)
 	// Retrieves all line items for a specific order
 	GetOrderItems(ctx context.Context, orderID pgtype.UUID) ([]OrderItem, error)
+	// Get order items with fulfillment status for partial shipment display
+	GetOrderItemsWithFulfillment(ctx context.Context, orderID pgtype.UUID) ([]GetOrderItemsWithFulfillmentRow, error)
 	// Get order statistics for dashboard
 	GetOrderStats(ctx context.Context, arg GetOrderStatsParams) (GetOrderStatsRow, error)
 	// Get complete order details including addresses and payment info
 	GetOrderWithDetails(ctx context.Context, arg GetOrderWithDetailsParams) (GetOrderWithDetailsRow, error)
+	// Get order with wholesale-specific fields
+	GetOrderWithWholesaleDetails(ctx context.Context, arg GetOrderWithWholesaleDetailsParams) (GetOrderWithWholesaleDetailsRow, error)
 	// Get a valid (unused, non-expired) password reset token with user details
 	GetPasswordResetToken(ctx context.Context, arg GetPasswordResetTokenParams) (GetPasswordResetTokenRow, error)
 	// Retrieves a single payment by ID
@@ -170,6 +241,10 @@ type Querier interface {
 	GetPaymentByProviderID(ctx context.Context, arg GetPaymentByProviderIDParams) (Payment, error)
 	// Get a single payment method by ID (validates user ownership)
 	GetPaymentMethodByID(ctx context.Context, arg GetPaymentMethodByIDParams) (GetPaymentMethodByIDRow, error)
+	// Get payment terms by code within a tenant
+	GetPaymentTermsByCode(ctx context.Context, arg GetPaymentTermsByCodeParams) (PaymentTerm, error)
+	// Get payment terms by ID
+	GetPaymentTermsByID(ctx context.Context, arg GetPaymentTermsByIDParams) (PaymentTerm, error)
 	// Get the price for a specific SKU on a price list
 	GetPriceForSKU(ctx context.Context, arg GetPriceForSKUParams) (PriceListEntry, error)
 	// Get a price list by ID
@@ -196,6 +271,10 @@ type Querier interface {
 	GetSKUWithProduct(ctx context.Context, arg GetSKUWithProductParams) (GetSKUWithProductRow, error)
 	// Get session by token
 	GetSessionByToken(ctx context.Context, token string) (Session, error)
+	// Get shipment history for an order item
+	GetShipmentHistory(ctx context.Context, orderItemID pgtype.UUID) ([]GetShipmentHistoryRow, error)
+	// Get items in a shipment
+	GetShipmentItems(ctx context.Context, shipmentID pgtype.UUID) ([]GetShipmentItemsRow, error)
 	// Get all shipments for an order
 	GetShipmentsByOrderID(ctx context.Context, orderID pgtype.UUID) ([]Shipment, error)
 	// Retrieves subscription by database ID with tenant scoping
@@ -218,10 +297,22 @@ type Querier interface {
 	// Get the primary warehouse address for a tenant (for shipping origin calculations)
 	// Used by CheckoutService.GetShippingRates to determine shipping origin
 	GetTenantWarehouseAddress(ctx context.Context, tenantID pgtype.UUID) (GetTenantWarehouseAddressRow, error)
+	// Get order items that still need to be shipped
+	GetUnfulfilledOrderItems(ctx context.Context, orderID pgtype.UUID) ([]GetUnfulfilledOrderItemsRow, error)
+	// =============================================================================
+	// CONSOLIDATED BILLING QUERIES
+	// =============================================================================
+	// Get orders that haven't been invoiced yet for a user
+	// Used for generating consolidated invoices
+	GetUninvoicedOrdersForUser(ctx context.Context, arg GetUninvoicedOrdersForUserParams) ([]Order, error)
+	// Get uninvoiced orders within a billing period
+	GetUninvoicedOrdersInPeriod(ctx context.Context, arg GetUninvoicedOrdersInPeriodParams) ([]Order, error)
 	// Get user by email within a tenant
 	GetUserByEmail(ctx context.Context, arg GetUserByEmailParams) (User, error)
 	// Get user by ID
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
+	// Get notification email addresses for a user (with fallback to primary email)
+	GetUserNotificationEmails(ctx context.Context, id pgtype.UUID) (GetUserNotificationEmailsRow, error)
 	// Get user statistics for dashboard
 	GetUserStats(ctx context.Context, tenantID pgtype.UUID) (GetUserStatsRow, error)
 	// Webhook event queries for subscription idempotency
@@ -229,6 +320,11 @@ type Querier interface {
 	GetWebhookEventByProviderID(ctx context.Context, arg GetWebhookEventByProviderIDParams) (WebhookEvent, error)
 	// Get all white-label products for a specific customer
 	GetWhiteLabelProductsForCustomer(ctx context.Context, arg GetWhiteLabelProductsForCustomerParams) ([]Product, error)
+	// =============================================================================
+	// WHOLESALE CUSTOMER QUERIES
+	// =============================================================================
+	// Get wholesale customer with payment terms details
+	GetWholesaleCustomer(ctx context.Context, id pgtype.UUID) (GetWholesaleCustomerRow, error)
 	// Mark all unused password reset tokens for a user as used
 	// (Called after successful password reset to invalidate other tokens)
 	InvalidateUserPasswordResetTokens(ctx context.Context, arg InvalidateUserPasswordResetTokensParams) error
@@ -239,11 +335,22 @@ type Querier interface {
 	ListActiveSubscriptionsForUser(ctx context.Context, arg ListActiveSubscriptionsForUserParams) ([]Subscription, error)
 	// Get all addresses for a user with their associations
 	ListAddressesForUser(ctx context.Context, arg ListAddressesForUserParams) ([]ListAddressesForUserRow, error)
+	// List all payment terms including inactive (for admin)
+	ListAllPaymentTerms(ctx context.Context, tenantID pgtype.UUID) ([]PaymentTerm, error)
 	// List all price lists for a tenant
 	ListAllPriceLists(ctx context.Context, tenantID pgtype.UUID) ([]PriceList, error)
 	// Admin queries
 	// List all products for admin (includes inactive and all visibility levels)
 	ListAllProducts(ctx context.Context, tenantID pgtype.UUID) ([]ListAllProductsRow, error)
+	// List all invoices for admin with customer details
+	ListInvoices(ctx context.Context, arg ListInvoicesParams) ([]ListInvoicesRow, error)
+	// List invoices filtered by status
+	ListInvoicesByStatus(ctx context.Context, arg ListInvoicesByStatusParams) ([]ListInvoicesByStatusRow, error)
+	// =============================================================================
+	// LISTING QUERIES
+	// =============================================================================
+	// List invoices for a customer
+	ListInvoicesForUser(ctx context.Context, arg ListInvoicesForUserParams) ([]Invoice, error)
 	// List jobs by status for monitoring
 	ListJobsByStatus(ctx context.Context, arg ListJobsByStatusParams) ([]Job, error)
 	// Admin queries
@@ -254,8 +361,12 @@ type Querier interface {
 	// Get all orders for a specific subscription
 	// Used by subscription detail page to show order history
 	ListOrdersBySubscription(ctx context.Context, arg ListOrdersBySubscriptionParams) ([]ListOrdersBySubscriptionRow, error)
+	// List invoices that are past due
+	ListOverdueInvoices(ctx context.Context, tenantID pgtype.UUID) ([]ListOverdueInvoicesRow, error)
 	// Get all payment methods for a user
 	ListPaymentMethodsForUser(ctx context.Context, arg ListPaymentMethodsForUserParams) ([]ListPaymentMethodsForUserRow, error)
+	// List all payment terms for a tenant
+	ListPaymentTerms(ctx context.Context, tenantID pgtype.UUID) ([]PaymentTerm, error)
 	// Lists all items in a subscription with product details
 	// Includes product name, SKU, and image for display
 	ListSubscriptionItemsForSubscription(ctx context.Context, arg ListSubscriptionItemsForSubscriptionParams) ([]ListSubscriptionItemsForSubscriptionRow, error)
@@ -277,12 +388,25 @@ type Querier interface {
 	ListUsersByAccountType(ctx context.Context, arg ListUsersByAccountTypeParams) ([]User, error)
 	// List pending wholesale applications
 	ListWholesaleApplications(ctx context.Context, tenantID pgtype.UUID) ([]ListWholesaleApplicationsRow, error)
+	// List wholesale customers with payment terms and billing info
+	ListWholesaleCustomers(ctx context.Context, arg ListWholesaleCustomersParams) ([]ListWholesaleCustomersRow, error)
+	// =============================================================================
+	// WHOLESALE ORDER QUERIES
+	// =============================================================================
+	// List wholesale orders with customer details
+	ListWholesaleOrders(ctx context.Context, arg ListWholesaleOrdersParams) ([]ListWholesaleOrdersRow, error)
+	// Mark invoice as viewed (first view only)
+	MarkInvoiceViewed(ctx context.Context, arg MarkInvoiceViewedParams) error
 	// Mark a password reset token as used
 	MarkPasswordResetTokenUsed(ctx context.Context, arg MarkPasswordResetTokenUsedParams) error
+	// Update order fulfillment status based on item statuses
+	RecalculateOrderFulfillmentStatus(ctx context.Context, arg RecalculateOrderFulfillmentStatusParams) error
 	// Remove an item from cart
 	RemoveCartItem(ctx context.Context, arg RemoveCartItemParams) error
 	// Set a payment method as the default for a billing customer
 	SetDefaultPaymentMethod(ctx context.Context, arg SetDefaultPaymentMethodParams) error
+	// Set payment terms as default (clears previous default)
+	SetDefaultPaymentTerms(ctx context.Context, arg SetDefaultPaymentTermsParams) error
 	// Set an address as the default shipping address for a user
 	SetDefaultShippingAddress(ctx context.Context, arg SetDefaultShippingAddressParams) error
 	// Set a product image as primary (and unset others)
@@ -297,14 +421,25 @@ type Querier interface {
 	// Marks cart as converted to order
 	// Prevents duplicate order creation from same cart
 	UpdateCartStatus(ctx context.Context, arg UpdateCartStatusParams) error
+	// Link invoice to billing provider
+	UpdateInvoiceProviderID(ctx context.Context, arg UpdateInvoiceProviderIDParams) error
+	// Update invoice status
+	UpdateInvoiceStatus(ctx context.Context, arg UpdateInvoiceStatusParams) error
 	// Update order fulfillment status
 	UpdateOrderFulfillmentStatus(ctx context.Context, arg UpdateOrderFulfillmentStatusParams) error
+	// =============================================================================
+	// PARTIAL FULFILLMENT QUERIES
+	// =============================================================================
+	// Update the dispatched quantity for an order item
+	UpdateOrderItemDispatchedQuantity(ctx context.Context, arg UpdateOrderItemDispatchedQuantityParams) error
 	// Links a payment to an order after both are created
 	UpdateOrderPaymentID(ctx context.Context, arg UpdateOrderPaymentIDParams) error
 	// Update order status
 	UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) error
 	// Update payment status
 	UpdatePaymentStatus(ctx context.Context, arg UpdatePaymentStatusParams) (Payment, error)
+	// Update payment terms
+	UpdatePaymentTerms(ctx context.Context, arg UpdatePaymentTermsParams) error
 	// Update an existing price list entry
 	UpdatePriceListEntry(ctx context.Context, arg UpdatePriceListEntryParams) (PriceListEntry, error)
 	// Update an existing product
@@ -339,6 +474,10 @@ type Querier interface {
 	UpdateWebhookEventStatus(ctx context.Context, arg UpdateWebhookEventStatusParams) error
 	// Update wholesale application status
 	UpdateWholesaleApplication(ctx context.Context, arg UpdateWholesaleApplicationParams) error
+	// Approve wholesale application with payment terms assignment
+	UpdateWholesaleApplicationWithTerms(ctx context.Context, arg UpdateWholesaleApplicationWithTermsParams) error
+	// Update wholesale customer settings
+	UpdateWholesaleCustomer(ctx context.Context, arg UpdateWholesaleCustomerParams) error
 	// Mark user email as verified
 	VerifyUserEmail(ctx context.Context, id pgtype.UUID) error
 }
