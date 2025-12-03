@@ -187,6 +187,19 @@ func (w *Worker) processJob(ctx context.Context, job *repository.Job) error {
 		return w.processInvoiceJob(jobCtx, job)
 	}
 
+	if jobs.IsCleanupJob(job.JobType) {
+		result, err := jobs.ProcessCleanupJob(jobCtx, job, w.queries)
+		if err != nil {
+			return err
+		}
+		w.logger.Info("cleanup job completed",
+			"job_id", job.ID,
+			"email_tokens_deleted", result.EmailVerificationTokensDeleted,
+			"password_tokens_deleted", result.PasswordResetTokensDeleted,
+		)
+		return nil
+	}
+
 	return fmt.Errorf("unknown job type: %s", job.JobType)
 }
 
@@ -251,6 +264,7 @@ func (w *Worker) processInvoiceJob(ctx context.Context, job *repository.Job) err
 func isEmailJob(jobType string) bool {
 	switch jobType {
 	case jobs.JobTypePasswordReset,
+		jobs.JobTypeEmailVerification,
 		jobs.JobTypeOrderConfirmation,
 		jobs.JobTypeShippingConfirmation,
 		jobs.JobTypeSubscriptionWelcome,
