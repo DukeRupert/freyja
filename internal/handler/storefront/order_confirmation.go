@@ -56,10 +56,9 @@ func (h *OrderConfirmationHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 
 	// If payment failed, show error page
 	if redirectStatus != "succeeded" {
-		data := map[string]interface{}{
-			"PaymentIntentID": paymentIntentID,
-			"Status":          redirectStatus,
-		}
+		data := BaseTemplateData(r)
+		data["PaymentIntentID"] = paymentIntentID
+		data["Status"] = redirectStatus
 		h.renderer.RenderHTTP(w, "storefront/order-confirmation", data)
 		return
 	}
@@ -75,10 +74,9 @@ func (h *OrderConfirmationHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		if errors.Is(err, sql.ErrNoRows) {
 			slog.Info("Order not yet created for payment intent (webhook pending)", "payment_intent", paymentIntentID)
 			// Show a "processing" state to the user
-			data := map[string]interface{}{
-				"PaymentIntentID": paymentIntentID,
-				"Status":          "processing",
-			}
+			data := BaseTemplateData(r)
+			data["PaymentIntentID"] = paymentIntentID
+			data["Status"] = "processing"
 			h.renderer.RenderHTTP(w, "storefront/order-confirmation", data)
 			return
 		}
@@ -162,35 +160,34 @@ func (h *OrderConfirmationHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	// Determine if billing address is same as shipping
 	billingAddressSameAsShipping := orderDetails.ShippingAddressLine1.String == orderDetails.BillingAddressLine1.String
 
-	data := map[string]interface{}{
-		"Status": "succeeded",
-		"Order": OrderData{
-			OrderNumber:                  orderDetails.OrderNumber,
-			Email:                        orderDetails.CustomerEmail.String,
-			CreatedAt:                    orderDetails.CreatedAt.Time,
-			SubtotalCents:                orderDetails.SubtotalCents,
-			ShippingCents:                orderDetails.ShippingCents,
-			TaxCents:                     orderDetails.TaxCents,
-			TotalCents:                   orderDetails.TotalCents,
-			BillingAddressSameAsShipping: billingAddressSameAsShipping,
-		},
-		"Items": items,
-		"ShippingAddress": Address{
-			Name:       orderDetails.ShippingName.String,
-			Address1:   orderDetails.ShippingAddressLine1.String,
-			Address2:   orderDetails.ShippingAddressLine2.String,
-			City:       orderDetails.ShippingCity.String,
-			State:      orderDetails.ShippingState.String,
-			PostalCode: orderDetails.ShippingPostalCode.String,
-		},
-		"BillingAddress": Address{
-			Name:       orderDetails.BillingName.String,
-			Address1:   orderDetails.BillingAddressLine1.String,
-			Address2:   orderDetails.BillingAddressLine2.String,
-			City:       orderDetails.BillingCity.String,
-			State:      orderDetails.BillingState.String,
-			PostalCode: orderDetails.BillingPostalCode.String,
-		},
+	data := BaseTemplateData(r)
+	data["Status"] = "succeeded"
+	data["Order"] = OrderData{
+		OrderNumber:                  orderDetails.OrderNumber,
+		Email:                        orderDetails.CustomerEmail.String,
+		CreatedAt:                    orderDetails.CreatedAt.Time,
+		SubtotalCents:                orderDetails.SubtotalCents,
+		ShippingCents:                orderDetails.ShippingCents,
+		TaxCents:                     orderDetails.TaxCents,
+		TotalCents:                   orderDetails.TotalCents,
+		BillingAddressSameAsShipping: billingAddressSameAsShipping,
+	}
+	data["Items"] = items
+	data["ShippingAddress"] = Address{
+		Name:       orderDetails.ShippingName.String,
+		Address1:   orderDetails.ShippingAddressLine1.String,
+		Address2:   orderDetails.ShippingAddressLine2.String,
+		City:       orderDetails.ShippingCity.String,
+		State:      orderDetails.ShippingState.String,
+		PostalCode: orderDetails.ShippingPostalCode.String,
+	}
+	data["BillingAddress"] = Address{
+		Name:       orderDetails.BillingName.String,
+		Address1:   orderDetails.BillingAddressLine1.String,
+		Address2:   orderDetails.BillingAddressLine2.String,
+		City:       orderDetails.BillingCity.String,
+		State:      orderDetails.BillingState.String,
+		PostalCode: orderDetails.BillingPostalCode.String,
 	}
 
 	h.renderer.RenderHTTP(w, "storefront/order-confirmation", data)
