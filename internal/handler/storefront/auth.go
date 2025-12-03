@@ -108,7 +108,7 @@ func (h *SignupHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get IP and user agent for rate limiting
-	ipAddress := r.RemoteAddr
+	ipAddress := middleware.GetClientIP(r)
 	userAgent := r.UserAgent()
 
 	// Send verification email

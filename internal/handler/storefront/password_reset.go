@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/dukerupert/freyja/internal/handler"
+	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/service"
 	"github.com/google/uuid"
 )
@@ -65,8 +66,8 @@ func (h *ForgotPasswordHandler) HandleSubmit(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Get IP address and user agent
-	ipAddress := r.RemoteAddr
+	// Get IP address and user agent for rate limiting
+	ipAddress := middleware.GetClientIP(r)
 	userAgent := r.UserAgent()
 
 	// Request password reset (always returns nil to prevent enumeration)

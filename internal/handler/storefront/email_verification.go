@@ -160,7 +160,7 @@ func (h *ResendVerificationHandler) HandleSubmit(w http.ResponseWriter, r *http.
 	}
 
 	// Get IP and user agent for rate limiting
-	ipAddress := r.RemoteAddr
+	ipAddress := middleware.GetClientIP(r)
 	userAgent := r.UserAgent()
 
 	// Convert user ID from pgtype to uuid.UUID
