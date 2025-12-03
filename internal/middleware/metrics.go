@@ -71,29 +71,31 @@ func NewMetrics(namespace string) *Metrics {
 }
 
 // Middleware returns an HTTP middleware that records metrics
-func (m *Metrics) Middleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
+func (m *Metrics) Middleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
 
-		// Track in-flight requests
-		m.requestsInFlight.Inc()
-		defer m.requestsInFlight.Dec()
+			// Track in-flight requests
+			m.requestsInFlight.Inc()
+			defer m.requestsInFlight.Dec()
 
-		// Wrap response writer to capture status and size
-		wrapped := &metricsResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+			// Wrap response writer to capture status and size
+			wrapped := &metricsResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 
-		// Process request
-		next.ServeHTTP(wrapped, r)
+			// Process request
+			next.ServeHTTP(wrapped, r)
 
-		// Record metrics
-		duration := time.Since(start).Seconds()
-		status := strconv.Itoa(wrapped.statusCode)
-		path := normalizePath(r.URL.Path)
+			// Record metrics
+			duration := time.Since(start).Seconds()
+			status := strconv.Itoa(wrapped.statusCode)
+			path := normalizePath(r.URL.Path)
 
-		m.requestsTotal.WithLabelValues(r.Method, path, status).Inc()
-		m.requestDuration.WithLabelValues(r.Method, path, status).Observe(duration)
-		m.responseSize.WithLabelValues(r.Method, path, status).Observe(float64(wrapped.bytesWritten))
-	})
+			m.requestsTotal.WithLabelValues(r.Method, path, status).Inc()
+			m.requestDuration.WithLabelValues(r.Method, path, status).Observe(duration)
+			m.responseSize.WithLabelValues(r.Method, path, status).Observe(float64(wrapped.bytesWritten))
+		})
+	}
 }
 
 // Handler returns the Prometheus metrics HTTP handler

@@ -15,24 +15,26 @@ const (
 	RequestIDContextKey contextKey = "request_id"
 )
 
-// RequestID generates a unique request ID for each request.
+// RequestID returns middleware that generates a unique request ID for each request.
 // If the request already has an X-Request-ID header, it uses that value.
 // The request ID is added to the response headers and request context.
-func RequestID(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check for existing request ID (from load balancer, etc.)
-		requestID := r.Header.Get(RequestIDHeader)
-		if requestID == "" {
-			requestID = uuid.New().String()
-		}
+func RequestID() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Check for existing request ID (from load balancer, etc.)
+			requestID := r.Header.Get(RequestIDHeader)
+			if requestID == "" {
+				requestID = uuid.New().String()
+			}
 
-		// Add to response headers
-		w.Header().Set(RequestIDHeader, requestID)
+			// Add to response headers
+			w.Header().Set(RequestIDHeader, requestID)
 
-		// Add to request context
-		ctx := context.WithValue(r.Context(), RequestIDContextKey, requestID)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
+			// Add to request context
+			ctx := context.WithValue(r.Context(), RequestIDContextKey, requestID)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
 }
 
 // GetRequestID retrieves the request ID from the context

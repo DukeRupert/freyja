@@ -335,8 +335,8 @@ func run() error {
 	// Main tenant router (storefront + admin + webhooks)
 	r := router.New(
 		router.Recovery(logger),
-		middleware.RequestID,
-		metrics.Middleware,
+		middleware.RequestID(),
+		metrics.Middleware(),
 		middleware.SecurityHeaders(securityConfig),
 		middleware.MaxBodySize(),
 		middleware.Timeout(),
@@ -373,7 +373,7 @@ func run() error {
 	// SaaS marketing site router (separate, can be served on different port/domain)
 	saasRouter := router.New(
 		router.Recovery(logger),
-		middleware.RequestID,
+		middleware.RequestID(),
 		middleware.SecurityHeaders(securityConfig),
 		middleware.RateLimit(),
 		router.Logger(logger),
