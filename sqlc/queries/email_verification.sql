@@ -47,17 +47,21 @@ WHERE tenant_id = $1
 
 -- name: CountRecentVerificationRequestsByUser :one
 -- Count recent email verification requests for a specific user (rate limiting)
+-- Scoped by tenant_id to ensure rate limits are per-tenant
 SELECT COUNT(*)
 FROM email_verification_tokens
-WHERE user_id = $1
-  AND created_at > $2;
+WHERE tenant_id = $1
+  AND user_id = $2
+  AND created_at > $3;
 
 -- name: CountRecentVerificationRequestsByIP :one
 -- Count recent email verification requests from a specific IP address (rate limiting)
+-- Scoped by tenant_id to ensure rate limits are per-tenant
 SELECT COUNT(*)
 FROM email_verification_tokens
-WHERE ip_address = $1
-  AND created_at > $2;
+WHERE tenant_id = $1
+  AND ip_address = $2
+  AND created_at > $3;
 
 -- name: InvalidateUserEmailVerificationTokens :exec
 -- Mark all unused email verification tokens for a user as used

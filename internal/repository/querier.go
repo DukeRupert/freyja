@@ -39,8 +39,10 @@ type Querier interface {
 	// Count recent password reset requests from a specific IP address (rate limiting)
 	CountRecentResetRequestsByIP(ctx context.Context, arg CountRecentResetRequestsByIPParams) (int64, error)
 	// Count recent email verification requests from a specific IP address (rate limiting)
+	// Scoped by tenant_id to ensure rate limits are per-tenant
 	CountRecentVerificationRequestsByIP(ctx context.Context, arg CountRecentVerificationRequestsByIPParams) (int64, error)
 	// Count recent email verification requests for a specific user (rate limiting)
+	// Scoped by tenant_id to ensure rate limits are per-tenant
 	CountRecentVerificationRequestsByUser(ctx context.Context, arg CountRecentVerificationRequestsByUserParams) (int64, error)
 	// Count total subscriptions for pagination
 	CountSubscriptions(ctx context.Context, tenantID pgtype.UUID) (int64, error)

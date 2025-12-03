@@ -80,9 +80,10 @@ func (s *emailVerificationService) SendVerificationEmail(
 	ipAddress string,
 	userAgent string,
 ) error {
-	// Check rate limit for this user
+	// Check rate limit for this user (scoped to tenant)
 	rateLimitCutoff := time.Now().Add(-VerificationRateLimitWindow)
 	userCount, err := s.repo.CountRecentVerificationRequestsByUser(ctx, repository.CountRecentVerificationRequestsByUserParams{
+		TenantID:  uuidToPgtype(tenantID),
 		UserID:    uuidToPgtype(userID),
 		CreatedAt: pgtype.Timestamptz{Time: rateLimitCutoff, Valid: true},
 	})
@@ -93,8 +94,9 @@ func (s *emailVerificationService) SendVerificationEmail(
 		return ErrVerificationRateLimitExceeded
 	}
 
-	// Check rate limit for IP address
+	// Check rate limit for IP address (scoped to tenant)
 	ipCount, err := s.repo.CountRecentVerificationRequestsByIP(ctx, repository.CountRecentVerificationRequestsByIPParams{
+		TenantID:  uuidToPgtype(tenantID),
 		IpAddress: pgtype.Text{String: ipAddress, Valid: true},
 		CreatedAt: pgtype.Timestamptz{Time: rateLimitCutoff, Valid: true},
 	})

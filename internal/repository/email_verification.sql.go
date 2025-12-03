@@ -14,18 +14,21 @@ import (
 const countRecentVerificationRequestsByIP = `-- name: CountRecentVerificationRequestsByIP :one
 SELECT COUNT(*)
 FROM email_verification_tokens
-WHERE ip_address = $1
-  AND created_at > $2
+WHERE tenant_id = $1
+  AND ip_address = $2
+  AND created_at > $3
 `
 
 type CountRecentVerificationRequestsByIPParams struct {
+	TenantID  pgtype.UUID        `json:"tenant_id"`
 	IpAddress pgtype.Text        `json:"ip_address"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 // Count recent email verification requests from a specific IP address (rate limiting)
+// Scoped by tenant_id to ensure rate limits are per-tenant
 func (q *Queries) CountRecentVerificationRequestsByIP(ctx context.Context, arg CountRecentVerificationRequestsByIPParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countRecentVerificationRequestsByIP, arg.IpAddress, arg.CreatedAt)
+	row := q.db.QueryRow(ctx, countRecentVerificationRequestsByIP, arg.TenantID, arg.IpAddress, arg.CreatedAt)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -34,18 +37,21 @@ func (q *Queries) CountRecentVerificationRequestsByIP(ctx context.Context, arg C
 const countRecentVerificationRequestsByUser = `-- name: CountRecentVerificationRequestsByUser :one
 SELECT COUNT(*)
 FROM email_verification_tokens
-WHERE user_id = $1
-  AND created_at > $2
+WHERE tenant_id = $1
+  AND user_id = $2
+  AND created_at > $3
 `
 
 type CountRecentVerificationRequestsByUserParams struct {
+	TenantID  pgtype.UUID        `json:"tenant_id"`
 	UserID    pgtype.UUID        `json:"user_id"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 // Count recent email verification requests for a specific user (rate limiting)
+// Scoped by tenant_id to ensure rate limits are per-tenant
 func (q *Queries) CountRecentVerificationRequestsByUser(ctx context.Context, arg CountRecentVerificationRequestsByUserParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countRecentVerificationRequestsByUser, arg.UserID, arg.CreatedAt)
+	row := q.db.QueryRow(ctx, countRecentVerificationRequestsByUser, arg.TenantID, arg.UserID, arg.CreatedAt)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
