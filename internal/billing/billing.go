@@ -87,6 +87,30 @@ type Provider interface {
 	// RefundPayment refunds a completed payment.
 	// Post-MVP: For order cancellations and returns.
 	RefundPayment(ctx context.Context, params RefundParams) (*Refund, error)
+
+	// CreateInvoice creates a draft invoice in Stripe for wholesale billing.
+	// Returns the Stripe invoice ID for storage in provider_invoice_id.
+	CreateInvoice(ctx context.Context, params CreateInvoiceParams) (*Invoice, error)
+
+	// AddInvoiceItem adds a line item to a draft Stripe invoice.
+	// Must be called before FinalizeInvoice.
+	AddInvoiceItem(ctx context.Context, params AddInvoiceItemParams) error
+
+	// FinalizeInvoice finalizes a draft Stripe invoice, making it payable.
+	// Cannot add more items after finalization.
+	FinalizeInvoice(ctx context.Context, params FinalizeInvoiceParams) (*Invoice, error)
+
+	// SendInvoice sends a finalized invoice to the customer via email.
+	// Invoice must be finalized first.
+	SendInvoice(ctx context.Context, params SendInvoiceParams) error
+
+	// VoidInvoice voids an unpaid Stripe invoice.
+	// Only works on open (unpaid) invoices.
+	VoidInvoice(ctx context.Context, params VoidInvoiceParams) error
+
+	// PayInvoice pays an invoice using the customer's default payment method.
+	// Used for automatic payment collection on wholesale invoices.
+	PayInvoice(ctx context.Context, params PayInvoiceParams) (*Invoice, error)
 }
 
 // CreateCustomerParams contains parameters for creating a customer.
@@ -430,21 +454,21 @@ type GetInvoiceParams struct {
 
 // Invoice represents a Stripe invoice.
 type Invoice struct {
-	ID                 string
-	CustomerID         string
-	SubscriptionID     string // Empty if not a subscription invoice
-	Status             string // "draft", "open", "paid", "uncollectible", "void"
-	AmountDueCents     int64
-	AmountPaidCents    int64
-	Currency           string
-	PeriodStart        time.Time
-	PeriodEnd          time.Time
-	PaymentIntentID    string // For linking to payment
-	Metadata           map[string]string
+	ID                   string
+	CustomerID           string
+	SubscriptionID       string // Empty if not a subscription invoice
+	Status               string // "draft", "open", "paid", "uncollectible", "void"
+	AmountDueCents       int64
+	AmountPaidCents      int64
+	Currency             string
+	PeriodStart          time.Time
+	PeriodEnd            time.Time
+	PaymentIntentID      string // For linking to payment
+	Metadata             map[string]string
 	SubscriptionMetadata map[string]string // Metadata from associated subscription
-	Lines              []InvoiceLineItem
-	CreatedAt          time.Time
-	PaidAt             *time.Time
+	Lines                []InvoiceLineItem
+	CreatedAt            time.Time
+	PaidAt               *time.Time
 }
 
 // InvoiceLineItem represents a line item on an invoice.
@@ -481,4 +505,55 @@ type Refund struct {
 	Amount    int64
 	Status    string // succeeded, pending, failed
 	CreatedAt time.Time
+}
+
+// CreateInvoiceParams contains parameters for creating a wholesale invoice in Stripe.
+type CreateInvoiceParams struct {
+	CustomerID       string            // Stripe customer ID (cus_...)
+	TenantID         string            // For multi-tenant isolation
+	Currency         string            // ISO 4217 currency code
+	Description      string            // Invoice description/memo
+	DueDate          time.Time         // When payment is due
+	CollectionMethod string            // "send_invoice" for net terms, "charge_automatically" for immediate
+	AutoAdvance      bool              // If true, Stripe auto-finalizes
+	Metadata         map[string]string // Must include tenant_id and local invoice_id
+	IdempotencyKey   string            // Prevent duplicate invoices
+}
+
+// AddInvoiceItemParams contains parameters for adding a line item to an invoice.
+type AddInvoiceItemParams struct {
+	CustomerID  string            // Stripe customer ID (required even with InvoiceID)
+	InvoiceID   string            // Stripe invoice ID (in_...)
+	TenantID    string            // For multi-tenant isolation
+	Description string            // Line item description
+	Quantity    int32             // Quantity (default 1)
+	UnitAmount  int32             // Amount per unit in cents
+	Currency    string            // ISO 4217 currency code
+	Metadata    map[string]string // Optional metadata
+}
+
+// FinalizeInvoiceParams contains parameters for finalizing an invoice.
+type FinalizeInvoiceParams struct {
+	InvoiceID     string // Stripe invoice ID
+	TenantID      string // For multi-tenant isolation
+	AutoAdvance   bool   // If true, auto-send after finalization
+}
+
+// SendInvoiceParams contains parameters for sending an invoice.
+type SendInvoiceParams struct {
+	InvoiceID string // Stripe invoice ID
+	TenantID  string // For multi-tenant isolation
+}
+
+// VoidInvoiceParams contains parameters for voiding an invoice.
+type VoidInvoiceParams struct {
+	InvoiceID string // Stripe invoice ID
+	TenantID  string // For multi-tenant isolation
+}
+
+// PayInvoiceParams contains parameters for paying an invoice.
+type PayInvoiceParams struct {
+	InvoiceID       string // Stripe invoice ID
+	TenantID        string // For multi-tenant isolation
+	PaymentMethodID string // Optional - uses default if not provided
 }

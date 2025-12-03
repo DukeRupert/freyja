@@ -123,17 +123,7 @@ func run() error {
 	}
 	logger.Info("Email service initialized")
 
-	// Initialize background worker
-	logger.Info("Initializing background worker...")
-	workerConfig := worker.Config{
-		WorkerID:       fmt.Sprintf("worker-%s", uuid.New().String()[:8]),
-		PollInterval:   1 * time.Second,
-		MaxConcurrency: 5,
-		Queue:          "email",
-		TenantID:       &tenantUUID,
-	}
-	bgWorker := worker.NewWorker(repo, emailService, workerConfig, logger)
-	logger.Info("Background worker initialized")
+	// Note: Background worker initialization moved after service creation
 
 	// Load templates with renderer
 	logger.Info("Loading templates...")
@@ -212,6 +202,34 @@ func run() error {
 		return fmt.Errorf("failed to initialize checkout service: %w", err)
 	}
 	logger.Info("Checkout service initialized")
+
+	// Initialize payment terms service
+	logger.Info("Initializing payment terms service...")
+	paymentTermsService, err := service.NewPaymentTermsService(repo, cfg.TenantID)
+	if err != nil {
+		return fmt.Errorf("failed to initialize payment terms service: %w", err)
+	}
+	logger.Info("Payment terms service initialized")
+
+	// Initialize invoice service
+	logger.Info("Initializing invoice service...")
+	invoiceService, err := service.NewInvoiceService(repo, paymentTermsService, billingProvider, cfg.TenantID)
+	if err != nil {
+		return fmt.Errorf("failed to initialize invoice service: %w", err)
+	}
+	logger.Info("Invoice service initialized")
+
+	// Initialize background worker
+	logger.Info("Initializing background worker...")
+	workerConfig := worker.Config{
+		WorkerID:       fmt.Sprintf("worker-%s", uuid.New().String()[:8]),
+		PollInterval:   1 * time.Second,
+		MaxConcurrency: 5,
+		Queue:          "", // Process all queues
+		TenantID:       &tenantUUID,
+	}
+	bgWorker := worker.NewWorker(repo, emailService, invoiceService, workerConfig, logger)
+	logger.Info("Background worker initialized")
 
 	// ==========================================================================
 	// Build route dependencies

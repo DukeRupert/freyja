@@ -10,6 +10,7 @@ import (
 	"github.com/stripe/stripe-go/v83/billingportal/session"
 	"github.com/stripe/stripe-go/v83/customer"
 	"github.com/stripe/stripe-go/v83/invoice"
+	"github.com/stripe/stripe-go/v83/invoiceitem"
 	"github.com/stripe/stripe-go/v83/paymentintent"
 	"github.com/stripe/stripe-go/v83/price"
 	"github.com/stripe/stripe-go/v83/product"
@@ -1023,15 +1024,15 @@ func buildInvoice(stripeInvoice *stripe.Invoice) *Invoice {
 
 	inv := &Invoice{
 		ID:              stripeInvoice.ID,
-		CustomerID:     stripeInvoice.Customer.ID,
-		Status:         string(stripeInvoice.Status),
-		AmountDueCents: stripeInvoice.AmountDue,
+		CustomerID:      stripeInvoice.Customer.ID,
+		Status:          string(stripeInvoice.Status),
+		AmountDueCents:  stripeInvoice.AmountDue,
 		AmountPaidCents: stripeInvoice.AmountPaid,
-		Currency:       string(stripeInvoice.Currency),
-		PeriodStart:    time.Unix(stripeInvoice.PeriodStart, 0),
-		PeriodEnd:      time.Unix(stripeInvoice.PeriodEnd, 0),
-		Metadata:       stripeInvoice.Metadata,
-		CreatedAt:      time.Unix(stripeInvoice.Created, 0),
+		Currency:        string(stripeInvoice.Currency),
+		PeriodStart:     time.Unix(stripeInvoice.PeriodStart, 0),
+		PeriodEnd:       time.Unix(stripeInvoice.PeriodEnd, 0),
+		Metadata:        stripeInvoice.Metadata,
+		CreatedAt:       time.Unix(stripeInvoice.Created, 0),
 	}
 
 	// Set payment intent ID from payments list (Stripe v83 API)
@@ -1301,4 +1302,214 @@ func validateAmount(amountCents int32, currency string) error {
 	}
 
 	return nil
+}
+
+// =============================================================================
+// WHOLESALE INVOICING METHODS
+// =============================================================================
+
+// CreateInvoice creates a draft invoice in Stripe for wholesale billing.
+//
+// Flow:
+//  1. Create draft invoice with customer and due date
+//  2. Add line items via AddInvoiceItem
+//  3. Finalize invoice via FinalizeInvoice
+//  4. Send to customer via SendInvoice
+//
+// The invoice is created with collection_method="send_invoice" which means
+// the customer receives an email with a payment link rather than being
+// charged automatically.
+func (s *StripeProvider) CreateInvoice(ctx context.Context, params CreateInvoiceParams) (*Invoice, error) {
+	// Validate tenant_id is present
+	if params.TenantID == "" {
+		return nil, fmt.Errorf("tenant_id is required for multi-tenant isolation")
+	}
+	if params.CustomerID == "" {
+		return nil, fmt.Errorf("customer_id is required")
+	}
+
+	// Ensure tenant_id is in metadata
+	if params.Metadata == nil {
+		params.Metadata = make(map[string]string)
+	}
+	params.Metadata["tenant_id"] = params.TenantID
+
+	// Build Stripe invoice params
+	invoiceParams := &stripe.InvoiceParams{
+		Customer: stripe.String(params.CustomerID),
+		Currency: stripe.String(strings.ToLower(params.Currency)),
+	}
+
+	// Set collection method (default to send_invoice for wholesale)
+	collectionMethod := params.CollectionMethod
+	if collectionMethod == "" {
+		collectionMethod = "send_invoice"
+	}
+	invoiceParams.CollectionMethod = stripe.String(collectionMethod)
+
+	// Set due date (only for send_invoice collection method)
+	if collectionMethod == "send_invoice" && !params.DueDate.IsZero() {
+		invoiceParams.DueDate = stripe.Int64(params.DueDate.Unix())
+	}
+
+	// Set description
+	if params.Description != "" {
+		invoiceParams.Description = stripe.String(params.Description)
+	}
+
+	// Set auto_advance (whether Stripe auto-finalizes)
+	invoiceParams.AutoAdvance = stripe.Bool(params.AutoAdvance)
+
+	// Add metadata
+	for k, v := range params.Metadata {
+		invoiceParams.AddMetadata(k, v)
+	}
+
+	// Set idempotency key
+	if params.IdempotencyKey != "" {
+		invoiceParams.SetIdempotencyKey(params.IdempotencyKey)
+	}
+
+	// Create the invoice
+	stripeInvoice, err := invoice.New(invoiceParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Stripe invoice: %w", err)
+	}
+
+	return buildInvoice(stripeInvoice), nil
+}
+
+// AddInvoiceItem adds a line item to a draft Stripe invoice.
+//
+// Note: Line items can only be added while invoice is in draft status.
+// Once finalized, no more items can be added.
+func (s *StripeProvider) AddInvoiceItem(ctx context.Context, params AddInvoiceItemParams) error {
+	if params.CustomerID == "" {
+		return fmt.Errorf("customer_id is required")
+	}
+	if params.InvoiceID == "" {
+		return fmt.Errorf("invoice_id is required")
+	}
+
+	// Calculate total amount (unit amount * quantity)
+	quantity := params.Quantity
+	if quantity <= 0 {
+		quantity = 1
+	}
+	totalAmount := int64(params.UnitAmount) * int64(quantity)
+
+	itemParams := &stripe.InvoiceItemParams{
+		Customer:    stripe.String(params.CustomerID),
+		Invoice:     stripe.String(params.InvoiceID),
+		Description: stripe.String(params.Description),
+		Currency:    stripe.String(strings.ToLower(params.Currency)),
+		Amount:      stripe.Int64(totalAmount),
+		Quantity:    stripe.Int64(int64(quantity)),
+	}
+
+	// Add metadata
+	for k, v := range params.Metadata {
+		itemParams.AddMetadata(k, v)
+	}
+
+	_, err := invoiceitem.New(itemParams)
+	if err != nil {
+		return fmt.Errorf("failed to add invoice item: %w", err)
+	}
+
+	return nil
+}
+
+// FinalizeInvoice finalizes a draft invoice, making it payable.
+//
+// After finalization:
+//   - Invoice status changes from "draft" to "open"
+//   - No more line items can be added
+//   - Customer can view and pay the invoice
+//   - If auto_advance was true, invoice is automatically sent
+func (s *StripeProvider) FinalizeInvoice(ctx context.Context, params FinalizeInvoiceParams) (*Invoice, error) {
+	if params.InvoiceID == "" {
+		return nil, fmt.Errorf("invoice_id is required")
+	}
+
+	finalizeParams := &stripe.InvoiceFinalizeInvoiceParams{}
+
+	// Auto advance sends the invoice immediately after finalization
+	if params.AutoAdvance {
+		finalizeParams.AutoAdvance = stripe.Bool(true)
+	}
+
+	stripeInvoice, err := invoice.FinalizeInvoice(params.InvoiceID, finalizeParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to finalize invoice: %w", err)
+	}
+
+	return buildInvoice(stripeInvoice), nil
+}
+
+// SendInvoice sends a finalized invoice to the customer via email.
+//
+// Stripe sends an email with:
+//   - Invoice details and line items
+//   - Hosted invoice page URL where customer can pay
+//   - PDF attachment of the invoice
+func (s *StripeProvider) SendInvoice(ctx context.Context, params SendInvoiceParams) error {
+	if params.InvoiceID == "" {
+		return fmt.Errorf("invoice_id is required")
+	}
+
+	_, err := invoice.SendInvoice(params.InvoiceID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to send invoice: %w", err)
+	}
+
+	return nil
+}
+
+// VoidInvoice voids an unpaid invoice.
+//
+// Voiding is appropriate when:
+//   - Order was canceled
+//   - Invoice was created in error
+//   - Customer dispute resolution
+//
+// Note: Only open (unpaid) invoices can be voided.
+// Paid invoices must be refunded instead.
+func (s *StripeProvider) VoidInvoice(ctx context.Context, params VoidInvoiceParams) error {
+	if params.InvoiceID == "" {
+		return fmt.Errorf("invoice_id is required")
+	}
+
+	_, err := invoice.VoidInvoice(params.InvoiceID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to void invoice: %w", err)
+	}
+
+	return nil
+}
+
+// PayInvoice attempts to pay an open invoice using the customer's payment method.
+//
+// This is useful for:
+//   - Automatic collection attempts for overdue invoices
+//   - Processing payment when customer clicks "Pay Now"
+//
+// If PaymentMethodID is not provided, uses customer's default payment method.
+func (s *StripeProvider) PayInvoice(ctx context.Context, params PayInvoiceParams) (*Invoice, error) {
+	if params.InvoiceID == "" {
+		return nil, fmt.Errorf("invoice_id is required")
+	}
+
+	payParams := &stripe.InvoicePayParams{}
+
+	if params.PaymentMethodID != "" {
+		payParams.PaymentMethod = stripe.String(params.PaymentMethodID)
+	}
+
+	stripeInvoice, err := invoice.Pay(params.InvoiceID, payParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pay invoice: %w", err)
+	}
+
+	return buildInvoice(stripeInvoice), nil
 }

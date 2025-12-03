@@ -34,11 +34,35 @@ var (
 	ErrPaymentAlreadyProcessed = errors.New("payment intent already processed")
 
 	// Subscription-related errors
-	ErrSubscriptionNotFound   = errors.New("subscription not found")
-	ErrNoPaymentMethod        = errors.New("no payment method on file")
-	ErrInvalidBillingInterval = errors.New("invalid billing interval")
-	ErrSubscriptionNotActive  = errors.New("subscription is not active")
-	ErrSubscriptionNotPaused  = errors.New("subscription is not paused")
-	ErrInvoiceNotFound        = errors.New("invoice not found")
+	ErrSubscriptionNotFound    = errors.New("subscription not found")
+	ErrNoPaymentMethod         = errors.New("no payment method on file")
+	ErrInvalidBillingInterval  = errors.New("invalid billing interval")
+	ErrSubscriptionNotActive   = errors.New("subscription is not active")
+	ErrSubscriptionNotPaused   = errors.New("subscription is not paused")
+	ErrInvoiceNotFound         = errors.New("invoice not found")
 	ErrInvoiceAlreadyProcessed = errors.New("invoice already processed")
+
+	// Payment terms errors
+	ErrPaymentTermsNotFound      = errors.New("payment terms not found")
+	ErrPaymentTermsInUse         = errors.New("payment terms in use by customers or invoices")
+	ErrDuplicatePaymentTermsCode = errors.New("payment terms code already exists")
+
+	// Wholesale invoice errors
+	ErrInvoiceAlreadyFinalized = errors.New("invoice already finalized")
+	ErrInvoiceNotDraft         = errors.New("invoice must be in draft status")
+	ErrInvoiceAlreadyPaid      = errors.New("invoice already paid in full")
+	ErrPaymentExceedsBalance   = errors.New("payment amount exceeds invoice balance")
+	ErrNoOrdersToInvoice       = errors.New("no uninvoiced orders found for period")
+	ErrOrderNotWholesale       = errors.New("order is not a wholesale order")
+	ErrOrderAlreadyInvoiced    = errors.New("order already invoiced")
+
+	// Fulfillment errors
+	ErrShipmentNotFound       = errors.New("shipment not found")
+	ErrExceedsOrderedQuantity = errors.New("shipment quantity exceeds ordered quantity")
+	ErrItemAlreadyFulfilled   = errors.New("order item already fully fulfilled")
+	ErrNoItemsToShip          = errors.New("no items to ship")
+
+	// User/customer errors
+	ErrNotWholesaleUser   = errors.New("user is not a wholesale customer")
+	ErrMinimumSpendNotMet = errors.New("order does not meet minimum spend requirement")
 )

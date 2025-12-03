@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/dukerupert/freyja/internal/email"
 	"github.com/dukerupert/freyja/internal/jobs"
 	"github.com/dukerupert/freyja/internal/repository"
+	"github.com/dukerupert/freyja/internal/service"
 )
 
 // Config holds worker configuration
@@ -34,14 +36,21 @@ type Config struct {
 
 // Worker processes background jobs
 type Worker struct {
-	config       Config
-	queries      *repository.Queries
-	emailService *email.Service
-	logger       *slog.Logger
+	config         Config
+	queries        *repository.Queries
+	emailService   *email.Service
+	invoiceService service.InvoiceService
+	logger         *slog.Logger
 }
 
 // NewWorker creates a new background job worker
-func NewWorker(queries *repository.Queries, emailService *email.Service, config Config, logger *slog.Logger) *Worker {
+func NewWorker(
+	queries *repository.Queries,
+	emailService *email.Service,
+	invoiceService service.InvoiceService,
+	config Config,
+	logger *slog.Logger,
+) *Worker {
 	// Set defaults
 	if config.WorkerID == "" {
 		config.WorkerID = fmt.Sprintf("worker-%s", uuid.New().String()[:8])
@@ -54,10 +63,11 @@ func NewWorker(queries *repository.Queries, emailService *email.Service, config 
 	}
 
 	return &Worker{
-		config:       config,
-		queries:      queries,
-		emailService: emailService,
-		logger:       logger,
+		config:         config,
+		queries:        queries,
+		emailService:   emailService,
+		invoiceService: invoiceService,
+		logger:         logger,
 	}
 }
 
@@ -173,7 +183,68 @@ func (w *Worker) processJob(ctx context.Context, job *repository.Job) error {
 		return jobs.ProcessEmailJob(jobCtx, job, w.emailService, w.queries)
 	}
 
+	if isInvoiceJob(job.JobType) {
+		return w.processInvoiceJob(jobCtx, job)
+	}
+
 	return fmt.Errorf("unknown job type: %s", job.JobType)
+}
+
+// processInvoiceJob processes an invoice job based on its type
+func (w *Worker) processInvoiceJob(ctx context.Context, job *repository.Job) error {
+	switch job.JobType {
+	case jobs.JobTypeGenerateConsolidatedInvoice:
+		var payload jobs.GenerateConsolidatedInvoicePayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal consolidated invoice payload: %w", err)
+		}
+
+		_, err := w.invoiceService.GenerateConsolidatedInvoice(ctx, service.ConsolidatedInvoiceParams{
+			UserID:             payload.UserID.String(),
+			BillingPeriodStart: payload.BillingPeriodStart,
+			BillingPeriodEnd:   payload.BillingPeriodEnd,
+		})
+		return err
+
+	case jobs.JobTypeMarkOverdueInvoices:
+		count, err := w.invoiceService.MarkInvoicesOverdue(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to mark overdue invoices: %w", err)
+		}
+		w.logger.Info("marked invoices as overdue", "count", count)
+		return nil
+
+	case jobs.JobTypeSendInvoiceReminder:
+		var payload jobs.SendInvoiceReminderPayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal reminder payload: %w", err)
+		}
+
+		// Get invoice and send reminder
+		// TODO: Implement reminder email functionality
+		// For now, just validate the invoice exists
+		_, err := w.invoiceService.GetInvoice(ctx, payload.InvoiceID.String())
+		if err != nil {
+			return fmt.Errorf("invoice not found: %w", err)
+		}
+
+		// TODO: Send reminder email via email service
+		w.logger.Info("invoice reminder not yet implemented",
+			"invoice_id", payload.InvoiceID,
+			"reminder_type", payload.ReminderType)
+		return nil
+
+	case jobs.JobTypeSyncInvoiceFromStripe:
+		var payload jobs.SyncInvoiceFromStripePayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal sync payload: %w", err)
+		}
+
+		return w.invoiceService.SyncInvoiceFromStripe(ctx, payload.StripeInvoiceID)
+
+	default:
+		return fmt.Errorf("unknown invoice job type: %s", job.JobType)
+	}
 }
 
 // isEmailJob checks if a job type is an email job
@@ -185,6 +256,18 @@ func isEmailJob(jobType string) bool {
 		jobs.JobTypeSubscriptionWelcome,
 		jobs.JobTypeSubscriptionPaymentFailed,
 		jobs.JobTypeSubscriptionCancelled:
+		return true
+	}
+	return false
+}
+
+// isInvoiceJob checks if a job type is an invoice job
+func isInvoiceJob(jobType string) bool {
+	switch jobType {
+	case jobs.JobTypeGenerateConsolidatedInvoice,
+		jobs.JobTypeMarkOverdueInvoices,
+		jobs.JobTypeSendInvoiceReminder,
+		jobs.JobTypeSyncInvoiceFromStripe:
 		return true
 	}
 	return false
