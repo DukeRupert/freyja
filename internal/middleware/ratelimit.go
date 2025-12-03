@@ -156,10 +156,23 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// RateLimit creates a rate limiting middleware with the given config
-func RateLimit(config RateLimiterConfig) func(http.Handler) http.Handler {
-	limiter := NewRateLimiter(config)
+// RateLimit creates a rate limiting middleware.
+// If no config is provided, DefaultRateLimiterConfig is used.
+func RateLimit(config ...RateLimiterConfig) func(http.Handler) http.Handler {
+	var cfg RateLimiterConfig
+	if len(config) > 0 {
+		cfg = config[0]
+	} else {
+		cfg = DefaultRateLimiterConfig()
+	}
+	limiter := NewRateLimiter(cfg)
 	return limiter.Middleware
+}
+
+// StrictRateLimit creates a rate limiting middleware with stricter limits.
+// Useful for sensitive endpoints like authentication.
+func StrictRateLimit() func(http.Handler) http.Handler {
+	return RateLimit(StrictRateLimiterConfig())
 }
 
 // GetClientIP extracts the client IP from the request

@@ -75,22 +75,31 @@ func DefaultCSRFConfig() CSRFConfig {
 	}
 }
 
-// CSRF provides CSRF protection middleware
-func CSRF(config CSRFConfig) func(http.Handler) http.Handler {
-	if config.CookieName == "" {
-		config.CookieName = CSRFCookieName
+// CSRF provides CSRF protection middleware.
+// If no config is provided, sensible defaults are used.
+func CSRF(config ...CSRFConfig) func(http.Handler) http.Handler {
+	var cfg CSRFConfig
+	if len(config) > 0 {
+		cfg = config[0]
+	} else {
+		cfg = DefaultCSRFConfig()
 	}
-	if config.CookiePath == "" {
-		config.CookiePath = "/"
+
+	// Fill in missing values with defaults
+	if cfg.CookieName == "" {
+		cfg.CookieName = CSRFCookieName
 	}
-	if config.CookieSameSite == 0 {
-		config.CookieSameSite = http.SameSiteLaxMode
+	if cfg.CookiePath == "" {
+		cfg.CookiePath = "/"
+	}
+	if cfg.CookieSameSite == 0 {
+		cfg.CookieSameSite = http.SameSiteLaxMode
 	}
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Check if path should skip CSRF validation
-			for _, path := range config.SkipPaths {
+			for _, path := range cfg.SkipPaths {
 				if len(r.URL.Path) >= len(path) && r.URL.Path[:len(path)] == path {
 					next.ServeHTTP(w, r)
 					return
@@ -98,10 +107,10 @@ func CSRF(config CSRFConfig) func(http.Handler) http.Handler {
 			}
 
 			// Get or create CSRF token
-			token := getCSRFTokenFromCookie(r, config.CookieName)
+			token := getCSRFTokenFromCookie(r, cfg.CookieName)
 			if token == "" {
 				token = generateCSRFToken()
-				setCSRFCookie(w, token, config)
+				setCSRFCookie(w, token, cfg)
 			}
 
 			// Add token to context for templates
@@ -117,8 +126,8 @@ func CSRF(config CSRFConfig) func(http.Handler) http.Handler {
 			// For unsafe methods, validate the token
 			submittedToken := getSubmittedCSRFToken(r)
 			if !validateCSRFToken(token, submittedToken) {
-				if config.ErrorHandler != nil {
-					config.ErrorHandler(w, r)
+				if cfg.ErrorHandler != nil {
+					cfg.ErrorHandler(w, r)
 				} else {
 					http.Error(w, "CSRF token mismatch", http.StatusForbidden)
 				}

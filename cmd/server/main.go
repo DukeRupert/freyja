@@ -310,21 +310,23 @@ func run() error {
 	// Initialize Prometheus metrics
 	metrics := middleware.NewMetrics("freyja")
 
-	// Configure security headers
-	securityConfig := middleware.DefaultSecurityHeadersConfig()
-	if cfg.Env == "development" {
-		// Relax CSP in development for easier debugging
-		securityConfig.ContentSecurityPolicy = ""
-		securityConfig.HSTSMaxAge = 0 // Disable HSTS in development
+	// Environment-specific middleware configuration
+	isDev := cfg.Env == "development"
+
+	// Security headers config (relaxed in development)
+	var securityConfig middleware.SecurityHeadersConfig
+	if isDev {
+		securityConfig = middleware.SecurityHeadersConfig{
+			// Relax CSP and HSTS in development for easier debugging
+			ContentSecurityPolicy: "",
+			HSTSMaxAge:            0,
+		}
 	}
 
-	// Configure CSRF protection
-	csrfConfig := middleware.DefaultCSRFConfig()
-	csrfConfig.CookieSecure = cfg.Env != "development"
-
-	// Configure rate limiting
-	defaultRateLimiter := middleware.NewRateLimiter(middleware.DefaultRateLimiterConfig())
-	authRateLimiter := middleware.NewRateLimiter(middleware.StrictRateLimiterConfig())
+	// CSRF config (insecure cookies allowed in development)
+	csrfConfig := middleware.CSRFConfig{
+		CookieSecure: !isDev,
+	}
 
 	// ==========================================================================
 	// Create routers and register routes
@@ -336,9 +338,9 @@ func run() error {
 		middleware.RequestID,
 		metrics.Middleware,
 		middleware.SecurityHeaders(securityConfig),
-		middleware.MaxBodySize(middleware.DefaultMaxBodySize),
-		middleware.Timeout(middleware.DefaultTimeout),
-		defaultRateLimiter.Middleware,
+		middleware.MaxBodySize(),
+		middleware.Timeout(),
+		middleware.RateLimit(),
 		router.Logger(logger),
 		middleware.WithUser(userService),
 		middleware.CSRF(csrfConfig),
@@ -364,7 +366,7 @@ func run() error {
 	routes.RegisterWebhookRoutes(r, webhookDeps)
 
 	// Apply stricter rate limiting to auth endpoints
-	authRouter := r.Group(authRateLimiter.Middleware)
+	authRouter := r.Group(middleware.StrictRateLimit())
 	authRouter.Post("/login", storefrontDeps.LoginHandler.HandleSubmit)
 	authRouter.Post("/signup", storefrontDeps.SignupHandler.HandleSubmit)
 
@@ -373,6 +375,7 @@ func run() error {
 		router.Recovery(logger),
 		middleware.RequestID,
 		middleware.SecurityHeaders(securityConfig),
+		middleware.RateLimit(),
 		router.Logger(logger),
 	)
 	saasRouter.Static("/static/", "./web/static")
