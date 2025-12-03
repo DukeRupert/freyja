@@ -193,10 +193,10 @@ func (s *fulfillmentService) CreateShipment(ctx context.Context, params CreateSh
 	}
 
 	shipment, err := s.repo.CreateShipment(ctx, repository.CreateShipmentParams{
-		TenantID:       s.tenantID,
-		OrderID:        order.ID,
-		Carrier:        carrier,
-		TrackingNumber: trackingNumber,
+		TenantID:         s.tenantID,
+		OrderID:          order.ID,
+		Carrier:          carrier,
+		TrackingNumber:   trackingNumber,
 		ShippingMethodID: pgtype.UUID{}, // Optional, can be added later
 	})
 	if err != nil {

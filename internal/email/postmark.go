@@ -19,13 +19,13 @@ type PostmarkSender struct {
 }
 
 type postmarkEmail struct {
-	From        string            `json:"From"`
-	To          string            `json:"To"`
-	Subject     string            `json:"Subject"`
-	HtmlBody    string            `json:"HtmlBody,omitempty"`
-	TextBody    string            `json:"TextBody,omitempty"`
-	Headers     []postmarkHeader  `json:"Headers,omitempty"`
-	Attachments []postmarkAttach  `json:"Attachments,omitempty"`
+	From        string           `json:"From"`
+	To          string           `json:"To"`
+	Subject     string           `json:"Subject"`
+	HtmlBody    string           `json:"HtmlBody,omitempty"`
+	TextBody    string           `json:"TextBody,omitempty"`
+	Headers     []postmarkHeader `json:"Headers,omitempty"`
+	Attachments []postmarkAttach `json:"Attachments,omitempty"`
 }
 
 type postmarkHeader struct {

@@ -534,9 +534,9 @@ type AddInvoiceItemParams struct {
 
 // FinalizeInvoiceParams contains parameters for finalizing an invoice.
 type FinalizeInvoiceParams struct {
-	InvoiceID     string // Stripe invoice ID
-	TenantID      string // For multi-tenant isolation
-	AutoAdvance   bool   // If true, auto-send after finalization
+	InvoiceID   string // Stripe invoice ID
+	TenantID    string // For multi-tenant isolation
+	AutoAdvance bool   // If true, auto-send after finalization
 }
 
 // SendInvoiceParams contains parameters for sending an invoice.

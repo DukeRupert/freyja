@@ -37,10 +37,10 @@ type MarkOverdueInvoicesPayload struct {
 
 // SendInvoiceReminderPayload represents the payload for sending an invoice reminder
 type SendInvoiceReminderPayload struct {
-	InvoiceID     uuid.UUID `json:"invoice_id"`
-	ReminderType  string    `json:"reminder_type"` // "approaching_due", "past_due"
-	DaysBefore    int       `json:"days_before"`   // Days before due date (for approaching_due)
-	DaysOverdue   int       `json:"days_overdue"`  // Days past due date (for past_due)
+	InvoiceID    uuid.UUID `json:"invoice_id"`
+	ReminderType string    `json:"reminder_type"` // "approaching_due", "past_due"
+	DaysBefore   int       `json:"days_before"`   // Days before due date (for approaching_due)
+	DaysOverdue  int       `json:"days_overdue"`  // Days past due date (for past_due)
 }
 
 // SyncInvoiceFromStripePayload represents the payload for syncing an invoice from Stripe

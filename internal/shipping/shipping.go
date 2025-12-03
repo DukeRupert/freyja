@@ -81,7 +81,7 @@ type Rate struct {
 	Carrier               string
 	ServiceName           string
 	ServiceCode           string
-	CostCents             int64      // Cost in cents (int64 for large shipments)
+	CostCents             int64 // Cost in cents (int64 for large shipments)
 	EstimatedDaysMin      int
 	EstimatedDaysMax      int
 	EstimatedDeliveryDate time.Time
