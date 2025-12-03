@@ -87,9 +87,9 @@ type LabelParams struct {
 
 // TrackingInfo contains shipment tracking information (post-MVP).
 type TrackingInfo struct {
-	TrackingNumber string
-	Status         string
-	Events         []TrackingEvent
+	TrackingNumber        string
+	Status                string
+	Events                []TrackingEvent
 	EstimatedDeliveryDate time.Time
 }
 

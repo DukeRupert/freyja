@@ -8,7 +8,7 @@ import (
 
 func TestRouter_Get(t *testing.T) {
 	r := New()
-	
+
 	called := false
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		called = true
@@ -90,7 +90,7 @@ func TestRouter_Group(t *testing.T) {
 
 	r := New(globalMiddleware)
 	group := r.Group(groupMiddleware)
-	
+
 	group.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})

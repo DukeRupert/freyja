@@ -16,10 +16,10 @@ import (
 
 // StripeHandler handles Stripe webhook events
 type StripeHandler struct {
-	provider             billing.Provider
-	orderService         service.OrderService
-	subscriptionService  service.SubscriptionService
-	config               StripeWebhookConfig
+	provider            billing.Provider
+	orderService        service.OrderService
+	subscriptionService service.SubscriptionService
+	config              StripeWebhookConfig
 }
 
 // StripeWebhookConfig contains configuration for Stripe webhook handling

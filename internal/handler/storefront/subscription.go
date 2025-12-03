@@ -191,10 +191,10 @@ func (h *SubscriptionPortalHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 
 // SubscriptionCheckoutHandler displays the subscription checkout page
 type SubscriptionCheckoutHandler struct {
-	productService  service.ProductService
-	accountService  service.AccountService
-	renderer        *handler.Renderer
-	tenantID        pgtype.UUID
+	productService service.ProductService
+	accountService service.AccountService
+	renderer       *handler.Renderer
+	tenantID       pgtype.UUID
 }
 
 // NewSubscriptionCheckoutHandler creates a new subscription checkout handler

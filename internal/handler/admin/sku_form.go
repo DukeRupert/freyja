@@ -246,12 +246,12 @@ func (h *SKUFormHandler) createDefaultPricing(ctx context.Context, skuID pgtype.
 
 	// Create price list entry
 	_, err = h.repo.CreatePriceListEntry(ctx, repository.CreatePriceListEntryParams{
-		TenantID:      h.tenantID,
-		PriceListID:   priceList.ID,
-		ProductSkuID:  skuID,
-		PriceCents:    priceCents,
+		TenantID:            h.tenantID,
+		PriceListID:         priceList.ID,
+		ProductSkuID:        skuID,
+		PriceCents:          priceCents,
 		CompareAtPriceCents: pgtype.Int4{Valid: false},
-		IsAvailable:   true,
+		IsAvailable:         true,
 	})
 
 	return err

@@ -67,15 +67,15 @@ func (r *Router) handle(method, pattern string, handler http.HandlerFunc, middle
 func (r *Router) wrap(handler http.Handler, middleware []Middleware) http.Handler {
 	// Combine global middleware chain with route-specific middleware
 	combined := append(slices.Clone(r.chain), middleware...)
-	
+
 	// Apply middleware in reverse order so they execute in the order defined
 	slices.Reverse(combined)
-	
+
 	result := handler
 	for _, m := range combined {
 		result = m(result)
 	}
-	
+
 	return result
 }
 

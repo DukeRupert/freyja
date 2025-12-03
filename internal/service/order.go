@@ -41,9 +41,9 @@ type OrderDetail struct {
 }
 
 type orderService struct {
-	repo            repository.Querier
-	tenantID        pgtype.UUID
-	billingProvider billing.Provider
+	repo             repository.Querier
+	tenantID         pgtype.UUID
+	billingProvider  billing.Provider
 	shippingProvider shipping.Provider
 }
 

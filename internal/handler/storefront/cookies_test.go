@@ -79,16 +79,16 @@ func TestGetSessionIDFromCookie(t *testing.T) {
 // Test SetSessionCookie
 func TestSetSessionCookie(t *testing.T) {
 	tests := []struct {
-		name               string
-		sessionID          string
-		secure             bool
-		expectedName       string
-		expectedValue      string
-		expectedPath       string
-		expectedMaxAge     int
-		expectedHttpOnly   bool
-		expectedSecure     bool
-		expectedSameSite   http.SameSite
+		name             string
+		sessionID        string
+		secure           bool
+		expectedName     string
+		expectedValue    string
+		expectedPath     string
+		expectedMaxAge   int
+		expectedHttpOnly bool
+		expectedSecure   bool
+		expectedSameSite http.SameSite
 	}{
 		{
 			name:             "sets cookie with correct attributes in insecure mode",

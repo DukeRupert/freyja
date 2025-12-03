@@ -47,6 +47,7 @@ func NewSubscriptionService(repo repository.Querier, tenantID string, billingPro
 //  7. Create Stripe recurring price for this subscription
 //  8. Create Stripe subscription
 //  9. Update local subscription with Stripe subscription ID
+//
 // 10. Create subscription item record
 // 11. Create schedule event for tracking
 // 12. Return subscription details
@@ -284,7 +285,7 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 
 	// Step 12: Create schedule event for creation
 	scheduleMetadata, _ := json.Marshal(map[string]string{
-		"event":                 "subscription_created",
+		"event":                  "subscription_created",
 		"stripe_subscription_id": stripeSubscription.ID,
 	})
 
@@ -712,7 +713,7 @@ func (s *subscriptionService) SyncSubscriptionFromWebhook(ctx context.Context, p
 
 	// Record webhook event for idempotency
 	webhookPayload, _ := json.Marshal(map[string]string{
-		"event_type":              params.EventType,
+		"event_type":               params.EventType,
 		"provider_subscription_id": params.ProviderSubscriptionID,
 	})
 

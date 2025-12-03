@@ -36,19 +36,19 @@ type StorefrontDeps struct {
 	ResetPasswordHandler  http.Handler
 
 	// Checkout
-	CheckoutPageHandler      http.Handler
-	ValidateAddressHandler   http.Handler
-	GetShippingRatesHandler  http.Handler
-	CalculateTotalHandler    http.Handler
+	CheckoutPageHandler        http.Handler
+	ValidateAddressHandler     http.Handler
+	GetShippingRatesHandler    http.Handler
+	CalculateTotalHandler      http.Handler
 	CreatePaymentIntentHandler http.Handler
-	OrderConfirmationHandler http.Handler
+	OrderConfirmationHandler   http.Handler
 
 	// Account (authenticated)
-	SubscriptionListHandler    http.Handler
-	SubscriptionDetailHandler  http.Handler
-	SubscriptionPortalHandler  http.Handler
+	SubscriptionListHandler     http.Handler
+	SubscriptionDetailHandler   http.Handler
+	SubscriptionPortalHandler   http.Handler
 	SubscriptionCheckoutHandler http.Handler
-	CreateSubscriptionHandler  http.Handler
+	CreateSubscriptionHandler   http.Handler
 }
 
 // AdminDeps contains dependencies for admin routes
@@ -63,10 +63,10 @@ type AdminDeps struct {
 	SKUFormHandler       http.Handler
 
 	// Orders
-	OrderListHandler       http.Handler
-	OrderDetailHandler     http.Handler
+	OrderListHandler         http.Handler
+	OrderDetailHandler       http.Handler
 	UpdateOrderStatusHandler http.Handler
-	CreateShipmentHandler  http.Handler
+	CreateShipmentHandler    http.Handler
 
 	// Customers
 	CustomerListHandler http.Handler

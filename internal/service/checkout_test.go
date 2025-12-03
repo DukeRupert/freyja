@@ -243,13 +243,13 @@ func makeTestCartSummary(itemCount int) *CartSummary {
 
 func makeTestShippingRate(costCents int32, carrier string, serviceName string) shipping.Rate {
 	return shipping.Rate{
-		RateID:           "rate_" + carrier + "_001",
-		Carrier:          carrier,
-		ServiceName:      serviceName,
-		ServiceCode:      "std",
-		CostCents:        costCents,
-		EstimatedDaysMin: 3,
-		EstimatedDaysMax: 5,
+		RateID:                "rate_" + carrier + "_001",
+		Carrier:               carrier,
+		ServiceName:           serviceName,
+		ServiceCode:           "std",
+		CostCents:             costCents,
+		EstimatedDaysMin:      3,
+		EstimatedDaysMax:      5,
 		EstimatedDeliveryDate: time.Now().Add(4 * 24 * time.Hour),
 	}
 }
@@ -1021,12 +1021,12 @@ func TestCheckoutService_CreatePaymentIntent_Success(t *testing.T) {
 
 	ctx := context.Background()
 	orderTotal := &OrderTotal{
-		SubtotalCents: 3600,
-		ShippingCents: 500,
-		TaxCents:      288,
-		DiscountCents: 0,
-		TotalCents:    4388,
-		TaxBreakdown:  []tax.TaxBreakdown{},
+		SubtotalCents:  3600,
+		ShippingCents:  500,
+		TaxCents:       288,
+		DiscountCents:  0,
+		TotalCents:     4388,
+		TaxBreakdown:   []tax.TaxBreakdown{},
 		ShippingRateID: "rate_usps_001",
 	}
 

@@ -64,18 +64,18 @@ func (h *CustomerListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 	// Format users for display
 	type DisplayUser struct {
-		ID                  pgtype.UUID
-		Email               string
-		FirstName           pgtype.Text
-		LastName            pgtype.Text
-		FullName            string
-		AccountType         string
-		Status              string
-		CreatedAt           pgtype.Timestamptz
-		CreatedAtFormatted  string
-		LastLoginFormatted  string
-		CompanyName         pgtype.Text
-		WholesaleStatus     pgtype.Text
+		ID                 pgtype.UUID
+		Email              string
+		FirstName          pgtype.Text
+		LastName           pgtype.Text
+		FullName           string
+		AccountType        string
+		Status             string
+		CreatedAt          pgtype.Timestamptz
+		CreatedAtFormatted string
+		LastLoginFormatted string
+		CompanyName        pgtype.Text
+		WholesaleStatus    pgtype.Text
 	}
 
 	displayUsers := make([]DisplayUser, len(users))

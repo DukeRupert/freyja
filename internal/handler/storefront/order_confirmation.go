@@ -68,7 +68,7 @@ func (h *OrderConfirmationHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	// Note: The order is created asynchronously by the Stripe webhook handler.
 	// If the order doesn't exist yet, show a pending state message.
 	order, err := h.repo.GetOrderByPaymentIntentID(r.Context(), repository.GetOrderByPaymentIntentIDParams{
-		TenantID:           h.tenantID,
+		TenantID:          h.tenantID,
 		ProviderPaymentID: paymentIntentID,
 	})
 	if err != nil {

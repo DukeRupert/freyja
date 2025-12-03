@@ -31,8 +31,8 @@ type mockQuerier struct {
 	UpdateOrderPaymentIDFunc      func(ctx context.Context, arg repository.UpdateOrderPaymentIDParams) error
 
 	// GetOrder mocks
-	GetOrderFunc      func(ctx context.Context, arg repository.GetOrderParams) (repository.Order, error)
-	GetOrderItemsFunc func(ctx context.Context, orderID pgtype.UUID) ([]repository.OrderItem, error)
+	GetOrderFunc       func(ctx context.Context, arg repository.GetOrderParams) (repository.Order, error)
+	GetOrderItemsFunc  func(ctx context.Context, orderID pgtype.UUID) ([]repository.OrderItem, error)
 	GetAddressByIDFunc func(ctx context.Context, id pgtype.UUID) (repository.Address, error)
 	GetPaymentByIDFunc func(ctx context.Context, id pgtype.UUID) (repository.Payment, error)
 
@@ -504,10 +504,10 @@ func makeTestPaymentIntent(status string, metadata map[string]string) *billing.P
 
 func makeTestCart() repository.Cart {
 	return repository.Cart{
-		ID:       makeTestCartID(),
-		TenantID: makeTestTenantID(),
-		UserID:   makeTestUserID(),
-		Status:   "active",
+		ID:        makeTestCartID(),
+		TenantID:  makeTestTenantID(),
+		UserID:    makeTestUserID(),
+		Status:    "active",
 		CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 		UpdatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}
@@ -573,16 +573,16 @@ func TestOrderService_CreateOrderFromPaymentIntent_Success(t *testing.T) {
 
 	// Mock payment intent with metadata
 	metadata := map[string]string{
-		"tenant_id":        uuidToString(tenantID),
-		"cart_id":          uuidToString(cartID),
+		"tenant_id": uuidToString(tenantID),
+		"cart_id":   uuidToString(cartID),
 		"shipping_address": mustMarshalJSON(map[string]string{
-			"full_name":      "John Doe",
-			"address_line1":  "123 Main St",
-			"city":           "Portland",
-			"state":          "OR",
-			"postal_code":    "97201",
-			"country":        "US",
-			"phone":          "503-555-1234",
+			"full_name":     "John Doe",
+			"address_line1": "123 Main St",
+			"city":          "Portland",
+			"state":         "OR",
+			"postal_code":   "97201",
+			"country":       "US",
+			"phone":         "503-555-1234",
 		}),
 		"billing_address": mustMarshalJSON(map[string]string{
 			"full_name":     "John Doe",
@@ -931,8 +931,8 @@ func TestOrderService_CreateOrderFromPaymentIntent_GuestCheckout(t *testing.T) {
 	mockShipping := &mockShippingProvider{}
 
 	metadata := map[string]string{
-		"tenant_id":        uuidToString(tenantID),
-		"cart_id":          uuidToString(cartID),
+		"tenant_id": uuidToString(tenantID),
+		"cart_id":   uuidToString(cartID),
 		"shipping_address": mustMarshalJSON(map[string]string{
 			"full_name":     "Guest User",
 			"address_line1": "456 Oak Ave",

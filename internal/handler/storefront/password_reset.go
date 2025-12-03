@@ -13,9 +13,9 @@ import (
 // GET /forgot-password - Shows the form to request a password reset
 // POST /forgot-password - Processes the reset request and sends email
 type ForgotPasswordHandler struct {
-	renderer            *handler.Renderer
+	renderer             *handler.Renderer
 	passwordResetService service.PasswordResetService
-	tenantID            uuid.UUID
+	tenantID             uuid.UUID
 	// TODO: Add email service dependency when email abstraction is implemented
 }
 
@@ -26,9 +26,9 @@ func NewForgotPasswordHandler(
 	tenantID uuid.UUID,
 ) *ForgotPasswordHandler {
 	return &ForgotPasswordHandler{
-		renderer:            renderer,
+		renderer:             renderer,
 		passwordResetService: passwordResetService,
-		tenantID:            tenantID,
+		tenantID:             tenantID,
 	}
 }
 
@@ -95,10 +95,10 @@ func (h *ForgotPasswordHandler) HandleSubmit(w http.ResponseWriter, r *http.Requ
 // GET /reset-password?token=xxx - Shows the form to enter new password
 // POST /reset-password - Processes the new password
 type ResetPasswordHandler struct {
-	renderer            *handler.Renderer
+	renderer             *handler.Renderer
 	passwordResetService service.PasswordResetService
-	userService         service.UserService
-	tenantID            uuid.UUID
+	userService          service.UserService
+	tenantID             uuid.UUID
 }
 
 // NewResetPasswordHandler creates a new reset password handler
@@ -109,10 +109,10 @@ func NewResetPasswordHandler(
 	tenantID uuid.UUID,
 ) *ResetPasswordHandler {
 	return &ResetPasswordHandler{
-		renderer:            renderer,
+		renderer:             renderer,
 		passwordResetService: passwordResetService,
-		userService:         userService,
-		tenantID:            tenantID,
+		userService:          userService,
+		tenantID:             tenantID,
 	}
 }
 

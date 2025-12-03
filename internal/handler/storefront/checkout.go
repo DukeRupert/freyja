@@ -14,16 +14,16 @@ import (
 
 // CheckoutPageHandler displays the checkout page with cart summary
 type CheckoutPageHandler struct {
-	renderer              *handler.Renderer
-	cartService           service.CartService
+	renderer             *handler.Renderer
+	cartService          service.CartService
 	stripePublishableKey string
 }
 
 // NewCheckoutPageHandler creates a new checkout page handler
 func NewCheckoutPageHandler(renderer *handler.Renderer, cartService service.CartService, stripePublishableKey string) *CheckoutPageHandler {
 	return &CheckoutPageHandler{
-		renderer:              renderer,
-		cartService:           cartService,
+		renderer:             renderer,
+		cartService:          cartService,
 		stripePublishableKey: stripePublishableKey,
 	}
 }
@@ -64,9 +64,9 @@ func (h *CheckoutPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 
 	data := map[string]interface{}{
-		"Cart":                   cartSummary,
-		"CartID":                 cart.ID.String(),
-		"StripePublishableKey":   h.stripePublishableKey,
+		"Cart":                 cartSummary,
+		"CartID":               cart.ID.String(),
+		"StripePublishableKey": h.stripePublishableKey,
 	}
 
 	h.renderer.RenderHTTP(w, "storefront/checkout", data)

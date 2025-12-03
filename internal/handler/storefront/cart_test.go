@@ -14,12 +14,12 @@ import (
 
 // mockCartService implements service.CartService for testing
 type mockCartService struct {
-	getOrCreateCartFunc     func(ctx context.Context, sessionID string) (*service.Cart, string, error)
-	getCartFunc             func(ctx context.Context, sessionID string) (*service.Cart, error)
-	addItemFunc             func(ctx context.Context, cartID string, skuID string, quantity int) (*service.CartSummary, error)
-	updateItemQuantityFunc  func(ctx context.Context, cartID string, skuID string, quantity int) (*service.CartSummary, error)
-	removeItemFunc          func(ctx context.Context, cartID string, skuID string) (*service.CartSummary, error)
-	getCartSummaryFunc      func(ctx context.Context, cartID string) (*service.CartSummary, error)
+	getOrCreateCartFunc    func(ctx context.Context, sessionID string) (*service.Cart, string, error)
+	getCartFunc            func(ctx context.Context, sessionID string) (*service.Cart, error)
+	addItemFunc            func(ctx context.Context, cartID string, skuID string, quantity int) (*service.CartSummary, error)
+	updateItemQuantityFunc func(ctx context.Context, cartID string, skuID string, quantity int) (*service.CartSummary, error)
+	removeItemFunc         func(ctx context.Context, cartID string, skuID string) (*service.CartSummary, error)
+	getCartSummaryFunc     func(ctx context.Context, cartID string) (*service.CartSummary, error)
 }
 
 func (m *mockCartService) GetOrCreateCart(ctx context.Context, sessionID string) (*service.Cart, string, error) {
@@ -77,8 +77,8 @@ func TestCartViewHandler_ServeHTTP(t *testing.T) {
 		checkBody      func(t *testing.T, body string)
 	}{
 		{
-			name:          "no session cookie shows empty cart",
-			sessionCookie: "",
+			name:           "no session cookie shows empty cart",
+			sessionCookie:  "",
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				if !strings.Contains(body, "Your cart is empty") {
@@ -90,10 +90,10 @@ func TestCartViewHandler_ServeHTTP(t *testing.T) {
 			},
 		},
 		{
-			name:          "session exists but cart not found shows empty",
-			sessionCookie: "valid-session-id",
-			mockCart:      nil,
-			mockGetError:  service.ErrCartNotFound,
+			name:           "session exists but cart not found shows empty",
+			sessionCookie:  "valid-session-id",
+			mockCart:       nil,
+			mockGetError:   service.ErrCartNotFound,
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				if !strings.Contains(body, "Your cart is empty") {
@@ -167,10 +167,10 @@ func TestCartViewHandler_ServeHTTP(t *testing.T) {
 			},
 		},
 		{
-			name:          "service error on GetCart returns 500",
-			sessionCookie: "valid-session-id",
-			mockCart:      nil,
-			mockGetError:  errors.New("database connection failed"),
+			name:           "service error on GetCart returns 500",
+			sessionCookie:  "valid-session-id",
+			mockCart:       nil,
+			mockGetError:   errors.New("database connection failed"),
 			expectedStatus: http.StatusInternalServerError,
 			checkBody: func(t *testing.T, body string) {
 				if !strings.Contains(body, "Failed to load cart") {
@@ -257,18 +257,18 @@ func TestCartViewHandler_ServeHTTP(t *testing.T) {
 // Test AddToCartHandler.ServeHTTP
 func TestAddToCartHandler_ServeHTTP(t *testing.T) {
 	tests := []struct {
-		name                string
-		formData            url.Values
-		sessionCookie       string
-		mockCart            *service.Cart
-		mockNewSessionID    string
-		mockSummary         *service.CartSummary
-		mockGetOrCreateErr  error
-		mockAddItemErr      error
-		expectedStatus      int
-		expectCookieSet     bool
-		checkBody           func(t *testing.T, body string)
-		checkCookie         func(t *testing.T, cookies []*http.Cookie)
+		name               string
+		formData           url.Values
+		sessionCookie      string
+		mockCart           *service.Cart
+		mockNewSessionID   string
+		mockSummary        *service.CartSummary
+		mockGetOrCreateErr error
+		mockAddItemErr     error
+		expectedStatus     int
+		expectCookieSet    bool
+		checkBody          func(t *testing.T, body string)
+		checkCookie        func(t *testing.T, cookies []*http.Cookie)
 	}{
 		{
 			name: "successfully add item to new cart",

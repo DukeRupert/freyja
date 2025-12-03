@@ -637,7 +637,7 @@ func TestCancelPaymentIntent(t *testing.T) {
 
 			if tt.validateStatus != "" {
 				pi, err := mock.GetPaymentIntent(context.Background(), GetPaymentIntentParams{
-				TenantID:        "tenant_abc",
+					TenantID:        "tenant_abc",
 					PaymentIntentID: tt.paymentIntentID,
 				})
 				require.NoError(t, err)
@@ -788,7 +788,7 @@ func TestCheckoutFlow_Integration(t *testing.T) {
 
 		// Step 3: Get payment intent to verify succeeded status
 		getParams := GetPaymentIntentParams{
-				TenantID:        "tenant_abc",
+			TenantID:        "tenant_abc",
 			PaymentIntentID: pi.ID,
 		}
 
@@ -830,7 +830,7 @@ func TestCheckoutFlow_Integration(t *testing.T) {
 		// Step 2: Customer adds another item to cart
 		// Update payment intent with new amount
 		updateParams := UpdatePaymentIntentParams{
-				TenantID:        "tenant_abc",
+			TenantID:        "tenant_abc",
 			PaymentIntentID: pi.ID,
 			AmountCents:     7500, // Added $25.00 item
 			Metadata: map[string]string{
@@ -848,7 +848,7 @@ func TestCheckoutFlow_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		finalPI, err := mock.GetPaymentIntent(ctx, GetPaymentIntentParams{
-				TenantID:        "tenant_abc",
+			TenantID:        "tenant_abc",
 			PaymentIntentID: updatedPI.ID,
 		})
 		require.NoError(t, err)
@@ -880,7 +880,7 @@ func TestCheckoutFlow_Integration(t *testing.T) {
 
 		// Step 3: Get payment intent to check error
 		failedPI, err := mock.GetPaymentIntent(ctx, GetPaymentIntentParams{
-				TenantID:        "tenant_abc",
+			TenantID:        "tenant_abc",
 			PaymentIntentID: pi.ID,
 		})
 		require.NoError(t, err)

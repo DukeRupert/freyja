@@ -107,13 +107,13 @@ type Order struct {
 
 // checkoutService implements CheckoutService.
 type checkoutService struct {
-	repo            repository.Querier
-	cartService     CartService
-	billingProvider billing.Provider
+	repo             repository.Querier
+	cartService      CartService
+	billingProvider  billing.Provider
 	shippingProvider shipping.Provider
-	taxCalculator   tax.Calculator
-	addrValidator   address.Validator
-	tenantID        pgtype.UUID
+	taxCalculator    tax.Calculator
+	addrValidator    address.Validator
+	tenantID         pgtype.UUID
 }
 
 // NewCheckoutService creates a new CheckoutService instance.

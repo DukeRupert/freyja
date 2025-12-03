@@ -72,7 +72,7 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Format recent orders for display
-	type DisplayOrder struct{
+	type DisplayOrder struct {
 		ID                   pgtype.UUID
 		OrderNumber          string
 		OrderType            string
@@ -130,17 +130,17 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data := map[string]interface{}{
 		"CurrentPath": r.URL.Path,
 		"OrderStats": map[string]interface{}{
-			"TotalOrders":          orderStats.TotalOrders,
-			"PendingOrders":        orderStats.PendingOrders,
-			"ProcessingOrders":     orderStats.ProcessingOrders,
-			"ShippedOrders":        orderStats.ShippedOrders,
-			"TotalRevenueDollars":  fmt.Sprintf("%.2f", float64(revenueCents)/100),
+			"TotalOrders":         orderStats.TotalOrders,
+			"PendingOrders":       orderStats.PendingOrders,
+			"ProcessingOrders":    orderStats.ProcessingOrders,
+			"ShippedOrders":       orderStats.ShippedOrders,
+			"TotalRevenueDollars": fmt.Sprintf("%.2f", float64(revenueCents)/100),
 		},
 		"UserStats": map[string]interface{}{
-			"TotalUsers":           userStats.TotalUsers,
-			"RetailUsers":          userStats.RetailUsers,
-			"WholesaleUsers":       userStats.WholesaleUsers,
-			"PendingApplications":  userStats.PendingApplications,
+			"TotalUsers":          userStats.TotalUsers,
+			"RetailUsers":         userStats.RetailUsers,
+			"WholesaleUsers":      userStats.WholesaleUsers,
+			"PendingApplications": userStats.PendingApplications,
 		},
 		"RecentOrders": displayOrders,
 	}

@@ -199,7 +199,7 @@ func TestFlatRateProvider_GetRates_IgnoresPackageDetails(t *testing.T) {
 		{{WeightGrams: 100, LengthCm: 10, WidthCm: 10, HeightCm: 10}},
 		{{WeightGrams: 5000, LengthCm: 50, WidthCm: 50, HeightCm: 50}},
 		{{WeightGrams: 100}, {WeightGrams: 200}}, // Multiple packages
-		{}, // No packages
+		{},                                       // No packages
 	}
 
 	params := shipping.RateParams{

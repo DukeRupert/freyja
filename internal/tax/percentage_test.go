@@ -46,76 +46,76 @@ func Test_PercentageCalculator_SpecificationExample(t *testing.T) {
 // Test_PercentageCalculator_DifferentTaxRates validates calculation accuracy across various rates
 func Test_PercentageCalculator_DifferentTaxRates(t *testing.T) {
 	tests := []struct {
-		name          string
-		rate          float64
-		subtotal      int32
-		shipping      int32
-		expectedTax   int32
-		explanation   string
+		name        string
+		rate        float64
+		subtotal    int32
+		shipping    int32
+		expectedTax int32
+		explanation string
 	}{
 		{
-			name:          "zero percent rate",
-			rate:          0.0,
-			subtotal:      10000,
-			shipping:      500,
-			expectedTax:   0,
-			explanation:   "(10000 + 500) * 0.00 = 0",
+			name:        "zero percent rate",
+			rate:        0.0,
+			subtotal:    10000,
+			shipping:    500,
+			expectedTax: 0,
+			explanation: "(10000 + 500) * 0.00 = 0",
 		},
 		{
-			name:          "five percent rate",
-			rate:          0.05,
-			subtotal:      10000,
-			shipping:      0,
-			expectedTax:   500,
-			explanation:   "10000 * 0.05 = 500",
+			name:        "five percent rate",
+			rate:        0.05,
+			subtotal:    10000,
+			shipping:    0,
+			expectedTax: 500,
+			explanation: "10000 * 0.05 = 500",
 		},
 		{
-			name:          "eight percent rate",
-			rate:          0.08,
-			subtotal:      5000,
-			shipping:      1000,
-			expectedTax:   480,
-			explanation:   "(5000 + 1000) * 0.08 = 480",
+			name:        "eight percent rate",
+			rate:        0.08,
+			subtotal:    5000,
+			shipping:    1000,
+			expectedTax: 480,
+			explanation: "(5000 + 1000) * 0.08 = 480",
 		},
 		{
-			name:          "eight point five percent rate",
-			rate:          0.085,
-			subtotal:      10000,
-			shipping:      0,
-			expectedTax:   850,
-			explanation:   "10000 * 0.085 = 850",
+			name:        "eight point five percent rate",
+			rate:        0.085,
+			subtotal:    10000,
+			shipping:    0,
+			expectedTax: 850,
+			explanation: "10000 * 0.085 = 850",
 		},
 		{
-			name:          "ten percent rate",
-			rate:          0.10,
-			subtotal:      7500,
-			shipping:      500,
-			expectedTax:   800,
-			explanation:   "(7500 + 500) * 0.10 = 800",
+			name:        "ten percent rate",
+			rate:        0.10,
+			subtotal:    7500,
+			shipping:    500,
+			expectedTax: 800,
+			explanation: "(7500 + 500) * 0.10 = 800",
 		},
 		{
-			name:          "twelve point five percent rate",
-			rate:          0.125,
-			subtotal:      8000,
-			shipping:      0,
-			expectedTax:   1000,
-			explanation:   "8000 * 0.125 = 1000",
+			name:        "twelve point five percent rate",
+			rate:        0.125,
+			subtotal:    8000,
+			shipping:    0,
+			expectedTax: 1000,
+			explanation: "8000 * 0.125 = 1000",
 		},
 		{
-			name:          "very small rate",
-			rate:          0.001,
-			subtotal:      100000,
-			shipping:      0,
-			expectedTax:   100,
-			explanation:   "100000 * 0.001 = 100",
+			name:        "very small rate",
+			rate:        0.001,
+			subtotal:    100000,
+			shipping:    0,
+			expectedTax: 100,
+			explanation: "100000 * 0.001 = 100",
 		},
 		{
-			name:          "one hundred percent rate edge case",
-			rate:          1.0,
-			subtotal:      5000,
-			shipping:      0,
-			expectedTax:   5000,
-			explanation:   "5000 * 1.0 = 5000 (edge case: tax equals subtotal)",
+			name:        "one hundred percent rate edge case",
+			rate:        1.0,
+			subtotal:    5000,
+			shipping:    0,
+			expectedTax: 5000,
+			explanation: "5000 * 1.0 = 5000 (edge case: tax equals subtotal)",
 		},
 	}
 
@@ -151,60 +151,60 @@ func Test_PercentageCalculator_RoundingBehavior(t *testing.T) {
 		explanation string
 	}{
 		{
-			name:          "rounds up from 0.5",
-			rate:          0.08,
-			subtotal:      1050,
-			shipping:      0,
-			expectedTax:   84,
-			explanation:   "1050 * 0.08 = 84.0 exactly (no rounding needed)",
+			name:        "rounds up from 0.5",
+			rate:        0.08,
+			subtotal:    1050,
+			shipping:    0,
+			expectedTax: 84,
+			explanation: "1050 * 0.08 = 84.0 exactly (no rounding needed)",
 		},
 		{
-			name:          "rounds up above midpoint",
-			rate:          0.08,
-			subtotal:      1062,
-			shipping:      0,
-			expectedTax:   85,
-			explanation:   "1062 * 0.08 = 84.96, rounds to 85",
+			name:        "rounds up above midpoint",
+			rate:        0.08,
+			subtotal:    1062,
+			shipping:    0,
+			expectedTax: 85,
+			explanation: "1062 * 0.08 = 84.96, rounds to 85",
 		},
 		{
-			name:          "rounds down below midpoint",
-			rate:          0.08,
-			subtotal:      1040,
-			shipping:      0,
-			expectedTax:   83,
-			explanation:   "1040 * 0.08 = 83.2, rounds to 83",
+			name:        "rounds down below midpoint",
+			rate:        0.08,
+			subtotal:    1040,
+			shipping:    0,
+			expectedTax: 83,
+			explanation: "1040 * 0.08 = 83.2, rounds to 83",
 		},
 		{
-			name:          "exact cent amount no rounding",
-			rate:          0.10,
-			subtotal:      1000,
-			shipping:      0,
-			expectedTax:   100,
-			explanation:   "1000 * 0.10 = 100.0 exactly",
+			name:        "exact cent amount no rounding",
+			rate:        0.10,
+			subtotal:    1000,
+			shipping:    0,
+			expectedTax: 100,
+			explanation: "1000 * 0.10 = 100.0 exactly",
 		},
 		{
-			name:          "midpoint rounding 0.5 cents",
-			rate:          0.08,
-			subtotal:      1056,
-			shipping:      0,
-			expectedTax:   84,
-			explanation:   "1056 * 0.08 = 84.48, rounds to 84",
+			name:        "midpoint rounding 0.5 cents",
+			rate:        0.08,
+			subtotal:    1056,
+			shipping:    0,
+			expectedTax: 84,
+			explanation: "1056 * 0.08 = 84.48, rounds to 84",
 		},
 		{
-			name:          "complex rounding with shipping",
-			rate:          0.085,
-			subtotal:      4723,
-			shipping:      387,
-			expectedTax:   434,
-			explanation:   "(4723 + 387) * 0.085 = 434.35, rounds to 434",
+			name:        "complex rounding with shipping",
+			rate:        0.085,
+			subtotal:    4723,
+			shipping:    387,
+			expectedTax: 434,
+			explanation: "(4723 + 387) * 0.085 = 434.35, rounds to 434",
 		},
 		{
-			name:          "fractional cents round to nearest",
-			rate:          0.065,
-			subtotal:      1537,
-			shipping:      0,
-			expectedTax:   100,
-			explanation:   "1537 * 0.065 = 99.905, rounds to 100",
+			name:        "fractional cents round to nearest",
+			rate:        0.065,
+			subtotal:    1537,
+			shipping:    0,
+			expectedTax: 100,
+			explanation: "1537 * 0.065 = 99.905, rounds to 100",
 		},
 	}
 
@@ -308,44 +308,44 @@ func Test_PercentageCalculator_SingleLineItem(t *testing.T) {
 // Test_PercentageCalculator_ShippingScenarios validates different shipping cost scenarios
 func Test_PercentageCalculator_ShippingScenarios(t *testing.T) {
 	tests := []struct {
-		name          string
-		subtotal      int32
-		shipping      int32
-		rate          float64
-		expectedTax   int32
-		explanation   string
+		name        string
+		subtotal    int32
+		shipping    int32
+		rate        float64
+		expectedTax int32
+		explanation string
 	}{
 		{
-			name:          "with shipping cost",
-			subtotal:      5000,
-			shipping:      1000,
-			rate:          0.08,
-			expectedTax:   480,
-			explanation:   "(5000 + 1000) * 0.08 = 480",
+			name:        "with shipping cost",
+			subtotal:    5000,
+			shipping:    1000,
+			rate:        0.08,
+			expectedTax: 480,
+			explanation: "(5000 + 1000) * 0.08 = 480",
 		},
 		{
-			name:          "zero shipping cost",
-			subtotal:      5000,
-			shipping:      0,
-			rate:          0.08,
-			expectedTax:   400,
-			explanation:   "5000 * 0.08 = 400",
+			name:        "zero shipping cost",
+			subtotal:    5000,
+			shipping:    0,
+			rate:        0.08,
+			expectedTax: 400,
+			explanation: "5000 * 0.08 = 400",
 		},
 		{
-			name:          "tax on shipping only (no items)",
-			subtotal:      0,
-			shipping:      1000,
-			rate:          0.08,
-			expectedTax:   80,
-			explanation:   "1000 * 0.08 = 80 (shipping only)",
+			name:        "tax on shipping only (no items)",
+			subtotal:    0,
+			shipping:    1000,
+			rate:        0.08,
+			expectedTax: 80,
+			explanation: "1000 * 0.08 = 80 (shipping only)",
 		},
 		{
-			name:          "high shipping relative to subtotal",
-			subtotal:      2000,
-			shipping:      5000,
-			rate:          0.10,
-			expectedTax:   700,
-			explanation:   "(2000 + 5000) * 0.10 = 700",
+			name:        "high shipping relative to subtotal",
+			subtotal:    2000,
+			shipping:    5000,
+			rate:        0.10,
+			expectedTax: 700,
+			explanation: "(2000 + 5000) * 0.10 = 700",
 		},
 	}
 
@@ -392,10 +392,10 @@ func Test_PercentageCalculator_EdgeCases(t *testing.T) {
 			description: "No items, no shipping = zero tax",
 		},
 		{
-			name:      "zero subtotal with shipping",
-			rate:      0.08,
-			lineItems: []tax.LineItem{},
-			shipping:  500,
+			name:        "zero subtotal with shipping",
+			rate:        0.08,
+			lineItems:   []tax.LineItem{},
+			shipping:    500,
 			expectedTax: 40,
 			description: "Tax applies to shipping even with no items",
 		},

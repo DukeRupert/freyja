@@ -359,4 +359,3 @@ func TestProductDetailHandler_ServeHTTP(t *testing.T) {
 		})
 	}
 }
-
