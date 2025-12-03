@@ -233,16 +233,70 @@ func (w *Worker) processInvoiceJob(ctx context.Context, job *repository.Job) err
 			return fmt.Errorf("failed to unmarshal reminder payload: %w", err)
 		}
 
-		// Get invoice and send reminder
-		// TODO: Implement reminder email functionality
-		// For now, just validate the invoice exists
-		_, err := w.invoiceService.GetInvoice(ctx, payload.InvoiceID.String())
+		// Get invoice details
+		invoice, err := w.invoiceService.GetInvoice(ctx, payload.InvoiceID.String())
 		if err != nil {
 			return fmt.Errorf("invoice not found: %w", err)
 		}
 
-		// TODO: Send reminder email via email service
-		w.logger.Info("invoice reminder not yet implemented",
+		// Get user info for email
+		user, err := w.queries.GetUserByID(ctx, invoice.Invoice.UserID)
+		if err != nil {
+			return fmt.Errorf("user not found: %w", err)
+		}
+
+		// Build customer name
+		customerName := user.Email
+		if user.FirstName.Valid {
+			customerName = user.FirstName.String
+			if user.LastName.Valid {
+				customerName += " " + user.LastName.String
+			}
+		}
+
+		// Payment URL
+		paymentURL := fmt.Sprintf("/invoices/%s", payload.InvoiceID.String())
+
+		// Determine if this is an overdue email or a reminder
+		if payload.ReminderType == "past_due" || payload.DaysOverdue > 0 {
+			// Enqueue overdue email
+			overduePayload := jobs.InvoiceOverduePayload{
+				InvoiceID:     payload.InvoiceID,
+				Email:         user.Email,
+				CustomerName:  customerName,
+				InvoiceNumber: invoice.Invoice.InvoiceNumber,
+				DueDate:       invoice.Invoice.DueDate.Time,
+				BalanceCents:  int64(invoice.Invoice.BalanceCents),
+				DaysOverdue:   payload.DaysOverdue,
+				PaymentURL:    paymentURL,
+			}
+
+			tenantID := uuid.UUID(invoice.Invoice.TenantID.Bytes)
+			if err := jobs.EnqueueInvoiceOverdueEmail(ctx, w.queries, tenantID, overduePayload); err != nil {
+				return fmt.Errorf("failed to enqueue overdue email: %w", err)
+			}
+		} else {
+			// Enqueue reminder email
+			reminderPayload := jobs.InvoiceReminderPayload{
+				InvoiceID:     payload.InvoiceID,
+				Email:         user.Email,
+				CustomerName:  customerName,
+				InvoiceNumber: invoice.Invoice.InvoiceNumber,
+				DueDate:       invoice.Invoice.DueDate.Time,
+				BalanceCents:  int64(invoice.Invoice.BalanceCents),
+				ReminderType:  payload.ReminderType,
+				DaysBefore:    payload.DaysBefore,
+				DaysOverdue:   payload.DaysOverdue,
+				PaymentURL:    paymentURL,
+			}
+
+			tenantID := uuid.UUID(invoice.Invoice.TenantID.Bytes)
+			if err := jobs.EnqueueInvoiceReminderEmail(ctx, w.queries, tenantID, reminderPayload); err != nil {
+				return fmt.Errorf("failed to enqueue reminder email: %w", err)
+			}
+		}
+
+		w.logger.Info("invoice reminder email enqueued",
 			"invoice_id", payload.InvoiceID,
 			"reminder_type", payload.ReminderType)
 		return nil
@@ -269,7 +323,10 @@ func isEmailJob(jobType string) bool {
 		jobs.JobTypeShippingConfirmation,
 		jobs.JobTypeSubscriptionWelcome,
 		jobs.JobTypeSubscriptionPaymentFailed,
-		jobs.JobTypeSubscriptionCancelled:
+		jobs.JobTypeSubscriptionCancelled,
+		jobs.JobTypeInvoiceSent,
+		jobs.JobTypeInvoiceReminder,
+		jobs.JobTypeInvoiceOverdue:
 		return true
 	}
 	return false

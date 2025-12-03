@@ -269,6 +269,75 @@ func (s *Service) SendSubscriptionCancelled(ctx context.Context, data Subscripti
 	return nil
 }
 
+// SendInvoiceSent sends an invoice sent notification email
+func (s *Service) SendInvoiceSent(ctx context.Context, data InvoiceSentEmail) error {
+	htmlBody, textBody, err := s.renderTemplate(data.TemplateName(), data)
+	if err != nil {
+		return fmt.Errorf("failed to render invoice sent template: %w", err)
+	}
+
+	email := &Email{
+		To:       []string{data.Email},
+		From:     fmt.Sprintf("%s <%s>", s.fromName, s.fromAddress),
+		Subject:  data.Subject(),
+		HTMLBody: htmlBody,
+		TextBody: textBody,
+	}
+
+	_, err = s.sender.Send(ctx, email)
+	if err != nil {
+		return fmt.Errorf("failed to send invoice sent email: %w", err)
+	}
+
+	return nil
+}
+
+// SendInvoiceReminder sends an invoice payment reminder email
+func (s *Service) SendInvoiceReminder(ctx context.Context, data InvoiceReminderEmail) error {
+	htmlBody, textBody, err := s.renderTemplate(data.TemplateName(), data)
+	if err != nil {
+		return fmt.Errorf("failed to render invoice reminder template: %w", err)
+	}
+
+	email := &Email{
+		To:       []string{data.Email},
+		From:     fmt.Sprintf("%s <%s>", s.fromName, s.fromAddress),
+		Subject:  data.Subject(),
+		HTMLBody: htmlBody,
+		TextBody: textBody,
+	}
+
+	_, err = s.sender.Send(ctx, email)
+	if err != nil {
+		return fmt.Errorf("failed to send invoice reminder email: %w", err)
+	}
+
+	return nil
+}
+
+// SendInvoiceOverdue sends an invoice overdue notification email
+func (s *Service) SendInvoiceOverdue(ctx context.Context, data InvoiceOverdueEmail) error {
+	htmlBody, textBody, err := s.renderTemplate(data.TemplateName(), data)
+	if err != nil {
+		return fmt.Errorf("failed to render invoice overdue template: %w", err)
+	}
+
+	email := &Email{
+		To:       []string{data.Email},
+		From:     fmt.Sprintf("%s <%s>", s.fromName, s.fromAddress),
+		Subject:  data.Subject(),
+		HTMLBody: htmlBody,
+		TextBody: textBody,
+	}
+
+	_, err = s.sender.Send(ctx, email)
+	if err != nil {
+		return fmt.Errorf("failed to send invoice overdue email: %w", err)
+	}
+
+	return nil
+}
+
 // Helper method to render a template
 func (s *Service) renderTemplate(templateName string, data interface{}) (string, string, error) {
 	var htmlBuf bytes.Buffer

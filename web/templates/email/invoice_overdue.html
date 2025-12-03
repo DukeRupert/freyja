@@ -1,0 +1,37 @@
+{{define "email_title"}}Invoice {{.InvoiceNumber}} Overdue - Freyja Coffee{{end}}
+
+{{define "email_content"}}
+<h2>Invoice Overdue</h2>
+
+<p>Hi {{.CustomerName}},</p>
+
+<p>
+  Invoice <strong>{{.InvoiceNumber}}</strong> is now <strong>{{.DaysOverdue}} day{{if ne .DaysOverdue 1}}s{{end}} overdue</strong>. The original due date was {{.DueDate.Format "January 2, 2006"}}.
+</p>
+
+<p style="margin: 24px 0; padding: 16px; background-color: #fef2f2; border-radius: 6px; border-left: 4px solid #ef4444;">
+  <strong>Invoice Number:</strong> {{.InvoiceNumber}}<br>
+  <strong>Original Due Date:</strong> {{.DueDate.Format "January 2, 2006"}}<br>
+  <strong>Days Overdue:</strong> {{.DaysOverdue}}<br>
+  <strong>Amount Due:</strong> ${{printf "%.2f" (divf .BalanceCents 100)}}
+</p>
+
+<p>
+  Please arrange payment as soon as possible to avoid any disruption to your account.
+</p>
+
+{{if .PaymentURL}}
+<div style="text-align: center; margin: 32px 0;">
+  <a href="{{.PaymentURL}}" class="button" style="background-color: #dc2626;">Pay Now</a>
+</div>
+<p style="color: #737373; font-size: 14px; text-align: center;">
+  Or copy this link: {{.PaymentURL}}
+</p>
+{{end}}
+
+<div class="divider" style="margin: 32px 0;"></div>
+
+<p style="color: #737373; font-size: 14px;">
+  If you've already sent payment, please disregard this notice. If you're experiencing difficulties or have questions, please contact us immediately so we can work together on a solution.
+</p>
+{{end}}

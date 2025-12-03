@@ -1,0 +1,38 @@
+{{define "email_title"}}Payment Reminder - Invoice {{.InvoiceNumber}} - Freyja Coffee{{end}}
+
+{{define "email_content"}}
+<h2>Payment Reminder</h2>
+
+<p>Hi {{.CustomerName}},</p>
+
+{{if eq .ReminderType "approaching_due"}}
+<p>
+  This is a friendly reminder that invoice <strong>{{.InvoiceNumber}}</strong> is due in {{.DaysBefore}} day{{if ne .DaysBefore 1}}s{{end}} on {{.DueDate.Format "January 2, 2006"}}.
+</p>
+{{else}}
+<p>
+  This is a reminder that invoice <strong>{{.InvoiceNumber}}</strong> was due on {{.DueDate.Format "January 2, 2006"}} and is now {{.DaysOverdue}} day{{if ne .DaysOverdue 1}}s{{end}} past due.
+</p>
+{{end}}
+
+<p style="margin: 24px 0; padding: 16px; background-color: #f5f5f5; border-radius: 6px;">
+  <strong>Invoice Number:</strong> {{.InvoiceNumber}}<br>
+  <strong>Due Date:</strong> {{.DueDate.Format "January 2, 2006"}}<br>
+  <strong>Amount Due:</strong> ${{printf "%.2f" (divf .BalanceCents 100)}}
+</p>
+
+{{if .PaymentURL}}
+<div style="text-align: center; margin: 32px 0;">
+  <a href="{{.PaymentURL}}" class="button">Pay Now</a>
+</div>
+<p style="color: #737373; font-size: 14px; text-align: center;">
+  Or copy this link: {{.PaymentURL}}
+</p>
+{{end}}
+
+<div class="divider" style="margin: 32px 0;"></div>
+
+<p style="color: #737373; font-size: 14px;">
+  If you've already sent payment, please disregard this reminder. If you have questions about this invoice, please contact us.
+</p>
+{{end}}

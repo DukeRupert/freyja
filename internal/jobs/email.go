@@ -22,6 +22,9 @@ const (
 	JobTypeSubscriptionWelcome       = "email:subscription_welcome"
 	JobTypeSubscriptionPaymentFailed = "email:subscription_payment_failed"
 	JobTypeSubscriptionCancelled     = "email:subscription_cancelled"
+	JobTypeInvoiceSent               = "email:invoice_sent"
+	JobTypeInvoiceReminder           = "email:invoice_reminder"
+	JobTypeInvoiceOverdue            = "email:invoice_overdue"
 )
 
 // Email job payloads (JSON-serializable)
@@ -92,6 +95,58 @@ type SubscriptionCancelledPayload struct {
 	CustomerName   string    `json:"customer_name"`
 	ProductName    string    `json:"product_name"`
 	CancelledDate  time.Time `json:"cancelled_date"`
+}
+
+// InvoiceSentPayload represents the payload for an invoice sent email job
+type InvoiceSentPayload struct {
+	InvoiceID     uuid.UUID          `json:"invoice_id"`
+	Email         string             `json:"email"`
+	CustomerName  string             `json:"customer_name"`
+	InvoiceNumber string             `json:"invoice_number"`
+	InvoiceDate   time.Time          `json:"invoice_date"`
+	DueDate       time.Time          `json:"due_date"`
+	PaymentTerms  string             `json:"payment_terms"`
+	Items         []InvoiceItemData  `json:"items"`
+	SubtotalCents int64              `json:"subtotal_cents"`
+	ShippingCents int64              `json:"shipping_cents"`
+	TaxCents      int64              `json:"tax_cents"`
+	DiscountCents int64              `json:"discount_cents"`
+	TotalCents    int64              `json:"total_cents"`
+	PaymentURL    string             `json:"payment_url"`
+}
+
+// InvoiceItemData represents a line item in an invoice email
+type InvoiceItemData struct {
+	Description string `json:"description"`
+	Quantity    int    `json:"quantity"`
+	UnitCents   int64  `json:"unit_cents"`
+	TotalCents  int64  `json:"total_cents"`
+}
+
+// InvoiceReminderPayload represents the payload for an invoice reminder email job
+type InvoiceReminderPayload struct {
+	InvoiceID     uuid.UUID `json:"invoice_id"`
+	Email         string    `json:"email"`
+	CustomerName  string    `json:"customer_name"`
+	InvoiceNumber string    `json:"invoice_number"`
+	DueDate       time.Time `json:"due_date"`
+	BalanceCents  int64     `json:"balance_cents"`
+	ReminderType  string    `json:"reminder_type"` // "approaching_due" or "past_due"
+	DaysBefore    int       `json:"days_before"`
+	DaysOverdue   int       `json:"days_overdue"`
+	PaymentURL    string    `json:"payment_url"`
+}
+
+// InvoiceOverduePayload represents the payload for an invoice overdue email job
+type InvoiceOverduePayload struct {
+	InvoiceID     uuid.UUID `json:"invoice_id"`
+	Email         string    `json:"email"`
+	CustomerName  string    `json:"customer_name"`
+	InvoiceNumber string    `json:"invoice_number"`
+	DueDate       time.Time `json:"due_date"`
+	BalanceCents  int64     `json:"balance_cents"`
+	DaysOverdue   int       `json:"days_overdue"`
+	PaymentURL    string    `json:"payment_url"`
 }
 
 // Job enqueueing functions
@@ -271,6 +326,81 @@ func EnqueueSubscriptionCancelledEmail(ctx context.Context, q repository.Querier
 	return err
 }
 
+// EnqueueInvoiceSentEmail enqueues an invoice sent email job
+func EnqueueInvoiceSentEmail(ctx context.Context, q repository.Querier, tenantID uuid.UUID, payload InvoiceSentPayload) error {
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	_, err = q.EnqueueJob(ctx, repository.EnqueueJobParams{
+		TenantID:   pgtype.UUID{Bytes: tenantID, Valid: true},
+		JobType:    JobTypeInvoiceSent,
+		Queue:      "email",
+		Payload:    payloadJSON,
+		Priority:   75, // Higher priority for invoice emails
+		MaxRetries: 3,
+		ScheduledAt: pgtype.Timestamptz{
+			Time:  time.Now(),
+			Valid: true,
+		},
+		TimeoutSeconds: 30,
+		Metadata:       []byte("{}"),
+	})
+
+	return err
+}
+
+// EnqueueInvoiceReminderEmail enqueues an invoice reminder email job
+func EnqueueInvoiceReminderEmail(ctx context.Context, q repository.Querier, tenantID uuid.UUID, payload InvoiceReminderPayload) error {
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	_, err = q.EnqueueJob(ctx, repository.EnqueueJobParams{
+		TenantID:   pgtype.UUID{Bytes: tenantID, Valid: true},
+		JobType:    JobTypeInvoiceReminder,
+		Queue:      "email",
+		Payload:    payloadJSON,
+		Priority:   75,
+		MaxRetries: 3,
+		ScheduledAt: pgtype.Timestamptz{
+			Time:  time.Now(),
+			Valid: true,
+		},
+		TimeoutSeconds: 30,
+		Metadata:       []byte("{}"),
+	})
+
+	return err
+}
+
+// EnqueueInvoiceOverdueEmail enqueues an invoice overdue email job
+func EnqueueInvoiceOverdueEmail(ctx context.Context, q repository.Querier, tenantID uuid.UUID, payload InvoiceOverduePayload) error {
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	_, err = q.EnqueueJob(ctx, repository.EnqueueJobParams{
+		TenantID:   pgtype.UUID{Bytes: tenantID, Valid: true},
+		JobType:    JobTypeInvoiceOverdue,
+		Queue:      "email",
+		Payload:    payloadJSON,
+		Priority:   80, // Higher priority for overdue notifications
+		MaxRetries: 3,
+		ScheduledAt: pgtype.Timestamptz{
+			Time:  time.Now(),
+			Valid: true,
+		},
+		TimeoutSeconds: 30,
+		Metadata:       []byte("{}"),
+	})
+
+	return err
+}
+
 // ProcessEmailJob processes an email job based on its type
 func ProcessEmailJob(ctx context.Context, job *repository.Job, emailService *email.Service, queries *repository.Queries) error {
 	switch job.JobType {
@@ -395,6 +525,79 @@ func ProcessEmailJob(ctx context.Context, job *repository.Job, emailService *ema
 		}
 
 		return emailService.SendSubscriptionCancelled(ctx, emailData)
+
+	case JobTypeInvoiceSent:
+		var payload InvoiceSentPayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal invoice sent payload: %w", err)
+		}
+
+		// Convert items
+		items := make([]email.InvoiceItem, len(payload.Items))
+		for i, item := range payload.Items {
+			items[i] = email.InvoiceItem{
+				Description: item.Description,
+				Quantity:    item.Quantity,
+				UnitCents:   item.UnitCents,
+				TotalCents:  item.TotalCents,
+			}
+		}
+
+		emailData := email.InvoiceSentEmail{
+			Email:         payload.Email,
+			CustomerName:  payload.CustomerName,
+			InvoiceNumber: payload.InvoiceNumber,
+			InvoiceDate:   payload.InvoiceDate,
+			DueDate:       payload.DueDate,
+			PaymentTerms:  payload.PaymentTerms,
+			Items:         items,
+			SubtotalCents: payload.SubtotalCents,
+			ShippingCents: payload.ShippingCents,
+			TaxCents:      payload.TaxCents,
+			DiscountCents: payload.DiscountCents,
+			TotalCents:    payload.TotalCents,
+			PaymentURL:    payload.PaymentURL,
+		}
+
+		return emailService.SendInvoiceSent(ctx, emailData)
+
+	case JobTypeInvoiceReminder:
+		var payload InvoiceReminderPayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal invoice reminder payload: %w", err)
+		}
+
+		emailData := email.InvoiceReminderEmail{
+			Email:         payload.Email,
+			CustomerName:  payload.CustomerName,
+			InvoiceNumber: payload.InvoiceNumber,
+			DueDate:       payload.DueDate,
+			BalanceCents:  payload.BalanceCents,
+			ReminderType:  payload.ReminderType,
+			DaysBefore:    payload.DaysBefore,
+			DaysOverdue:   payload.DaysOverdue,
+			PaymentURL:    payload.PaymentURL,
+		}
+
+		return emailService.SendInvoiceReminder(ctx, emailData)
+
+	case JobTypeInvoiceOverdue:
+		var payload InvoiceOverduePayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal invoice overdue payload: %w", err)
+		}
+
+		emailData := email.InvoiceOverdueEmail{
+			Email:         payload.Email,
+			CustomerName:  payload.CustomerName,
+			InvoiceNumber: payload.InvoiceNumber,
+			DueDate:       payload.DueDate,
+			BalanceCents:  payload.BalanceCents,
+			DaysOverdue:   payload.DaysOverdue,
+			PaymentURL:    payload.PaymentURL,
+		}
+
+		return emailService.SendInvoiceOverdue(ctx, emailData)
 
 	default:
 		return fmt.Errorf("unknown job type: %s", job.JobType)

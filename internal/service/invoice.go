@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/billing"
+	"github.com/dukerupert/freyja/internal/jobs"
 	"github.com/dukerupert/freyja/internal/repository"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -746,7 +748,83 @@ func (s *invoiceService) SendInvoice(ctx context.Context, invoiceID string) erro
 		return fmt.Errorf("failed to update invoice status: %w", err)
 	}
 
+	// Enqueue invoice sent email
+	s.enqueueInvoiceSentEmail(ctx, inv, items)
+
 	return nil
+}
+
+// enqueueInvoiceSentEmail enqueues an email notification for a sent invoice
+func (s *invoiceService) enqueueInvoiceSentEmail(ctx context.Context, inv repository.Invoice, items []repository.InvoiceItem) {
+	// Get user info for email
+	user, err := s.repo.GetUserByID(ctx, inv.UserID)
+	if err != nil {
+		// Log but don't fail - email is not critical
+		return
+	}
+
+	// Build customer name
+	customerName := user.Email
+	if user.FirstName.Valid {
+		customerName = user.FirstName.String
+		if user.LastName.Valid {
+			customerName += " " + user.LastName.String
+		}
+	}
+
+	// Convert invoice items to email format
+	emailItems := make([]jobs.InvoiceItemData, len(items))
+	for i, item := range items {
+		var qty int = 1
+		if f, err := item.Quantity.Float64Value(); err == nil && f.Valid {
+			qty = int(f.Float64)
+		}
+		emailItems[i] = jobs.InvoiceItemData{
+			Description: item.Description,
+			Quantity:    qty,
+			UnitCents:   int64(item.UnitPriceCents),
+			TotalCents:  int64(item.TotalPriceCents),
+		}
+	}
+
+	// Payment URL - Stripe sends its own email with payment link,
+	// but we include our invoice detail page as a reference
+	paymentURL := fmt.Sprintf("/invoices/%s", inv.ID.String())
+
+	// Determine payment terms string
+	paymentTerms := "Due upon receipt"
+	if inv.DueDate.Valid && inv.CreatedAt.Valid {
+		days := int(inv.DueDate.Time.Sub(inv.CreatedAt.Time).Hours() / 24)
+		if days > 0 {
+			paymentTerms = fmt.Sprintf("Net %d", days)
+		}
+	}
+
+	// Convert tenant ID
+	tenantUUID, err := uuid.Parse(s.tenantIDStr)
+	if err != nil {
+		return
+	}
+
+	payload := jobs.InvoiceSentPayload{
+		InvoiceID:     uuid.UUID(inv.ID.Bytes),
+		Email:         user.Email,
+		CustomerName:  customerName,
+		InvoiceNumber: inv.InvoiceNumber,
+		InvoiceDate:   inv.CreatedAt.Time,
+		DueDate:       inv.DueDate.Time,
+		PaymentTerms:  paymentTerms,
+		Items:         emailItems,
+		SubtotalCents: int64(inv.SubtotalCents),
+		ShippingCents: int64(inv.ShippingCents),
+		TaxCents:      int64(inv.TaxCents),
+		DiscountCents: int64(inv.DiscountCents),
+		TotalCents:    int64(inv.TotalCents),
+		PaymentURL:    paymentURL,
+	}
+
+	// Enqueue email job - ignore errors as email is not critical path
+	_ = jobs.EnqueueInvoiceSentEmail(ctx, s.repo, tenantUUID, payload)
 }
 
 // SyncInvoiceFromStripe handles Stripe webhook events for invoice updates.
@@ -863,13 +941,14 @@ func (s *invoiceService) GetOverdueInvoices(ctx context.Context) ([]repository.L
 	return s.repo.ListOverdueInvoices(ctx, s.tenantID)
 }
 
-// MarkInvoicesOverdue updates status for invoices past due date.
+// MarkInvoicesOverdue updates status for invoices past due date and sends notifications.
 func (s *invoiceService) MarkInvoicesOverdue(ctx context.Context) (int, error) {
 	invoices, err := s.repo.ListOverdueInvoices(ctx, s.tenantID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to list overdue invoices: %w", err)
 	}
 
+	tenantUUID, _ := uuid.Parse(s.tenantIDStr)
 	count := 0
 	for _, inv := range invoices {
 		if inv.Status == "sent" || inv.Status == "viewed" {
@@ -880,9 +959,56 @@ func (s *invoiceService) MarkInvoicesOverdue(ctx context.Context) (int, error) {
 			})
 			if err == nil {
 				count++
+				// Enqueue overdue notification email
+				s.enqueueInvoiceOverdueEmail(ctx, inv, tenantUUID)
 			}
 		}
 	}
 
 	return count, nil
+}
+
+// enqueueInvoiceOverdueEmail enqueues an overdue notification email for an invoice
+func (s *invoiceService) enqueueInvoiceOverdueEmail(ctx context.Context, inv repository.ListOverdueInvoicesRow, tenantUUID uuid.UUID) {
+	// Get user info for email
+	user, err := s.repo.GetUserByID(ctx, inv.UserID)
+	if err != nil {
+		// Log but don't fail - email is not critical
+		return
+	}
+
+	// Build customer name
+	customerName := user.Email
+	if user.FirstName.Valid {
+		customerName = user.FirstName.String
+		if user.LastName.Valid {
+			customerName += " " + user.LastName.String
+		}
+	}
+
+	// Calculate days overdue
+	daysOverdue := 0
+	if inv.DueDate.Valid {
+		daysOverdue = int(time.Since(inv.DueDate.Time).Hours() / 24)
+		if daysOverdue < 1 {
+			daysOverdue = 1
+		}
+	}
+
+	// Payment URL
+	paymentURL := fmt.Sprintf("/invoices/%s", inv.ID.String())
+
+	payload := jobs.InvoiceOverduePayload{
+		InvoiceID:     uuid.UUID(inv.ID.Bytes),
+		Email:         user.Email,
+		CustomerName:  customerName,
+		InvoiceNumber: inv.InvoiceNumber,
+		DueDate:       inv.DueDate.Time,
+		BalanceCents:  int64(inv.BalanceCents),
+		DaysOverdue:   daysOverdue,
+		PaymentURL:    paymentURL,
+	}
+
+	// Enqueue email job - ignore errors as email is not critical path
+	_ = jobs.EnqueueInvoiceOverdueEmail(ctx, s.repo, tenantUUID, payload)
 }

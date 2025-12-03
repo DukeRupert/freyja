@@ -138,6 +138,74 @@ func (e SubscriptionCancelledEmail) TemplateName() string {
 	return "subscription_cancelled.html"
 }
 
+// InvoiceSentEmail represents an invoice sent notification email
+type InvoiceSentEmail struct {
+	Email         string
+	CustomerName  string
+	InvoiceNumber string
+	InvoiceDate   time.Time
+	DueDate       time.Time
+	PaymentTerms  string
+	Items         []InvoiceItem
+	SubtotalCents int64
+	ShippingCents int64
+	TaxCents      int64
+	DiscountCents int64
+	TotalCents    int64
+	PaymentURL    string
+}
+
+func (e InvoiceSentEmail) Subject() string {
+	return "Invoice " + e.InvoiceNumber + " from Freyja Coffee"
+}
+
+func (e InvoiceSentEmail) TemplateName() string {
+	return "invoice_sent.html"
+}
+
+// InvoiceReminderEmail represents an invoice payment reminder email
+type InvoiceReminderEmail struct {
+	Email         string
+	CustomerName  string
+	InvoiceNumber string
+	DueDate       time.Time
+	BalanceCents  int64
+	ReminderType  string // "approaching_due" or "past_due"
+	DaysBefore    int    // Days before due date (for approaching_due)
+	DaysOverdue   int    // Days past due date (for past_due)
+	PaymentURL    string
+}
+
+func (e InvoiceReminderEmail) Subject() string {
+	if e.ReminderType == "past_due" {
+		return "Payment Reminder - Invoice " + e.InvoiceNumber + " Past Due"
+	}
+	return "Payment Reminder - Invoice " + e.InvoiceNumber
+}
+
+func (e InvoiceReminderEmail) TemplateName() string {
+	return "invoice_reminder.html"
+}
+
+// InvoiceOverdueEmail represents an invoice overdue notification email
+type InvoiceOverdueEmail struct {
+	Email         string
+	CustomerName  string
+	InvoiceNumber string
+	DueDate       time.Time
+	BalanceCents  int64
+	DaysOverdue   int
+	PaymentURL    string
+}
+
+func (e InvoiceOverdueEmail) Subject() string {
+	return "Invoice " + e.InvoiceNumber + " is Overdue"
+}
+
+func (e InvoiceOverdueEmail) TemplateName() string {
+	return "invoice_overdue.html"
+}
+
 // Supporting types
 
 // OrderItem represents a line item in an order
@@ -148,6 +216,14 @@ type OrderItem struct {
 	PriceCents  int64
 	TotalCents  int64
 	ImageURL    string // Optional product image
+}
+
+// InvoiceItem represents a line item on an invoice
+type InvoiceItem struct {
+	Description string
+	Quantity    int
+	UnitCents   int64
+	TotalCents  int64
 }
 
 // Address represents a shipping or billing address
