@@ -13,8 +13,17 @@ import (
 type Querier interface {
 	// Add an item to cart (or update quantity if exists)
 	AddCartItem(ctx context.Context, arg AddCartItemParams) (CartItem, error)
+	// Cancel a pending job
+	CancelJob(ctx context.Context, id pgtype.UUID) error
+	// Claim the next pending job using SKIP LOCKED for safe concurrent access
+	// This query finds the highest priority job that's ready to run
+	ClaimNextJob(ctx context.Context, arg ClaimNextJobParams) (Job, error)
 	// Remove all items from a cart
 	ClearCart(ctx context.Context, cartID pgtype.UUID) error
+	// Mark a job as completed
+	CompleteJob(ctx context.Context, id pgtype.UUID) error
+	// Count jobs by status
+	CountJobsByStatus(ctx context.Context, arg CountJobsByStatusParams) (int64, error)
 	// Count total orders for pagination
 	CountOrders(ctx context.Context, tenantID pgtype.UUID) (int64, error)
 	// Count recent password reset requests for a specific user (rate limiting)
@@ -84,6 +93,9 @@ type Querier interface {
 	DeleteExpiredPasswordResetTokens(ctx context.Context) error
 	// Clean up expired sessions (for background job)
 	DeleteExpiredSessions(ctx context.Context) error
+	// Cleanup old completed jobs (history is preserved in job_history table)
+	// Delete jobs older than the specified timestamp
+	DeleteOldCompletedJobs(ctx context.Context, processingCompletedAt pgtype.Timestamptz) error
 	// Delete a payment method
 	DeletePaymentMethod(ctx context.Context, arg DeletePaymentMethodParams) error
 	// Soft delete a product (set status to 'archived')
@@ -94,6 +106,11 @@ type Querier interface {
 	DeleteProductSKU(ctx context.Context, arg DeleteProductSKUParams) error
 	// Delete a session
 	DeleteSession(ctx context.Context, token string) error
+	// Insert a new job into the queue
+	EnqueueJob(ctx context.Context, arg EnqueueJobParams) (Job, error)
+	// Mark a job as failed or reschedule it for retry
+	// If retry_count < max_retries, reschedule; otherwise mark as failed
+	FailJob(ctx context.Context, arg FailJobParams) (Job, error)
 	// Get a single address by ID (no user validation - for system use)
 	GetAddressByID(ctx context.Context, id pgtype.UUID) (Address, error)
 	// Get a single address by ID (validates user ownership via customer_addresses)
@@ -127,6 +144,10 @@ type Querier interface {
 	GetDefaultPriceList(ctx context.Context, tenantID pgtype.UUID) (PriceList, error)
 	// Get the default shipping address for a user
 	GetDefaultShippingAddress(ctx context.Context, arg GetDefaultShippingAddressParams) (GetDefaultShippingAddressRow, error)
+	// Fetch a job by ID
+	GetJobByID(ctx context.Context, id pgtype.UUID) (Job, error)
+	// Get job queue statistics
+	GetJobStats(ctx context.Context, tenantID pgtype.UUID) (GetJobStatsRow, error)
 	// Retrieves a single order by ID with tenant scoping
 	GetOrder(ctx context.Context, arg GetOrderParams) (Order, error)
 	// Retrieves a single order by order number with tenant scoping
@@ -223,6 +244,8 @@ type Querier interface {
 	// Admin queries
 	// List all products for admin (includes inactive and all visibility levels)
 	ListAllProducts(ctx context.Context, tenantID pgtype.UUID) ([]ListAllProductsRow, error)
+	// List jobs by status for monitoring
+	ListJobsByStatus(ctx context.Context, arg ListJobsByStatusParams) ([]Job, error)
 	// Admin queries
 	// List all orders for admin with pagination
 	ListOrders(ctx context.Context, arg ListOrdersParams) ([]ListOrdersRow, error)
