@@ -2,10 +2,14 @@ package admin
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/dukerupert/freyja/internal/handler"
+	"github.com/dukerupert/freyja/internal/jobs"
+	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/repository"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -136,6 +140,9 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 
 // CreateShipment handles POST /admin/orders/{id}/shipments
 func (h *OrderHandler) CreateShipment(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := middleware.GetLogger(ctx, slog.Default())
+
 	orderID := r.PathValue("id")
 	if orderID == "" {
 		http.Error(w, "Order ID required", http.StatusBadRequest)
@@ -161,6 +168,17 @@ func (h *OrderHandler) CreateShipment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get order details for the shipping confirmation email
+	order, err := h.repo.GetOrderWithDetails(ctx, repository.GetOrderWithDetailsParams{
+		TenantID: h.tenantID,
+		ID:       orderUUID,
+	})
+	if err != nil {
+		logger.Error("failed to get order details for shipment", "error", err, "order_id", orderID)
+		http.Error(w, "Order not found", http.StatusNotFound)
+		return
+	}
+
 	var carrierText pgtype.Text
 	carrierText.String = carrier
 	carrierText.Valid = true
@@ -169,7 +187,7 @@ func (h *OrderHandler) CreateShipment(w http.ResponseWriter, r *http.Request) {
 	trackingText.String = trackingNumber
 	trackingText.Valid = true
 
-	_, err := h.repo.CreateShipment(r.Context(), repository.CreateShipmentParams{
+	_, err = h.repo.CreateShipment(ctx, repository.CreateShipmentParams{
 		TenantID:         h.tenantID,
 		OrderID:          orderUUID,
 		Carrier:          carrierText,
@@ -181,23 +199,77 @@ func (h *OrderHandler) CreateShipment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.repo.UpdateOrderFulfillmentStatus(r.Context(), repository.UpdateOrderFulfillmentStatusParams{
+	err = h.repo.UpdateOrderFulfillmentStatus(ctx, repository.UpdateOrderFulfillmentStatusParams{
 		TenantID:          h.tenantID,
 		ID:                orderUUID,
 		FulfillmentStatus: "fulfilled",
 	})
 	if err != nil {
-		fmt.Printf("Warning: failed to update fulfillment status: %v\n", err)
+		logger.Warn("failed to update fulfillment status", "error", err, "order_id", orderID)
 	}
 
-	err = h.repo.UpdateOrderStatus(r.Context(), repository.UpdateOrderStatusParams{
+	err = h.repo.UpdateOrderStatus(ctx, repository.UpdateOrderStatusParams{
 		TenantID: h.tenantID,
 		ID:       orderUUID,
 		Status:   "shipped",
 	})
 	if err != nil {
-		fmt.Printf("Warning: failed to update order status: %v\n", err)
+		logger.Warn("failed to update order status", "error", err, "order_id", orderID)
+	}
+
+	// Enqueue shipping confirmation email
+	if order.CustomerEmail.Valid && order.CustomerEmail.String != "" {
+		tenantUUID, err := uuid.FromBytes(h.tenantID.Bytes[:])
+		if err != nil {
+			logger.Error("failed to convert tenant ID", "error", err)
+		} else {
+			orderUUIDGoogle, err := uuid.FromBytes(orderUUID.Bytes[:])
+			if err != nil {
+				logger.Error("failed to convert order ID", "error", err)
+			} else {
+				customerName := order.CustomerFirstName.String
+				if order.CustomerLastName.Valid && order.CustomerLastName.String != "" {
+					customerName += " " + order.CustomerLastName.String
+				}
+
+				// Build tracking URL based on carrier
+				trackingURL := buildTrackingURL(carrier, trackingNumber)
+
+				payload := jobs.ShippingConfirmationPayload{
+					OrderID:        orderUUIDGoogle,
+					Email:          order.CustomerEmail.String,
+					CustomerName:   customerName,
+					OrderNumber:    order.OrderNumber,
+					Carrier:        carrier,
+					TrackingNumber: trackingNumber,
+					TrackingURL:    trackingURL,
+				}
+
+				if err := jobs.EnqueueShippingConfirmationEmail(ctx, h.repo, tenantUUID, payload); err != nil {
+					logger.Error("failed to enqueue shipping confirmation email", "error", err, "order_id", orderID)
+				} else {
+					logger.Info("shipping confirmation email enqueued", "order_id", orderID, "email", order.CustomerEmail.String)
+				}
+			}
+		}
 	}
 
 	http.Redirect(w, r, "/admin/orders/"+orderID, http.StatusSeeOther)
+}
+
+// buildTrackingURL constructs a tracking URL for common carriers
+func buildTrackingURL(carrier, trackingNumber string) string {
+	switch carrier {
+	case "USPS", "usps":
+		return "https://tools.usps.com/go/TrackConfirmAction?tLabels=" + trackingNumber
+	case "UPS", "ups":
+		return "https://www.ups.com/track?tracknum=" + trackingNumber
+	case "FedEx", "fedex", "FEDEX":
+		return "https://www.fedex.com/fedextrack/?trknbr=" + trackingNumber
+	case "DHL", "dhl":
+		return "https://www.dhl.com/en/express/tracking.html?AWB=" + trackingNumber
+	default:
+		// Return empty string if carrier not recognized
+		return ""
+	}
 }
