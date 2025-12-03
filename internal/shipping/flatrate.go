@@ -15,7 +15,7 @@ type FlatRateProvider struct {
 type FlatRate struct {
 	ServiceName string
 	ServiceCode string
-	CostCents   int32
+	CostCents   int64
 	DaysMin     int
 	DaysMax     int
 }
@@ -27,6 +27,14 @@ func NewFlatRateProvider(rates []FlatRate) Provider {
 
 // GetRates converts flat rates to Rate objects.
 func (p *FlatRateProvider) GetRates(ctx context.Context, params RateParams) ([]Rate, error) {
+	// Validate required fields
+	if params.TenantID == "" {
+		return nil, ErrTenantRequired
+	}
+	if len(params.Packages) == 0 {
+		return nil, ErrNoPackages
+	}
+
 	result := make([]Rate, len(p.rates))
 	for i, fr := range p.rates {
 		result[i] = Rate{
@@ -38,6 +46,7 @@ func (p *FlatRateProvider) GetRates(ctx context.Context, params RateParams) ([]R
 			EstimatedDaysMin:      fr.DaysMin,
 			EstimatedDaysMax:      fr.DaysMax,
 			EstimatedDeliveryDate: time.Now().AddDate(0, 0, fr.DaysMax),
+			ExpiresAt:             nil, // Flat rates don't expire
 		}
 	}
 	return result, nil
@@ -49,11 +58,16 @@ func (p *FlatRateProvider) CreateLabel(ctx context.Context, params LabelParams) 
 }
 
 // VoidLabel is not supported for flat-rate provider.
-func (p *FlatRateProvider) VoidLabel(ctx context.Context, labelID string) error {
+func (p *FlatRateProvider) VoidLabel(ctx context.Context, params VoidLabelParams) error {
 	return ErrNotImplemented
 }
 
 // TrackShipment is not supported for flat-rate provider.
 func (p *FlatRateProvider) TrackShipment(ctx context.Context, trackingNumber string) (*TrackingInfo, error) {
+	return nil, ErrNotImplemented
+}
+
+// ValidateAddress is not supported for flat-rate provider.
+func (p *FlatRateProvider) ValidateAddress(ctx context.Context, params ValidateAddressParams) (*AddressValidation, error) {
 	return nil, ErrNotImplemented
 }

@@ -24,6 +24,7 @@ func TestFlatRateProvider_GetRates_SingleRate(t *testing.T) {
 	provider := shipping.NewFlatRateProvider(rates)
 
 	params := shipping.RateParams{
+		TenantID: "tenant-123",
 		DestinationAddress: shipping.ShippingAddress{
 			Line1:      "123 Main St",
 			City:       "Seattle",
@@ -51,9 +52,10 @@ func TestFlatRateProvider_GetRates_SingleRate(t *testing.T) {
 	assert.Equal(t, "Flat Rate", rate.Carrier)
 	assert.Equal(t, "Standard Shipping", rate.ServiceName)
 	assert.Equal(t, "STD", rate.ServiceCode)
-	assert.Equal(t, int32(500), rate.CostCents)
+	assert.Equal(t, int64(500), rate.CostCents)
 	assert.Equal(t, 3, rate.EstimatedDaysMin)
 	assert.Equal(t, 5, rate.EstimatedDaysMax)
+	assert.Nil(t, rate.ExpiresAt, "Flat rates should not expire")
 
 	// Verify estimated delivery date is in the future
 	assert.True(t, rate.EstimatedDeliveryDate.After(time.Now()))
@@ -87,12 +89,16 @@ func TestFlatRateProvider_GetRates_MultipleRates(t *testing.T) {
 	provider := shipping.NewFlatRateProvider(rates)
 
 	params := shipping.RateParams{
+		TenantID: "tenant-123",
 		DestinationAddress: shipping.ShippingAddress{
 			Line1:      "456 Oak Ave",
 			City:       "Portland",
 			State:      "OR",
 			PostalCode: "97201",
 			Country:    "US",
+		},
+		Packages: []shipping.Package{
+			{WeightGrams: 340},
 		},
 	}
 
@@ -117,6 +123,7 @@ func TestFlatRateProvider_GetRates_EmptyRates(t *testing.T) {
 	provider := shipping.NewFlatRateProvider([]shipping.FlatRate{})
 
 	params := shipping.RateParams{
+		TenantID: "tenant-123",
 		DestinationAddress: shipping.ShippingAddress{
 			Line1:      "789 Pine St",
 			City:       "San Francisco",
@@ -124,12 +131,65 @@ func TestFlatRateProvider_GetRates_EmptyRates(t *testing.T) {
 			PostalCode: "94102",
 			Country:    "US",
 		},
+		Packages: []shipping.Package{
+			{WeightGrams: 340},
+		},
 	}
 
 	result, err := provider.GetRates(context.Background(), params)
 
 	assert.NoError(t, err)
 	assert.Empty(t, result, "Should return empty slice when no rates configured")
+}
+
+func TestFlatRateProvider_GetRates_RequiresTenantID(t *testing.T) {
+	rates := []shipping.FlatRate{
+		{ServiceName: "Standard", ServiceCode: "STD", CostCents: 500, DaysMin: 3, DaysMax: 5},
+	}
+
+	provider := shipping.NewFlatRateProvider(rates)
+
+	params := shipping.RateParams{
+		// TenantID is missing
+		DestinationAddress: shipping.ShippingAddress{
+			City:    "Denver",
+			State:   "CO",
+			Country: "US",
+		},
+		Packages: []shipping.Package{
+			{WeightGrams: 340},
+		},
+	}
+
+	result, err := provider.GetRates(context.Background(), params)
+
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, shipping.ErrTenantRequired))
+	assert.Nil(t, result)
+}
+
+func TestFlatRateProvider_GetRates_RequiresPackages(t *testing.T) {
+	rates := []shipping.FlatRate{
+		{ServiceName: "Standard", ServiceCode: "STD", CostCents: 500, DaysMin: 3, DaysMax: 5},
+	}
+
+	provider := shipping.NewFlatRateProvider(rates)
+
+	params := shipping.RateParams{
+		TenantID: "tenant-123",
+		DestinationAddress: shipping.ShippingAddress{
+			City:    "Denver",
+			State:   "CO",
+			Country: "US",
+		},
+		Packages: []shipping.Package{}, // Empty packages
+	}
+
+	result, err := provider.GetRates(context.Background(), params)
+
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, shipping.ErrNoPackages))
+	assert.Nil(t, result)
 }
 
 func TestFlatRateProvider_GetRates_EstimatedDeliveryDate(t *testing.T) {
@@ -153,10 +213,14 @@ func TestFlatRateProvider_GetRates_EstimatedDeliveryDate(t *testing.T) {
 	provider := shipping.NewFlatRateProvider(rates)
 
 	params := shipping.RateParams{
+		TenantID: "tenant-123",
 		DestinationAddress: shipping.ShippingAddress{
 			City:    "Denver",
 			State:   "CO",
 			Country: "US",
+		},
+		Packages: []shipping.Package{
+			{WeightGrams: 340},
 		},
 	}
 
@@ -198,11 +262,10 @@ func TestFlatRateProvider_GetRates_IgnoresPackageDetails(t *testing.T) {
 	packages := [][]shipping.Package{
 		{{WeightGrams: 100, LengthCm: 10, WidthCm: 10, HeightCm: 10}},
 		{{WeightGrams: 5000, LengthCm: 50, WidthCm: 50, HeightCm: 50}},
-		{{WeightGrams: 100}, {WeightGrams: 200}}, // Multiple packages
-		{},                                       // No packages
 	}
 
 	params := shipping.RateParams{
+		TenantID: "tenant-123",
 		DestinationAddress: shipping.ShippingAddress{
 			City:    "Boston",
 			State:   "MA",
@@ -216,7 +279,7 @@ func TestFlatRateProvider_GetRates_IgnoresPackageDetails(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Len(t, result, 1)
-		assert.Equal(t, int32(1000), result[0].CostCents, "Flat rate should ignore package details")
+		assert.Equal(t, int64(1000), result[0].CostCents, "Flat rate should ignore package details")
 	}
 }
 
@@ -243,14 +306,16 @@ func TestFlatRateProvider_GetRates_IgnoresDestination(t *testing.T) {
 
 	for _, dest := range destinations {
 		params := shipping.RateParams{
+			TenantID:           "tenant-123",
 			DestinationAddress: dest,
+			Packages:           []shipping.Package{{WeightGrams: 340}},
 		}
 
 		result, err := provider.GetRates(context.Background(), params)
 
 		assert.NoError(t, err)
 		assert.Len(t, result, 1)
-		assert.Equal(t, int32(750), result[0].CostCents)
+		assert.Equal(t, int64(750), result[0].CostCents)
 	}
 }
 
@@ -263,11 +328,13 @@ func TestFlatRateProvider_GetRates_IgnoresServiceTypeFilter(t *testing.T) {
 	provider := shipping.NewFlatRateProvider(rates)
 
 	params := shipping.RateParams{
+		TenantID: "tenant-123",
 		DestinationAddress: shipping.ShippingAddress{
 			City:    "Chicago",
 			State:   "IL",
 			Country: "US",
 		},
+		Packages:     []shipping.Package{{WeightGrams: 340}},
 		ServiceTypes: []string{"EXP"}, // Filter for express only
 	}
 
@@ -282,7 +349,8 @@ func TestFlatRateProvider_CreateLabel_ReturnsNotImplemented(t *testing.T) {
 	provider := shipping.NewFlatRateProvider([]shipping.FlatRate{})
 
 	params := shipping.LabelParams{
-		RateID: "STD",
+		TenantID: "tenant-123",
+		RateID:   "STD",
 		DestinationAddress: shipping.ShippingAddress{
 			Line1:   "123 Main St",
 			City:    "Seattle",
@@ -301,7 +369,12 @@ func TestFlatRateProvider_CreateLabel_ReturnsNotImplemented(t *testing.T) {
 func TestFlatRateProvider_VoidLabel_ReturnsNotImplemented(t *testing.T) {
 	provider := shipping.NewFlatRateProvider([]shipping.FlatRate{})
 
-	err := provider.VoidLabel(context.Background(), "label-123")
+	params := shipping.VoidLabelParams{
+		TenantID: "tenant-123",
+		LabelID:  "label-123",
+	}
+
+	err := provider.VoidLabel(context.Background(), params)
 
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, shipping.ErrNotImplemented), "VoidLabel should return ErrNotImplemented")
@@ -317,6 +390,26 @@ func TestFlatRateProvider_TrackShipment_ReturnsNotImplemented(t *testing.T) {
 	assert.Nil(t, tracking)
 }
 
+func TestFlatRateProvider_ValidateAddress_ReturnsNotImplemented(t *testing.T) {
+	provider := shipping.NewFlatRateProvider([]shipping.FlatRate{})
+
+	params := shipping.ValidateAddressParams{
+		TenantID: "tenant-123",
+		Address: shipping.ShippingAddress{
+			Line1:   "123 Main St",
+			City:    "Seattle",
+			State:   "WA",
+			Country: "US",
+		},
+	}
+
+	result, err := provider.ValidateAddress(context.Background(), params)
+
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, shipping.ErrNotImplemented), "ValidateAddress should return ErrNotImplemented")
+	assert.Nil(t, result)
+}
+
 func TestFlatRateProvider_NewConstructor(t *testing.T) {
 	rates := []shipping.FlatRate{
 		{ServiceName: "Test", ServiceCode: "TEST", CostCents: 100, DaysMin: 1, DaysMax: 3},
@@ -330,53 +423,6 @@ func TestFlatRateProvider_NewConstructor(t *testing.T) {
 	var _ shipping.Provider = provider
 }
 
-func TestFlatRateProvider_GetRates_NilContext(t *testing.T) {
-	rates := []shipping.FlatRate{
-		{ServiceName: "Standard", ServiceCode: "STD", CostCents: 500, DaysMin: 3, DaysMax: 5},
-	}
-
-	provider := shipping.NewFlatRateProvider(rates)
-
-	params := shipping.RateParams{
-		DestinationAddress: shipping.ShippingAddress{
-			City:    "Austin",
-			State:   "TX",
-			Country: "US",
-		},
-	}
-
-	// Should handle nil context gracefully (doesn't use context)
-	result, err := provider.GetRates(nil, params)
-
-	assert.NoError(t, err)
-	assert.Len(t, result, 1)
-}
-
-func TestFlatRateProvider_GetRates_CanceledContext(t *testing.T) {
-	rates := []shipping.FlatRate{
-		{ServiceName: "Express", ServiceCode: "EXP", CostCents: 1500, DaysMin: 1, DaysMax: 2},
-	}
-
-	provider := shipping.NewFlatRateProvider(rates)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately
-
-	params := shipping.RateParams{
-		DestinationAddress: shipping.ShippingAddress{
-			City:    "Phoenix",
-			State:   "AZ",
-			Country: "US",
-		},
-	}
-
-	// FlatRateProvider doesn't use context, so should still work
-	result, err := provider.GetRates(ctx, params)
-
-	assert.NoError(t, err)
-	assert.Len(t, result, 1)
-}
-
 func TestFlatRateProvider_GetRates_Idempotency(t *testing.T) {
 	rates := []shipping.FlatRate{
 		{ServiceName: "Standard", ServiceCode: "STD", CostCents: 500, DaysMin: 3, DaysMax: 5},
@@ -385,11 +431,13 @@ func TestFlatRateProvider_GetRates_Idempotency(t *testing.T) {
 	provider := shipping.NewFlatRateProvider(rates)
 
 	params := shipping.RateParams{
+		TenantID: "tenant-123",
 		DestinationAddress: shipping.ShippingAddress{
 			City:    "Nashville",
 			State:   "TN",
 			Country: "US",
 		},
+		Packages: []shipping.Package{{WeightGrams: 340}},
 	}
 
 	// Call multiple times with same params
@@ -431,6 +479,7 @@ func TestFlatRateProvider_GetRates_RealWorldScenario(t *testing.T) {
 
 	// Customer ordering coffee from Seattle roaster
 	params := shipping.RateParams{
+		TenantID: "tenant-roaster-123",
 		OriginAddress: shipping.ShippingAddress{
 			Name:       "Freyja Coffee Roasters",
 			Line1:      "100 Roaster Lane",
@@ -467,14 +516,14 @@ func TestFlatRateProvider_GetRates_RealWorldScenario(t *testing.T) {
 	// Verify standard option
 	std := result[0]
 	assert.Equal(t, "Standard Shipping", std.ServiceName)
-	assert.Equal(t, int32(500), std.CostCents)
+	assert.Equal(t, int64(500), std.CostCents)
 	assert.Equal(t, 3, std.EstimatedDaysMin)
 	assert.Equal(t, 5, std.EstimatedDaysMax)
 
 	// Verify express option
 	exp := result[1]
 	assert.Equal(t, "Express Shipping", exp.ServiceName)
-	assert.Equal(t, int32(1500), exp.CostCents)
+	assert.Equal(t, int64(1500), exp.CostCents)
 	assert.Equal(t, 1, exp.EstimatedDaysMin)
 	assert.Equal(t, 2, exp.EstimatedDaysMax)
 

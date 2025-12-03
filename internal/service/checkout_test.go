@@ -241,7 +241,7 @@ func makeTestCartSummary(itemCount int) *CartSummary {
 	}
 }
 
-func makeTestShippingRate(costCents int32, carrier string, serviceName string) shipping.Rate {
+func makeTestShippingRate(costCents int64, carrier string, serviceName string) shipping.Rate {
 	return shipping.Rate{
 		RateID:                "rate_" + carrier + "_001",
 		Carrier:               carrier,

@@ -205,7 +205,8 @@ func (s *checkoutService) CalculateOrderTotal(ctx context.Context, params OrderT
 		return nil, fmt.Errorf("failed to load cart: %w", err)
 	}
 
-	shippingCents := params.SelectedShippingRate.CostCents
+	// Convert int64 to int32 - safe for shipping costs which are always < $21M
+	shippingCents := int32(params.SelectedShippingRate.CostCents)
 
 	lineItems := make([]tax.LineItem, len(cartSummary.Items))
 	for i, item := range cartSummary.Items {
