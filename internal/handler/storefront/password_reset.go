@@ -32,21 +32,6 @@ func NewForgotPasswordHandler(
 	}
 }
 
-// ServeHTTP handles GET and POST requests for forgot password
-func (h *ForgotPasswordHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		h.ShowForm(w, r)
-		return
-	}
-
-	if r.Method == http.MethodPost {
-		h.HandleSubmit(w, r)
-		return
-	}
-
-	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-}
-
 // ShowForm displays the forgot password form
 func (h *ForgotPasswordHandler) ShowForm(w http.ResponseWriter, r *http.Request) {
 	data := BaseTemplateData(r)
@@ -114,21 +99,6 @@ func NewResetPasswordHandler(
 		userService:          userService,
 		tenantID:             tenantID,
 	}
-}
-
-// ServeHTTP handles GET and POST requests for password reset
-func (h *ResetPasswordHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		h.ShowForm(w, r)
-		return
-	}
-
-	if r.Method == http.MethodPost {
-		h.HandleSubmit(w, r)
-		return
-	}
-
-	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
 // ShowForm displays the reset password form

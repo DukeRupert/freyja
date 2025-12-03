@@ -3,7 +3,9 @@ package routes
 import (
 	"net/http"
 
+	"github.com/dukerupert/freyja/internal/handler/admin"
 	"github.com/dukerupert/freyja/internal/handler/saas"
+	"github.com/dukerupert/freyja/internal/handler/storefront"
 )
 
 // SaaSDeps contains dependencies for SaaS marketing routes
@@ -21,29 +23,21 @@ type StorefrontDeps struct {
 	ProductDetailHandler http.Handler
 
 	// Cart
-	CartViewHandler       http.Handler
-	AddToCartHandler      http.Handler
-	UpdateCartItemHandler http.Handler
-	RemoveCartItemHandler http.Handler
+	CartHandler *storefront.CartHandler
 
 	// Auth
-	SignupHandler http.Handler
-	LoginHandler  http.Handler
-	LogoutHandler http.Handler
+	SignupHandler *storefront.SignupHandler
+	LoginHandler  *storefront.LoginHandler
+	LogoutHandler *storefront.LogoutHandler
 
 	// Password Reset
-	ForgotPasswordHandler http.Handler
-	ResetPasswordHandler  http.Handler
+	ForgotPasswordHandler *storefront.ForgotPasswordHandler
+	ResetPasswordHandler  *storefront.ResetPasswordHandler
 
 	// Checkout
-	CheckoutPageHandler        http.Handler
-	ValidateAddressHandler     http.Handler
-	GetShippingRatesHandler    http.Handler
-	CalculateTotalHandler      http.Handler
-	CreatePaymentIntentHandler http.Handler
-	OrderConfirmationHandler   http.Handler
+	CheckoutHandler *storefront.CheckoutHandler
 
-	// Account (authenticated)
+	// Account (authenticated) - subscriptions still use http.Handler for now
 	SubscriptionListHandler     http.Handler
 	SubscriptionDetailHandler   http.Handler
 	SubscriptionPortalHandler   http.Handler
@@ -57,33 +51,19 @@ type AdminDeps struct {
 	DashboardHandler http.Handler
 
 	// Products
-	ProductListHandler   http.Handler
-	ProductFormHandler   http.Handler
-	ProductDetailHandler http.Handler
-	SKUFormHandler       http.Handler
+	ProductHandler *admin.ProductHandler
 
 	// Orders
-	OrderListHandler         http.Handler
-	OrderDetailHandler       http.Handler
-	UpdateOrderStatusHandler http.Handler
-	CreateShipmentHandler    http.Handler
+	OrderHandler *admin.OrderHandler
 
 	// Customers
-	CustomerListHandler     http.Handler
-	CustomerDetailHandler   http.Handler
-	WholesaleApprovalHandler http.Handler
+	CustomerHandler *admin.CustomerHandler
 
 	// Subscriptions
-	SubscriptionListHandler   http.Handler
-	SubscriptionDetailHandler http.Handler
+	SubscriptionHandler *admin.SubscriptionHandler
 
 	// Invoices
-	InvoiceListHandler    http.Handler
-	InvoiceDetailHandler  http.Handler
-	SendInvoiceHandler    http.Handler
-	VoidInvoiceHandler    http.Handler
-	RecordPaymentHandler  http.Handler
-	CreateInvoiceHandler  http.Handler
+	InvoiceHandler *admin.InvoiceHandler
 }
 
 // WebhookDeps contains dependencies for webhook routes

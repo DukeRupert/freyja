@@ -9,44 +9,37 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// SubscriptionListHandler shows all subscriptions for the tenant
-type SubscriptionListHandler struct {
+// SubscriptionHandler handles all subscription-related admin routes
+type SubscriptionHandler struct {
 	repo     repository.Querier
 	renderer *handler.Renderer
 	tenantID pgtype.UUID
 }
 
-// NewSubscriptionListHandler creates a new subscription list handler
-func NewSubscriptionListHandler(repo repository.Querier, renderer *handler.Renderer, tenantID string) *SubscriptionListHandler {
+// NewSubscriptionHandler creates a new subscription handler
+func NewSubscriptionHandler(repo repository.Querier, renderer *handler.Renderer, tenantID string) *SubscriptionHandler {
 	var tenantUUID pgtype.UUID
 	if err := tenantUUID.Scan(tenantID); err != nil {
 		panic(fmt.Sprintf("invalid tenant ID: %v", err))
 	}
 
-	return &SubscriptionListHandler{
+	return &SubscriptionHandler{
 		repo:     repo,
 		renderer: renderer,
 		tenantID: tenantUUID,
 	}
 }
 
-// ServeHTTP handles GET /admin/subscriptions
-func (h *SubscriptionListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+// List handles GET /admin/subscriptions
+func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Get subscription stats for dashboard
 	stats, err := h.repo.GetSubscriptionStats(ctx, h.tenantID)
 	if err != nil {
 		http.Error(w, "Failed to load subscription stats", http.StatusInternalServerError)
 		return
 	}
 
-	// Get all subscriptions with pagination
 	subscriptions, err := h.repo.ListSubscriptions(ctx, repository.ListSubscriptionsParams{
 		TenantID: h.tenantID,
 		Limit:    100,
@@ -67,37 +60,10 @@ func (h *SubscriptionListHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	h.renderer.RenderHTTP(w, "admin/subscriptions", data)
 }
 
-// SubscriptionDetailHandler shows detailed subscription information
-type SubscriptionDetailHandler struct {
-	repo     repository.Querier
-	renderer *handler.Renderer
-	tenantID pgtype.UUID
-}
-
-// NewSubscriptionDetailHandler creates a new subscription detail handler
-func NewSubscriptionDetailHandler(repo repository.Querier, renderer *handler.Renderer, tenantID string) *SubscriptionDetailHandler {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		panic(fmt.Sprintf("invalid tenant ID: %v", err))
-	}
-
-	return &SubscriptionDetailHandler{
-		repo:     repo,
-		renderer: renderer,
-		tenantID: tenantUUID,
-	}
-}
-
-// ServeHTTP handles GET /admin/subscriptions/{id}
-func (h *SubscriptionDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+// Detail handles GET /admin/subscriptions/{id}
+func (h *SubscriptionHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Get subscription ID from path
 	subscriptionIDStr := r.PathValue("id")
 	if subscriptionIDStr == "" {
 		http.Error(w, "Subscription ID required", http.StatusBadRequest)
@@ -110,7 +76,6 @@ func (h *SubscriptionDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Get subscription with full details
 	subscription, err := h.repo.GetSubscriptionWithDetails(ctx, repository.GetSubscriptionWithDetailsParams{
 		TenantID: h.tenantID,
 		ID:       subscriptionID,
@@ -121,7 +86,6 @@ func (h *SubscriptionDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Get subscription items
 	items, err := h.repo.ListSubscriptionItemsForSubscription(ctx, repository.ListSubscriptionItemsForSubscriptionParams{
 		TenantID:       h.tenantID,
 		SubscriptionID: subscriptionID,
@@ -132,15 +96,11 @@ func (h *SubscriptionDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// TODO: Add ListOrdersBySubscription query to show order history
-	// For now, orders will be nil in the template
-	// orders, err := h.repo.ListOrdersBySubscription(ctx, ...)
-
 	data := map[string]interface{}{
 		"CurrentPath":  r.URL.Path,
 		"Subscription": subscription,
 		"Items":        items,
-		"Orders":       nil, // TODO: implement ListOrdersBySubscription query
+		"Orders":       nil,
 	}
 
 	h.renderer.RenderHTTP(w, "admin/subscription_detail", data)
