@@ -130,7 +130,7 @@ func NewLoginHandler(userService service.UserService, renderer *handler.Renderer
 // ServeHTTP handles GET /login and POST /login
 func (h *LoginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		h.showLoginForm(w, r, nil)
+		h.showLoginForm(w, r, nil, "")
 		return
 	}
 
@@ -142,11 +142,14 @@ func (h *LoginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
-func (h *LoginHandler) showLoginForm(w http.ResponseWriter, r *http.Request, formError *string) {
+func (h *LoginHandler) showLoginForm(w http.ResponseWriter, r *http.Request, formError *string, email string) {
 	data := BaseTemplateData(r)
 
 	if formError != nil {
 		data["Error"] = *formError
+	}
+	if email != "" {
+		data["Email"] = email
 	}
 
 	h.renderer.RenderHTTP(w, "login", data)
@@ -158,7 +161,7 @@ func (h *LoginHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Parse form data
 	if err := r.ParseForm(); err != nil {
 		errMsg := "Invalid form data"
-		h.showLoginForm(w, r, &errMsg)
+		h.showLoginForm(w, r, &errMsg, "")
 		return
 	}
 
@@ -168,7 +171,7 @@ func (h *LoginHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Validate required fields
 	if email == "" || password == "" {
 		errMsg := "Email and password are required"
-		h.showLoginForm(w, r, &errMsg)
+		h.showLoginForm(w, r, &errMsg, email)
 		return
 	}
 
@@ -185,7 +188,7 @@ func (h *LoginHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		} else {
 			errMsg = "Login failed. Please try again."
 		}
-		h.showLoginForm(w, r, &errMsg)
+		h.showLoginForm(w, r, &errMsg, email)
 		return
 	}
 
