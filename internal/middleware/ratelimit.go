@@ -118,21 +118,51 @@ func (rl *RateLimiter) cleanup() {
 	for {
 		select {
 		case <-ticker.C:
-			rl.mu.Lock()
-			now := time.Now()
-			for key, bucket := range rl.buckets {
-				bucket.mu.Lock()
-				// Remove if bucket is full and hasn't been used recently
-				if bucket.tokens >= float64(rl.config.BurstSize) &&
-					now.Sub(bucket.lastRefill) > rl.config.CleanupInterval {
-					delete(rl.buckets, key)
-				}
-				bucket.mu.Unlock()
-			}
-			rl.mu.Unlock()
+			rl.cleanupOnce()
 		case <-rl.stop:
 			return
 		}
+	}
+}
+
+// cleanupOnce performs a single cleanup pass.
+// It collects stale keys first, then deletes them to avoid holding locks too long
+// and to prevent potential issues with concurrent Allow() calls.
+func (rl *RateLimiter) cleanupOnce() {
+	now := time.Now()
+	var staleKeys []string
+
+	// First pass: identify stale buckets
+	rl.mu.Lock()
+	for key, bucket := range rl.buckets {
+		bucket.mu.Lock()
+		isStale := bucket.tokens >= float64(rl.config.BurstSize) &&
+			now.Sub(bucket.lastRefill) > rl.config.CleanupInterval
+		bucket.mu.Unlock()
+
+		if isStale {
+			staleKeys = append(staleKeys, key)
+		}
+	}
+	rl.mu.Unlock()
+
+	// Second pass: delete stale buckets
+	if len(staleKeys) > 0 {
+		rl.mu.Lock()
+		for _, key := range staleKeys {
+			// Re-check staleness in case the bucket was used between passes
+			if bucket, exists := rl.buckets[key]; exists {
+				bucket.mu.Lock()
+				isStillStale := bucket.tokens >= float64(rl.config.BurstSize) &&
+					now.Sub(bucket.lastRefill) > rl.config.CleanupInterval
+				bucket.mu.Unlock()
+
+				if isStillStale {
+					delete(rl.buckets, key)
+				}
+			}
+		}
+		rl.mu.Unlock()
 	}
 }
 
