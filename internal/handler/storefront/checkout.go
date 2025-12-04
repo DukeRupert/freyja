@@ -82,6 +82,47 @@ func (h *CheckoutHandler) Page(w http.ResponseWriter, r *http.Request) {
 	data["CartID"] = cart.ID.String()
 	data["StripePublishableKey"] = h.stripePublishableKey
 
+	// Pre-populate contact info if user is logged in
+	if user := middleware.GetUserFromContext(r.Context()); user != nil {
+		data["UserEmail"] = user.Email
+		if user.Phone.Valid {
+			data["UserPhone"] = user.Phone.String
+		}
+		// Build full name for shipping
+		var fullName string
+		if user.FirstName.Valid {
+			fullName = user.FirstName.String
+		}
+		if user.LastName.Valid {
+			if fullName != "" {
+				fullName += " " + user.LastName.String
+			} else {
+				fullName = user.LastName.String
+			}
+		}
+		if fullName != "" {
+			data["UserName"] = fullName
+		}
+
+		// Try to get default shipping address
+		defaultAddr, err := h.repo.GetDefaultShippingAddress(r.Context(), repository.GetDefaultShippingAddressParams{
+			TenantID: h.tenantID,
+			UserID:   user.ID,
+		})
+		if err == nil {
+			// Address found - pass it to the template
+			data["DefaultAddress"] = map[string]string{
+				"Name":       defaultAddr.FullName.String,
+				"Address1":   defaultAddr.AddressLine1,
+				"Address2":   defaultAddr.AddressLine2.String,
+				"City":       defaultAddr.City,
+				"State":      defaultAddr.State,
+				"PostalCode": defaultAddr.PostalCode,
+			}
+		}
+		// If no default address found, that's fine - fields will just be empty
+	}
+
 	h.renderer.RenderHTTP(w, "storefront/checkout", data)
 }
 

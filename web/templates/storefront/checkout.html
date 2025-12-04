@@ -32,17 +32,17 @@
           // Cart info from server
           cartID: '{{.CartID}}',
 
-          // Contact info
-          email: '',
-          phone: '',
+          // Contact info (pre-populated if user is logged in)
+          email: '{{if .UserEmail}}{{.UserEmail}}{{end}}',
+          phone: '{{if .UserPhone}}{{.UserPhone}}{{end}}',
 
-          // Shipping address
-          shippingName: '',
-          shippingAddress1: '',
-          shippingAddress2: '',
-          shippingCity: '',
-          shippingState: '',
-          shippingPostalCode: '',
+          // Shipping address (pre-populated from default address if user is logged in)
+          shippingName: '{{if .DefaultAddress}}{{.DefaultAddress.Name}}{{else if .UserName}}{{.UserName}}{{end}}',
+          shippingAddress1: '{{if .DefaultAddress}}{{.DefaultAddress.Address1}}{{end}}',
+          shippingAddress2: '{{if .DefaultAddress}}{{.DefaultAddress.Address2}}{{end}}',
+          shippingCity: '{{if .DefaultAddress}}{{.DefaultAddress.City}}{{end}}',
+          shippingState: '{{if .DefaultAddress}}{{.DefaultAddress.State}}{{end}}',
+          shippingPostalCode: '{{if .DefaultAddress}}{{.DefaultAddress.PostalCode}}{{end}}',
 
           // Billing address
           billingName: '',
