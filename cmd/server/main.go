@@ -26,6 +26,7 @@ import (
 	"github.com/dukerupert/freyja/internal/routes"
 	"github.com/dukerupert/freyja/internal/service"
 	"github.com/dukerupert/freyja/internal/shipping"
+	"github.com/dukerupert/freyja/internal/storage"
 	"github.com/dukerupert/freyja/internal/tax"
 	"github.com/dukerupert/freyja/internal/worker"
 	"github.com/google/uuid"
@@ -123,6 +124,14 @@ func run() error {
 		return fmt.Errorf("failed to initialize email service: %w", err)
 	}
 	logger.Info("Email service initialized")
+
+	// Initialize file storage for product images
+	logger.Info("Initializing file storage...")
+	fileStorage, err := storage.NewLocalStorage("./web/static/uploads", "/uploads")
+	if err != nil {
+		return fmt.Errorf("failed to initialize file storage: %w", err)
+	}
+	logger.Info("File storage initialized")
 
 	// Note: Background worker initialization moved after service creation
 
@@ -302,7 +311,7 @@ func run() error {
 	// Admin dependencies (consolidated handlers)
 	adminDeps := routes.AdminDeps{
 		DashboardHandler:    admin.NewDashboardHandler(repo, renderer, cfg.TenantID),
-		ProductHandler:      admin.NewProductHandler(repo, renderer, cfg.TenantID),
+		ProductHandler:      admin.NewProductHandler(repo, renderer, fileStorage, cfg.TenantID),
 		OrderHandler:        admin.NewOrderHandler(repo, renderer, cfg.TenantID),
 		CustomerHandler:     admin.NewCustomerHandler(repo, invoiceService, renderer, cfg.TenantID),
 		SubscriptionHandler: admin.NewSubscriptionHandler(repo, renderer, cfg.TenantID),
@@ -365,6 +374,7 @@ func run() error {
 
 	// Static files
 	r.Static("/static/", "./web/static")
+	r.Static("/uploads/", "./web/static/uploads")
 
 	// Metrics endpoint (no auth required, but should be protected in production via firewall)
 	r.Get("/metrics", func(w http.ResponseWriter, req *http.Request) {

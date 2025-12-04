@@ -3,13 +3,22 @@ package admin
 import (
 	"context"
 	"fmt"
+	"html"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
+	"io"
 	"math"
+	"mime/multipart"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/repository"
+	"github.com/dukerupert/freyja/internal/storage"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -17,11 +26,12 @@ import (
 type ProductHandler struct {
 	repo     repository.Querier
 	renderer *handler.Renderer
+	storage  storage.Storage
 	tenantID pgtype.UUID
 }
 
 // NewProductHandler creates a new product handler
-func NewProductHandler(repo repository.Querier, renderer *handler.Renderer, tenantID string) *ProductHandler {
+func NewProductHandler(repo repository.Querier, renderer *handler.Renderer, storage storage.Storage, tenantID string) *ProductHandler {
 	var tenantUUID pgtype.UUID
 	if err := tenantUUID.Scan(tenantID); err != nil {
 		panic(fmt.Sprintf("invalid tenant ID: %v", err))
@@ -30,6 +40,7 @@ func NewProductHandler(repo repository.Querier, renderer *handler.Renderer, tena
 	return &ProductHandler{
 		repo:     repo,
 		renderer: renderer,
+		storage:  storage,
 		tenantID: tenantUUID,
 	}
 }
@@ -79,6 +90,13 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fetch product images
+	images, err := h.repo.GetProductImages(r.Context(), productUUID)
+	if err != nil {
+		// Non-fatal - just log and continue with empty images
+		images = []repository.ProductImage{}
+	}
+
 	// Format SKUs for display
 	type DisplaySKU struct {
 		SkuID                pgtype.UUID
@@ -126,6 +144,7 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		"CurrentPath": r.URL.Path,
 		"Product":     product,
 		"SKUs":        displaySKUs,
+		"Images":      images,
 	}
 
 	h.renderer.RenderHTTP(w, "admin/product_detail", data)
@@ -569,4 +588,364 @@ func calculateWeightGrams(weight int, unit string) pgtype.Int4 {
 		grams = int32(float64(weight) * 28.35)
 	}
 	return pgtype.Int4{Int32: grams, Valid: true}
+}
+
+// validateImageUpload checks file type and size limits
+func validateImageUpload(fileHeader *multipart.FileHeader) error {
+	const maxSize = 5 * 1024 * 1024
+	if fileHeader.Size > maxSize {
+		return fmt.Errorf("image must be smaller than 5MB (current: %.1fMB)", float64(fileHeader.Size)/(1024*1024))
+	}
+
+	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+	allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".webp": true}
+	if !allowedExts[ext] {
+		return fmt.Errorf("only JPEG, PNG, and WebP images are supported")
+	}
+
+	return nil
+}
+
+// extractImageMetadata reads image dimensions
+func extractImageMetadata(file multipart.File) (width, height int, err error) {
+	config, _, err := image.DecodeConfig(file)
+	if err != nil {
+		return 0, 0, err
+	}
+	return config.Width, config.Height, nil
+}
+
+// generateImageKey creates storage key with pattern: products/{tenant_id}/{product_id}/{uuid}.{ext}
+func generateImageKey(tenantID, productID pgtype.UUID, filename string) string {
+	ext := strings.ToLower(filepath.Ext(filename))
+	// Sanitize extension - only allow known safe extensions
+	allowedExts := map[string]string{".jpg": ".jpg", ".jpeg": ".jpg", ".png": ".png", ".webp": ".webp"}
+	safeExt, ok := allowedExts[ext]
+	if !ok {
+		safeExt = ".jpg" // default to safe extension
+	}
+	return fmt.Sprintf("products/%s/%s/%s%s",
+		formatUUID(tenantID), formatUUID(productID), uuid.New().String(), safeExt)
+}
+
+// UploadImage handles POST /admin/products/{id}/images/upload
+func (h *ProductHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
+	productID := r.PathValue("id")
+	if productID == "" {
+		http.Error(w, "Product ID required", http.StatusBadRequest)
+		return
+	}
+
+	var productUUID pgtype.UUID
+	if err := productUUID.Scan(productID); err != nil {
+		http.Error(w, "Invalid product ID", http.StatusBadRequest)
+		return
+	}
+
+	_, err := h.repo.GetProductByID(r.Context(), repository.GetProductByIDParams{
+		TenantID: h.tenantID,
+		ID:       productUUID,
+	})
+	if err != nil {
+		http.Error(w, "Product not found", http.StatusNotFound)
+		return
+	}
+
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+
+	file, fileHeader, err := r.FormFile("image")
+	if err != nil {
+		http.Error(w, "No image file provided", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	if err := validateImageUpload(fileHeader); err != nil {
+		h.renderImageError(w, err.Error())
+		return
+	}
+
+	// Check max images per product
+	existingImages, _ := h.repo.GetProductImages(r.Context(), productUUID)
+	const maxImagesPerProduct = 20
+	if len(existingImages) >= maxImagesPerProduct {
+		h.renderImageError(w, fmt.Sprintf("Maximum of %d images per product reached", maxImagesPerProduct))
+		return
+	}
+
+	width, height, metaErr := extractImageMetadata(file)
+	file.Seek(0, io.SeekStart)
+
+	buffer := make([]byte, 512)
+	n, _ := file.Read(buffer)
+	contentType := http.DetectContentType(buffer[:n])
+	file.Seek(0, io.SeekStart)
+
+	key := generateImageKey(h.tenantID, productUUID, fileHeader.Filename)
+
+	url, err := h.storage.Put(r.Context(), key, file, contentType)
+	if err != nil {
+		h.renderImageError(w, "Failed to store image. Please try again.")
+		return
+	}
+
+	// Use existingImages from max check above for sort order and primary determination
+	sortOrder := int32(len(existingImages))
+	isPrimary := len(existingImages) == 0
+
+	widthInt := pgtype.Int4{Int32: int32(width), Valid: metaErr == nil}
+	heightInt := pgtype.Int4{Int32: int32(height), Valid: metaErr == nil}
+	fileSizeInt := pgtype.Int4{Int32: int32(fileHeader.Size), Valid: true}
+
+	_, err = h.repo.CreateProductImage(r.Context(), repository.CreateProductImageParams{
+		TenantID:  h.tenantID,
+		ProductID: productUUID,
+		Url:       url,
+		AltText:   pgtype.Text{Valid: false},
+		Width:     widthInt,
+		Height:    heightInt,
+		FileSize:  fileSizeInt,
+		SortOrder: sortOrder,
+		IsPrimary: isPrimary,
+	})
+	if err != nil {
+		// Clean up orphaned file
+		h.storage.Delete(r.Context(), key)
+		h.renderImageError(w, "Failed to save image. Please try again.")
+		return
+	}
+
+	h.renderImageGallery(w, r, productUUID)
+}
+
+// DeleteImage handles DELETE /admin/products/{product_id}/images/{image_id}
+func (h *ProductHandler) DeleteImage(w http.ResponseWriter, r *http.Request) {
+	productID := r.PathValue("product_id")
+	imageID := r.PathValue("image_id")
+
+	var productUUID, imageUUID pgtype.UUID
+	if err := productUUID.Scan(productID); err != nil {
+		http.Error(w, "Invalid product ID", http.StatusBadRequest)
+		return
+	}
+	if err := imageUUID.Scan(imageID); err != nil {
+		http.Error(w, "Invalid image ID", http.StatusBadRequest)
+		return
+	}
+
+	images, err := h.repo.GetProductImages(r.Context(), productUUID)
+	if err != nil {
+		http.Error(w, "Failed to load images", http.StatusInternalServerError)
+		return
+	}
+
+	var imageURL string
+	for _, img := range images {
+		if img.ID == imageUUID {
+			imageURL = img.Url
+			break
+		}
+	}
+
+	if err := h.repo.DeleteProductImage(r.Context(), repository.DeleteProductImageParams{
+		TenantID: h.tenantID,
+		ID:       imageUUID,
+	}); err != nil {
+		http.Error(w, "Failed to delete image", http.StatusInternalServerError)
+		return
+	}
+
+	if imageURL != "" {
+		key := strings.TrimPrefix(imageURL, "/uploads/")
+		h.storage.Delete(r.Context(), key)
+	}
+
+	h.renderImageGallery(w, r, productUUID)
+}
+
+// SetPrimary handles POST /admin/products/{product_id}/images/{image_id}/primary
+func (h *ProductHandler) SetPrimary(w http.ResponseWriter, r *http.Request) {
+	productID := r.PathValue("product_id")
+	imageID := r.PathValue("image_id")
+
+	var productUUID, imageUUID pgtype.UUID
+	if err := productUUID.Scan(productID); err != nil {
+		http.Error(w, "Invalid product ID", http.StatusBadRequest)
+		return
+	}
+	if err := imageUUID.Scan(imageID); err != nil {
+		http.Error(w, "Invalid image ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.repo.SetPrimaryImage(r.Context(), repository.SetPrimaryImageParams{
+		TenantID: h.tenantID,
+		ID:       imageUUID,
+	}); err != nil {
+		http.Error(w, "Failed to set primary image", http.StatusInternalServerError)
+		return
+	}
+
+	h.renderImageGallery(w, r, productUUID)
+}
+
+// UpdateImageMetadata handles POST /admin/products/{product_id}/images/{image_id}/metadata
+// Updates alt text, width, and height for an image
+func (h *ProductHandler) UpdateImageMetadata(w http.ResponseWriter, r *http.Request) {
+	productID := r.PathValue("product_id")
+	imageID := r.PathValue("image_id")
+
+	var productUUID, imageUUID pgtype.UUID
+	if err := productUUID.Scan(productID); err != nil {
+		http.Error(w, "Invalid product ID", http.StatusBadRequest)
+		return
+	}
+	if err := imageUUID.Scan(imageID); err != nil {
+		http.Error(w, "Invalid image ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+
+	altText := r.FormValue("alt_text")
+	widthStr := r.FormValue("width")
+	heightStr := r.FormValue("height")
+
+	images, err := h.repo.GetProductImages(r.Context(), productUUID)
+	if err != nil {
+		http.Error(w, "Failed to load images", http.StatusInternalServerError)
+		return
+	}
+
+	var currentImage repository.ProductImage
+	for _, img := range images {
+		if img.ID == imageUUID {
+			currentImage = img
+			break
+		}
+	}
+
+	// Parse width/height, keeping existing values if not provided or invalid
+	width := currentImage.Width
+	if widthStr != "" {
+		if w, err := strconv.Atoi(widthStr); err == nil && w > 0 {
+			width = pgtype.Int4{Int32: int32(w), Valid: true}
+		}
+	}
+
+	height := currentImage.Height
+	if heightStr != "" {
+		if h, err := strconv.Atoi(heightStr); err == nil && h > 0 {
+			height = pgtype.Int4{Int32: int32(h), Valid: true}
+		}
+	}
+
+	_, err = h.repo.UpdateProductImage(r.Context(), repository.UpdateProductImageParams{
+		TenantID:  h.tenantID,
+		ID:        imageUUID,
+		Url:       currentImage.Url,
+		AltText:   pgtype.Text{String: altText, Valid: altText != ""},
+		Width:     width,
+		Height:    height,
+		FileSize:  currentImage.FileSize,
+		SortOrder: currentImage.SortOrder,
+		IsPrimary: currentImage.IsPrimary,
+	})
+	if err != nil {
+		http.Error(w, "Failed to update image metadata", http.StatusInternalServerError)
+		return
+	}
+
+	h.renderImageGallery(w, r, productUUID)
+}
+
+// renderImageGallery renders just the image gallery section for htmx swap
+func (h *ProductHandler) renderImageGallery(w http.ResponseWriter, r *http.Request, productUUID pgtype.UUID) {
+	images, err := h.repo.GetProductImages(r.Context(), productUUID)
+	if err != nil {
+		http.Error(w, "Failed to load images", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	if len(images) == 0 {
+		fmt.Fprint(w, `<p class="text-sm text-zinc-500 dark:text-zinc-400">No images yet. Upload your first product image above.</p>`)
+		return
+	}
+
+	fmt.Fprint(w, `<div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">`)
+	for _, img := range images {
+		// Image card
+		fmt.Fprint(w, `<div class="group relative overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">`)
+
+		// Image - escape user-provided content to prevent XSS
+		altText := ""
+		if img.AltText.Valid {
+			altText = html.EscapeString(img.AltText.String)
+		}
+		escapedURL := html.EscapeString(img.Url)
+		fmt.Fprintf(w, `<img src="%s" alt="%s" class="aspect-square w-full object-cover">`, escapedURL, altText)
+
+		// Default badge
+		if img.IsPrimary {
+			fmt.Fprint(w, `<div class="absolute left-2 top-2"><span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20 dark:bg-blue-900/50 dark:text-blue-300 dark:ring-blue-500/30">Default</span></div>`)
+		}
+
+		// Actions overlay
+		fmt.Fprint(w, `<div class="absolute inset-0 flex items-center justify-center gap-2 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">`)
+		if !img.IsPrimary {
+			fmt.Fprintf(w, `<button hx-post="/admin/products/%s/images/%s/default" hx-target="#image-gallery" hx-swap="innerHTML" class="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-zinc-900 hover:bg-zinc-100">Set Default</button>`,
+				formatUUID(productUUID), formatUUID(img.ID))
+		}
+		fmt.Fprintf(w, `<button hx-delete="/admin/products/%s/images/%s" hx-target="#image-gallery" hx-swap="innerHTML" hx-confirm="Delete this image?" class="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700">Delete</button>`,
+			formatUUID(productUUID), formatUUID(img.ID))
+		fmt.Fprint(w, `</div>`)
+
+		// Metadata form (alt text, width, height)
+		fmt.Fprintf(w, `<form hx-post="/admin/products/%s/images/%s/metadata" hx-target="#image-gallery" hx-swap="innerHTML" class="border-t border-zinc-200 p-2 space-y-2 dark:border-zinc-700">`,
+			formatUUID(productUUID), formatUUID(img.ID))
+		// Alt text
+		fmt.Fprintf(w, `<input type="text" name="alt_text" value="%s" placeholder="Alt text" class="w-full rounded border-zinc-300 text-xs dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">`,
+			altText)
+		// Width and Height in a row
+		fmt.Fprint(w, `<div class="flex gap-2">`)
+		widthVal := ""
+		if img.Width.Valid {
+			widthVal = fmt.Sprintf("%d", img.Width.Int32)
+		}
+		heightVal := ""
+		if img.Height.Valid {
+			heightVal = fmt.Sprintf("%d", img.Height.Int32)
+		}
+		fmt.Fprintf(w, `<input type="number" name="width" value="%s" placeholder="Width" class="w-1/2 rounded border-zinc-300 text-xs dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">`, widthVal)
+		fmt.Fprintf(w, `<input type="number" name="height" value="%s" placeholder="Height" class="w-1/2 rounded border-zinc-300 text-xs dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">`, heightVal)
+		fmt.Fprint(w, `</div>`)
+		// Save button
+		fmt.Fprint(w, `<button type="submit" class="w-full rounded bg-zinc-100 px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600">Save</button>`)
+		fmt.Fprint(w, `</form>`)
+
+		fmt.Fprint(w, `</div>`)
+	}
+	fmt.Fprint(w, `</div>`)
+}
+
+// formatUUID returns the string representation of a pgtype.UUID
+func formatUUID(u pgtype.UUID) string {
+	if !u.Valid {
+		return ""
+	}
+	return fmt.Sprintf("%x-%x-%x-%x-%x", u.Bytes[0:4], u.Bytes[4:6], u.Bytes[6:8], u.Bytes[8:10], u.Bytes[10:16])
+}
+
+// renderImageError renders an error message for htmx swap
+func (h *ProductHandler) renderImageError(w http.ResponseWriter, message string) {
+	w.WriteHeader(http.StatusBadRequest)
+	fmt.Fprintf(w, `<div class="rounded-lg bg-red-50 p-4 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">Error: %s</div>`, message)
 }

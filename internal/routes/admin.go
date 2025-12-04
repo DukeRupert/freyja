@@ -31,6 +31,14 @@ func RegisterAdminRoutes(r *router.Router, deps AdminDeps) {
 	admin.Get("/admin/products/{product_id}/skus/{sku_id}/edit", deps.ProductHandler.ShowSKUForm)
 	admin.Post("/admin/products/{product_id}/skus/{sku_id}/edit", deps.ProductHandler.HandleSKUForm)
 
+	// Image management (upload has stricter rate limiting)
+	uploadLimited := admin.Group(middleware.StrictRateLimit())
+	uploadLimited.Post("/admin/products/{id}/images/upload", deps.ProductHandler.UploadImage)
+
+	admin.Delete("/admin/products/{product_id}/images/{image_id}", deps.ProductHandler.DeleteImage)
+	admin.Post("/admin/products/{product_id}/images/{image_id}/default", deps.ProductHandler.SetPrimary)
+	admin.Post("/admin/products/{product_id}/images/{image_id}/metadata", deps.ProductHandler.UpdateImageMetadata)
+
 	// Order management
 	admin.Get("/admin/orders", deps.OrderHandler.List)
 	admin.Get("/admin/orders/{id}", deps.OrderHandler.Detail)

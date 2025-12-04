@@ -59,6 +59,120 @@
     </div>
     {{end}}
 
+    <!-- Product Images Section -->
+    <section class="rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+        <div class="border-b border-zinc-950/5 px-6 py-4 dark:border-white/5">
+            {{template "heading" (dict "Level" "3" "Content" "Product Images")}}
+            <p class="mt-1 text-sm/6 text-zinc-600 dark:text-zinc-400">
+                Upload photos of your coffee product (max 5MB, JPG/PNG/WebP)
+            </p>
+        </div>
+
+        <!-- Upload Form -->
+        <div class="border-b border-zinc-950/5 px-6 py-4 dark:border-white/5">
+            <form
+                hx-post="/admin/products/{{.Product.ID}}/images/upload"
+                hx-target="#image-gallery"
+                hx-swap="innerHTML"
+                hx-encoding="multipart/form-data"
+                class="flex items-end gap-3">
+
+                <div class="flex-1">
+                    <label for="image-file" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                        Choose Image
+                    </label>
+                    <input
+                        type="file"
+                        id="image-file"
+                        name="image"
+                        accept="image/jpeg,image/png,image/webp"
+                        required
+                        class="mt-1 block w-full text-sm text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-zinc-100 file:text-zinc-700 hover:file:bg-zinc-200 dark:file:bg-zinc-800 dark:file:text-zinc-300 dark:text-zinc-400">
+                </div>
+
+                {{template "button" (dict
+                    "Content" "Upload Image"
+                    "Variant" "solid"
+                    "Color" "zinc"
+                    "Type" "submit")}}
+            </form>
+        </div>
+
+        <!-- Image Gallery -->
+        <div id="image-gallery" class="p-6">
+            {{if .Images}}
+                <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                    {{range .Images}}
+                    <div class="group relative overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
+                        <img src="{{.Url}}" alt="{{if .AltText.Valid}}{{.AltText.String}}{{end}}" class="aspect-square w-full object-cover">
+
+                        {{if .IsPrimary}}
+                        <div class="absolute left-2 top-2">
+                            {{template "badge" (dict "Content" "Default" "Color" "blue")}}
+                        </div>
+                        {{end}}
+
+                        <!-- Actions overlay on hover -->
+                        <div class="absolute inset-0 flex items-center justify-center gap-2 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
+                            {{if not .IsPrimary}}
+                            <button
+                                hx-post="/admin/products/{{$.Product.ID}}/images/{{.ID}}/default"
+                                hx-target="#image-gallery"
+                                hx-swap="innerHTML"
+                                class="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-zinc-900 hover:bg-zinc-100">
+                                Set Default
+                            </button>
+                            {{end}}
+
+                            <button
+                                hx-delete="/admin/products/{{$.Product.ID}}/images/{{.ID}}"
+                                hx-target="#image-gallery"
+                                hx-swap="innerHTML"
+                                hx-confirm="Delete this image?"
+                                class="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700">
+                                Delete
+                            </button>
+                        </div>
+
+                        <!-- Image metadata form (alt text, dimensions) -->
+                        <form
+                            hx-post="/admin/products/{{$.Product.ID}}/images/{{.ID}}/metadata"
+                            hx-target="#image-gallery"
+                            hx-swap="innerHTML"
+                            class="border-t border-zinc-200 p-2 space-y-2 dark:border-zinc-700">
+                            <input
+                                type="text"
+                                name="alt_text"
+                                value="{{if .AltText.Valid}}{{.AltText.String}}{{end}}"
+                                placeholder="Alt text"
+                                class="w-full rounded border-zinc-300 text-xs dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">
+                            <div class="flex gap-2">
+                                <input
+                                    type="number"
+                                    name="width"
+                                    value="{{if .Width.Valid}}{{.Width.Int32}}{{end}}"
+                                    placeholder="Width"
+                                    class="w-1/2 rounded border-zinc-300 text-xs dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">
+                                <input
+                                    type="number"
+                                    name="height"
+                                    value="{{if .Height.Valid}}{{.Height.Int32}}{{end}}"
+                                    placeholder="Height"
+                                    class="w-1/2 rounded border-zinc-300 text-xs dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">
+                            </div>
+                            <button type="submit" class="w-full rounded bg-zinc-100 px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600">
+                                Save
+                            </button>
+                        </form>
+                    </div>
+                    {{end}}
+                </div>
+            {{else}}
+                <p class="text-sm text-zinc-500 dark:text-zinc-400">No images yet. Upload your first product image above.</p>
+            {{end}}
+        </div>
+    </section>
+
     <!-- SKUs Section -->
     <section class="rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
         <div class="flex items-center justify-between border-b border-zinc-950/5 px-6 py-4 dark:border-white/5">
