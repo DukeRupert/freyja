@@ -25,21 +25,21 @@ func RegisterStorefrontRoutes(r *router.Router, deps StorefrontDeps) {
 	r.Post("/cart/remove", deps.CartHandler.Remove)
 
 	// Authentication (GET routes only - POST routes registered separately with rate limiting)
-	r.Get("/signup", deps.SignupHandler.ShowForm)
-	r.Get("/signup-success", deps.SignupSuccessHandler.ServeHTTP)
-	r.Get("/login", deps.LoginHandler.ShowForm)
-	r.Post("/logout", deps.LogoutHandler.HandleSubmit)
+	r.Get("/signup", deps.AuthHandler.ShowSignupForm)
+	r.Get("/signup-success", deps.AuthHandler.ShowSignupSuccess)
+	r.Get("/login", deps.AuthHandler.ShowLoginForm)
+	r.Post("/logout", deps.AuthHandler.HandleLogout)
 
 	// Password Reset
-	r.Get("/forgot-password", deps.ForgotPasswordHandler.ShowForm)
-	r.Post("/forgot-password", deps.ForgotPasswordHandler.HandleSubmit)
-	r.Get("/reset-password", deps.ResetPasswordHandler.ShowForm)
-	r.Post("/reset-password", deps.ResetPasswordHandler.HandleSubmit)
+	r.Get("/forgot-password", deps.AuthHandler.ShowForgotPasswordForm)
+	r.Post("/forgot-password", deps.AuthHandler.HandleForgotPassword)
+	r.Get("/reset-password", deps.AuthHandler.ShowResetPasswordForm)
+	r.Post("/reset-password", deps.AuthHandler.HandleResetPassword)
 
 	// Email Verification
-	r.Get("/verify-email", deps.VerifyEmailHandler.HandleVerify)
-	r.Get("/resend-verification", deps.ResendVerificationHandler.ShowForm)
-	r.Post("/resend-verification", deps.ResendVerificationHandler.HandleSubmit)
+	r.Get("/verify-email", deps.AuthHandler.HandleVerifyEmail)
+	r.Get("/resend-verification", deps.AuthHandler.ShowResendVerificationForm)
+	r.Post("/resend-verification", deps.AuthHandler.HandleResendVerification)
 
 	// Checkout flow
 	r.Get("/checkout", deps.CheckoutHandler.Page)

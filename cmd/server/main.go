@@ -286,19 +286,15 @@ func run() error {
 		// Cart (consolidated handler)
 		CartHandler: storefront.NewCartHandler(cartService, renderer, cfg.Env != "development"),
 
-		// Auth
-		SignupHandler:        storefront.NewSignupHandler(userService, emailVerificationService, renderer, tenantUUID),
-		SignupSuccessHandler: storefront.NewSignupSuccessHandler(renderer),
-		LoginHandler:         storefront.NewLoginHandler(userService, renderer),
-		LogoutHandler:        storefront.NewLogoutHandler(userService),
-
-		// Password Reset
-		ForgotPasswordHandler: storefront.NewForgotPasswordHandler(renderer, passwordResetService, tenantUUID),
-		ResetPasswordHandler:  storefront.NewResetPasswordHandler(renderer, passwordResetService, userService, tenantUUID),
-
-		// Email Verification
-		VerifyEmailHandler:        storefront.NewVerifyEmailHandler(emailVerificationService, renderer, tenantUUID),
-		ResendVerificationHandler: storefront.NewResendVerificationHandler(emailVerificationService, repo, renderer, tenantUUID),
+		// Auth (consolidated: signup, login, logout, password reset, email verification)
+		AuthHandler: storefront.NewAuthHandler(
+			userService,
+			emailVerificationService,
+			passwordResetService,
+			repo,
+			renderer,
+			tenantUUID,
+		),
 
 		// Checkout (consolidated handler)
 		CheckoutHandler: storefront.NewCheckoutHandler(
@@ -422,8 +418,8 @@ func run() error {
 
 	// Apply stricter rate limiting to auth endpoints
 	authRouter := r.Group(middleware.StrictRateLimit())
-	authRouter.Post("/login", storefrontDeps.LoginHandler.HandleSubmit)
-	authRouter.Post("/signup", storefrontDeps.SignupHandler.HandleSubmit)
+	authRouter.Post("/login", storefrontDeps.AuthHandler.HandleLogin)
+	authRouter.Post("/signup", storefrontDeps.AuthHandler.HandleSignup)
 	authRouter.Post("/admin/login", adminDeps.LoginHandler.HandleSubmit)
 
 	// SaaS marketing site router (separate, can be served on different port/domain)

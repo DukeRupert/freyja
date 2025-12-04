@@ -7,8 +7,10 @@ import (
 
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
+	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/service"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const (
@@ -16,54 +18,65 @@ const (
 	sessionMaxAge     = 30 * 24 * 60 * 60 // 30 days in seconds
 )
 
-// SignupHandler handles the signup page and form submission
-type SignupHandler struct {
-	userService         service.UserService
-	verificationService service.EmailVerificationService
-	renderer            *handler.Renderer
-	tenantID            uuid.UUID
+// AuthHandler handles all authentication-related flows:
+// - Signup and signup success
+// - Login and logout
+// - Password reset (forgot and reset)
+// - Email verification (verify and resend)
+type AuthHandler struct {
+	userService          service.UserService
+	verificationService  service.EmailVerificationService
+	passwordResetService service.PasswordResetService
+	repo                 repository.Querier
+	renderer             *handler.Renderer
+	tenantID             uuid.UUID
 }
 
-// NewSignupHandler creates a new signup handler
-func NewSignupHandler(
+// NewAuthHandler creates a new consolidated auth handler
+func NewAuthHandler(
 	userService service.UserService,
 	verificationService service.EmailVerificationService,
+	passwordResetService service.PasswordResetService,
+	repo repository.Querier,
 	renderer *handler.Renderer,
 	tenantID uuid.UUID,
-) *SignupHandler {
-	return &SignupHandler{
-		userService:         userService,
-		verificationService: verificationService,
-		renderer:            renderer,
-		tenantID:            tenantID,
+) *AuthHandler {
+	return &AuthHandler{
+		userService:          userService,
+		verificationService:  verificationService,
+		passwordResetService: passwordResetService,
+		repo:                 repo,
+		renderer:             renderer,
+		tenantID:             tenantID,
 	}
 }
 
-// ShowForm handles GET /signup - displays the signup form
-func (h *SignupHandler) ShowForm(w http.ResponseWriter, r *http.Request) {
-	h.showFormWithError(w, r, nil)
+// =============================================================================
+// Signup
+// =============================================================================
+
+// ShowSignupForm handles GET /signup - displays the signup form
+func (h *AuthHandler) ShowSignupForm(w http.ResponseWriter, r *http.Request) {
+	h.showSignupFormWithError(w, r, nil)
 }
 
-func (h *SignupHandler) showFormWithError(w http.ResponseWriter, r *http.Request, formError *string) {
+func (h *AuthHandler) showSignupFormWithError(w http.ResponseWriter, r *http.Request, formError *string) {
 	data := BaseTemplateData(r)
-
 	if formError != nil {
 		data["Error"] = *formError
 	}
-
 	h.renderer.RenderHTTP(w, "signup", data)
 }
 
-// HandleSubmit handles POST /signup - processes the signup form
-func (h *SignupHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
+// HandleSignup handles POST /signup - processes the signup form
+func (h *AuthHandler) HandleSignup(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := middleware.GetLogger(ctx)
 
-	// Parse form data
 	if err := r.ParseForm(); err != nil {
 		logger.Error("signup: failed to parse form", "error", err)
 		errMsg := "Invalid form data"
-		h.showFormWithError(w, r, &errMsg)
+		h.showSignupFormWithError(w, r, &errMsg)
 		return
 	}
 
@@ -72,34 +85,28 @@ func (h *SignupHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 	firstName := r.FormValue("first_name")
 	lastName := r.FormValue("last_name")
 
-	// Validate required fields
 	if email == "" || password == "" {
 		logger.Warn("signup: missing required fields", "email", email, "hasPassword", password != "")
 		errMsg := "Email and password are required"
-		h.showFormWithError(w, r, &errMsg)
+		h.showSignupFormWithError(w, r, &errMsg)
 		return
 	}
 
-	// Register user
 	user, err := h.userService.Register(ctx, email, password, firstName, lastName)
 	if err != nil {
-		logger.Error("signup: registration failed",
-			"email", email,
-			"error", err,
-			"isUserExists", errors.Is(err, service.ErrUserExists))
+		logger.Error("signup: registration failed", "email", email, "error", err)
 		var errMsg string
 		if errors.Is(err, service.ErrUserExists) {
 			errMsg = "An account with this email already exists"
 		} else {
 			errMsg = "Failed to create account. Please try again."
 		}
-		h.showFormWithError(w, r, &errMsg)
+		h.showSignupFormWithError(w, r, &errMsg)
 		return
 	}
 
 	logger.Info("signup: user registered successfully", "email", email, "userID", user.ID)
 
-	// Convert user ID from pgtype.UUID to uuid.UUID
 	userID, err := uuid.FromBytes(user.ID.Bytes[:])
 	if err != nil {
 		logger.Error("signup: failed to convert user ID", "error", err)
@@ -107,86 +114,73 @@ func (h *SignupHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get IP and user agent for rate limiting
 	ipAddress := middleware.GetClientIP(r)
 	userAgent := r.UserAgent()
 
-	// Send verification email
 	err = h.verificationService.SendVerificationEmail(ctx, h.tenantID, userID, email, firstName, ipAddress, userAgent)
 	if err != nil {
 		logger.Error("signup: failed to send verification email", "error", err)
-		// Still show success - the user was created, just the email failed
 	}
 
 	logger.Info("signup: verification email sent", "email", email)
-
-	// Redirect to verification pending page
 	http.Redirect(w, r, "/signup-success?email="+email, http.StatusSeeOther)
 }
 
-// LoginHandler handles the login page and form submission
-type LoginHandler struct {
-	userService service.UserService
-	renderer    *handler.Renderer
-}
-
-// NewLoginHandler creates a new login handler
-func NewLoginHandler(userService service.UserService, renderer *handler.Renderer) *LoginHandler {
-	return &LoginHandler{
-		userService: userService,
-		renderer:    renderer,
-	}
-}
-
-// ShowForm handles GET /login - displays the login form
-func (h *LoginHandler) ShowForm(w http.ResponseWriter, r *http.Request) {
-	h.showFormWithError(w, r, nil, "")
-}
-
-func (h *LoginHandler) showFormWithError(w http.ResponseWriter, r *http.Request, formError *string, email string) {
+// ShowSignupSuccess handles GET /signup-success - displays the verification pending page
+func (h *AuthHandler) ShowSignupSuccess(w http.ResponseWriter, r *http.Request) {
 	data := BaseTemplateData(r)
+	email := r.URL.Query().Get("email")
+	if email != "" {
+		data["Email"] = email
+	}
+	h.renderer.RenderHTTP(w, "signup_success", data)
+}
 
+// =============================================================================
+// Login
+// =============================================================================
+
+// ShowLoginForm handles GET /login - displays the login form
+func (h *AuthHandler) ShowLoginForm(w http.ResponseWriter, r *http.Request) {
+	h.showLoginFormWithError(w, r, nil, "")
+}
+
+func (h *AuthHandler) showLoginFormWithError(w http.ResponseWriter, r *http.Request, formError *string, email string) {
+	data := BaseTemplateData(r)
 	if formError != nil {
 		data["Error"] = *formError
 	}
 	if email != "" {
 		data["Email"] = email
 	}
-
-	// Check for password reset success message
 	if r.URL.Query().Get("reset") == "success" {
 		data["Success"] = "Your password has been reset successfully. Please log in with your new password."
 	}
-
 	h.renderer.RenderHTTP(w, "login", data)
 }
 
-// HandleSubmit handles POST /login - processes the login form
-func (h *LoginHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
+// HandleLogin handles POST /login - processes the login form
+func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Parse form data
 	if err := r.ParseForm(); err != nil {
 		errMsg := "Invalid form data"
-		h.showFormWithError(w, r, &errMsg, "")
+		h.showLoginFormWithError(w, r, &errMsg, "")
 		return
 	}
 
 	email := r.FormValue("email")
 	password := r.FormValue("password")
 
-	// Validate required fields
 	if email == "" || password == "" {
 		errMsg := "Email and password are required"
-		h.showFormWithError(w, r, &errMsg, email)
+		h.showLoginFormWithError(w, r, &errMsg, email)
 		return
 	}
 
-	// Authenticate user
 	user, err := h.userService.Authenticate(ctx, email, password)
 	if err != nil {
 		if errors.Is(err, service.ErrEmailNotVerified) {
-			// Redirect to resend verification page
 			http.Redirect(w, r, "/resend-verification?email="+email, http.StatusSeeOther)
 			return
 		}
@@ -200,11 +194,10 @@ func (h *LoginHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 		} else {
 			errMsg = "Login failed. Please try again."
 		}
-		h.showFormWithError(w, r, &errMsg, email)
+		h.showLoginFormWithError(w, r, &errMsg, email)
 		return
 	}
 
-	// Create session
 	userIDStr := fmt.Sprintf("%x-%x-%x-%x-%x",
 		user.ID.Bytes[0:4], user.ID.Bytes[4:6], user.ID.Bytes[6:8],
 		user.ID.Bytes[8:10], user.ID.Bytes[10:16])
@@ -214,7 +207,6 @@ func (h *LoginHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set session cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    token,
@@ -225,7 +217,6 @@ func (h *LoginHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	// Redirect to home page or returnTo URL
 	returnTo := r.URL.Query().Get("return_to")
 	if returnTo == "" {
 		returnTo = "/"
@@ -233,30 +224,19 @@ func (h *LoginHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, returnTo, http.StatusSeeOther)
 }
 
-// LogoutHandler handles user logout
-type LogoutHandler struct {
-	userService service.UserService
-}
+// =============================================================================
+// Logout
+// =============================================================================
 
-// NewLogoutHandler creates a new logout handler
-func NewLogoutHandler(userService service.UserService) *LogoutHandler {
-	return &LogoutHandler{
-		userService: userService,
-	}
-}
-
-// HandleSubmit handles POST /logout - logs out the user
-func (h *LogoutHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
+// HandleLogout handles POST /logout - logs out the user
+func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Get session cookie
 	cookie, err := r.Cookie(sessionCookieName)
 	if err == nil && cookie.Value != "" {
-		// Delete session from database
 		_ = h.userService.DeleteSession(ctx, cookie.Value)
 	}
 
-	// Clear session cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    "",
@@ -267,31 +247,264 @@ func (h *LogoutHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	// Redirect to home page
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-// SignupSuccessHandler handles the signup success page
-type SignupSuccessHandler struct {
-	renderer *handler.Renderer
-}
+// =============================================================================
+// Forgot Password
+// =============================================================================
 
-// NewSignupSuccessHandler creates a new signup success handler
-func NewSignupSuccessHandler(renderer *handler.Renderer) *SignupSuccessHandler {
-	return &SignupSuccessHandler{
-		renderer: renderer,
+// ShowForgotPasswordForm displays the forgot password form
+func (h *AuthHandler) ShowForgotPasswordForm(w http.ResponseWriter, r *http.Request) {
+	data := BaseTemplateData(r)
+	if r.URL.Query().Get("success") == "true" {
+		data["Success"] = "If an account exists with that email, you will receive a password reset link shortly."
 	}
+	h.renderer.RenderHTTP(w, "forgot_password", data)
 }
 
-// ServeHTTP handles GET /signup-success - displays the verification pending page
-func (h *SignupSuccessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// HandleForgotPassword processes the forgot password form submission
+func (h *AuthHandler) HandleForgotPassword(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, "/forgot-password", http.StatusSeeOther)
+		return
+	}
+
+	email := r.FormValue("email")
+
+	if email == "" {
+		data := BaseTemplateData(r)
+		data["Error"] = "Email is required"
+		data["Email"] = email
+		h.renderer.RenderHTTP(w, "forgot_password", data)
+		return
+	}
+
+	ipAddress := middleware.GetClientIP(r)
+	userAgent := r.UserAgent()
+
+	// Always returns nil to prevent enumeration
+	_, _ = h.passwordResetService.RequestPasswordReset(ctx, h.tenantID, email, ipAddress, userAgent)
+
+	http.Redirect(w, r, "/forgot-password?success=true", http.StatusSeeOther)
+}
+
+// =============================================================================
+// Reset Password
+// =============================================================================
+
+// ShowResetPasswordForm displays the reset password form
+func (h *AuthHandler) ShowResetPasswordForm(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	data := BaseTemplateData(r)
 
-	// Get email from query params
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		data["Error"] = "Invalid or missing reset token"
+		h.renderer.RenderHTTP(w, "reset_password", data)
+		return
+	}
+
+	_, err := h.passwordResetService.ValidateResetToken(ctx, h.tenantID, token)
+	if err != nil {
+		data["Error"] = "This password reset link is invalid or has expired"
+		h.renderer.RenderHTTP(w, "reset_password", data)
+		return
+	}
+
+	data["Token"] = token
+	h.renderer.RenderHTTP(w, "reset_password", data)
+}
+
+// HandleResetPassword processes the password reset form submission
+func (h *AuthHandler) HandleResetPassword(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if err := r.ParseForm(); err != nil {
+		data := BaseTemplateData(r)
+		data["Error"] = "Invalid form data"
+		h.renderer.RenderHTTP(w, "reset_password", data)
+		return
+	}
+
+	token := r.FormValue("token")
+	newPassword := r.FormValue("password")
+	confirmPassword := r.FormValue("password_confirm")
+
+	data := BaseTemplateData(r)
+	data["Token"] = token
+
+	if token == "" || newPassword == "" || confirmPassword == "" {
+		data["Error"] = "All fields are required"
+		h.renderer.RenderHTTP(w, "reset_password", data)
+		return
+	}
+
+	if newPassword != confirmPassword {
+		data["Error"] = "Passwords do not match"
+		h.renderer.RenderHTTP(w, "reset_password", data)
+		return
+	}
+
+	if len(newPassword) < 8 {
+		data["Error"] = "Password must be at least 8 characters"
+		h.renderer.RenderHTTP(w, "reset_password", data)
+		return
+	}
+
+	err := h.passwordResetService.ResetPassword(ctx, h.tenantID, token, newPassword)
+	if err != nil {
+		var errMsg string
+		if errors.Is(err, service.ErrInvalidToken) {
+			errMsg = "This password reset link is invalid or has expired"
+		} else {
+			errMsg = "Failed to reset password. Please try again."
+		}
+		data["Error"] = errMsg
+		h.renderer.RenderHTTP(w, "reset_password", data)
+		return
+	}
+
+	http.Redirect(w, r, "/login?reset=success", http.StatusSeeOther)
+}
+
+// =============================================================================
+// Email Verification
+// =============================================================================
+
+// HandleVerifyEmail handles GET /verify-email - verifies the email using a token
+func (h *AuthHandler) HandleVerifyEmail(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := middleware.GetLogger(ctx)
+
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		logger.Warn("verify email: missing token")
+		data := BaseTemplateData(r)
+		data["Error"] = "Invalid verification link. Please request a new verification email."
+		h.renderer.RenderHTTP(w, "verify_email", data)
+		return
+	}
+
+	err := h.verificationService.VerifyEmail(ctx, h.tenantID, token)
+	if err != nil {
+		logger.Warn("verify email: verification failed", "error", err)
+		data := BaseTemplateData(r)
+		if errors.Is(err, service.ErrVerificationTokenInvalid) {
+			data["Error"] = "This verification link is invalid or has expired. Please request a new verification email."
+		} else if errors.Is(err, service.ErrEmailAlreadyVerified) {
+			data["Success"] = "Your email has already been verified. You can now log in."
+		} else {
+			data["Error"] = "An error occurred while verifying your email. Please try again."
+		}
+		h.renderer.RenderHTTP(w, "verify_email", data)
+		return
+	}
+
+	logger.Info("verify email: email verified successfully")
+
+	data := BaseTemplateData(r)
+	data["Success"] = "Your email has been verified successfully! You can now log in to your account."
+	h.renderer.RenderHTTP(w, "verify_email", data)
+}
+
+// ShowResendVerificationForm handles GET /resend-verification - displays the resend form
+func (h *AuthHandler) ShowResendVerificationForm(w http.ResponseWriter, r *http.Request) {
+	data := BaseTemplateData(r)
 	email := r.URL.Query().Get("email")
 	if email != "" {
 		data["Email"] = email
 	}
+	h.renderer.RenderHTTP(w, "resend_verification", data)
+}
 
-	h.renderer.RenderHTTP(w, "signup_success", data)
+// HandleResendVerification handles POST /resend-verification - resends the verification email
+func (h *AuthHandler) HandleResendVerification(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := middleware.GetLogger(ctx)
+
+	if err := r.ParseForm(); err != nil {
+		logger.Error("resend verification: failed to parse form", "error", err)
+		data := BaseTemplateData(r)
+		data["Error"] = "Invalid form data"
+		h.renderer.RenderHTTP(w, "resend_verification", data)
+		return
+	}
+
+	email := r.FormValue("email")
+	if email == "" {
+		logger.Warn("resend verification: missing email")
+		data := BaseTemplateData(r)
+		data["Error"] = "Email address is required"
+		h.renderer.RenderHTTP(w, "resend_verification", data)
+		return
+	}
+
+	var tenantUUID pgtype.UUID
+	_ = tenantUUID.Scan(h.tenantID.String())
+
+	user, err := h.repo.GetUserByEmail(ctx, repository.GetUserByEmailParams{
+		TenantID: tenantUUID,
+		Email:    email,
+	})
+	if err != nil {
+		logger.Info("resend verification: email not found (showing success anyway)", "email", email)
+		data := BaseTemplateData(r)
+		data["Success"] = "If an account exists with that email, we've sent a new verification link."
+		data["Email"] = email
+		h.renderer.RenderHTTP(w, "resend_verification", data)
+		return
+	}
+
+	if user.EmailVerified {
+		logger.Info("resend verification: email already verified", "email", email)
+		data := BaseTemplateData(r)
+		data["Success"] = "Your email has already been verified. You can log in."
+		data["Email"] = email
+		h.renderer.RenderHTTP(w, "resend_verification", data)
+		return
+	}
+
+	ipAddress := middleware.GetClientIP(r)
+	userAgent := r.UserAgent()
+
+	userID, err := pgtypeToGoogleUUID(user.ID)
+	if err != nil {
+		logger.Error("resend verification: failed to convert user ID", "error", err)
+		data := BaseTemplateData(r)
+		data["Success"] = "If an account exists with that email, we've sent a new verification link."
+		data["Email"] = email
+		h.renderer.RenderHTTP(w, "resend_verification", data)
+		return
+	}
+
+	err = h.verificationService.SendVerificationEmail(ctx, h.tenantID, userID, email, user.FirstName.String, ipAddress, userAgent)
+	if err != nil {
+		if errors.Is(err, service.ErrVerificationRateLimitExceeded) {
+			logger.Warn("resend verification: rate limit exceeded", "email", email)
+			data := BaseTemplateData(r)
+			data["Error"] = "Too many verification requests. Please try again in an hour."
+			data["Email"] = email
+			h.renderer.RenderHTTP(w, "resend_verification", data)
+			return
+		}
+		logger.Error("resend verification: failed to send email", "error", err)
+	}
+
+	logger.Info("resend verification: verification email sent", "email", email)
+
+	data := BaseTemplateData(r)
+	data["Success"] = "If an account exists with that email, we've sent a new verification link."
+	data["Email"] = email
+	h.renderer.RenderHTTP(w, "resend_verification", data)
+}
+
+// pgtypeToGoogleUUID converts pgtype.UUID to google uuid.UUID
+func pgtypeToGoogleUUID(pgtypeUUID pgtype.UUID) (uuid.UUID, error) {
+	if !pgtypeUUID.Valid {
+		return uuid.Nil, fmt.Errorf("invalid UUID")
+	}
+	return uuid.FromBytes(pgtypeUUID.Bytes[:])
 }
