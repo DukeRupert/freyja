@@ -59,6 +59,19 @@ WHERE tenant_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
+-- name: SubmitWholesaleApplication :exec
+-- Submit a wholesale application (updates user profile with business info)
+UPDATE users
+SET
+    company_name = $2,
+    business_type = $3,
+    tax_id = $4,
+    wholesale_application_status = 'pending',
+    wholesale_application_notes = $5,
+    updated_at = NOW()
+WHERE id = $1
+  AND (wholesale_application_status IS NULL OR wholesale_application_status = 'rejected');
+
 -- name: UpdateWholesaleApplication :exec
 -- Update wholesale application status
 UPDATE users

@@ -705,6 +705,39 @@ func (q *Queries) ListWholesaleCustomers(ctx context.Context, arg ListWholesaleC
 	return items, nil
 }
 
+const submitWholesaleApplication = `-- name: SubmitWholesaleApplication :exec
+UPDATE users
+SET
+    company_name = $2,
+    business_type = $3,
+    tax_id = $4,
+    wholesale_application_status = 'pending',
+    wholesale_application_notes = $5,
+    updated_at = NOW()
+WHERE id = $1
+  AND (wholesale_application_status IS NULL OR wholesale_application_status = 'rejected')
+`
+
+type SubmitWholesaleApplicationParams struct {
+	ID                        pgtype.UUID `json:"id"`
+	CompanyName               pgtype.Text `json:"company_name"`
+	BusinessType              pgtype.Text `json:"business_type"`
+	TaxID                     pgtype.Text `json:"tax_id"`
+	WholesaleApplicationNotes pgtype.Text `json:"wholesale_application_notes"`
+}
+
+// Submit a wholesale application (updates user profile with business info)
+func (q *Queries) SubmitWholesaleApplication(ctx context.Context, arg SubmitWholesaleApplicationParams) error {
+	_, err := q.db.Exec(ctx, submitWholesaleApplication,
+		arg.ID,
+		arg.CompanyName,
+		arg.BusinessType,
+		arg.TaxID,
+		arg.WholesaleApplicationNotes,
+	)
+	return err
+}
+
 const updateUserPassword = `-- name: UpdateUserPassword :exec
 UPDATE users
 SET password_hash = $2

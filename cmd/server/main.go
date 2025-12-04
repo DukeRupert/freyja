@@ -291,6 +291,9 @@ func run() error {
 		SubscriptionPortalHandler:   storefront.NewSubscriptionPortalHandler(subscriptionService, cfg.TenantID),
 		SubscriptionCheckoutHandler: storefront.NewSubscriptionCheckoutHandler(productService, accountService, renderer, cfg.TenantID),
 		CreateSubscriptionHandler:   storefront.NewCreateSubscriptionHandler(subscriptionService, renderer, cfg.TenantID),
+
+		// Wholesale
+		WholesaleApplicationHandler: storefront.NewWholesaleApplicationHandler(repo, renderer, cfg.TenantID),
 	}
 
 	// Admin dependencies (consolidated handlers)

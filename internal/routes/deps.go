@@ -51,6 +51,9 @@ type StorefrontDeps struct {
 	SubscriptionPortalHandler   http.Handler
 	SubscriptionCheckoutHandler http.Handler
 	CreateSubscriptionHandler   http.Handler
+
+	// Wholesale
+	WholesaleApplicationHandler *storefront.WholesaleApplicationHandler
 }
 
 // AdminDeps contains dependencies for admin routes

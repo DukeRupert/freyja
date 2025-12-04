@@ -64,4 +64,9 @@ func RegisterStorefrontRoutes(r *router.Router, deps StorefrontDeps) {
 	account.Get("/account/subscriptions/{id}", deps.SubscriptionDetailHandler.ServeHTTP)
 	account.Get("/subscribe/checkout", deps.SubscriptionCheckoutHandler.ServeHTTP)
 	account.Post("/subscribe", deps.CreateSubscriptionHandler.ServeHTTP)
+
+	// Wholesale application (require authentication)
+	account.Get("/wholesale/apply", deps.WholesaleApplicationHandler.Form)
+	account.Post("/wholesale/apply", deps.WholesaleApplicationHandler.Submit)
+	account.Get("/wholesale/status", deps.WholesaleApplicationHandler.Status)
 }

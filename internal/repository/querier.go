@@ -444,6 +444,8 @@ type Querier interface {
 	SetDefaultShippingAddress(ctx context.Context, arg SetDefaultShippingAddressParams) error
 	// Set a product image as primary (and unset others)
 	SetPrimaryImage(ctx context.Context, arg SetPrimaryImageParams) error
+	// Submit a wholesale application (updates user profile with business info)
+	SubmitWholesaleApplication(ctx context.Context, arg SubmitWholesaleApplicationParams) error
 	// Update an address
 	UpdateAddress(ctx context.Context, arg UpdateAddressParams) (Address, error)
 	// Update a billing customer
