@@ -144,6 +144,42 @@ FROM orders
 WHERE tenant_id = $1
   AND user_id = $2;
 
+-- name: ListOrdersForUser :many
+-- List orders for a user (storefront order history)
+SELECT
+    o.id,
+    o.tenant_id,
+    o.order_number,
+    o.order_type,
+    o.status,
+    o.fulfillment_status,
+    o.subtotal_cents,
+    o.shipping_cents,
+    o.tax_cents,
+    o.total_cents,
+    o.currency,
+    o.subscription_id,
+    o.created_at,
+    o.updated_at,
+    p.status as payment_status,
+    s.tracking_number,
+    s.carrier,
+    s.status as shipment_status,
+    s.shipped_at
+FROM orders o
+LEFT JOIN payments p ON p.id = o.payment_id
+LEFT JOIN LATERAL (
+    SELECT tracking_number, carrier, status, shipped_at
+    FROM shipments
+    WHERE order_id = o.id
+    ORDER BY created_at DESC
+    LIMIT 1
+) s ON true
+WHERE o.tenant_id = $1
+  AND o.user_id = $2
+ORDER BY o.created_at DESC
+LIMIT $3 OFFSET $4;
+
 -- name: ListOrdersByStatus :many
 -- List orders filtered by status
 SELECT

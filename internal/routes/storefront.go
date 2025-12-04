@@ -52,6 +52,7 @@ func RegisterStorefrontRoutes(r *router.Router, deps StorefrontDeps) {
 	// Account routes (require authentication)
 	account := r.Group(middleware.RequireAuth)
 	account.Get("/account", deps.AccountDashboardHandler.ServeHTTP)
+	account.Get("/account/orders", deps.OrderHistoryHandler.List)
 	account.Get("/account/subscriptions", deps.SubscriptionListHandler.ServeHTTP)
 	account.Get("/account/subscriptions/portal", deps.SubscriptionPortalHandler.ServeHTTP)
 	account.Get("/account/subscriptions/{id}", deps.SubscriptionDetailHandler.ServeHTTP)

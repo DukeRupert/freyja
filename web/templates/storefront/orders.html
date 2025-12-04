@@ -1,0 +1,212 @@
+{{define "title"}}Order History{{end}}
+
+{{define "content"}}
+<div class="mx-auto max-w-4xl">
+    <!-- Page Header -->
+    <div class="mb-8">
+        <div class="flex items-center gap-2 text-sm text-neutral-500 mb-4">
+            <a href="/account" class="hover:text-teal-700">My Account</a>
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+            <span class="text-neutral-900">Orders</span>
+        </div>
+        {{template "sf-heading" (dict "Level" "1" "Content" "Order History")}}
+        <p class="mt-2 text-base text-neutral-600">
+            View and track your orders
+        </p>
+    </div>
+
+    <!-- Filter -->
+    {{if .Orders}}
+    <div class="mb-6 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <label for="status-filter" class="text-sm text-neutral-600">Filter:</label>
+            <select id="status-filter"
+                    onchange="filterOrders(this.value)"
+                    class="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500">
+                <option value="" {{if eq .StatusFilter ""}}selected{{end}}>All Orders</option>
+                <option value="pending" {{if eq .StatusFilter "pending"}}selected{{end}}>Processing</option>
+                <option value="shipped" {{if eq .StatusFilter "shipped"}}selected{{end}}>Shipped</option>
+                <option value="delivered" {{if eq .StatusFilter "delivered"}}selected{{end}}>Delivered</option>
+                <option value="cancelled" {{if eq .StatusFilter "cancelled"}}selected{{end}}>Cancelled</option>
+            </select>
+        </div>
+        <p class="text-sm text-neutral-500">{{.TotalCount}} order{{if ne .TotalCount 1}}s{{end}}</p>
+    </div>
+    {{end}}
+
+    <!-- Orders List -->
+    {{if .Orders}}
+    <div class="space-y-4">
+        {{range .Orders}}
+        <article class="rounded-lg bg-white border border-neutral-200 shadow-sm hover:border-neutral-300 transition-colors">
+            <div class="p-6">
+                <!-- Order Header -->
+                <div class="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <div class="flex items-center gap-3">
+                            <h3 class="text-lg font-semibold text-neutral-900">
+                                Order #{{.OrderNumber}}
+                            </h3>
+                            {{if .IsSubscription}}
+                            <span class="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-700">
+                                <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Subscription
+                            </span>
+                            {{end}}
+                        </div>
+                        <p class="mt-1 text-sm text-neutral-500">
+                            Placed on {{.CreatedAt.Format "January 2, 2006"}}
+                        </p>
+                    </div>
+                    <div class="text-right">
+                        <!-- Status Badge -->
+                        <span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium
+                            {{if eq .StatusColor "teal"}}bg-teal-100 text-teal-800{{end}}
+                            {{if eq .StatusColor "amber"}}bg-amber-100 text-amber-800{{end}}
+                            {{if eq .StatusColor "blue"}}bg-blue-100 text-blue-800{{end}}
+                            {{if eq .StatusColor "green"}}bg-green-100 text-green-800{{end}}
+                            {{if eq .StatusColor "red"}}bg-red-100 text-red-800{{end}}
+                            {{if eq .StatusColor "neutral"}}bg-neutral-100 text-neutral-800{{end}}">
+                            {{.StatusLabel}}
+                        </span>
+                        <p class="mt-2 text-lg font-bold text-neutral-900">
+                            ${{printf "%.2f" (divf (add .TotalCents 0.0) 100.0)}}
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Shipment Info (if shipped) -->
+                {{if .TrackingNumber}}
+                <div class="mt-4 rounded-lg bg-blue-50 border border-blue-100 p-4">
+                    <div class="flex items-center gap-3">
+                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                            </svg>
+                        </div>
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-blue-900">
+                                {{if .ShippedAt}}Shipped {{.ShippedAt.Format "January 2, 2006"}}{{else}}Shipment created{{end}}
+                            </p>
+                            <p class="text-sm text-blue-700">
+                                {{if .Carrier}}{{.Carrier}} - {{end}}Tracking: {{.TrackingNumber}}
+                            </p>
+                        </div>
+                        <a href="#"
+                           onclick="trackPackage('{{.Carrier}}', '{{.TrackingNumber}}'); return false;"
+                           class="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
+                            Track
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+                {{end}}
+
+                <!-- Actions -->
+                <div class="mt-4 flex items-center justify-between border-t border-neutral-100 pt-4">
+                    <a href="/account/orders/{{.ID}}"
+                       class="inline-flex items-center gap-2 text-sm font-medium text-teal-700 hover:text-teal-800 transition-colors">
+                        View Order Details
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </a>
+                    {{if eq .Status "delivered"}}
+                    <a href="/products"
+                       class="inline-flex items-center gap-2 rounded-lg border border-teal-600 px-4 py-2 text-sm font-medium text-teal-700 hover:bg-teal-50 transition-colors">
+                        Reorder
+                    </a>
+                    {{end}}
+                </div>
+            </div>
+        </article>
+        {{end}}
+    </div>
+
+    <!-- Pagination -->
+    {{if gt .TotalPages 1}}
+    <div class="mt-8 flex items-center justify-center gap-2">
+        {{if .HasPrevPage}}
+        <a href="/account/orders?page={{.PrevPage}}{{if .StatusFilter}}&status={{.StatusFilter}}{{end}}"
+           class="inline-flex items-center gap-1 rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition-colors">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+            Previous
+        </a>
+        {{end}}
+
+        <span class="px-4 py-2 text-sm text-neutral-600">
+            Page {{.CurrentPage}} of {{.TotalPages}}
+        </span>
+
+        {{if .HasNextPage}}
+        <a href="/account/orders?page={{.NextPage}}{{if .StatusFilter}}&status={{.StatusFilter}}{{end}}"
+           class="inline-flex items-center gap-1 rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition-colors">
+            Next
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+        </a>
+        {{end}}
+    </div>
+    {{end}}
+
+    {{else}}
+    <!-- Empty State -->
+    {{template "sf-empty-state" (dict
+        "Icon" "<path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z\"/>"
+        "Title" "No orders yet"
+        "Description" "Your order history will appear here after your first purchase")}}
+
+    <div class="mt-8 text-center">
+        <a href="/products"
+           class="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-6 py-3 text-sm font-medium text-white hover:bg-teal-800 transition-colors">
+            Shop Coffee
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+        </a>
+    </div>
+    {{end}}
+</div>
+
+<script>
+function filterOrders(status) {
+    const url = new URL(window.location);
+    if (status) {
+        url.searchParams.set('status', status);
+    } else {
+        url.searchParams.delete('status');
+    }
+    url.searchParams.delete('page'); // Reset to first page on filter change
+    window.location = url;
+}
+
+function trackPackage(carrier, trackingNumber) {
+    let url;
+    const carrierLower = carrier.toLowerCase();
+
+    if (carrierLower.includes('usps')) {
+        url = `https://tools.usps.com/go/TrackConfirmAction?tLabels=${trackingNumber}`;
+    } else if (carrierLower.includes('ups')) {
+        url = `https://www.ups.com/track?tracknum=${trackingNumber}`;
+    } else if (carrierLower.includes('fedex')) {
+        url = `https://www.fedex.com/fedextrack/?trknbr=${trackingNumber}`;
+    } else if (carrierLower.includes('dhl')) {
+        url = `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${trackingNumber}`;
+    } else {
+        // Generic search
+        url = `https://www.google.com/search?q=${carrier}+tracking+${trackingNumber}`;
+    }
+
+    window.open(url, '_blank');
+}
+</script>
+{{end}}

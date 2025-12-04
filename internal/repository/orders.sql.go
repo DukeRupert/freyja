@@ -1439,6 +1439,117 @@ func (q *Queries) ListOrdersBySubscription(ctx context.Context, arg ListOrdersBy
 	return items, nil
 }
 
+const listOrdersForUser = `-- name: ListOrdersForUser :many
+SELECT
+    o.id,
+    o.tenant_id,
+    o.order_number,
+    o.order_type,
+    o.status,
+    o.fulfillment_status,
+    o.subtotal_cents,
+    o.shipping_cents,
+    o.tax_cents,
+    o.total_cents,
+    o.currency,
+    o.subscription_id,
+    o.created_at,
+    o.updated_at,
+    p.status as payment_status,
+    s.tracking_number,
+    s.carrier,
+    s.status as shipment_status,
+    s.shipped_at
+FROM orders o
+LEFT JOIN payments p ON p.id = o.payment_id
+LEFT JOIN LATERAL (
+    SELECT tracking_number, carrier, status, shipped_at
+    FROM shipments
+    WHERE order_id = o.id
+    ORDER BY created_at DESC
+    LIMIT 1
+) s ON true
+WHERE o.tenant_id = $1
+  AND o.user_id = $2
+ORDER BY o.created_at DESC
+LIMIT $3 OFFSET $4
+`
+
+type ListOrdersForUserParams struct {
+	TenantID pgtype.UUID `json:"tenant_id"`
+	UserID   pgtype.UUID `json:"user_id"`
+	Limit    int32       `json:"limit"`
+	Offset   int32       `json:"offset"`
+}
+
+type ListOrdersForUserRow struct {
+	ID                pgtype.UUID        `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	OrderNumber       string             `json:"order_number"`
+	OrderType         string             `json:"order_type"`
+	Status            string             `json:"status"`
+	FulfillmentStatus string             `json:"fulfillment_status"`
+	SubtotalCents     int32              `json:"subtotal_cents"`
+	ShippingCents     int32              `json:"shipping_cents"`
+	TaxCents          int32              `json:"tax_cents"`
+	TotalCents        int32              `json:"total_cents"`
+	Currency          string             `json:"currency"`
+	SubscriptionID    pgtype.UUID        `json:"subscription_id"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	PaymentStatus     pgtype.Text        `json:"payment_status"`
+	TrackingNumber    pgtype.Text        `json:"tracking_number"`
+	Carrier           pgtype.Text        `json:"carrier"`
+	ShipmentStatus    string             `json:"shipment_status"`
+	ShippedAt         pgtype.Timestamptz `json:"shipped_at"`
+}
+
+// List orders for a user (storefront order history)
+func (q *Queries) ListOrdersForUser(ctx context.Context, arg ListOrdersForUserParams) ([]ListOrdersForUserRow, error) {
+	rows, err := q.db.Query(ctx, listOrdersForUser,
+		arg.TenantID,
+		arg.UserID,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOrdersForUserRow{}
+	for rows.Next() {
+		var i ListOrdersForUserRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.OrderNumber,
+			&i.OrderType,
+			&i.Status,
+			&i.FulfillmentStatus,
+			&i.SubtotalCents,
+			&i.ShippingCents,
+			&i.TaxCents,
+			&i.TotalCents,
+			&i.Currency,
+			&i.SubscriptionID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.PaymentStatus,
+			&i.TrackingNumber,
+			&i.Carrier,
+			&i.ShipmentStatus,
+			&i.ShippedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWholesaleOrders = `-- name: ListWholesaleOrders :many
 
 SELECT

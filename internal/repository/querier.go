@@ -386,6 +386,8 @@ type Querier interface {
 	// Get all orders for a specific subscription
 	// Used by subscription detail page to show order history
 	ListOrdersBySubscription(ctx context.Context, arg ListOrdersBySubscriptionParams) ([]ListOrdersBySubscriptionRow, error)
+	// List orders for a user (storefront order history)
+	ListOrdersForUser(ctx context.Context, arg ListOrdersForUserParams) ([]ListOrdersForUserRow, error)
 	// List invoices that are past due
 	ListOverdueInvoices(ctx context.Context, tenantID pgtype.UUID) ([]ListOverdueInvoicesRow, error)
 	// Get all payment methods for a user

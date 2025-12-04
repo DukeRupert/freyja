@@ -58,16 +58,16 @@
         </a>
 
         <!-- Order History Card -->
-        <div class="rounded-lg bg-white border border-neutral-200 shadow-sm p-6 opacity-75">
+        <a href="/account/orders" class="group block rounded-lg bg-white border border-neutral-200 shadow-sm p-6 transition-all hover:border-teal-300 hover:shadow-md">
             <div class="flex items-start justify-between">
-                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500">
+                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-teal-50 text-teal-600 group-hover:bg-teal-100">
                     <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                     </svg>
                 </div>
-                <span class="inline-flex items-center rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-600">
-                    Coming soon
-                </span>
+                <svg class="h-5 w-5 text-neutral-400 group-hover:text-teal-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
             </div>
             <h3 class="mt-4 text-lg font-semibold text-neutral-900">Order History</h3>
             <p class="mt-1 text-sm text-neutral-600">
@@ -77,7 +77,7 @@
                     No orders yet
                 {{end}}
             </p>
-        </div>
+        </a>
 
         <!-- Addresses Card -->
         <div class="rounded-lg bg-white border border-neutral-200 shadow-sm p-6 opacity-75">
