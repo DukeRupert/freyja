@@ -178,7 +178,15 @@ func (s *checkoutService) GetShippingRates(ctx context.Context, cartID string, s
 
 	destination := convertAddressToShipping(shippingAddr)
 
+	// Convert tenant ID to string for shipping provider
+	tenantIDStr := ""
+	if s.tenantID.Valid {
+		b := s.tenantID.Bytes
+		tenantIDStr = fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+	}
+
 	rates, err := s.shippingProvider.GetRates(ctx, shipping.RateParams{
+		TenantID:           tenantIDStr,
 		OriginAddress:      origin,
 		DestinationAddress: destination,
 		Packages:           []shipping.Package{pkg},
