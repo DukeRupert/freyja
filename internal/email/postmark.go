@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 type PostmarkSender struct {
 	apiKey     string
 	serverName string // Optional: for multiple Postmark servers
+	logger     *slog.Logger
 }
 
 type postmarkEmail struct {
@@ -47,14 +49,23 @@ type postmarkResponse struct {
 }
 
 // NewPostmarkSender creates a new Postmark email sender
-func NewPostmarkSender(apiKey string) *PostmarkSender {
+func NewPostmarkSender(apiKey string, logger *slog.Logger) *PostmarkSender {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &PostmarkSender{
 		apiKey: apiKey,
+		logger: logger,
 	}
 }
 
 // Send sends an email via Postmark
 func (p *PostmarkSender) Send(ctx context.Context, email *Email) (string, error) {
+	p.logger.Info("postmark: preparing email",
+		"to", email.To,
+		"from", email.From,
+		"subject", email.Subject,
+	)
 
 	payload := postmarkEmail{
 		From:     email.From,
@@ -86,11 +97,18 @@ func (p *PostmarkSender) Send(ctx context.Context, email *Email) (string, error)
 
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
+		p.logger.Error("postmark: failed to marshal payload", "error", err)
 		return "", fmt.Errorf("failed to marshal email payload: %w", err)
 	}
 
+	p.logger.Debug("postmark: sending request to API",
+		"payload_size", len(jsonData),
+		"has_api_key", p.apiKey != "",
+	)
+
 	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.postmarkapp.com/email", bytes.NewBuffer(jsonData))
 	if err != nil {
+		p.logger.Error("postmark: failed to create request", "error", err)
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
@@ -98,30 +116,49 @@ func (p *PostmarkSender) Send(ctx context.Context, email *Email) (string, error)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Postmark-Server-Token", p.apiKey)
 
+	p.logger.Info("postmark: executing HTTP request")
+
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		p.logger.Error("postmark: HTTP request failed", "error", err)
 		return "", fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
+	p.logger.Info("postmark: received response", "status_code", resp.StatusCode)
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		p.logger.Error("postmark: failed to read response body", "error", err)
 		return "", fmt.Errorf("failed to read response: %w", err)
 	}
 
+	p.logger.Debug("postmark: response body", "body", string(body))
+
 	if resp.StatusCode != http.StatusOK {
+		p.logger.Error("postmark: API returned error status",
+			"status_code", resp.StatusCode,
+			"body", string(body),
+		)
 		return "", fmt.Errorf("postmark API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	var result postmarkResponse
 	if err := json.Unmarshal(body, &result); err != nil {
+		p.logger.Error("postmark: failed to parse response", "error", err, "body", string(body))
 		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	if result.ErrorCode != 0 {
+		p.logger.Error("postmark: API returned error",
+			"error_code", result.ErrorCode,
+			"message", result.Message,
+		)
 		return "", fmt.Errorf("postmark error %d: %s", result.ErrorCode, result.Message)
 	}
+
+	p.logger.Info("postmark: email sent successfully", "message_id", result.MessageID)
 
 	return result.MessageID, nil
 }

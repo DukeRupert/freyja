@@ -74,7 +74,7 @@ func NewConfig() (*Config, error) {
 			Port:          getEnvInt("SMTP_PORT", 1025),
 			Username:      getEnv("SMTP_USERNAME", ""),
 			Password:      getEnv("SMTP_PASSWORD", ""),
-			From:          getEnv("EMAIL_FROM_ADDRESS", "noreply@freyja.local"),
+			From:          getEnv("SMTP_FROM", "noreply@freyja.local"),
 			FromName:      getEnv("EMAIL_FROM_NAME", "Freyja Coffee"),
 			PostmarkToken: getEnv("POSTMARK_API_TOKEN", ""),
 		},

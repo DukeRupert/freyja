@@ -122,11 +122,14 @@ func (w *Worker) Start(ctx context.Context) error {
 
 // claimAndProcess claims and processes a single job
 func (w *Worker) claimAndProcess(ctx context.Context) {
-	// TODO: Implement job claiming and processing
-	// 1. Call ClaimNextJob with worker ID, tenant ID, queue
-	// 2. If no job available, return immediately
-	// 3. Call processJob() with claimed job
-	// 4. Handle result (complete or fail the job)
+	// Recover from panics so the worker doesn't die silently
+	defer func() {
+		if r := recover(); r != nil {
+			w.logger.Error("job panicked",
+				"panic", fmt.Sprintf("%v", r),
+			)
+		}
+	}()
 
 	var tenantID pgtype.UUID
 	if w.config.TenantID != nil {
@@ -160,7 +163,7 @@ func (w *Worker) claimAndProcess(ctx context.Context) {
 		_, _ = w.queries.FailJob(ctx, repository.FailJobParams{
 			ID:           job.ID,
 			ErrorMessage: pgtype.Text{String: err.Error(), Valid: true},
-			ErrorDetails: []byte("{}"), // TODO: Add structured error details
+			ErrorDetails: []byte("{}"),
 		})
 		return
 	}

@@ -106,7 +106,7 @@ func run() error {
 	var emailSender email.Sender
 	if cfg.Email.PostmarkToken != "" {
 		logger.Info("Using Postmark email sender")
-		emailSender = email.NewPostmarkSender(cfg.Email.PostmarkToken)
+		emailSender = email.NewPostmarkSender(cfg.Email.PostmarkToken, logger)
 	} else {
 		logger.Info("Using SMTP email sender (development)")
 		emailSender = email.NewSMTPSender(
@@ -118,7 +118,7 @@ func run() error {
 		)
 	}
 
-	emailService, err := email.NewService(emailSender, cfg.Email.From, cfg.Email.FromName, "web/templates")
+	emailService, err := email.NewService(emailSender, cfg.Email.From, cfg.Email.FromName, "web/templates", logger)
 	if err != nil {
 		return fmt.Errorf("failed to initialize email service: %w", err)
 	}

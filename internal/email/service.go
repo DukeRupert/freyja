@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"html/template"
+	"log/slog"
 	"path/filepath"
 	"strings"
 	"time"
@@ -16,12 +17,19 @@ type Service struct {
 	fromAddress   string
 	fromName      string
 	templateCache map[string]*template.Template // Map of template name to composed template
+	logger        *slog.Logger
 }
 
 // NewService creates a new email service
-func NewService(sender Sender, fromAddress, fromName, templateDir string) (*Service, error) {
+func NewService(sender Sender, fromAddress, fromName, templateDir string, logger *slog.Logger) (*Service, error) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	emailDir := filepath.Join(templateDir, "email")
 	layoutPath := filepath.Join(emailDir, "layout.html")
+
+	logger.Info("loading email templates", "email_dir", emailDir)
 
 	// Parse the layout template as a base
 	layoutTmpl, err := template.New("layout.html").Funcs(emailTemplateFuncs()).ParseFiles(layoutPath)
@@ -57,13 +65,17 @@ func NewService(sender Sender, fromAddress, fromName, templateDir string) (*Serv
 		}
 
 		templateCache[filename] = tmpl
+		logger.Debug("loaded email template", "template", filename)
 	}
+
+	logger.Info("email templates loaded", "count", len(templateCache))
 
 	return &Service{
 		sender:        sender,
 		fromAddress:   fromAddress,
 		fromName:      fromName,
 		templateCache: templateCache,
+		logger:        logger,
 	}, nil
 }
 
@@ -166,10 +178,22 @@ func (s *Service) SendPasswordReset(ctx context.Context, data PasswordResetEmail
 
 // SendEmailVerification sends an email verification email
 func (s *Service) SendEmailVerification(ctx context.Context, data EmailVerificationEmail) error {
+	s.logger.Info("rendering email verification template",
+		"email", data.Email,
+		"template", data.TemplateName(),
+	)
+
 	htmlBody, textBody, err := s.renderTemplate(data.TemplateName(), data)
 	if err != nil {
+		s.logger.Error("failed to render email verification template", "error", err)
 		return fmt.Errorf("failed to render email verification template: %w", err)
 	}
+
+	s.logger.Info("email verification template rendered",
+		"email", data.Email,
+		"html_length", len(htmlBody),
+		"text_length", len(textBody),
+	)
 
 	email := &Email{
 		To:       []string{data.Email},
@@ -179,10 +203,22 @@ func (s *Service) SendEmailVerification(ctx context.Context, data EmailVerificat
 		TextBody: textBody,
 	}
 
-	_, err = s.sender.Send(ctx, email)
+	s.logger.Info("sending email verification via sender",
+		"to", email.To,
+		"from", email.From,
+		"subject", email.Subject,
+	)
+
+	messageID, err := s.sender.Send(ctx, email)
 	if err != nil {
+		s.logger.Error("failed to send email verification email", "error", err)
 		return fmt.Errorf("failed to send email verification email: %w", err)
 	}
+
+	s.logger.Info("email verification sent successfully",
+		"email", data.Email,
+		"message_id", messageID,
+	)
 
 	return nil
 }
