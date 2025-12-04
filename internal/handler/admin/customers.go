@@ -187,6 +187,127 @@ func (h *CustomerHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	h.renderer.RenderHTTP(w, "admin/customer_detail", data)
 }
 
+// Edit handles GET /admin/customers/{id}/edit
+func (h *CustomerHandler) Edit(w http.ResponseWriter, r *http.Request) {
+	customerID := r.PathValue("id")
+	if customerID == "" {
+		http.Error(w, "Customer ID required", http.StatusBadRequest)
+		return
+	}
+
+	var customerUUID pgtype.UUID
+	if err := customerUUID.Scan(customerID); err != nil {
+		http.Error(w, "Invalid customer ID", http.StatusBadRequest)
+		return
+	}
+
+	customer, err := h.repo.GetUserByID(r.Context(), customerUUID)
+	if err != nil {
+		http.Error(w, "Customer not found", http.StatusNotFound)
+		return
+	}
+
+	if customer.TenantID != h.tenantID {
+		http.Error(w, "Customer not found", http.StatusNotFound)
+		return
+	}
+
+	fullName := ""
+	if customer.FirstName.Valid && customer.LastName.Valid {
+		fullName = customer.FirstName.String + " " + customer.LastName.String
+	} else if customer.FirstName.Valid {
+		fullName = customer.FirstName.String
+	} else if customer.LastName.Valid {
+		fullName = customer.LastName.String
+	}
+
+	// Get payment terms for dropdown
+	paymentTerms, _ := h.repo.ListPaymentTerms(r.Context(), h.tenantID)
+
+	data := map[string]interface{}{
+		"CurrentPath":  r.URL.Path,
+		"Customer":     customer,
+		"CustomerID":   customerID,
+		"FullName":     fullName,
+		"PaymentTerms": paymentTerms,
+		"StatusOptions": []string{"active", "suspended", "closed"},
+	}
+
+	h.renderer.RenderHTTP(w, "admin/customer_edit", data)
+}
+
+// Update handles POST /admin/customers/{id}
+func (h *CustomerHandler) Update(w http.ResponseWriter, r *http.Request) {
+	customerID := r.PathValue("id")
+	if customerID == "" {
+		http.Error(w, "Customer ID required", http.StatusBadRequest)
+		return
+	}
+
+	var customerUUID pgtype.UUID
+	if err := customerUUID.Scan(customerID); err != nil {
+		http.Error(w, "Invalid customer ID", http.StatusBadRequest)
+		return
+	}
+
+	customer, err := h.repo.GetUserByID(r.Context(), customerUUID)
+	if err != nil {
+		http.Error(w, "Customer not found", http.StatusNotFound)
+		return
+	}
+
+	if customer.TenantID != h.tenantID {
+		http.Error(w, "Customer not found", http.StatusNotFound)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	// Build update params
+	params := repository.AdminUpdateCustomerParams{
+		ID:       customerUUID,
+		TenantID: h.tenantID,
+	}
+
+	// Handle optional text fields
+	if firstName := r.FormValue("first_name"); firstName != "" {
+		params.FirstName = pgtype.Text{String: firstName, Valid: true}
+	}
+	if lastName := r.FormValue("last_name"); lastName != "" {
+		params.LastName = pgtype.Text{String: lastName, Valid: true}
+	}
+	if phone := r.FormValue("phone"); phone != "" {
+		params.Phone = pgtype.Text{String: phone, Valid: true}
+	}
+	if companyName := r.FormValue("company_name"); companyName != "" {
+		params.CompanyName = pgtype.Text{String: companyName, Valid: true}
+	}
+	if businessType := r.FormValue("business_type"); businessType != "" {
+		params.BusinessType = pgtype.Text{String: businessType, Valid: true}
+	}
+	if taxID := r.FormValue("tax_id"); taxID != "" {
+		params.TaxID = pgtype.Text{String: taxID, Valid: true}
+	}
+	if status := r.FormValue("status"); status != "" {
+		params.Status = pgtype.Text{String: status, Valid: true}
+	}
+	if internalNote := r.FormValue("internal_note"); internalNote != "" {
+		params.InternalNote = pgtype.Text{String: internalNote, Valid: true}
+	}
+
+	err = h.repo.AdminUpdateCustomer(r.Context(), params)
+	if err != nil {
+		http.Error(w, "Failed to update customer", http.StatusInternalServerError)
+		return
+	}
+
+	// Redirect back to detail page
+	http.Redirect(w, r, "/admin/customers/"+customerID, http.StatusSeeOther)
+}
+
 // WholesaleApproval handles POST /admin/customers/{id}/wholesale/{action}
 func (h *CustomerHandler) WholesaleApproval(w http.ResponseWriter, r *http.Request) {
 	customerID := r.PathValue("id")

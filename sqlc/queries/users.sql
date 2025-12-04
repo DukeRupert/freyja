@@ -90,6 +90,22 @@ UPDATE users
 SET status = $2
 WHERE id = $1;
 
+-- name: AdminUpdateCustomer :exec
+-- Admin update customer details
+UPDATE users
+SET
+    first_name = sqlc.narg('first_name'),
+    last_name = sqlc.narg('last_name'),
+    phone = sqlc.narg('phone'),
+    company_name = sqlc.narg('company_name'),
+    business_type = sqlc.narg('business_type'),
+    tax_id = sqlc.narg('tax_id'),
+    status = COALESCE(sqlc.narg('status'), status),
+    internal_note = sqlc.narg('internal_note'),
+    updated_at = NOW()
+WHERE id = $1
+  AND tenant_id = $2;
+
 -- Admin queries
 
 -- name: CountUsers :one

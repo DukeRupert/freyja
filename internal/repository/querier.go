@@ -13,6 +13,8 @@ import (
 type Querier interface {
 	// Add an item to cart (or update quantity if exists)
 	AddCartItem(ctx context.Context, arg AddCartItemParams) (CartItem, error)
+	// Admin update customer details
+	AdminUpdateCustomer(ctx context.Context, arg AdminUpdateCustomerParams) error
 	// Cancel a pending job
 	CancelJob(ctx context.Context, id pgtype.UUID) error
 	// Claim the next pending job using SKIP LOCKED for safe concurrent access

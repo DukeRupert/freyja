@@ -40,6 +40,8 @@ func RegisterAdminRoutes(r *router.Router, deps AdminDeps) {
 	// Customer management
 	admin.Get("/admin/customers", deps.CustomerHandler.List)
 	admin.Get("/admin/customers/{id}", deps.CustomerHandler.Detail)
+	admin.Get("/admin/customers/{id}/edit", deps.CustomerHandler.Edit)
+	admin.Post("/admin/customers/{id}", deps.CustomerHandler.Update)
 	admin.Post("/admin/customers/{id}/wholesale/{action}", deps.CustomerHandler.WholesaleApproval)
 
 	// Subscription management

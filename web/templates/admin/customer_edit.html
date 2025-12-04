@@ -1,0 +1,181 @@
+{{define "title"}}Edit Customer - {{.FullName}}{{end}}
+
+{{define "content"}}
+<div class="mx-auto max-w-4xl space-y-8">
+    <!-- Back Link -->
+    <div>
+        <a href="/admin/customers/{{.CustomerID}}"
+           class="inline-flex items-center gap-2 text-sm/6 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white">
+            ← Back to Customer
+        </a>
+    </div>
+
+    <!-- Page Header -->
+    {{template "page-header" (dict
+        "Title" "Edit Customer"
+        "Description" .Customer.Email)}}
+
+    <!-- Customer Form -->
+    <form method="POST" action="/admin/customers/{{.CustomerID}}" class="space-y-8">
+
+        <!-- Contact Information -->
+        <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            {{template "heading" (dict "Level" "3" "Content" "Contact Information")}}
+
+            <div class="mt-6 grid gap-6 sm:grid-cols-2">
+                <!-- First Name -->
+                {{template "field" (dict
+                    "Label" "First Name"
+                    "Input" (dict
+                        "Type" "text"
+                        "ID" "first_name"
+                        "Name" "first_name"
+                        "Value" (ternary .Customer.FirstName.Valid .Customer.FirstName.String "")
+                        "Placeholder" "John"))}}
+
+                <!-- Last Name -->
+                {{template "field" (dict
+                    "Label" "Last Name"
+                    "Input" (dict
+                        "Type" "text"
+                        "ID" "last_name"
+                        "Name" "last_name"
+                        "Value" (ternary .Customer.LastName.Valid .Customer.LastName.String "")
+                        "Placeholder" "Smith"))}}
+
+                <!-- Email (read-only) -->
+                <div class="sm:col-span-2">
+                    <label class="block text-sm font-medium text-zinc-950 dark:text-white">Email</label>
+                    <div class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                        {{.Customer.Email}}
+                        <span class="text-xs text-zinc-400">(cannot be changed)</span>
+                    </div>
+                </div>
+
+                <!-- Phone -->
+                {{template "field" (dict
+                    "Label" "Phone"
+                    "Input" (dict
+                        "Type" "tel"
+                        "ID" "phone"
+                        "Name" "phone"
+                        "Value" (ternary .Customer.Phone.Valid .Customer.Phone.String "")
+                        "Placeholder" "+1 (555) 123-4567"))}}
+            </div>
+        </section>
+
+        <!-- Business Information -->
+        <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            {{template "heading" (dict "Level" "3" "Content" "Business Information")}}
+
+            <div class="mt-6 grid gap-6 sm:grid-cols-2">
+                <!-- Company Name -->
+                {{template "field" (dict
+                    "Label" "Company Name"
+                    "Input" (dict
+                        "Type" "text"
+                        "ID" "company_name"
+                        "Name" "company_name"
+                        "Value" (ternary .Customer.CompanyName.Valid .Customer.CompanyName.String "")
+                        "Placeholder" "Acme Coffee Shop"))}}
+
+                <!-- Business Type -->
+                <div>
+                    <label for="business_type" class="block text-sm font-medium text-zinc-950 dark:text-white">
+                        Business Type
+                    </label>
+                    <select id="business_type"
+                            name="business_type"
+                            class="mt-2 block w-full rounded-lg border-zinc-950/10 bg-transparent px-3 py-2 text-zinc-950 shadow-sm ring-1 ring-inset ring-zinc-950/10 focus:ring-2 focus:ring-indigo-500 dark:border-white/10 dark:text-white dark:ring-white/10">
+                        <option value="">Select type</option>
+                        <option value="Cafe" {{if and .Customer.BusinessType.Valid (eq .Customer.BusinessType.String "Cafe")}}selected{{end}}>Cafe</option>
+                        <option value="Restaurant" {{if and .Customer.BusinessType.Valid (eq .Customer.BusinessType.String "Restaurant")}}selected{{end}}>Restaurant</option>
+                        <option value="Retailer" {{if and .Customer.BusinessType.Valid (eq .Customer.BusinessType.String "Retailer")}}selected{{end}}>Retailer</option>
+                        <option value="Hotel" {{if and .Customer.BusinessType.Valid (eq .Customer.BusinessType.String "Hotel")}}selected{{end}}>Hotel</option>
+                        <option value="Office" {{if and .Customer.BusinessType.Valid (eq .Customer.BusinessType.String "Office")}}selected{{end}}>Office</option>
+                        <option value="Other" {{if and .Customer.BusinessType.Valid (eq .Customer.BusinessType.String "Other")}}selected{{end}}>Other</option>
+                    </select>
+                </div>
+
+                <!-- Tax ID -->
+                {{template "field" (dict
+                    "Label" "Tax ID / EIN"
+                    "Input" (dict
+                        "Type" "text"
+                        "ID" "tax_id"
+                        "Name" "tax_id"
+                        "Value" (ternary .Customer.TaxID.Valid .Customer.TaxID.String "")
+                        "Placeholder" "XX-XXXXXXX"))}}
+            </div>
+        </section>
+
+        <!-- Account Settings -->
+        <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            {{template "heading" (dict "Level" "3" "Content" "Account Settings")}}
+
+            <div class="mt-6 grid gap-6 sm:grid-cols-2">
+                <!-- Account Type (read-only) -->
+                <div>
+                    <label class="block text-sm font-medium text-zinc-950 dark:text-white">Account Type</label>
+                    <div class="mt-2 flex items-center gap-2">
+                        {{if eq .Customer.AccountType "retail"}}
+                            {{template "badge" (dict "Content" "Retail" "Color" "blue")}}
+                        {{else if eq .Customer.AccountType "wholesale"}}
+                            {{template "badge" (dict "Content" "Wholesale" "Color" "amber")}}
+                        {{else}}
+                            {{template "badge" (dict "Content" .Customer.AccountType "Color" "zinc")}}
+                        {{end}}
+                        <span class="text-xs text-zinc-400">(use wholesale approval to change)</span>
+                    </div>
+                </div>
+
+                <!-- Status -->
+                <div>
+                    <label for="status" class="block text-sm font-medium text-zinc-950 dark:text-white">
+                        Account Status
+                    </label>
+                    <select id="status"
+                            name="status"
+                            class="mt-2 block w-full rounded-lg border-zinc-950/10 bg-transparent px-3 py-2 text-zinc-950 shadow-sm ring-1 ring-inset ring-zinc-950/10 focus:ring-2 focus:ring-indigo-500 dark:border-white/10 dark:text-white dark:ring-white/10">
+                        <option value="active" {{if eq .Customer.Status "active"}}selected{{end}}>Active</option>
+                        <option value="suspended" {{if eq .Customer.Status "suspended"}}selected{{end}}>Suspended</option>
+                        <option value="closed" {{if eq .Customer.Status "closed"}}selected{{end}}>Closed</option>
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <!-- Internal Notes -->
+        <section class="rounded-2xl bg-white p-6 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            {{template "heading" (dict "Level" "3" "Content" "Internal Notes")}}
+            <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                Admin-only notes, not visible to the customer
+            </p>
+
+            <div class="mt-6">
+                {{template "field" (dict
+                    "Label" ""
+                    "Textarea" (dict
+                        "ID" "internal_note"
+                        "Name" "internal_note"
+                        "Rows" 4
+                        "Value" (ternary .Customer.InternalNote.Valid .Customer.InternalNote.String "")
+                        "Placeholder" "e.g., Prefers Thursday delivery, contact via text..."))}}
+            </div>
+        </section>
+
+        <!-- Form Actions -->
+        <div class="flex items-center justify-end gap-4">
+            <a href="/admin/customers/{{.CustomerID}}"
+               class="rounded-lg border border-zinc-950/10 px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-zinc-50 dark:border-white/10 dark:text-white dark:hover:bg-zinc-800">
+                Cancel
+            </a>
+            {{template "button" (dict
+                "Content" "Save Changes"
+                "Type" "submit"
+                "Variant" "solid"
+                "Color" "indigo")}}
+        </div>
+    </form>
+</div>
+{{end}}
