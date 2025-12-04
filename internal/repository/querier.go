@@ -57,6 +57,9 @@ type Querier interface {
 	CountUsersWithPaymentTerms(ctx context.Context, paymentTermsID pgtype.UUID) (int64, error)
 	// Create a new address
 	CreateAddress(ctx context.Context, arg CreateAddressParams) (Address, error)
+	// Create an admin user (used for initial setup)
+	// Uses ON CONFLICT to make this idempotent
+	CreateAdminUser(ctx context.Context, arg CreateAdminUserParams) (User, error)
 	// Create a new billing customer
 	CreateBillingCustomer(ctx context.Context, arg CreateBillingCustomerParams) (BillingCustomer, error)
 	// Create a new cart for a session

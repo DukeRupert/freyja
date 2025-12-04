@@ -14,6 +14,7 @@ import (
 	"github.com/dukerupert/freyja/internal"
 	"github.com/dukerupert/freyja/internal/address"
 	"github.com/dukerupert/freyja/internal/billing"
+	"github.com/dukerupert/freyja/internal/bootstrap"
 	"github.com/dukerupert/freyja/internal/email"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/handler/admin"
@@ -30,6 +31,7 @@ import (
 	"github.com/dukerupert/freyja/internal/tax"
 	"github.com/dukerupert/freyja/internal/worker"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -97,6 +99,24 @@ func run() error {
 	tenantUUID, err := uuid.Parse(cfg.TenantID)
 	if err != nil {
 		return fmt.Errorf("failed to parse tenant ID: %w", err)
+	}
+
+	// Convert to pgtype.UUID for repository queries
+	var tenantPgUUID pgtype.UUID
+	if err := tenantPgUUID.Scan(cfg.TenantID); err != nil {
+		return fmt.Errorf("failed to convert tenant ID to pgtype.UUID: %w", err)
+	}
+
+	// Bootstrap: ensure master admin user exists
+	logger.Info("Checking for master admin user...")
+	adminCfg := &bootstrap.AdminConfig{
+		Email:     cfg.Admin.Email,
+		Password:  cfg.Admin.Password,
+		FirstName: cfg.Admin.FirstName,
+		LastName:  cfg.Admin.LastName,
+	}
+	if err := bootstrap.EnsureMasterAdmin(ctx, repo, tenantPgUUID, adminCfg, logger); err != nil {
+		return fmt.Errorf("failed to ensure master admin: %w", err)
 	}
 
 	passwordResetService := service.NewPasswordResetService(repo)

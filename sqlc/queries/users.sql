@@ -12,6 +12,23 @@ INSERT INTO users (
     $1, $2, $3, $4, $5, 'retail', 'active'
 ) RETURNING *;
 
+-- name: CreateAdminUser :one
+-- Create an admin user (used for initial setup)
+-- Uses ON CONFLICT to make this idempotent
+INSERT INTO users (
+    tenant_id,
+    email,
+    password_hash,
+    first_name,
+    last_name,
+    account_type,
+    status,
+    email_verified
+) VALUES (
+    $1, $2, $3, $4, $5, 'admin', 'active', true
+) ON CONFLICT (tenant_id, email) DO NOTHING
+RETURNING *;
+
 -- name: GetUserByEmail :one
 -- Get user by email within a tenant
 SELECT *

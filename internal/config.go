@@ -19,6 +19,16 @@ type Config struct {
 	BaseURL       string
 	Stripe        StripeConfig
 	Email         EmailConfig
+	Admin         AdminConfig
+}
+
+// AdminConfig contains initial admin user configuration.
+// These values are only used on first startup to create the admin user.
+type AdminConfig struct {
+	Email     string
+	Password  string
+	FirstName string
+	LastName  string
 }
 
 type StripeConfig struct {
@@ -77,6 +87,12 @@ func NewConfig() (*Config, error) {
 			From:          getEnv("SMTP_FROM", "noreply@freyja.local"),
 			FromName:      getEnv("EMAIL_FROM_NAME", "Freyja Coffee"),
 			PostmarkToken: getEnv("POSTMARK_API_TOKEN", ""),
+		},
+		Admin: AdminConfig{
+			Email:     getEnv("FREYJA_ADMIN_EMAIL", ""),
+			Password:  getEnv("FREYJA_ADMIN_PASSWORD", ""),
+			FirstName: getEnv("FREYJA_ADMIN_FIRST_NAME", ""),
+			LastName:  getEnv("FREYJA_ADMIN_LAST_NAME", ""),
 		},
 	}
 

@@ -74,6 +74,76 @@ func (q *Queries) CountUsers(ctx context.Context, tenantID pgtype.UUID) (int64, 
 	return count, err
 }
 
+const createAdminUser = `-- name: CreateAdminUser :one
+INSERT INTO users (
+    tenant_id,
+    email,
+    password_hash,
+    first_name,
+    last_name,
+    account_type,
+    status,
+    email_verified
+) VALUES (
+    $1, $2, $3, $4, $5, 'admin', 'active', true
+) ON CONFLICT (tenant_id, email) DO NOTHING
+RETURNING id, tenant_id, email, password_hash, email_verified, account_type, first_name, last_name, phone, company_name, tax_id, business_type, status, wholesale_application_status, wholesale_application_notes, wholesale_approved_at, wholesale_approved_by, payment_terms, metadata, created_at, updated_at, internal_note, minimum_spend_cents, email_orders, email_dispatches, email_invoices, payment_terms_id, billing_cycle, billing_cycle_day, customer_reference
+`
+
+type CreateAdminUserParams struct {
+	TenantID     pgtype.UUID `json:"tenant_id"`
+	Email        string      `json:"email"`
+	PasswordHash pgtype.Text `json:"password_hash"`
+	FirstName    pgtype.Text `json:"first_name"`
+	LastName     pgtype.Text `json:"last_name"`
+}
+
+// Create an admin user (used for initial setup)
+// Uses ON CONFLICT to make this idempotent
+func (q *Queries) CreateAdminUser(ctx context.Context, arg CreateAdminUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, createAdminUser,
+		arg.TenantID,
+		arg.Email,
+		arg.PasswordHash,
+		arg.FirstName,
+		arg.LastName,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.EmailVerified,
+		&i.AccountType,
+		&i.FirstName,
+		&i.LastName,
+		&i.Phone,
+		&i.CompanyName,
+		&i.TaxID,
+		&i.BusinessType,
+		&i.Status,
+		&i.WholesaleApplicationStatus,
+		&i.WholesaleApplicationNotes,
+		&i.WholesaleApprovedAt,
+		&i.WholesaleApprovedBy,
+		&i.PaymentTerms,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.InternalNote,
+		&i.MinimumSpendCents,
+		&i.EmailOrders,
+		&i.EmailDispatches,
+		&i.EmailInvoices,
+		&i.PaymentTermsID,
+		&i.BillingCycle,
+		&i.BillingCycleDay,
+		&i.CustomerReference,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
     tenant_id,

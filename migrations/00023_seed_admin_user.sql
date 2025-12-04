@@ -1,0 +1,39 @@
+-- +goose Up
+-- +goose StatementBegin
+
+-- =============================================================================
+-- ADMIN USER INITIALIZATION
+-- =============================================================================
+--
+-- The initial admin user is NOT created by this migration.
+-- Instead, it is created by the application on startup via the bootstrap package.
+--
+-- This approach ensures credentials are never committed to version control.
+--
+-- Required environment variables for first-time setup:
+--   - FREYJA_ADMIN_EMAIL      (required) - Admin email address
+--   - FREYJA_ADMIN_PASSWORD   (required) - Admin password (min 12 characters)
+--   - FREYJA_ADMIN_FIRST_NAME (optional) - Admin first name (default: "Admin")
+--   - FREYJA_ADMIN_LAST_NAME  (optional) - Admin last name (default: "User")
+--
+-- The admin user will be created automatically on first application startup
+-- if these environment variables are set. If they are not set, the application
+-- will log a warning and continue without creating an admin user.
+--
+-- To create an admin user in an existing deployment:
+--   1. Set the environment variables
+--   2. Restart the application
+--   3. The admin user will be created if it doesn't already exist
+--
+-- See: internal/bootstrap/admin.go for implementation details.
+-- =============================================================================
+
+-- +goose StatementEnd
+
+-- +goose Down
+-- +goose StatementBegin
+-- Admin users are managed by the application, not migrations.
+-- To remove an admin user, use the application interface or direct SQL:
+--
+-- DELETE FROM users WHERE email = 'admin@example.com' AND account_type = 'admin';
+-- +goose StatementEnd
