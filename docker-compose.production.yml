@@ -1,6 +1,6 @@
 services:
   app:
-    image: freyja:latest
+    image: ${FREYJA_IMAGE:-freyja:latest}
     container_name: freyja-app
     restart: unless-stopped
     ports:
