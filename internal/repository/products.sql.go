@@ -486,6 +486,31 @@ func (q *Queries) GetProductBySlug(ctx context.Context, arg GetProductBySlugPara
 	return i, err
 }
 
+const getProductFilterOptions = `-- name: GetProductFilterOptions :one
+SELECT
+    (SELECT ARRAY_AGG(DISTINCT p2.roast_level ORDER BY p2.roast_level)
+     FROM products p2
+     WHERE p2.tenant_id = $1 AND p2.status = 'active' AND p2.visibility = 'public' AND p2.roast_level IS NOT NULL
+    ) as roast_levels,
+    (SELECT ARRAY_AGG(DISTINCT p3.origin ORDER BY p3.origin)
+     FROM products p3
+     WHERE p3.tenant_id = $1 AND p3.status = 'active' AND p3.visibility = 'public' AND p3.origin IS NOT NULL
+    ) as origins
+`
+
+type GetProductFilterOptionsRow struct {
+	RoastLevels interface{} `json:"roast_levels"`
+	Origins     interface{} `json:"origins"`
+}
+
+// Get distinct filter values for the product filters UI
+func (q *Queries) GetProductFilterOptions(ctx context.Context, tenantID pgtype.UUID) (GetProductFilterOptionsRow, error) {
+	row := q.db.QueryRow(ctx, getProductFilterOptions, tenantID)
+	var i GetProductFilterOptionsRow
+	err := row.Scan(&i.RoastLevels, &i.Origins)
+	return i, err
+}
+
 const getProductImages = `-- name: GetProductImages :many
 SELECT
     id,
@@ -913,6 +938,90 @@ func (q *Queries) ListActiveProducts(ctx context.Context, tenantID pgtype.UUID) 
 			&i.SortOrder,
 			&i.PrimaryImageUrl,
 			&i.PrimaryImageAlt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveProductsFiltered = `-- name: ListActiveProductsFiltered :many
+SELECT
+    p.id,
+    p.tenant_id,
+    p.name,
+    p.slug,
+    p.short_description,
+    p.origin,
+    p.roast_level,
+    p.tasting_notes,
+    p.sort_order,
+    pi.url as primary_image_url,
+    pi.alt_text as primary_image_alt,
+    (SELECT MIN(ple.price_cents)
+     FROM product_skus ps
+     JOIN price_list_entries ple ON ple.product_sku_id = ps.id
+     JOIN price_lists pl ON pl.id = ple.price_list_id AND pl.is_default = TRUE
+     WHERE ps.product_id = p.id AND ps.is_active = TRUE
+    ) as base_price
+FROM products p
+LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = TRUE
+WHERE p.tenant_id = $1
+  AND p.status = 'active'
+  AND p.visibility = 'public'
+  AND ($2::text IS NULL OR p.roast_level = $2::text)
+  AND ($3::text IS NULL OR p.origin = $3::text)
+ORDER BY p.sort_order ASC, p.created_at DESC
+`
+
+type ListActiveProductsFilteredParams struct {
+	TenantID   pgtype.UUID `json:"tenant_id"`
+	RoastLevel pgtype.Text `json:"roast_level"`
+	Origin     pgtype.Text `json:"origin"`
+}
+
+type ListActiveProductsFilteredRow struct {
+	ID               pgtype.UUID `json:"id"`
+	TenantID         pgtype.UUID `json:"tenant_id"`
+	Name             string      `json:"name"`
+	Slug             string      `json:"slug"`
+	ShortDescription pgtype.Text `json:"short_description"`
+	Origin           pgtype.Text `json:"origin"`
+	RoastLevel       pgtype.Text `json:"roast_level"`
+	TastingNotes     []string    `json:"tasting_notes"`
+	SortOrder        int32       `json:"sort_order"`
+	PrimaryImageUrl  pgtype.Text `json:"primary_image_url"`
+	PrimaryImageAlt  pgtype.Text `json:"primary_image_alt"`
+	BasePrice        interface{} `json:"base_price"`
+}
+
+// List active products with optional filters for roast level and origin
+func (q *Queries) ListActiveProductsFiltered(ctx context.Context, arg ListActiveProductsFilteredParams) ([]ListActiveProductsFilteredRow, error) {
+	rows, err := q.db.Query(ctx, listActiveProductsFiltered, arg.TenantID, arg.RoastLevel, arg.Origin)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveProductsFilteredRow{}
+	for rows.Next() {
+		var i ListActiveProductsFilteredRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Name,
+			&i.Slug,
+			&i.ShortDescription,
+			&i.Origin,
+			&i.RoastLevel,
+			&i.TastingNotes,
+			&i.SortOrder,
+			&i.PrimaryImageUrl,
+			&i.PrimaryImageAlt,
+			&i.BasePrice,
 		); err != nil {
 			return nil, err
 		}

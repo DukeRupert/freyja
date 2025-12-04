@@ -251,7 +251,7 @@ func run() error {
 		HomeHandler: storefront.NewHomeHandler(productService, renderer),
 
 		// Products
-		ProductListHandler:   storefront.NewProductListHandler(productService, renderer),
+		ProductListHandler:   storefront.NewProductListHandler(productService, repo, cfg.TenantID, renderer),
 		ProductDetailHandler: storefront.NewProductDetailHandler(productService, renderer),
 
 		// Cart (consolidated handler)

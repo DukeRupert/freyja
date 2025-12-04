@@ -15,9 +15,10 @@ import (
 
 // mockProductService implements service.ProductService for testing
 type mockProductService struct {
-	listProductsFunc     func(ctx context.Context) ([]repository.ListActiveProductsRow, error)
-	getProductDetailFunc func(ctx context.Context, slug string) (*service.ProductDetail, error)
-	getProductPriceFunc  func(ctx context.Context, skuID string) (*service.ProductPrice, error)
+	listProductsFunc       func(ctx context.Context) ([]repository.ListActiveProductsRow, error)
+	getProductDetailFunc   func(ctx context.Context, slug string) (*service.ProductDetail, error)
+	getProductPriceFunc    func(ctx context.Context, skuID string) (*service.ProductPrice, error)
+	getSKUForCheckoutFunc  func(ctx context.Context, skuID string) (*service.SKUCheckoutDetail, error)
 }
 
 func (m *mockProductService) ListProducts(ctx context.Context) ([]repository.ListActiveProductsRow, error) {
@@ -37,6 +38,13 @@ func (m *mockProductService) GetProductDetail(ctx context.Context, slug string) 
 func (m *mockProductService) GetProductPrice(ctx context.Context, skuID string) (*service.ProductPrice, error) {
 	if m.getProductPriceFunc != nil {
 		return m.getProductPriceFunc(ctx, skuID)
+	}
+	return nil, nil
+}
+
+func (m *mockProductService) GetSKUForCheckout(ctx context.Context, skuID string) (*service.SKUCheckoutDetail, error) {
+	if m.getSKUForCheckoutFunc != nil {
+		return m.getSKUForCheckoutFunc(ctx, skuID)
 	}
 	return nil, nil
 }
@@ -152,7 +160,7 @@ func TestProductListHandler_ServeHTTP(t *testing.T) {
 				},
 			}
 
-			handler := NewProductListHandler(mock, nil)
+			handler := NewProductListHandler(mock, nil, "00000000-0000-0000-0000-000000000001", nil)
 
 			req := httptest.NewRequest(http.MethodGet, "/products", nil)
 			w := httptest.NewRecorder()

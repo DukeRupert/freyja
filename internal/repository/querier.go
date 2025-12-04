@@ -279,6 +279,8 @@ type Querier interface {
 	GetProductByID(ctx context.Context, arg GetProductByIDParams) (Product, error)
 	// Get a single product by slug with all details
 	GetProductBySlug(ctx context.Context, arg GetProductBySlugParams) (Product, error)
+	// Get distinct filter values for the product filters UI
+	GetProductFilterOptions(ctx context.Context, tenantID pgtype.UUID) (GetProductFilterOptionsRow, error)
 	// Get all images for a product
 	GetProductImages(ctx context.Context, productID pgtype.UUID) ([]ProductImage, error)
 	// Get all active SKUs for a product
@@ -355,6 +357,8 @@ type Querier interface {
 	InvalidateUserPasswordResetTokens(ctx context.Context, arg InvalidateUserPasswordResetTokensParams) error
 	// List all active products for a tenant with their primary image
 	ListActiveProducts(ctx context.Context, tenantID pgtype.UUID) ([]ListActiveProductsRow, error)
+	// List active products with optional filters for roast level and origin
+	ListActiveProductsFiltered(ctx context.Context, arg ListActiveProductsFilteredParams) ([]ListActiveProductsFilteredRow, error)
 	// Lists only active/trial subscriptions for a customer
 	// Used for checking if user has active subscriptions
 	ListActiveSubscriptionsForUser(ctx context.Context, arg ListActiveSubscriptionsForUserParams) ([]Subscription, error)
