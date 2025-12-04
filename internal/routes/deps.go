@@ -75,6 +75,9 @@ type AdminDeps struct {
 
 	// Invoices
 	InvoiceHandler *admin.InvoiceHandler
+
+	// Price Lists
+	PriceListHandler *admin.PriceListHandler
 }
 
 // WebhookDeps contains dependencies for webhook routes

@@ -304,6 +304,7 @@ func run() error {
 		CustomerHandler:     admin.NewCustomerHandler(repo, invoiceService, renderer, cfg.TenantID),
 		SubscriptionHandler: admin.NewSubscriptionHandler(repo, renderer, cfg.TenantID),
 		InvoiceHandler:      admin.NewInvoiceHandler(invoiceService, repo, renderer, cfg.TenantID),
+		PriceListHandler:    admin.NewPriceListHandler(repo, renderer, cfg.TenantID),
 	}
 
 	// Webhook dependencies

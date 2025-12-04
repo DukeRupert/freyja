@@ -57,4 +57,14 @@ func RegisterAdminRoutes(r *router.Router, deps AdminDeps) {
 	admin.Post("/admin/invoices/{id}/void", deps.InvoiceHandler.Void)
 	admin.Get("/admin/invoices/{id}/payment", deps.InvoiceHandler.ShowPaymentForm)
 	admin.Post("/admin/invoices/{id}/payment", deps.InvoiceHandler.HandlePayment)
+
+	// Price list management
+	admin.Get("/admin/price-lists", deps.PriceListHandler.List)
+	admin.Get("/admin/price-lists/new", deps.PriceListHandler.ShowForm)
+	admin.Post("/admin/price-lists/new", deps.PriceListHandler.HandleForm)
+	admin.Get("/admin/price-lists/{id}", deps.PriceListHandler.Detail)
+	admin.Get("/admin/price-lists/{id}/edit", deps.PriceListHandler.ShowForm)
+	admin.Post("/admin/price-lists/{id}/edit", deps.PriceListHandler.HandleForm)
+	admin.Post("/admin/price-lists/{id}/entries", deps.PriceListHandler.UpdateEntry)
+	admin.Post("/admin/price-lists/{id}/delete", deps.PriceListHandler.Delete)
 }

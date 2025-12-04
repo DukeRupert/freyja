@@ -104,6 +104,8 @@ type Querier interface {
 	// Manages reusable payment terms for wholesale invoicing
 	// Create a new payment terms record
 	CreatePaymentTerms(ctx context.Context, arg CreatePaymentTermsParams) (PaymentTerm, error)
+	// Create a new price list
+	CreatePriceList(ctx context.Context, arg CreatePriceListParams) (PriceList, error)
 	// Admin queries
 	// Create a new price list entry for a SKU
 	CreatePriceListEntry(ctx context.Context, arg CreatePriceListEntryParams) (PriceListEntry, error)
@@ -154,6 +156,10 @@ type Querier interface {
 	DeletePaymentMethod(ctx context.Context, arg DeletePaymentMethodParams) error
 	// Soft delete by deactivating (preserves referential integrity)
 	DeletePaymentTerms(ctx context.Context, arg DeletePaymentTermsParams) error
+	// Soft delete a price list (set inactive)
+	DeletePriceList(ctx context.Context, arg DeletePriceListParams) error
+	// Delete a price list entry
+	DeletePriceListEntry(ctx context.Context, arg DeletePriceListEntryParams) error
 	// Soft delete a product (set status to 'archived')
 	DeleteProduct(ctx context.Context, arg DeleteProductParams) error
 	// Delete a product image
@@ -271,6 +277,8 @@ type Querier interface {
 	GetPriceForSKU(ctx context.Context, arg GetPriceForSKUParams) (PriceListEntry, error)
 	// Get a price list by ID
 	GetPriceListByID(ctx context.Context, id pgtype.UUID) (PriceList, error)
+	// Get a price list with count of entries
+	GetPriceListWithEntryCount(ctx context.Context, arg GetPriceListWithEntryCountParams) (GetPriceListWithEntryCountRow, error)
 	// Get all SKU prices for a product on a specific price list
 	GetPricesForProduct(ctx context.Context, arg GetPricesForProductParams) ([]GetPricesForProductRow, error)
 	// Batch fetch prices for multiple SKUs on a price list
@@ -400,6 +408,8 @@ type Querier interface {
 	ListPaymentMethodsForUser(ctx context.Context, arg ListPaymentMethodsForUserParams) ([]ListPaymentMethodsForUserRow, error)
 	// List all payment terms for a tenant
 	ListPaymentTerms(ctx context.Context, tenantID pgtype.UUID) ([]PaymentTerm, error)
+	// List all entries for a price list with product/SKU details
+	ListPriceListEntries(ctx context.Context, priceListID pgtype.UUID) ([]ListPriceListEntriesRow, error)
 	// Lists all items in a subscription with product details
 	// Includes product name, SKU, and image for display
 	ListSubscriptionItemsForSubscription(ctx context.Context, arg ListSubscriptionItemsForSubscriptionParams) ([]ListSubscriptionItemsForSubscriptionRow, error)
@@ -477,6 +487,8 @@ type Querier interface {
 	UpdatePaymentStatus(ctx context.Context, arg UpdatePaymentStatusParams) (Payment, error)
 	// Update payment terms
 	UpdatePaymentTerms(ctx context.Context, arg UpdatePaymentTermsParams) error
+	// Update a price list
+	UpdatePriceList(ctx context.Context, arg UpdatePriceListParams) (PriceList, error)
 	// Update an existing price list entry
 	UpdatePriceListEntry(ctx context.Context, arg UpdatePriceListEntryParams) (PriceListEntry, error)
 	// Update an existing product
@@ -515,6 +527,8 @@ type Querier interface {
 	UpdateWholesaleApplicationWithTerms(ctx context.Context, arg UpdateWholesaleApplicationWithTermsParams) error
 	// Update wholesale customer settings
 	UpdateWholesaleCustomer(ctx context.Context, arg UpdateWholesaleCustomerParams) error
+	// Create or update a price list entry
+	UpsertPriceListEntry(ctx context.Context, arg UpsertPriceListEntryParams) error
 	// Mark user email as verified
 	VerifyUserEmail(ctx context.Context, id pgtype.UUID) error
 }

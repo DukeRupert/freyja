@@ -1,0 +1,87 @@
+{{define "title"}}Price Lists{{end}}
+
+{{define "content"}}
+<div class="space-y-8">
+    <!-- Page Header with Actions -->
+    <div class="flex items-end justify-between gap-4">
+        {{template "page-header" (dict "Title" "Price Lists" "Description" "Manage pricing for different customer segments")}}
+        <div class="flex shrink-0 gap-4">
+            <a href="/admin/price-lists/new">
+                {{template "button" (dict "Content" "Add Price List" "Variant" "solid" "Color" "indigo")}}
+            </a>
+        </div>
+    </div>
+
+    <!-- Price Lists Table -->
+    <div class="overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+        {{if .PriceLists}}
+        <table class="min-w-full text-left text-sm/6 text-zinc-950 dark:text-white">
+            <thead class="border-b border-zinc-950/5 dark:border-white/5 text-zinc-500 dark:text-zinc-400">
+                <tr>
+                    <th class="px-6 py-3 font-medium">Name</th>
+                    <th class="px-6 py-3 font-medium">Type</th>
+                    <th class="px-6 py-3 font-medium">Status</th>
+                    <th class="px-6 py-3 font-medium text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-950/5 dark:divide-white/5">
+                {{range .PriceLists}}
+                <tr class="hover:bg-zinc-950/[2.5%] dark:hover:bg-white/[2.5%]">
+                    <td class="px-6 py-4">
+                        <a href="/admin/price-lists/{{.ID}}" class="font-medium hover:underline">
+                            {{.Name}}
+                        </a>
+                        {{if .Description.Valid}}
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{{.Description.String}}</p>
+                        {{end}}
+                    </td>
+                    <td class="px-6 py-4">
+                        {{if eq .ListType "default"}}
+                            {{template "badge" (dict "Content" "Default" "Color" "blue")}}
+                        {{else if eq .ListType "wholesale"}}
+                            {{template "badge" (dict "Content" "Wholesale" "Color" "amber")}}
+                        {{else}}
+                            {{template "badge" (dict "Content" "Custom" "Color" "zinc")}}
+                        {{end}}
+                    </td>
+                    <td class="px-6 py-4">
+                        {{if .IsActive}}
+                            {{template "badge" (dict "Content" "Active" "Color" "green")}}
+                        {{else}}
+                            {{template "badge" (dict "Content" "Inactive" "Color" "zinc")}}
+                        {{end}}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="flex items-center justify-end gap-2">
+                            <a href="/admin/price-lists/{{.ID}}/edit"
+                               class="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+                                Edit
+                            </a>
+                            {{if not .IsDefault}}
+                            <form method="POST" action="/admin/price-lists/{{.ID}}/delete"
+                                  onsubmit="return confirm('Are you sure you want to delete this price list?')">
+                                <button type="submit" class="text-red-500 hover:text-red-700">Delete</button>
+                            </form>
+                            {{end}}
+                        </div>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+        {{else}}
+        <div class="p-12 text-center">
+            <svg class="mx-auto h-12 w-12 text-zinc-300 dark:text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 class="mt-4 text-base font-medium text-zinc-900 dark:text-white">No price lists</h3>
+            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Get started by creating your first price list.</p>
+            <a href="/admin/price-lists/new"
+               class="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+                Add Price List
+            </a>
+        </div>
+        {{end}}
+    </div>
+</div>
+{{end}}
