@@ -18,6 +18,7 @@ var (
 	ErrInvalidEmail     = errors.New("invalid email address")
 	ErrUserNotFound     = errors.New("user not found")
 	ErrInvalidPassword  = errors.New("invalid password")
+	ErrSessionExpired   = errors.New("session has expired")
 	ErrAccountSuspended = errors.New("account is suspended")
 	ErrAccountPending   = errors.New("account is pending approval")
 	ErrEmailNotVerified = errors.New("email has not been verified")
@@ -200,6 +201,11 @@ func (s *userService) GetUserBySessionToken(ctx context.Context, token string) (
 			return nil, ErrUserNotFound
 		}
 		return nil, fmt.Errorf("failed to get session: %w", err)
+	}
+
+	// SECURITY: Check session expiration
+	if session.ExpiresAt.Valid && session.ExpiresAt.Time.Before(time.Now()) {
+		return nil, ErrSessionExpired
 	}
 
 	// Parse session data
