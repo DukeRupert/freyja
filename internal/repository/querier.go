@@ -343,8 +343,10 @@ type Querier interface {
 	GetUninvoicedOrdersInPeriod(ctx context.Context, arg GetUninvoicedOrdersInPeriodParams) ([]Order, error)
 	// Get user by email within a tenant
 	GetUserByEmail(ctx context.Context, arg GetUserByEmailParams) (User, error)
-	// Get user by ID
+	// Get user by ID (use GetUserByIDAndTenant for tenant-scoped access)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
+	// Get user by ID within a specific tenant (for session validation)
+	GetUserByIDAndTenant(ctx context.Context, arg GetUserByIDAndTenantParams) (User, error)
 	// Get notification email addresses for a user (with fallback to primary email)
 	GetUserNotificationEmails(ctx context.Context, id pgtype.UUID) (GetUserNotificationEmailsRow, error)
 	// Get user statistics for dashboard

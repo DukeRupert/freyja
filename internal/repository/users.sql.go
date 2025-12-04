@@ -268,9 +268,62 @@ WHERE id = $1
 LIMIT 1
 `
 
-// Get user by ID
+// Get user by ID (use GetUserByIDAndTenant for tenant-scoped access)
 func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.EmailVerified,
+		&i.AccountType,
+		&i.FirstName,
+		&i.LastName,
+		&i.Phone,
+		&i.CompanyName,
+		&i.TaxID,
+		&i.BusinessType,
+		&i.Status,
+		&i.WholesaleApplicationStatus,
+		&i.WholesaleApplicationNotes,
+		&i.WholesaleApprovedAt,
+		&i.WholesaleApprovedBy,
+		&i.PaymentTerms,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.InternalNote,
+		&i.MinimumSpendCents,
+		&i.EmailOrders,
+		&i.EmailDispatches,
+		&i.EmailInvoices,
+		&i.PaymentTermsID,
+		&i.BillingCycle,
+		&i.BillingCycleDay,
+		&i.CustomerReference,
+	)
+	return i, err
+}
+
+const getUserByIDAndTenant = `-- name: GetUserByIDAndTenant :one
+SELECT id, tenant_id, email, password_hash, email_verified, account_type, first_name, last_name, phone, company_name, tax_id, business_type, status, wholesale_application_status, wholesale_application_notes, wholesale_approved_at, wholesale_approved_by, payment_terms, metadata, created_at, updated_at, internal_note, minimum_spend_cents, email_orders, email_dispatches, email_invoices, payment_terms_id, billing_cycle, billing_cycle_day, customer_reference
+FROM users
+WHERE id = $1
+  AND tenant_id = $2
+  AND status != 'closed'
+LIMIT 1
+`
+
+type GetUserByIDAndTenantParams struct {
+	ID       pgtype.UUID `json:"id"`
+	TenantID pgtype.UUID `json:"tenant_id"`
+}
+
+// Get user by ID within a specific tenant (for session validation)
+func (q *Queries) GetUserByIDAndTenant(ctx context.Context, arg GetUserByIDAndTenantParams) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByIDAndTenant, arg.ID, arg.TenantID)
 	var i User
 	err := row.Scan(
 		&i.ID,

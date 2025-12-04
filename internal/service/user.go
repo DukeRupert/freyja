@@ -214,7 +214,11 @@ func (s *userService) GetUserBySessionToken(ctx context.Context, token string) (
 		return nil, fmt.Errorf("invalid user ID in session: %w", err)
 	}
 
-	user, err := s.repo.GetUserByID(ctx, userUUID)
+	// SECURITY: Use tenant-scoped query to prevent cross-tenant access
+	user, err := s.repo.GetUserByIDAndTenant(ctx, repository.GetUserByIDAndTenantParams{
+		ID:       userUUID,
+		TenantID: s.tenantID,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrUserNotFound

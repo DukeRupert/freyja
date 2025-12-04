@@ -22,10 +22,19 @@ WHERE tenant_id = $1
 LIMIT 1;
 
 -- name: GetUserByID :one
--- Get user by ID
+-- Get user by ID (use GetUserByIDAndTenant for tenant-scoped access)
 SELECT *
 FROM users
 WHERE id = $1
+  AND status != 'closed'
+LIMIT 1;
+
+-- name: GetUserByIDAndTenant :one
+-- Get user by ID within a specific tenant (for session validation)
+SELECT *
+FROM users
+WHERE id = $1
+  AND tenant_id = $2
   AND status != 'closed'
 LIMIT 1;
 
