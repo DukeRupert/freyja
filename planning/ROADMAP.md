@@ -4,7 +4,7 @@
 
 This roadmap defines the path to MVP launch and the six months following. The MVP focuses on complete, reliable functionality for core use cases rather than breadth of features.
 
-**Last updated:** December 3, 2024
+**Last updated:** December 4, 2024
 
 ---
 
@@ -17,6 +17,7 @@ This roadmap defines the path to MVP launch and the six months following. The MV
 ✅ **Email Notifications Complete** — Postmark/SMTP, background worker, 8 email types
 ✅ **Email Verification Complete** — Signup requires email verification before login
 ✅ **Account Dashboard Complete** — User account overview page
+✅ **Profile Management Complete** — Settings page, address book with full CRUD, payment methods
 
 **Codebase Metrics:**
 - 110+ Go source files (~20,000 lines)
@@ -49,7 +50,13 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 - ⏳ Magic link authentication (passwordless option) — not implemented
 - ✅ Account types: retail and wholesale (schema ready)
 - ✅ Account dashboard with overview page
-- ⏳ Profile management with saved addresses — partial
+- ✅ Profile management with saved addresses
+- ✅ Address book with full CRUD (create, read, update, delete)
+- ✅ Default shipping address management
+- ✅ Profile settings (name, phone updates)
+- ✅ Password change with current password verification
+- ✅ Payment methods listing and default management
+- ✅ Stripe Customer Portal integration for payment method management
 - ⏳ Wholesale account application flow — schema ready, UI not implemented
 
 **Price List System** ✅
@@ -398,12 +405,13 @@ These are noted for architectural awareness but not scheduled:
 | Email | ✅ Complete | Postmark + SMTP, 8 templates, background worker |
 | Background Jobs | ✅ Complete | Worker with concurrency, retry logic, cleanup jobs |
 | Account Dashboard | ✅ Complete | User account overview, subscriptions list |
+| Profile Management | ✅ Complete | Address book CRUD, settings, password change, payment methods |
 
 ### Architecture Highlights
 
 - **45+ database tables** across 20 migrations
 - **40+ HTTP handlers** for storefront, admin, and webhooks
-- **12+ service layers** (product, cart, user, order, checkout, subscription, account, password reset, email verification, payment terms, fulfillment, invoice)
+- **13+ service layers** (product, cart, user, order, checkout, subscription, account, password reset, email verification, payment terms, fulfillment, invoice, address)
 - **Interface-based abstractions** for billing, shipping, email, storage, tax
 - **Multi-tenant isolation** on all queries (tenant_id scoping)
 - **Idempotent webhook processing** for payment reliability
@@ -418,7 +426,7 @@ These are noted for architectural awareness but not scheduled:
 3. ~~**Wholesale Service Layer**~~ ✅ Complete — InvoiceService, PaymentTermsService, FulfillmentService, Stripe Invoicing
 4. ~~**Wholesale Admin UI**~~ ✅ Complete — Invoice list/detail, payment recording, wholesale approval workflow
 5. ~~**Carrier Integration**~~ ✅ Complete — EasyPost integration with rates, labels, tracking, address validation
-6. **Polish** — Product filters, wholesale minimums, pick lists, customer profile editing
+6. **Polish** — Product filters, wholesale minimums, pick lists, wholesale application UI
 
 ---
 
