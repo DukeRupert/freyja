@@ -79,7 +79,6 @@ func timeoutWithDuration(timeout time.Duration) func(http.Handler) http.Handler 
 			// Wrap the response writer to detect if we've started writing
 			tw := &timeoutWriter{
 				ResponseWriter: w,
-				done:           done,
 			}
 
 			// Run the handler in a goroutine
@@ -94,11 +93,16 @@ func timeoutWithDuration(timeout time.Duration) func(http.Handler) http.Handler 
 				// Handler completed normally
 				return
 			case <-ctx.Done():
-				// Timeout occurred
+				// Timeout occurred - set flag to prevent further writes from handler
 				tw.mu.Lock()
-				defer tw.mu.Unlock()
+				tw.timedOut = true
+				alreadyWrote := tw.wroteHeader
+				if !alreadyWrote {
+					tw.wroteHeader = true
+				}
+				tw.mu.Unlock()
 
-				if !tw.wroteHeader {
+				if !alreadyWrote {
 					// Only send error if we haven't started responding
 					w.WriteHeader(http.StatusServiceUnavailable)
 					w.Write([]byte("Request timeout"))
@@ -123,44 +127,39 @@ const (
 )
 
 // timeoutWriter wraps http.ResponseWriter to track if headers have been written
+// and prevent writes after timeout has occurred.
 type timeoutWriter struct {
 	http.ResponseWriter
 	mu          sync.Mutex
 	wroteHeader bool
-	done        chan struct{}
+	timedOut    bool // Set when timeout occurs, prevents further writes
 }
 
 func (tw *timeoutWriter) WriteHeader(code int) {
 	tw.mu.Lock()
 	defer tw.mu.Unlock()
 
-	if tw.wroteHeader {
+	// Don't write if already wrote header or timed out
+	if tw.wroteHeader || tw.timedOut {
 		return
 	}
 
-	select {
-	case <-tw.done:
-		// Already timed out, don't write
-		return
-	default:
-		tw.wroteHeader = true
-		tw.ResponseWriter.WriteHeader(code)
-	}
+	tw.wroteHeader = true
+	tw.ResponseWriter.WriteHeader(code)
 }
 
 func (tw *timeoutWriter) Write(b []byte) (int, error) {
 	tw.mu.Lock()
 	defer tw.mu.Unlock()
 
-	select {
-	case <-tw.done:
-		// Already timed out, don't write
+	// Don't write if timed out
+	if tw.timedOut {
 		return 0, context.DeadlineExceeded
-	default:
-		if !tw.wroteHeader {
-			tw.wroteHeader = true
-			tw.ResponseWriter.WriteHeader(http.StatusOK)
-		}
-		return tw.ResponseWriter.Write(b)
 	}
+
+	if !tw.wroteHeader {
+		tw.wroteHeader = true
+		tw.ResponseWriter.WriteHeader(http.StatusOK)
+	}
+	return tw.ResponseWriter.Write(b)
 }
