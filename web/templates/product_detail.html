@@ -95,7 +95,7 @@
       <!-- SKU Selection & Add to Cart -->
       <div class="mt-8 border-t border-neutral-200 pt-6">
         {{if .SKUs}}
-        <form method="POST" action="/cart/add"
+        <form id="product-form" method="POST" action="/cart/add"
               hx-post="/cart/add"
               hx-target="#cart-feedback"
               hx-swap="innerHTML"
@@ -106,6 +106,43 @@
 
           <!-- Hidden SKU ID field -->
           <input type="hidden" name="sku_id" x-model="selectedSKUID">
+
+          <!-- Purchase Type Toggle -->
+          <div class="mb-6">
+            <div class="flex rounded-lg bg-neutral-100 p-1">
+              <button type="button"
+                      @click="setPurchaseType('onetime')"
+                      :class="purchaseType === 'onetime' ? 'bg-white shadow text-neutral-900' : 'text-neutral-600 hover:text-neutral-900'"
+                      class="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors">
+                One-time purchase
+              </button>
+              <button type="button"
+                      @click="setPurchaseType('subscription')"
+                      :class="purchaseType === 'subscription' ? 'bg-white shadow text-neutral-900' : 'text-neutral-600 hover:text-neutral-900'"
+                      class="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors">
+                Subscribe & Save
+              </button>
+            </div>
+          </div>
+
+          <!-- Subscription Benefits (shown when subscription selected) -->
+          <div x-show="purchaseType === 'subscription'" x-collapse class="mb-6">
+            <div class="rounded-lg bg-teal-50 border border-teal-200 p-4">
+              <div class="flex items-start gap-3">
+                <svg class="h-5 w-5 text-teal-700 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <div>
+                  <p class="text-sm font-medium text-teal-800">Fresh coffee delivered automatically</p>
+                  <ul class="mt-2 space-y-1 text-sm text-teal-700">
+                    <li>Never run out of your favorite beans</li>
+                    <li>Skip, pause, or cancel anytime</li>
+                    <li>Manage easily from your account</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <!-- Size Selection -->
           <div class="mb-6">
@@ -146,6 +183,19 @@
             <p class="text-xs" :class="inventoryMessage === 'In stock' ? 'text-green-700' : 'text-amber-700'" x-text="inventoryMessage"></p>
           </div>
 
+          <!-- Delivery Frequency (shown when subscription selected) -->
+          <div x-show="purchaseType === 'subscription'" x-collapse class="mb-6">
+            <label class="block text-sm font-medium text-neutral-700 mb-2">Delivery Frequency</label>
+            <select name="billing_interval" x-model="billingInterval"
+                    class="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none">
+              <option value="weekly">Every week</option>
+              <option value="biweekly">Every 2 weeks</option>
+              <option value="monthly">Every month</option>
+              <option value="6_weeks">Every 6 weeks</option>
+              <option value="bimonthly">Every 2 months</option>
+            </select>
+          </div>
+
           <!-- Quantity -->
           <div class="mb-6">
             <label class="block text-sm font-medium text-neutral-700 mb-2">Quantity</label>
@@ -168,12 +218,26 @@
             </div>
           </div>
 
-          <!-- Add to Cart Button -->
+          <!-- Add to Cart / Subscribe Button -->
           <button type="submit"
-                  class="btn-primary w-full"
+                  class="btn-primary w-full flex items-center justify-center gap-2"
                   :disabled="!selectedSKU">
-            Add to Cart
+            <span x-show="purchaseType === 'onetime'">Add to Cart</span>
+            <span x-show="purchaseType === 'subscription'">
+              <svg class="h-5 w-5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Start Subscription
+            </span>
           </button>
+
+          <!-- Login prompt for subscriptions (when not logged in) -->
+          {{if not .User}}
+          <p x-show="purchaseType === 'subscription'" class="text-center text-sm text-neutral-600 mt-3">
+            <a href="/login?return_to={{.RequestPath}}" class="text-teal-700 hover:text-teal-800 font-medium">Log in</a> or
+            <a href="/signup?return_to={{.RequestPath}}" class="text-teal-700 hover:text-teal-800 font-medium">create an account</a> to subscribe
+          </p>
+          {{end}}
 
           <!-- Feedback Area -->
           <div id="cart-feedback" class="mt-4"></div>
@@ -193,6 +257,8 @@
             {{- end}}
 
             return {
+              purchaseType: 'onetime',
+              billingInterval: 'monthly',
               selectedWeight: '',
               selectedGrind: '',
               selectedSKU: null,
@@ -201,6 +267,26 @@
               price: 0,
               inventoryMessage: '',
               skuMap: skuMap,
+
+              setPurchaseType(type) {
+                this.purchaseType = type;
+                const form = document.getElementById('product-form');
+                if (type === 'subscription') {
+                  form.action = '/subscribe/checkout';
+                  form.method = 'GET';
+                  // Remove htmx attributes for subscription
+                  form.removeAttribute('hx-post');
+                  form.removeAttribute('hx-target');
+                  form.removeAttribute('hx-swap');
+                } else {
+                  form.action = '/cart/add';
+                  form.method = 'POST';
+                  // Restore htmx attributes for cart
+                  form.setAttribute('hx-post', '/cart/add');
+                  form.setAttribute('hx-target', '#cart-feedback');
+                  form.setAttribute('hx-swap', 'innerHTML');
+                }
+              },
 
               selectWeight(weight) {
                 this.selectedWeight = weight;
