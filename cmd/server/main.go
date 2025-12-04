@@ -285,6 +285,7 @@ func run() error {
 		// Account (authenticated)
 		AccountDashboardHandler:     storefront.NewAccountDashboardHandler(accountService, subscriptionService, renderer, cfg.TenantID),
 		OrderHistoryHandler:         storefront.NewOrderHistoryHandler(repo, renderer, cfg.TenantID),
+		AddressHandler:              storefront.NewAddressHandler(repo, renderer, cfg.TenantID),
 		SubscriptionListHandler:     storefront.NewSubscriptionListHandler(subscriptionService, renderer, cfg.TenantID),
 		SubscriptionDetailHandler:   storefront.NewSubscriptionDetailHandler(subscriptionService, renderer, cfg.TenantID),
 		SubscriptionPortalHandler:   storefront.NewSubscriptionPortalHandler(subscriptionService, cfg.TenantID),

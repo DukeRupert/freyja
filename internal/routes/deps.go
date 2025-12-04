@@ -45,6 +45,7 @@ type StorefrontDeps struct {
 	// Account (authenticated)
 	AccountDashboardHandler     *storefront.AccountDashboardHandler
 	OrderHistoryHandler         *storefront.OrderHistoryHandler
+	AddressHandler              *storefront.AddressHandler
 	SubscriptionListHandler     http.Handler
 	SubscriptionDetailHandler   http.Handler
 	SubscriptionPortalHandler   http.Handler

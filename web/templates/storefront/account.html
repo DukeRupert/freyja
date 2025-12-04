@@ -80,17 +80,17 @@
         </a>
 
         <!-- Addresses Card -->
-        <div class="rounded-lg bg-white border border-neutral-200 shadow-sm p-6 opacity-75">
+        <a href="/account/addresses" class="group block rounded-lg bg-white border border-neutral-200 shadow-sm p-6 transition-all hover:border-teal-300 hover:shadow-md">
             <div class="flex items-start justify-between">
-                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500">
+                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-teal-50 text-teal-600 group-hover:bg-teal-100">
                     <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                 </div>
-                <span class="inline-flex items-center rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-600">
-                    Coming soon
-                </span>
+                <svg class="h-5 w-5 text-neutral-400 group-hover:text-teal-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
             </div>
             <h3 class="mt-4 text-lg font-semibold text-neutral-900">Saved Addresses</h3>
             <p class="mt-1 text-sm text-neutral-600">
@@ -105,7 +105,7 @@
                 Default shipping set
             </p>
             {{end}}
-        </div>
+        </a>
 
         <!-- Payment Methods Card -->
         <div class="rounded-lg bg-white border border-neutral-200 shadow-sm p-6 opacity-75">
