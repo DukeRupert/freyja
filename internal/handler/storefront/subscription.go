@@ -7,9 +7,149 @@ import (
 
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
+	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/service"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+// SubscriptionProductsHandler shows available products for subscription
+type SubscriptionProductsHandler struct {
+	productService service.ProductService
+	repo           repository.Querier
+	renderer       *handler.Renderer
+	tenantID       pgtype.UUID
+}
+
+// NewSubscriptionProductsHandler creates a new subscription products handler
+func NewSubscriptionProductsHandler(productService service.ProductService, repo repository.Querier, renderer *handler.Renderer, tenantID string) *SubscriptionProductsHandler {
+	var tenantUUID pgtype.UUID
+	if err := tenantUUID.Scan(tenantID); err != nil {
+		panic(fmt.Sprintf("invalid tenant ID: %v", err))
+	}
+
+	return &SubscriptionProductsHandler{
+		productService: productService,
+		repo:           repo,
+		renderer:       renderer,
+		tenantID:       tenantUUID,
+	}
+}
+
+// SubscriptionProduct wraps product data for subscription selection display
+type SubscriptionProduct struct {
+	ID               pgtype.UUID
+	Name             string
+	Slug             string
+	ShortDescription string
+	Origin           string
+	RoastLevel       string
+	ImageURL         string
+	SKUs             []SubscriptionSKU
+}
+
+// SubscriptionSKU contains SKU info for subscription selection
+type SubscriptionSKU struct {
+	ID          pgtype.UUID
+	SKU         string
+	WeightValue string
+	WeightUnit  string
+	Grind       string
+	PriceCents  int32
+	DisplayName string // e.g., "12oz - Whole Bean"
+}
+
+// ServeHTTP handles GET /subscribe - shows products available for subscription
+func (h *SubscriptionProductsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	ctx := r.Context()
+
+	// Get all active products
+	products, err := h.productService.ListProducts(ctx)
+	if err != nil {
+		http.Error(w, "Failed to load products", http.StatusInternalServerError)
+		return
+	}
+
+	// Get default price list
+	priceList, err := h.repo.GetDefaultPriceList(ctx, h.tenantID)
+	if err != nil {
+		http.Error(w, "Failed to load pricing", http.StatusInternalServerError)
+		return
+	}
+
+	// Build subscription products with SKU options
+	subscriptionProducts := make([]SubscriptionProduct, 0, len(products))
+
+	for _, p := range products {
+		// Get SKUs for this product
+		skus, err := h.repo.GetProductSKUs(ctx, p.ID)
+		if err != nil {
+			continue // Skip products with no SKUs
+		}
+
+		if len(skus) == 0 {
+			continue
+		}
+
+		subscriptionSKUs := make([]SubscriptionSKU, 0, len(skus))
+
+		for _, sku := range skus {
+			// Get price for this SKU
+			price, err := h.repo.GetPriceForSKU(ctx, repository.GetPriceForSKUParams{
+				PriceListID:  priceList.ID,
+				ProductSkuID: sku.ID,
+			})
+			if err != nil {
+				continue // Skip SKUs without pricing
+			}
+
+			// Format weight value
+			weightStr := ""
+			if sku.WeightValue.Valid {
+				f, err := sku.WeightValue.Float64Value()
+				if err == nil && f.Valid {
+					weightStr = fmt.Sprintf("%.0f", f.Float64)
+				}
+			}
+
+			// Build display name (e.g., "12oz - Whole Bean")
+			displayName := fmt.Sprintf("%s%s - %s", weightStr, sku.WeightUnit, sku.Grind)
+
+			subscriptionSKUs = append(subscriptionSKUs, SubscriptionSKU{
+				ID:          sku.ID,
+				SKU:         sku.Sku,
+				WeightValue: weightStr,
+				WeightUnit:  sku.WeightUnit,
+				Grind:       sku.Grind,
+				PriceCents:  price.PriceCents,
+				DisplayName: displayName,
+			})
+		}
+
+		if len(subscriptionSKUs) > 0 {
+			subscriptionProducts = append(subscriptionProducts, SubscriptionProduct{
+				ID:               p.ID,
+				Name:             p.Name,
+				Slug:             p.Slug,
+				ShortDescription: p.ShortDescription.String,
+				Origin:           p.Origin.String,
+				RoastLevel:       p.RoastLevel.String,
+				ImageURL:         p.PrimaryImageUrl.String,
+				SKUs:             subscriptionSKUs,
+			})
+		}
+	}
+
+	data := BaseTemplateData(r)
+	data["Products"] = subscriptionProducts
+	data["BillingIntervals"] = service.ValidBillingIntervals
+
+	h.renderer.RenderHTTP(w, "storefront/subscription_products", data)
+}
 
 // SubscriptionListHandler shows all subscriptions for the authenticated user
 type SubscriptionListHandler struct {

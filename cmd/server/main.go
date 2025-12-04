@@ -291,6 +291,9 @@ func run() error {
 			cfg.TenantID,
 		),
 
+		// Subscriptions (public)
+		SubscriptionProductsHandler: storefront.NewSubscriptionProductsHandler(productService, repo, renderer, cfg.TenantID),
+
 		// Account (authenticated)
 		AccountDashboardHandler:     storefront.NewAccountDashboardHandler(accountService, subscriptionService, renderer, cfg.TenantID),
 		OrderHistoryHandler:         storefront.NewOrderHistoryHandler(repo, renderer, cfg.TenantID),

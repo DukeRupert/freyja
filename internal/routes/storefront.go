@@ -49,6 +49,9 @@ func RegisterStorefrontRoutes(r *router.Router, deps StorefrontDeps) {
 	r.Post("/checkout/create-payment-intent", deps.CheckoutHandler.CreatePaymentIntent)
 	r.Get("/order-confirmation", deps.CheckoutHandler.OrderConfirmation)
 
+	// Subscription product selection (public)
+	r.Get("/subscribe", deps.SubscriptionProductsHandler.ServeHTTP)
+
 	// Account routes (require authentication)
 	account := r.Group(middleware.RequireAuth)
 	account.Get("/account", deps.AccountDashboardHandler.ServeHTTP)

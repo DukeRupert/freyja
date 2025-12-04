@@ -42,6 +42,9 @@ type StorefrontDeps struct {
 	// Checkout
 	CheckoutHandler *storefront.CheckoutHandler
 
+	// Subscriptions (public)
+	SubscriptionProductsHandler http.Handler
+
 	// Account (authenticated)
 	AccountDashboardHandler     *storefront.AccountDashboardHandler
 	OrderHistoryHandler         *storefront.OrderHistoryHandler
