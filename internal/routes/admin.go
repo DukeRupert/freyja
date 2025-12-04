@@ -6,12 +6,17 @@ import (
 )
 
 // RegisterAdminRoutes registers all admin dashboard routes.
-// All routes are protected by admin authentication middleware.
+// Auth routes are public, all other routes are protected by admin authentication middleware.
 //
 // These routes are served at /admin/* and share the same
 // domain/port as the storefront.
 func RegisterAdminRoutes(r *router.Router, deps AdminDeps) {
-	// All admin routes require admin authentication
+	// Admin auth routes (public - no authentication required)
+	r.Get("/admin/login", deps.LoginHandler.ShowForm)
+	r.Post("/admin/login", deps.LoginHandler.HandleSubmit)
+	r.Post("/admin/logout", deps.LogoutHandler.HandleSubmit)
+
+	// All other admin routes require admin authentication
 	admin := r.Group(middleware.RequireAdmin)
 
 	// Dashboard

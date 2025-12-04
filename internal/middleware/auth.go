@@ -74,17 +74,19 @@ func RequireAuth(next http.Handler) http.Handler {
 	})
 }
 
-// RequireAdmin ensures the user is an admin, returning 403 if not
+// RequireAdmin ensures the user is an admin, redirecting to admin login if not
 func RequireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user := GetUserFromContext(r.Context())
 		if user == nil {
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 			return
 		}
 
 		if user.AccountType != "admin" {
-			http.Error(w, "Forbidden", http.StatusForbidden)
+			// User is authenticated but not an admin - redirect to storefront
+			// This is friendlier than showing a 403 error
+			http.Redirect(w, r, "/", http.StatusSeeOther)
 			return
 		}
 

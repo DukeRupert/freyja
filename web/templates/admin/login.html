@@ -1,0 +1,103 @@
+{{define "admin_login"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - Freyja</title>
+
+    <!-- Inter Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="/static/css/output.css">
+
+    <style>
+        body {
+            font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-feature-settings: 'cv11';
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+    </style>
+</head>
+<body class="bg-zinc-50 dark:bg-zinc-950">
+    <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-md w-full">
+
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <h1 class="text-2xl font-bold text-zinc-950 dark:text-white">Freyja Admin</h1>
+                <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                    Sign in to manage your store
+                </p>
+            </div>
+
+            <!-- Error Message -->
+            {{if .Error}}
+            <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/20 dark:border-red-800">
+                <p class="text-sm text-red-800 dark:text-red-200">{{.Error}}</p>
+            </div>
+            {{end}}
+
+            <!-- Login Form -->
+            <div class="bg-white border border-zinc-200 rounded-lg shadow-sm p-8 dark:bg-zinc-900 dark:border-zinc-800">
+                <form method="POST" action="/admin/login" class="space-y-6">
+                    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+
+                    <!-- Email -->
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                            Email address
+                        </label>
+                        <input
+                            type="email"
+                            id="email"
+                            name="email"
+                            required
+                            autocomplete="email"
+                            value="{{.Email}}"
+                            class="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:border-transparent dark:bg-zinc-800 dark:border-zinc-700 dark:text-white dark:focus:ring-white"
+                            placeholder="admin@example.com"
+                        />
+                    </div>
+
+                    <!-- Password -->
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                            Password
+                        </label>
+                        <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            required
+                            autocomplete="current-password"
+                            class="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:border-transparent dark:bg-zinc-800 dark:border-zinc-700 dark:text-white dark:focus:ring-white"
+                            placeholder="Enter your password"
+                        />
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button
+                        type="submit"
+                        class="w-full px-6 py-3 bg-zinc-950 text-white font-medium rounded-lg hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-950 transition-colors dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100"
+                    >
+                        Sign in
+                    </button>
+                </form>
+            </div>
+
+            <!-- Back to Store Link -->
+            <div class="mt-6 text-center">
+                <a href="/" class="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+                    Back to store
+                </a>
+            </div>
+
+        </div>
+    </div>
+</body>
+</html>
+{{end}}

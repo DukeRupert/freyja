@@ -316,6 +316,8 @@ func run() error {
 
 	// Admin dependencies (consolidated handlers)
 	adminDeps := routes.AdminDeps{
+		LoginHandler:        admin.NewLoginHandler(userService, renderer),
+		LogoutHandler:       admin.NewLogoutHandler(userService),
 		DashboardHandler:    admin.NewDashboardHandler(repo, renderer, cfg.TenantID),
 		ProductHandler:      admin.NewProductHandler(repo, renderer, fileStorage, cfg.TenantID),
 		OrderHandler:        admin.NewOrderHandler(repo, renderer, cfg.TenantID),
@@ -402,6 +404,7 @@ func run() error {
 	authRouter := r.Group(middleware.StrictRateLimit())
 	authRouter.Post("/login", storefrontDeps.LoginHandler.HandleSubmit)
 	authRouter.Post("/signup", storefrontDeps.SignupHandler.HandleSubmit)
+	authRouter.Post("/admin/login", adminDeps.LoginHandler.HandleSubmit)
 
 	// SaaS marketing site router (separate, can be served on different port/domain)
 	saasRouter := router.New(
