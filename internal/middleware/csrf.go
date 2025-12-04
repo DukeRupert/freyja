@@ -5,9 +5,9 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
+	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 )
 
 const (
@@ -112,7 +112,14 @@ func CSRF(config ...CSRFConfig) func(http.Handler) http.Handler {
 			// Get or create CSRF token
 			token := getCSRFTokenFromCookie(r, cfg.CookieName)
 			if token == "" {
-				token = generateCSRFToken()
+				var err error
+				token, err = generateCSRFToken()
+				if err != nil {
+					// SECURITY: Fail closed if we can't generate secure token
+					slog.Error("csrf: failed to generate secure token", "error", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
+				}
 				setCSRFCookie(w, token, cfg)
 			}
 
@@ -151,14 +158,16 @@ func GetCSRFToken(ctx context.Context) string {
 	return ""
 }
 
-// generateCSRFToken creates a new random CSRF token
-func generateCSRFToken() string {
+// generateCSRFToken creates a new random CSRF token.
+// Returns an error if secure random generation fails - we fail closed
+// rather than using a weak fallback that could be exploited.
+func generateCSRFToken() (string, error) {
 	b := make([]byte, CSRFTokenLength)
 	if _, err := rand.Read(b); err != nil {
-		// Fallback to time-based token (less secure but better than nothing)
-		return base64.StdEncoding.EncodeToString([]byte(time.Now().String()))
+		// SECURITY: Fail closed - don't use predictable fallback
+		return "", err
 	}
-	return base64.StdEncoding.EncodeToString(b)
+	return base64.StdEncoding.EncodeToString(b), nil
 }
 
 // getCSRFTokenFromCookie retrieves the CSRF token from the cookie
