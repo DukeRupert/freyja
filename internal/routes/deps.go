@@ -54,6 +54,9 @@ type StorefrontDeps struct {
 
 	// Wholesale
 	WholesaleApplicationHandler *storefront.WholesaleApplicationHandler
+
+	// Payment Methods
+	PaymentMethodHandler *storefront.PaymentMethodHandler
 }
 
 // AdminDeps contains dependencies for admin routes

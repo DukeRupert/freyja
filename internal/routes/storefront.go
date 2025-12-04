@@ -69,4 +69,9 @@ func RegisterStorefrontRoutes(r *router.Router, deps StorefrontDeps) {
 	account.Get("/wholesale/apply", deps.WholesaleApplicationHandler.Form)
 	account.Post("/wholesale/apply", deps.WholesaleApplicationHandler.Submit)
 	account.Get("/wholesale/status", deps.WholesaleApplicationHandler.Status)
+
+	// Payment methods (require authentication)
+	account.Get("/account/payment-methods", deps.PaymentMethodHandler.List)
+	account.Get("/account/payment-methods/portal", deps.PaymentMethodHandler.Portal)
+	account.Post("/account/payment-methods/{id}/default", deps.PaymentMethodHandler.SetDefault)
 }

@@ -294,6 +294,9 @@ func run() error {
 
 		// Wholesale
 		WholesaleApplicationHandler: storefront.NewWholesaleApplicationHandler(repo, renderer, cfg.TenantID),
+
+		// Payment Methods
+		PaymentMethodHandler: storefront.NewPaymentMethodHandler(accountService, subscriptionService, repo, renderer, cfg.TenantID),
 	}
 
 	// Admin dependencies (consolidated handlers)
