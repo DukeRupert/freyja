@@ -45,7 +45,7 @@
       </div>
 
       <!-- Coffee Attributes -->
-      {{if or .Product.Producer.Valid .Product.Process.Valid .Product.Elevation.Valid}}
+      {{if or .Product.Producer.Valid .Product.Process.Valid .Product.ElevationMin.Valid .Product.ElevationMax.Valid}}
       <div class="mt-6 space-y-3 border-t border-neutral-200 pt-6">
         {{if .Product.Producer.Valid}}
         <div class="flex justify-between text-sm">
@@ -100,6 +100,9 @@
               hx-target="#cart-feedback"
               hx-swap="innerHTML"
               x-data="productForm()">
+
+          <!-- CSRF Token -->
+          <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
 
           <!-- Hidden SKU ID field -->
           <input type="hidden" name="sku_id" x-model="selectedSKUID">
