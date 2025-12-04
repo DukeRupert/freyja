@@ -513,9 +513,9 @@ type Querier interface {
 	// Updates subscription status and related timestamps
 	// Used when syncing from Stripe webhooks
 	UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscriptionStatusParams) (Subscription, error)
-	// Update user password
+	// Update user password (tenant-scoped for security)
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
-	// Update user profile information
+	// Update user profile information (tenant-scoped for security)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) error
 	// Update user status (active, suspended, closed)
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) error

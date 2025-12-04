@@ -309,6 +309,9 @@ func run() error {
 
 		// Payment Methods
 		PaymentMethodHandler: storefront.NewPaymentMethodHandler(accountService, subscriptionService, repo, renderer, cfg.TenantID),
+
+		// Profile Settings
+		ProfileHandler: storefront.NewProfileHandler(repo, renderer, cfg.TenantID),
 	}
 
 	// Admin dependencies (consolidated handlers)

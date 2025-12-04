@@ -786,41 +786,46 @@ func (q *Queries) SubmitWholesaleApplication(ctx context.Context, arg SubmitWhol
 
 const updateUserPassword = `-- name: UpdateUserPassword :exec
 UPDATE users
-SET password_hash = $2
+SET password_hash = $3
 WHERE id = $1
+  AND tenant_id = $2
 `
 
 type UpdateUserPasswordParams struct {
 	ID           pgtype.UUID `json:"id"`
+	TenantID     pgtype.UUID `json:"tenant_id"`
 	PasswordHash pgtype.Text `json:"password_hash"`
 }
 
-// Update user password
+// Update user password (tenant-scoped for security)
 func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
-	_, err := q.db.Exec(ctx, updateUserPassword, arg.ID, arg.PasswordHash)
+	_, err := q.db.Exec(ctx, updateUserPassword, arg.ID, arg.TenantID, arg.PasswordHash)
 	return err
 }
 
 const updateUserProfile = `-- name: UpdateUserProfile :exec
 UPDATE users
 SET
-    first_name = COALESCE($2, first_name),
-    last_name = COALESCE($3, last_name),
-    phone = COALESCE($4, phone)
+    first_name = COALESCE($3, first_name),
+    last_name = COALESCE($4, last_name),
+    phone = COALESCE($5, phone)
 WHERE id = $1
+  AND tenant_id = $2
 `
 
 type UpdateUserProfileParams struct {
 	ID        pgtype.UUID `json:"id"`
+	TenantID  pgtype.UUID `json:"tenant_id"`
 	FirstName pgtype.Text `json:"first_name"`
 	LastName  pgtype.Text `json:"last_name"`
 	Phone     pgtype.Text `json:"phone"`
 }
 
-// Update user profile information
+// Update user profile information (tenant-scoped for security)
 func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) error {
 	_, err := q.db.Exec(ctx, updateUserProfile,
 		arg.ID,
+		arg.TenantID,
 		arg.FirstName,
 		arg.LastName,
 		arg.Phone,

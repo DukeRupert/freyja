@@ -1,0 +1,207 @@
+{{define "title"}}Account Settings{{end}}
+
+{{define "content"}}
+<div class="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
+    <!-- Back to Account -->
+    <div class="mb-6">
+        <a href="/account" class="inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-teal-700 transition-colors">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Account
+        </a>
+    </div>
+
+    <!-- Page Header -->
+    <div class="mb-8">
+        {{template "sf-heading" (dict "Level" "1" "Content" "Account Settings")}}
+        <p class="mt-2 text-base text-neutral-600">
+            Update your profile information and security settings
+        </p>
+    </div>
+
+    <!-- Success Message -->
+    {{if eq .Success "profile"}}
+    <div class="mb-6 rounded-lg bg-green-50 border border-green-200 p-4">
+        <div class="flex gap-3">
+            <svg class="h-5 w-5 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p class="text-sm text-green-800">Profile updated successfully.</p>
+        </div>
+    </div>
+    {{else if eq .Success "password"}}
+    <div class="mb-6 rounded-lg bg-green-50 border border-green-200 p-4">
+        <div class="flex gap-3">
+            <svg class="h-5 w-5 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p class="text-sm text-green-800">Password changed successfully.</p>
+        </div>
+    </div>
+    {{end}}
+
+    <!-- Error Message -->
+    {{if .Error}}
+    <div class="mb-6 rounded-lg bg-red-50 border border-red-200 p-4">
+        <div class="flex gap-3">
+            <svg class="h-5 w-5 text-red-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p class="text-sm text-red-800">{{.Error}}</p>
+        </div>
+    </div>
+    {{end}}
+
+    <!-- Profile Information -->
+    <div class="rounded-lg bg-white border border-neutral-200 shadow-sm">
+        <div class="border-b border-neutral-200 px-6 py-4">
+            <h2 class="text-lg font-semibold text-neutral-900">Profile Information</h2>
+            <p class="mt-1 text-sm text-neutral-600">Update your name and contact information.</p>
+        </div>
+        <form action="/account/settings/profile" method="POST" class="p-6 space-y-5">
+            {{.CSRFField}}
+
+            <!-- Email (read-only) -->
+            <div>
+                <label for="email" class="block text-sm font-medium text-neutral-700 mb-1">
+                    Email address
+                </label>
+                <input type="email"
+                       id="email"
+                       value="{{.User.Email}}"
+                       disabled
+                       class="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm text-neutral-500 cursor-not-allowed">
+                <p class="mt-1 text-xs text-neutral-500">Email cannot be changed. Contact support if you need to update your email.</p>
+            </div>
+
+            <!-- First Name -->
+            <div>
+                <label for="first_name" class="block text-sm font-medium text-neutral-700 mb-1">
+                    First name
+                </label>
+                <input type="text"
+                       id="first_name"
+                       name="first_name"
+                       value="{{.User.FirstName.String}}"
+                       class="w-full rounded-lg border border-neutral-300 px-4 py-2.5 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500">
+            </div>
+
+            <!-- Last Name -->
+            <div>
+                <label for="last_name" class="block text-sm font-medium text-neutral-700 mb-1">
+                    Last name
+                </label>
+                <input type="text"
+                       id="last_name"
+                       name="last_name"
+                       value="{{.User.LastName.String}}"
+                       class="w-full rounded-lg border border-neutral-300 px-4 py-2.5 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500">
+            </div>
+
+            <!-- Phone -->
+            <div>
+                <label for="phone" class="block text-sm font-medium text-neutral-700 mb-1">
+                    Phone number
+                </label>
+                <input type="tel"
+                       id="phone"
+                       name="phone"
+                       value="{{.User.Phone.String}}"
+                       placeholder="Optional"
+                       class="w-full rounded-lg border border-neutral-300 px-4 py-2.5 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500">
+            </div>
+
+            <div class="pt-2">
+                <button type="submit"
+                        class="rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-800 transition-colors">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Change Password -->
+    <div class="mt-8 rounded-lg bg-white border border-neutral-200 shadow-sm">
+        <div class="border-b border-neutral-200 px-6 py-4">
+            <h2 class="text-lg font-semibold text-neutral-900">Change Password</h2>
+            <p class="mt-1 text-sm text-neutral-600">Ensure your account stays secure by using a strong password.</p>
+        </div>
+        <form action="/account/settings/password" method="POST" class="p-6 space-y-5">
+            {{.CSRFField}}
+
+            <!-- Current Password -->
+            <div>
+                <label for="current_password" class="block text-sm font-medium text-neutral-700 mb-1">
+                    Current password
+                </label>
+                <input type="password"
+                       id="current_password"
+                       name="current_password"
+                       required
+                       class="w-full rounded-lg border border-neutral-300 px-4 py-2.5 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500">
+            </div>
+
+            <!-- New Password -->
+            <div>
+                <label for="new_password" class="block text-sm font-medium text-neutral-700 mb-1">
+                    New password
+                </label>
+                <input type="password"
+                       id="new_password"
+                       name="new_password"
+                       required
+                       minlength="8"
+                       class="w-full rounded-lg border border-neutral-300 px-4 py-2.5 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500">
+                <p class="mt-1 text-xs text-neutral-500">Must be at least 8 characters.</p>
+            </div>
+
+            <!-- Confirm New Password -->
+            <div>
+                <label for="confirm_password" class="block text-sm font-medium text-neutral-700 mb-1">
+                    Confirm new password
+                </label>
+                <input type="password"
+                       id="confirm_password"
+                       name="confirm_password"
+                       required
+                       minlength="8"
+                       class="w-full rounded-lg border border-neutral-300 px-4 py-2.5 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500">
+            </div>
+
+            <div class="pt-2">
+                <button type="submit"
+                        class="rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-800 transition-colors">
+                    Change Password
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Account Type Badge -->
+    {{if eq .User.AccountType "wholesale"}}
+    <div class="mt-8 rounded-lg bg-green-50 border border-green-200 p-4">
+        <div class="flex gap-3">
+            <svg class="h-5 w-5 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div class="text-sm">
+                <p class="font-medium text-green-800">Wholesale Account</p>
+                <p class="mt-1 text-green-700">
+                    You have wholesale pricing and payment terms. Contact us to update your business details.
+                </p>
+            </div>
+        </div>
+    </div>
+    {{end}}
+
+    <!-- Danger Zone -->
+    <div class="mt-8 rounded-lg bg-neutral-50 border border-neutral-200 p-6">
+        <h3 class="text-sm font-medium text-neutral-700">Need help?</h3>
+        <p class="mt-2 text-sm text-neutral-600">
+            If you need to change your email address or close your account, please
+            <a href="mailto:support@example.com" class="text-teal-700 hover:underline">contact support</a>.
+        </p>
+    </div>
+</div>
+{{end}}

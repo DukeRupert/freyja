@@ -60,6 +60,9 @@ type StorefrontDeps struct {
 
 	// Payment Methods
 	PaymentMethodHandler *storefront.PaymentMethodHandler
+
+	// Profile Settings
+	ProfileHandler *storefront.ProfileHandler
 }
 
 // AdminDeps contains dependencies for admin routes

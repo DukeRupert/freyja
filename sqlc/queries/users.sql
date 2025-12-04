@@ -30,19 +30,21 @@ WHERE id = $1
 LIMIT 1;
 
 -- name: UpdateUserProfile :exec
--- Update user profile information
+-- Update user profile information (tenant-scoped for security)
 UPDATE users
 SET
-    first_name = COALESCE($2, first_name),
-    last_name = COALESCE($3, last_name),
-    phone = COALESCE($4, phone)
-WHERE id = $1;
+    first_name = COALESCE($3, first_name),
+    last_name = COALESCE($4, last_name),
+    phone = COALESCE($5, phone)
+WHERE id = $1
+  AND tenant_id = $2;
 
 -- name: UpdateUserPassword :exec
--- Update user password
+-- Update user password (tenant-scoped for security)
 UPDATE users
-SET password_hash = $2
-WHERE id = $1;
+SET password_hash = $3
+WHERE id = $1
+  AND tenant_id = $2;
 
 -- name: VerifyUserEmail :exec
 -- Mark user email as verified

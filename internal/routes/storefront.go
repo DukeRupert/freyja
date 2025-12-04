@@ -77,4 +77,9 @@ func RegisterStorefrontRoutes(r *router.Router, deps StorefrontDeps) {
 	account.Get("/account/payment-methods", deps.PaymentMethodHandler.List)
 	account.Get("/account/payment-methods/portal", deps.PaymentMethodHandler.Portal)
 	account.Post("/account/payment-methods/{id}/default", deps.PaymentMethodHandler.SetDefault)
+
+	// Profile settings (require authentication)
+	account.Get("/account/settings", deps.ProfileHandler.Show)
+	account.Post("/account/settings/profile", deps.ProfileHandler.UpdateProfile)
+	account.Post("/account/settings/password", deps.ProfileHandler.ChangePassword)
 }
