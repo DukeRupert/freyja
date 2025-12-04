@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"net/smtp"
 	"strings"
 )
@@ -16,6 +17,7 @@ type SMTPSender struct {
 	username string
 	password string
 	from     string
+	logger   *slog.Logger
 }
 
 // NewSMTPSender creates a new SMTP email sender.
@@ -26,11 +28,20 @@ func NewSMTPSender(host string, port int, username, password, from string) *SMTP
 		username: username,
 		password: password,
 		from:     from,
+		logger:   slog.Default(),
 	}
 }
 
 // Send sends an email via SMTP.
 func (s *SMTPSender) Send(ctx context.Context, email *Email) (string, error) {
+	s.logger.Info("smtp: preparing email",
+		"to", email.To,
+		"from", email.From,
+		"subject", email.Subject,
+		"host", s.host,
+		"port", s.port,
+	)
+
 	// Build message
 	msg := s.buildMessage(email)
 
@@ -43,6 +54,8 @@ func (s *SMTPSender) Send(ctx context.Context, email *Email) (string, error) {
 	// Connect to SMTP server
 	addr := fmt.Sprintf("%s:%d", s.host, s.port)
 
+	s.logger.Info("smtp: connecting to server", "addr", addr)
+
 	// For development (Mailhog), use plain SMTP
 	// For production, use TLS
 	var auth smtp.Auth
@@ -53,8 +66,11 @@ func (s *SMTPSender) Send(ctx context.Context, email *Email) (string, error) {
 	// Send email
 	err := smtp.SendMail(addr, auth, from, email.To, []byte(msg))
 	if err != nil {
+		s.logger.Error("smtp: failed to send email", "error", err)
 		return "", fmt.Errorf("failed to send email: %w", err)
 	}
+
+	s.logger.Info("smtp: email sent successfully", "to", email.To)
 
 	// SMTP doesn't provide message IDs, generate one
 	return fmt.Sprintf("smtp-%d", len(email.To)), nil
