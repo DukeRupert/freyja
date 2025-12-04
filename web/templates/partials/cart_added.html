@@ -1,0 +1,18 @@
+{{define "cart_added"}}
+<div class="p-4 bg-green-50 border border-green-200 rounded-lg"
+     x-data="{ show: true }"
+     x-show="show"
+     x-init="setTimeout(() => show = false, 3000)">
+    <div class="flex items-center gap-3">
+        <svg class="h-5 w-5 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+        <div class="flex-1">
+            <p class="text-sm font-medium text-green-800">Added to cart</p>
+        </div>
+        <a href="/cart" class="text-sm font-medium text-green-700 hover:text-green-800 underline">
+            View cart
+        </a>
+    </div>
+</div>
+{{end}}
