@@ -40,19 +40,76 @@
         </div>
 
         <!-- Auth & Cart Icons -->
-        <div class="flex items-center space-x-4">
+        <div class="flex items-center space-x-2">
           {{if .User}}
-          <!-- Authenticated User -->
-          <div class="flex items-center space-x-4">
-            <a href="/account" class="text-sm font-medium text-neutral-700 hover:text-teal-700">
-              Account
-            </a>
-            <form method="POST" action="/logout" class="inline">
-              <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-              <button type="submit" class="text-sm font-medium text-neutral-700 hover:text-teal-700">
-                Logout
-              </button>
-            </form>
+          <!-- Authenticated User - Dropdown Menu -->
+          <div class="relative" x-data="{ open: false }">
+            <button @click="open = !open"
+                    @click.outside="open = false"
+                    class="flex items-center gap-2 rounded-full p-1.5 text-neutral-700 hover:bg-neutral-100 transition-colors"
+                    :class="{ 'bg-neutral-100': open }">
+              <div class="flex h-8 w-8 items-center justify-center rounded-full bg-teal-100 text-teal-700">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <svg class="h-4 w-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                   :class="{ 'rotate-180': open }">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            <!-- Dropdown Menu -->
+            <div x-show="open"
+                 x-transition:enter="transition ease-out duration-100"
+                 x-transition:enter-start="transform opacity-0 scale-95"
+                 x-transition:enter-end="transform opacity-100 scale-100"
+                 x-transition:leave="transition ease-in duration-75"
+                 x-transition:leave-start="transform opacity-100 scale-100"
+                 x-transition:leave-end="transform opacity-0 scale-95"
+                 class="absolute right-0 mt-2 w-48 origin-top-right rounded-lg bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50"
+                 style="display: none;">
+              <div class="py-1">
+                <!-- User Info -->
+                <div class="px-4 py-2 border-b border-neutral-100">
+                  <p class="text-sm font-medium text-neutral-900">{{.User.FirstName.String}} {{.User.LastName.String}}</p>
+                  <p class="text-xs text-neutral-500 truncate">{{.User.Email}}</p>
+                </div>
+
+                <!-- Menu Items -->
+                <a href="/account" class="flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50">
+                  <svg class="h-4 w-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  My Account
+                </a>
+                <a href="/account/orders" class="flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50">
+                  <svg class="h-4 w-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                  Orders
+                </a>
+                <a href="/account/subscriptions" class="flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50">
+                  <svg class="h-4 w-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Subscriptions
+                </a>
+
+                <!-- Logout -->
+                <div class="border-t border-neutral-100 mt-1 pt-1">
+                  <form method="POST" action="/logout">
+                    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                    <button type="submit" class="flex w-full items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50">
+                      <svg class="h-4 w-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      Sign out
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
           </div>
           {{else}}
           <!-- Guest User -->
