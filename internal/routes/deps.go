@@ -33,19 +33,11 @@ type StorefrontDeps struct {
 	// Subscriptions (consolidated: list, detail, portal, checkout, create)
 	SubscriptionHandler *storefront.SubscriptionHandler
 
-	// Account (authenticated)
-	AccountDashboardHandler *storefront.AccountDashboardHandler
-	OrderHistoryHandler     *storefront.OrderHistoryHandler
-	AddressHandler          *storefront.AddressHandler
+	// Account (consolidated: dashboard, orders, addresses, payment methods, profile)
+	AccountHandler *storefront.AccountHandler
 
 	// Wholesale
 	WholesaleApplicationHandler *storefront.WholesaleApplicationHandler
-
-	// Payment Methods
-	PaymentMethodHandler *storefront.PaymentMethodHandler
-
-	// Profile Settings
-	ProfileHandler *storefront.ProfileHandler
 }
 
 // AdminDeps contains dependencies for admin routes

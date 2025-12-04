@@ -315,19 +315,17 @@ func run() error {
 			cfg.TenantID,
 		),
 
-		// Account (authenticated)
-		AccountDashboardHandler: storefront.NewAccountDashboardHandler(accountService, subscriptionService, renderer, cfg.TenantID),
-		OrderHistoryHandler:     storefront.NewOrderHistoryHandler(repo, renderer, cfg.TenantID),
-		AddressHandler:          storefront.NewAddressHandler(repo, renderer, cfg.TenantID),
+		// Account (consolidated: dashboard, orders, addresses, payment methods, profile)
+		AccountHandler: storefront.NewAccountHandler(
+			accountService,
+			subscriptionService,
+			repo,
+			renderer,
+			cfg.TenantID,
+		),
 
 		// Wholesale
 		WholesaleApplicationHandler: storefront.NewWholesaleApplicationHandler(repo, renderer, cfg.TenantID),
-
-		// Payment Methods
-		PaymentMethodHandler: storefront.NewPaymentMethodHandler(accountService, subscriptionService, repo, renderer, cfg.TenantID),
-
-		// Profile Settings
-		ProfileHandler: storefront.NewProfileHandler(repo, renderer, cfg.TenantID),
 	}
 
 	// Admin dependencies (consolidated handlers)
