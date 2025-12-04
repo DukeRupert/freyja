@@ -675,6 +675,20 @@
 <!-- Checkout Flow JavaScript Functions -->
 <script>
 /**
+ * Get CSRF token from cookie
+ */
+function getCSRFToken() {
+  const cookies = document.cookie.split(';');
+  for (let cookie of cookies) {
+    const [name, value] = cookie.trim().split('=');
+    if (name === 'csrf_token') {
+      return decodeURIComponent(value);
+    }
+  }
+  return '';
+}
+
+/**
  * Validate shipping and billing addresses
  */
 async function validateAddress(alpineData) {
@@ -685,6 +699,7 @@ async function validateAddress(alpineData) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-CSRF-Token': getCSRFToken(),
       },
       body: JSON.stringify({
         shipping_address: {
@@ -777,6 +792,7 @@ async function calculateTotal(alpineData) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-CSRF-Token': getCSRFToken(),
       },
       body: JSON.stringify({
         cart_id: alpineData.cartID,
@@ -821,6 +837,7 @@ async function loadShippingRates(alpineData) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-CSRF-Token': getCSRFToken(),
       },
       body: JSON.stringify({
         cart_id: alpineData.cartID,
@@ -911,6 +928,7 @@ async function loadPaymentIntent(alpineData) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-CSRF-Token': getCSRFToken(),
       },
       body: JSON.stringify({
         cart_id: alpineData.cartID,
