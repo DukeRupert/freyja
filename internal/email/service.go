@@ -15,22 +15,55 @@ type Service struct {
 	sender        Sender
 	fromAddress   string
 	fromName      string
-	templateCache *template.Template
+	templateCache map[string]*template.Template // Map of template name to composed template
 }
 
 // NewService creates a new email service
 func NewService(sender Sender, fromAddress, fromName, templateDir string) (*Service, error) {
-	// Load all email templates with custom functions
-	tmpl, err := template.New("").Funcs(emailTemplateFuncs()).ParseGlob(filepath.Join(templateDir, "email", "*.html"))
+	emailDir := filepath.Join(templateDir, "email")
+	layoutPath := filepath.Join(emailDir, "layout.html")
+
+	// Parse the layout template as a base
+	layoutTmpl, err := template.New("layout.html").Funcs(emailTemplateFuncs()).ParseFiles(layoutPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse email templates: %w", err)
+		return nil, fmt.Errorf("failed to parse email layout template: %w", err)
+	}
+
+	// Get all content template files (everything except layout.html)
+	contentFiles, err := filepath.Glob(filepath.Join(emailDir, "*.html"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to glob email templates: %w", err)
+	}
+
+	// Create a composed template for each content template
+	templateCache := make(map[string]*template.Template)
+	for _, contentPath := range contentFiles {
+		filename := filepath.Base(contentPath)
+		// Skip the layout file
+		if filename == "layout.html" {
+			continue
+		}
+
+		// Clone the layout template so each content template gets its own copy
+		tmpl, err := layoutTmpl.Clone()
+		if err != nil {
+			return nil, fmt.Errorf("failed to clone layout template for %s: %w", filename, err)
+		}
+
+		// Parse the content template into the cloned layout
+		tmpl, err = tmpl.ParseFiles(contentPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse email template %s: %w", filename, err)
+		}
+
+		templateCache[filename] = tmpl
 	}
 
 	return &Service{
 		sender:        sender,
 		fromAddress:   fromAddress,
 		fromName:      fromName,
-		templateCache: tmpl,
+		templateCache: templateCache,
 	}, nil
 }
 
@@ -340,8 +373,13 @@ func (s *Service) SendInvoiceOverdue(ctx context.Context, data InvoiceOverdueEma
 
 // Helper method to render a template
 func (s *Service) renderTemplate(templateName string, data interface{}) (string, string, error) {
+	tmpl, ok := s.templateCache[templateName]
+	if !ok {
+		return "", "", fmt.Errorf("template %s not found", templateName)
+	}
+
 	var htmlBuf bytes.Buffer
-	err := s.templateCache.ExecuteTemplate(&htmlBuf, "email_layout", data)
+	err := tmpl.ExecuteTemplate(&htmlBuf, "email_layout", data)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to execute template %s: %w", templateName, err)
 	}
