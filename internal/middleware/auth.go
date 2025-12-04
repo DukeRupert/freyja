@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/dukerupert/freyja/internal/repository"
@@ -33,6 +35,13 @@ func WithUser(userService service.UserService) func(http.Handler) http.Handler {
 			// Get user from session
 			user, err := userService.GetUserBySessionToken(r.Context(), cookie.Value)
 			if err != nil {
+				// Log auth errors for debugging (except expected ones like expired sessions)
+				if !errors.Is(err, service.ErrSessionExpired) && !errors.Is(err, service.ErrUserNotFound) {
+					slog.Warn("auth: failed to get user from session",
+						"error", err,
+						"path", r.URL.Path,
+					)
+				}
 				// Invalid session, continue without user
 				next.ServeHTTP(w, r)
 				return
