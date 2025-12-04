@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -99,8 +100,10 @@ func CSRF(config ...CSRFConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Check if path should skip CSRF validation
-			for _, path := range cfg.SkipPaths {
-				if len(r.URL.Path) >= len(path) && r.URL.Path[:len(path)] == path {
+			// SECURITY: Use proper path boundary matching to prevent bypass
+			// e.g., /webhooks/ should not match /webhooks-evil/
+			for _, skipPath := range cfg.SkipPaths {
+				if matchesPathPrefix(r.URL.Path, skipPath) {
 					next.ServeHTTP(w, r)
 					return
 				}
@@ -211,4 +214,27 @@ func isSafeMethod(method string) bool {
 		method == http.MethodHead ||
 		method == http.MethodOptions ||
 		method == http.MethodTrace
+}
+
+// matchesPathPrefix checks if requestPath matches the skipPath with proper boundary checking.
+// This prevents bypass attacks where /webhooks/ would incorrectly match /webhooks-evil/.
+// The skipPath must be an exact prefix with a path boundary (/ or end of string).
+func matchesPathPrefix(requestPath, skipPath string) bool {
+	if !strings.HasPrefix(requestPath, skipPath) {
+		return false
+	}
+
+	// If skipPath ends with /, it already has a proper boundary
+	if strings.HasSuffix(skipPath, "/") {
+		return true
+	}
+
+	// For paths without trailing slash, check boundary
+	// requestPath must be exactly skipPath, or have / after it
+	if len(requestPath) == len(skipPath) {
+		return true // Exact match
+	}
+
+	// Check that the character after skipPath is a path separator
+	return requestPath[len(skipPath)] == '/'
 }
