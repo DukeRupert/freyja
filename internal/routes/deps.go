@@ -18,9 +18,8 @@ type StorefrontDeps struct {
 	// Home
 	HomeHandler http.Handler
 
-	// Products
-	ProductListHandler   http.Handler
-	ProductDetailHandler http.Handler
+	// Products (consolidated: list, detail, subscription products)
+	ProductHandler *storefront.ProductHandler
 
 	// Cart
 	CartHandler *storefront.CartHandler
@@ -31,18 +30,13 @@ type StorefrontDeps struct {
 	// Checkout
 	CheckoutHandler *storefront.CheckoutHandler
 
-	// Subscriptions (public)
-	SubscriptionProductsHandler http.Handler
+	// Subscriptions (consolidated: list, detail, portal, checkout, create)
+	SubscriptionHandler *storefront.SubscriptionHandler
 
 	// Account (authenticated)
-	AccountDashboardHandler     *storefront.AccountDashboardHandler
-	OrderHistoryHandler         *storefront.OrderHistoryHandler
-	AddressHandler              *storefront.AddressHandler
-	SubscriptionListHandler     http.Handler
-	SubscriptionDetailHandler   http.Handler
-	SubscriptionPortalHandler   http.Handler
-	SubscriptionCheckoutHandler http.Handler
-	CreateSubscriptionHandler   http.Handler
+	AccountDashboardHandler *storefront.AccountDashboardHandler
+	OrderHistoryHandler     *storefront.OrderHistoryHandler
+	AddressHandler          *storefront.AddressHandler
 
 	// Wholesale
 	WholesaleApplicationHandler *storefront.WholesaleApplicationHandler

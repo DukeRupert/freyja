@@ -12,45 +12,40 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// convertToInt4 converts an interface{} (from subquery result) to pgtype.Int4
-func convertToInt4(v interface{}) pgtype.Int4 {
-	if v == nil {
-		return pgtype.Int4{Valid: false}
-	}
-	switch val := v.(type) {
-	case int32:
-		return pgtype.Int4{Int32: val, Valid: true}
-	case int64:
-		return pgtype.Int4{Int32: int32(val), Valid: true}
-	case int:
-		return pgtype.Int4{Int32: int32(val), Valid: true}
-	default:
-		return pgtype.Int4{Valid: false}
-	}
-}
-
-// ProductListHandler handles the product listing page
-type ProductListHandler struct {
+// ProductHandler handles all product-related pages:
+// - Product listing with filters
+// - Product detail view
+// - Subscription product selection (public)
+type ProductHandler struct {
 	productService service.ProductService
 	repo           repository.Querier
-	tenantID       pgtype.UUID
 	renderer       *handler.Renderer
+	tenantID       pgtype.UUID
 }
 
-// NewProductListHandler creates a new product list handler
-func NewProductListHandler(productService service.ProductService, repo repository.Querier, tenantID string, renderer *handler.Renderer) *ProductListHandler {
+// NewProductHandler creates a new consolidated product handler
+func NewProductHandler(
+	productService service.ProductService,
+	repo repository.Querier,
+	renderer *handler.Renderer,
+	tenantID string,
+) *ProductHandler {
 	var tenantUUID pgtype.UUID
 	if err := tenantUUID.Scan(tenantID); err != nil {
 		panic(fmt.Sprintf("invalid tenant ID: %v", err))
 	}
 
-	return &ProductListHandler{
+	return &ProductHandler{
 		productService: productService,
 		repo:           repo,
-		tenantID:       tenantUUID,
 		renderer:       renderer,
+		tenantID:       tenantUUID,
 	}
 }
+
+// =============================================================================
+// Product List
+// =============================================================================
 
 // ProductDisplay wraps product data for template rendering
 type ProductDisplay struct {
@@ -68,8 +63,25 @@ type ProductDisplay struct {
 	BasePrice        pgtype.Int4
 }
 
-// ServeHTTP handles GET /products
-func (h *ProductListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// convertToInt4 converts an interface{} (from subquery result) to pgtype.Int4
+func convertToInt4(v interface{}) pgtype.Int4 {
+	if v == nil {
+		return pgtype.Int4{Valid: false}
+	}
+	switch val := v.(type) {
+	case int32:
+		return pgtype.Int4{Int32: val, Valid: true}
+	case int64:
+		return pgtype.Int4{Int32: int32(val), Valid: true}
+	case int:
+		return pgtype.Int4{Int32: int32(val), Valid: true}
+	default:
+		return pgtype.Int4{Valid: false}
+	}
+}
+
+// List handles GET /products - shows product listing with filters
+func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Parse filter params
@@ -169,22 +181,12 @@ func (h *ProductListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.renderer.RenderHTTP(w, "storefront/products", data)
 }
 
-// ProductDetailHandler handles the product detail page
-type ProductDetailHandler struct {
-	productService service.ProductService
-	renderer       *handler.Renderer
-}
+// =============================================================================
+// Product Detail
+// =============================================================================
 
-// NewProductDetailHandler creates a new product detail handler
-func NewProductDetailHandler(productService service.ProductService, renderer *handler.Renderer) *ProductDetailHandler {
-	return &ProductDetailHandler{
-		productService: productService,
-		renderer:       renderer,
-	}
-}
-
-// ServeHTTP handles GET /products/{slug}
-func (h *ProductDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// Detail handles GET /products/{slug} - shows product detail page
+func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug := r.PathValue("slug")
 
@@ -199,7 +201,6 @@ func (h *ProductDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 			http.NotFound(w, r)
 			return
 		}
-		// TODO: Log error with structured logging
 		http.Error(w, "Failed to load product", http.StatusInternalServerError)
 		return
 	}
@@ -240,4 +241,119 @@ func (h *ProductDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	data["RequestPath"] = r.URL.Path
 
 	h.renderer.RenderHTTP(w, "product_detail", data)
+}
+
+// =============================================================================
+// Subscription Products (Public)
+// =============================================================================
+
+// SubscriptionProduct wraps product data for subscription selection display
+type SubscriptionProduct struct {
+	ID               pgtype.UUID
+	Name             string
+	Slug             string
+	ShortDescription string
+	Origin           string
+	RoastLevel       string
+	ImageURL         string
+	SKUs             []SubscriptionSKU
+}
+
+// SubscriptionSKU contains SKU info for subscription selection
+type SubscriptionSKU struct {
+	ID          pgtype.UUID
+	SKU         string
+	WeightValue string
+	WeightUnit  string
+	Grind       string
+	PriceCents  int32
+	DisplayName string // e.g., "12oz - Whole Bean"
+}
+
+// SubscribeProducts handles GET /subscribe - shows products available for subscription
+func (h *ProductHandler) SubscribeProducts(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get all active products
+	products, err := h.productService.ListProducts(ctx)
+	if err != nil {
+		http.Error(w, "Failed to load products", http.StatusInternalServerError)
+		return
+	}
+
+	// Get default price list
+	priceList, err := h.repo.GetDefaultPriceList(ctx, h.tenantID)
+	if err != nil {
+		http.Error(w, "Failed to load pricing", http.StatusInternalServerError)
+		return
+	}
+
+	// Build subscription products with SKU options
+	subscriptionProducts := make([]SubscriptionProduct, 0, len(products))
+
+	for _, p := range products {
+		// Get SKUs for this product
+		skus, err := h.repo.GetProductSKUs(ctx, p.ID)
+		if err != nil {
+			continue // Skip products with no SKUs
+		}
+
+		if len(skus) == 0 {
+			continue
+		}
+
+		subscriptionSKUs := make([]SubscriptionSKU, 0, len(skus))
+
+		for _, sku := range skus {
+			// Get price for this SKU
+			price, err := h.repo.GetPriceForSKU(ctx, repository.GetPriceForSKUParams{
+				PriceListID:  priceList.ID,
+				ProductSkuID: sku.ID,
+			})
+			if err != nil {
+				continue // Skip SKUs without pricing
+			}
+
+			// Format weight value
+			weightStr := ""
+			if sku.WeightValue.Valid {
+				f, err := sku.WeightValue.Float64Value()
+				if err == nil && f.Valid {
+					weightStr = fmt.Sprintf("%.0f", f.Float64)
+				}
+			}
+
+			// Build display name (e.g., "12oz - Whole Bean")
+			displayName := fmt.Sprintf("%s%s - %s", weightStr, sku.WeightUnit, sku.Grind)
+
+			subscriptionSKUs = append(subscriptionSKUs, SubscriptionSKU{
+				ID:          sku.ID,
+				SKU:         sku.Sku,
+				WeightValue: weightStr,
+				WeightUnit:  sku.WeightUnit,
+				Grind:       sku.Grind,
+				PriceCents:  price.PriceCents,
+				DisplayName: displayName,
+			})
+		}
+
+		if len(subscriptionSKUs) > 0 {
+			subscriptionProducts = append(subscriptionProducts, SubscriptionProduct{
+				ID:               p.ID,
+				Name:             p.Name,
+				Slug:             p.Slug,
+				ShortDescription: p.ShortDescription.String,
+				Origin:           p.Origin.String,
+				RoastLevel:       p.RoastLevel.String,
+				ImageURL:         p.PrimaryImageUrl.String,
+				SKUs:             subscriptionSKUs,
+			})
+		}
+	}
+
+	data := BaseTemplateData(r)
+	data["Products"] = subscriptionProducts
+	data["BillingIntervals"] = service.ValidBillingIntervals
+
+	h.renderer.RenderHTTP(w, "storefront/subscription_products", data)
 }

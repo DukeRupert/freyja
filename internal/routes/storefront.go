@@ -15,8 +15,8 @@ func RegisterStorefrontRoutes(r *router.Router, deps StorefrontDeps) {
 	r.Get("/", deps.HomeHandler.ServeHTTP)
 
 	// Product browsing
-	r.Get("/products", deps.ProductListHandler.ServeHTTP)
-	r.Get("/products/{slug}", deps.ProductDetailHandler.ServeHTTP)
+	r.Get("/products", deps.ProductHandler.List)
+	r.Get("/products/{slug}", deps.ProductHandler.Detail)
 
 	// Shopping cart
 	r.Get("/cart", deps.CartHandler.View)
@@ -50,7 +50,7 @@ func RegisterStorefrontRoutes(r *router.Router, deps StorefrontDeps) {
 	r.Get("/order-confirmation", deps.CheckoutHandler.OrderConfirmation)
 
 	// Subscription product selection (public)
-	r.Get("/subscribe", deps.SubscriptionProductsHandler.ServeHTTP)
+	r.Get("/subscribe", deps.ProductHandler.SubscribeProducts)
 
 	// Account routes (require authentication)
 	account := r.Group(middleware.RequireAuth)
@@ -62,11 +62,11 @@ func RegisterStorefrontRoutes(r *router.Router, deps StorefrontDeps) {
 	account.Post("/account/addresses/{id}/delete", deps.AddressHandler.Delete)
 	account.Post("/account/addresses/{id}/default", deps.AddressHandler.SetDefault)
 	account.Get("/account/addresses/{id}/json", deps.AddressHandler.GetAddressJSON)
-	account.Get("/account/subscriptions", deps.SubscriptionListHandler.ServeHTTP)
-	account.Get("/account/subscriptions/portal", deps.SubscriptionPortalHandler.ServeHTTP)
-	account.Get("/account/subscriptions/{id}", deps.SubscriptionDetailHandler.ServeHTTP)
-	account.Get("/subscribe/checkout", deps.SubscriptionCheckoutHandler.ServeHTTP)
-	account.Post("/subscribe", deps.CreateSubscriptionHandler.ServeHTTP)
+	account.Get("/account/subscriptions", deps.SubscriptionHandler.List)
+	account.Get("/account/subscriptions/portal", deps.SubscriptionHandler.Portal)
+	account.Get("/account/subscriptions/{id}", deps.SubscriptionHandler.Detail)
+	account.Get("/subscribe/checkout", deps.SubscriptionHandler.Checkout)
+	account.Post("/subscribe", deps.SubscriptionHandler.Create)
 
 	// Wholesale application (require authentication)
 	account.Get("/wholesale/apply", deps.WholesaleApplicationHandler.Form)

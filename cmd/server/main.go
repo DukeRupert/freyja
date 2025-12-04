@@ -279,9 +279,8 @@ func run() error {
 		// Home
 		HomeHandler: storefront.NewHomeHandler(productService, renderer),
 
-		// Products
-		ProductListHandler:   storefront.NewProductListHandler(productService, repo, cfg.TenantID, renderer),
-		ProductDetailHandler: storefront.NewProductDetailHandler(productService, renderer),
+		// Products (consolidated: list, detail, subscription products)
+		ProductHandler: storefront.NewProductHandler(productService, repo, renderer, cfg.TenantID),
 
 		// Cart (consolidated handler)
 		CartHandler: storefront.NewCartHandler(cartService, renderer, cfg.Env != "development"),
@@ -307,18 +306,19 @@ func run() error {
 			cfg.TenantID,
 		),
 
-		// Subscriptions (public)
-		SubscriptionProductsHandler: storefront.NewSubscriptionProductsHandler(productService, repo, renderer, cfg.TenantID),
+		// Subscriptions (consolidated: list, detail, portal, checkout, create)
+		SubscriptionHandler: storefront.NewSubscriptionHandler(
+			subscriptionService,
+			productService,
+			accountService,
+			renderer,
+			cfg.TenantID,
+		),
 
 		// Account (authenticated)
-		AccountDashboardHandler:     storefront.NewAccountDashboardHandler(accountService, subscriptionService, renderer, cfg.TenantID),
-		OrderHistoryHandler:         storefront.NewOrderHistoryHandler(repo, renderer, cfg.TenantID),
-		AddressHandler:              storefront.NewAddressHandler(repo, renderer, cfg.TenantID),
-		SubscriptionListHandler:     storefront.NewSubscriptionListHandler(subscriptionService, renderer, cfg.TenantID),
-		SubscriptionDetailHandler:   storefront.NewSubscriptionDetailHandler(subscriptionService, renderer, cfg.TenantID),
-		SubscriptionPortalHandler:   storefront.NewSubscriptionPortalHandler(subscriptionService, cfg.TenantID),
-		SubscriptionCheckoutHandler: storefront.NewSubscriptionCheckoutHandler(productService, accountService, renderer, cfg.TenantID),
-		CreateSubscriptionHandler:   storefront.NewCreateSubscriptionHandler(subscriptionService, renderer, cfg.TenantID),
+		AccountDashboardHandler: storefront.NewAccountDashboardHandler(accountService, subscriptionService, renderer, cfg.TenantID),
+		OrderHistoryHandler:     storefront.NewOrderHistoryHandler(repo, renderer, cfg.TenantID),
+		AddressHandler:          storefront.NewAddressHandler(repo, renderer, cfg.TenantID),
 
 		// Wholesale
 		WholesaleApplicationHandler: storefront.NewWholesaleApplicationHandler(repo, renderer, cfg.TenantID),

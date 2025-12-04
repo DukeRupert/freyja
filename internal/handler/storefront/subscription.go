@@ -7,178 +7,52 @@ import (
 
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
-	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/service"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// SubscriptionProductsHandler shows available products for subscription
-type SubscriptionProductsHandler struct {
-	productService service.ProductService
-	repo           repository.Querier
-	renderer       *handler.Renderer
-	tenantID       pgtype.UUID
-}
-
-// NewSubscriptionProductsHandler creates a new subscription products handler
-func NewSubscriptionProductsHandler(productService service.ProductService, repo repository.Querier, renderer *handler.Renderer, tenantID string) *SubscriptionProductsHandler {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		panic(fmt.Sprintf("invalid tenant ID: %v", err))
-	}
-
-	return &SubscriptionProductsHandler{
-		productService: productService,
-		repo:           repo,
-		renderer:       renderer,
-		tenantID:       tenantUUID,
-	}
-}
-
-// SubscriptionProduct wraps product data for subscription selection display
-type SubscriptionProduct struct {
-	ID               pgtype.UUID
-	Name             string
-	Slug             string
-	ShortDescription string
-	Origin           string
-	RoastLevel       string
-	ImageURL         string
-	SKUs             []SubscriptionSKU
-}
-
-// SubscriptionSKU contains SKU info for subscription selection
-type SubscriptionSKU struct {
-	ID          pgtype.UUID
-	SKU         string
-	WeightValue string
-	WeightUnit  string
-	Grind       string
-	PriceCents  int32
-	DisplayName string // e.g., "12oz - Whole Bean"
-}
-
-// ServeHTTP handles GET /subscribe - shows products available for subscription
-func (h *SubscriptionProductsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	ctx := r.Context()
-
-	// Get all active products
-	products, err := h.productService.ListProducts(ctx)
-	if err != nil {
-		http.Error(w, "Failed to load products", http.StatusInternalServerError)
-		return
-	}
-
-	// Get default price list
-	priceList, err := h.repo.GetDefaultPriceList(ctx, h.tenantID)
-	if err != nil {
-		http.Error(w, "Failed to load pricing", http.StatusInternalServerError)
-		return
-	}
-
-	// Build subscription products with SKU options
-	subscriptionProducts := make([]SubscriptionProduct, 0, len(products))
-
-	for _, p := range products {
-		// Get SKUs for this product
-		skus, err := h.repo.GetProductSKUs(ctx, p.ID)
-		if err != nil {
-			continue // Skip products with no SKUs
-		}
-
-		if len(skus) == 0 {
-			continue
-		}
-
-		subscriptionSKUs := make([]SubscriptionSKU, 0, len(skus))
-
-		for _, sku := range skus {
-			// Get price for this SKU
-			price, err := h.repo.GetPriceForSKU(ctx, repository.GetPriceForSKUParams{
-				PriceListID:  priceList.ID,
-				ProductSkuID: sku.ID,
-			})
-			if err != nil {
-				continue // Skip SKUs without pricing
-			}
-
-			// Format weight value
-			weightStr := ""
-			if sku.WeightValue.Valid {
-				f, err := sku.WeightValue.Float64Value()
-				if err == nil && f.Valid {
-					weightStr = fmt.Sprintf("%.0f", f.Float64)
-				}
-			}
-
-			// Build display name (e.g., "12oz - Whole Bean")
-			displayName := fmt.Sprintf("%s%s - %s", weightStr, sku.WeightUnit, sku.Grind)
-
-			subscriptionSKUs = append(subscriptionSKUs, SubscriptionSKU{
-				ID:          sku.ID,
-				SKU:         sku.Sku,
-				WeightValue: weightStr,
-				WeightUnit:  sku.WeightUnit,
-				Grind:       sku.Grind,
-				PriceCents:  price.PriceCents,
-				DisplayName: displayName,
-			})
-		}
-
-		if len(subscriptionSKUs) > 0 {
-			subscriptionProducts = append(subscriptionProducts, SubscriptionProduct{
-				ID:               p.ID,
-				Name:             p.Name,
-				Slug:             p.Slug,
-				ShortDescription: p.ShortDescription.String,
-				Origin:           p.Origin.String,
-				RoastLevel:       p.RoastLevel.String,
-				ImageURL:         p.PrimaryImageUrl.String,
-				SKUs:             subscriptionSKUs,
-			})
-		}
-	}
-
-	data := BaseTemplateData(r)
-	data["Products"] = subscriptionProducts
-	data["BillingIntervals"] = service.ValidBillingIntervals
-
-	h.renderer.RenderHTTP(w, "storefront/subscription_products", data)
-}
-
-// SubscriptionListHandler shows all subscriptions for the authenticated user
-type SubscriptionListHandler struct {
+// SubscriptionHandler handles all account-related subscription operations:
+// - Subscription listing
+// - Subscription detail view
+// - Customer portal redirect
+// - Subscription checkout
+// - Subscription creation
+type SubscriptionHandler struct {
 	subscriptionService service.SubscriptionService
+	productService      service.ProductService
+	accountService      service.AccountService
 	renderer            *handler.Renderer
 	tenantID            pgtype.UUID
 }
 
-// NewSubscriptionListHandler creates a new subscription list handler
-func NewSubscriptionListHandler(subscriptionService service.SubscriptionService, renderer *handler.Renderer, tenantID string) *SubscriptionListHandler {
+// NewSubscriptionHandler creates a new consolidated subscription handler
+func NewSubscriptionHandler(
+	subscriptionService service.SubscriptionService,
+	productService service.ProductService,
+	accountService service.AccountService,
+	renderer *handler.Renderer,
+	tenantID string,
+) *SubscriptionHandler {
 	var tenantUUID pgtype.UUID
 	if err := tenantUUID.Scan(tenantID); err != nil {
 		panic(fmt.Sprintf("invalid tenant ID: %v", err))
 	}
 
-	return &SubscriptionListHandler{
+	return &SubscriptionHandler{
 		subscriptionService: subscriptionService,
+		productService:      productService,
+		accountService:      accountService,
 		renderer:            renderer,
 		tenantID:            tenantUUID,
 	}
 }
 
-// ServeHTTP handles GET /account/subscriptions
-func (h *SubscriptionListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+// =============================================================================
+// Subscription List
+// =============================================================================
 
+// List handles GET /account/subscriptions - shows all subscriptions for the user
+func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Get authenticated user from context (RequireAuth middleware ensures this exists)
@@ -206,34 +80,12 @@ func (h *SubscriptionListHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	h.renderer.RenderHTTP(w, "storefront/subscriptions", data)
 }
 
-// SubscriptionDetailHandler shows a single subscription for the authenticated user
-type SubscriptionDetailHandler struct {
-	subscriptionService service.SubscriptionService
-	renderer            *handler.Renderer
-	tenantID            pgtype.UUID
-}
+// =============================================================================
+// Subscription Detail
+// =============================================================================
 
-// NewSubscriptionDetailHandler creates a new subscription detail handler
-func NewSubscriptionDetailHandler(subscriptionService service.SubscriptionService, renderer *handler.Renderer, tenantID string) *SubscriptionDetailHandler {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		panic(fmt.Sprintf("invalid tenant ID: %v", err))
-	}
-
-	return &SubscriptionDetailHandler{
-		subscriptionService: subscriptionService,
-		renderer:            renderer,
-		tenantID:            tenantUUID,
-	}
-}
-
-// ServeHTTP handles GET /account/subscriptions/{id}
-func (h *SubscriptionDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+// Detail handles GET /account/subscriptions/{id} - shows a single subscription
+func (h *SubscriptionHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Get authenticated user from context
@@ -274,32 +126,12 @@ func (h *SubscriptionDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 	h.renderer.RenderHTTP(w, "storefront/subscription_detail", data)
 }
 
-// SubscriptionPortalHandler creates a Stripe Customer Portal session and redirects
-type SubscriptionPortalHandler struct {
-	subscriptionService service.SubscriptionService
-	tenantID            pgtype.UUID
-}
+// =============================================================================
+// Customer Portal
+// =============================================================================
 
-// NewSubscriptionPortalHandler creates a new subscription portal handler
-func NewSubscriptionPortalHandler(subscriptionService service.SubscriptionService, tenantID string) *SubscriptionPortalHandler {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		panic(fmt.Sprintf("invalid tenant ID: %v", err))
-	}
-
-	return &SubscriptionPortalHandler{
-		subscriptionService: subscriptionService,
-		tenantID:            tenantUUID,
-	}
-}
-
-// ServeHTTP handles GET /account/subscriptions/portal
-func (h *SubscriptionPortalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+// Portal handles GET /account/subscriptions/portal - redirects to Stripe portal
+func (h *SubscriptionHandler) Portal(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Get authenticated user from context
@@ -329,41 +161,12 @@ func (h *SubscriptionPortalHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 	http.Redirect(w, r, portalURL, http.StatusSeeOther)
 }
 
-// SubscriptionCheckoutHandler displays the subscription checkout page
-type SubscriptionCheckoutHandler struct {
-	productService service.ProductService
-	accountService service.AccountService
-	renderer       *handler.Renderer
-	tenantID       pgtype.UUID
-}
+// =============================================================================
+// Subscription Checkout
+// =============================================================================
 
-// NewSubscriptionCheckoutHandler creates a new subscription checkout handler
-func NewSubscriptionCheckoutHandler(
-	productService service.ProductService,
-	accountService service.AccountService,
-	renderer *handler.Renderer,
-	tenantID string,
-) *SubscriptionCheckoutHandler {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		panic(fmt.Sprintf("invalid tenant ID: %v", err))
-	}
-
-	return &SubscriptionCheckoutHandler{
-		productService: productService,
-		accountService: accountService,
-		renderer:       renderer,
-		tenantID:       tenantUUID,
-	}
-}
-
-// ServeHTTP handles GET /subscribe/checkout
-func (h *SubscriptionCheckoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+// Checkout handles GET /subscribe/checkout - shows subscription checkout page
+func (h *SubscriptionHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Get authenticated user from context
@@ -442,34 +245,12 @@ func (h *SubscriptionCheckoutHandler) ServeHTTP(w http.ResponseWriter, r *http.R
 	h.renderer.RenderHTTP(w, "storefront/subscription_checkout", data)
 }
 
-// CreateSubscriptionHandler handles subscription creation from checkout
-type CreateSubscriptionHandler struct {
-	subscriptionService service.SubscriptionService
-	renderer            *handler.Renderer
-	tenantID            pgtype.UUID
-}
+// =============================================================================
+// Create Subscription
+// =============================================================================
 
-// NewCreateSubscriptionHandler creates a new create subscription handler
-func NewCreateSubscriptionHandler(subscriptionService service.SubscriptionService, renderer *handler.Renderer, tenantID string) *CreateSubscriptionHandler {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		panic(fmt.Sprintf("invalid tenant ID: %v", err))
-	}
-
-	return &CreateSubscriptionHandler{
-		subscriptionService: subscriptionService,
-		renderer:            renderer,
-		tenantID:            tenantUUID,
-	}
-}
-
-// ServeHTTP handles POST /subscribe
-func (h *CreateSubscriptionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+// Create handles POST /subscribe - creates a new subscription
+func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Get authenticated user from context
@@ -542,7 +323,6 @@ func (h *CreateSubscriptionHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 	})
 
 	if err != nil {
-		// TODO: Better error handling with user-friendly messages
 		http.Error(w, fmt.Sprintf("Failed to create subscription: %v", err), http.StatusInternalServerError)
 		return
 	}
