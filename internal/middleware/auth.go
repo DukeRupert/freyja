@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/service"
@@ -59,12 +60,13 @@ func RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user := GetUserFromContext(r.Context())
 		if user == nil {
-			// Not authenticated, redirect to login
+			// Not authenticated, redirect to login with return URL
 			returnTo := r.URL.Path
 			if r.URL.RawQuery != "" {
 				returnTo += "?" + r.URL.RawQuery
 			}
-			http.Redirect(w, r, "/login?return_to="+returnTo, http.StatusSeeOther)
+			// URL-encode to handle special characters safely
+			http.Redirect(w, r, "/login?return_to="+url.QueryEscape(returnTo), http.StatusSeeOther)
 			return
 		}
 
