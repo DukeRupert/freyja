@@ -6,7 +6,7 @@
     <div class="mb-8">
         {{template "sf-heading" (dict "Level" "1" "Content" "My Account")}}
         <p class="mt-2 text-base text-neutral-600">
-            Welcome back, {{.User.FirstName}}
+            Welcome back, {{.User.FirstName.String}}
         </p>
     </div>
 
@@ -20,7 +20,7 @@
             </div>
             <div>
                 <h2 class="text-lg font-semibold text-neutral-900">
-                    {{.User.FirstName}} {{.User.LastName}}
+                    {{.User.FirstName.String}} {{.User.LastName.String}}
                 </h2>
                 <p class="text-sm text-neutral-600">{{.User.Email}}</p>
             </div>
