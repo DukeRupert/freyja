@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/dukerupert/freyja/internal/repository"
@@ -356,7 +357,12 @@ func (s *cartService) GetCartSummary(ctx context.Context, cartID string) (*CartS
 
 		weightValue := ""
 		if item.WeightValue.Valid {
-			weightValue = fmt.Sprintf("%s%s", item.WeightValue.Int.String(), item.WeightUnit)
+			f, err := item.WeightValue.Float64Value()
+			if err == nil && f.Valid {
+				// Format without unnecessary decimal places (2 -> "2", 2.5 -> "2.5")
+				weightStr := strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.2f", f.Float64), "0"), ".")
+				weightValue = fmt.Sprintf("%s%s", weightStr, item.WeightUnit)
+			}
 		}
 
 		imageURL := ""
