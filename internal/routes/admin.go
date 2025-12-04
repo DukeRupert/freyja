@@ -12,8 +12,8 @@ import (
 // domain/port as the storefront.
 func RegisterAdminRoutes(r *router.Router, deps AdminDeps) {
 	// Admin auth routes (public - no authentication required)
+	// Note: POST /admin/login is registered in main.go with rate limiting
 	r.Get("/admin/login", deps.LoginHandler.ShowForm)
-	r.Post("/admin/login", deps.LoginHandler.HandleSubmit)
 	r.Post("/admin/logout", deps.LogoutHandler.HandleSubmit)
 
 	// All other admin routes require admin authentication
