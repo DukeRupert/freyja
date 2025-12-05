@@ -1,0 +1,211 @@
+{{define "title"}}Configure {{.ProviderType | title}} Integration{{end}}
+
+{{define "content"}}
+<div class="space-y-8" x-data="{
+    selectedProvider: '{{.CurrentProvider}}',
+
+    // Provider field definitions
+    providerFields: {
+        // Tax providers
+        'none': [],
+        'percentage': [],
+        'stripe_tax': [],
+        'taxjar': [
+            {name: 'taxjar_api_key', label: 'TaxJar API Key', type: 'password', placeholder: 'Enter your TaxJar API key', required: true}
+        ],
+        'avalara': [
+            {name: 'avalara_account_id', label: 'Account ID', type: 'text', placeholder: 'Enter your Avalara account ID', required: true},
+            {name: 'avalara_license_key', label: 'License Key', type: 'password', placeholder: 'Enter your Avalara license key', required: true}
+        ],
+
+        // Shipping providers
+        'flat_rate': [],
+        'easypost': [
+            {name: 'easypost_api_key', label: 'EasyPost API Key', type: 'password', placeholder: 'Enter your EasyPost API key', required: true}
+        ],
+        'shipstation': [
+            {name: 'shipstation_api_key', label: 'API Key', type: 'password', placeholder: 'Enter your ShipStation API key', required: true},
+            {name: 'shipstation_api_secret', label: 'API Secret', type: 'password', placeholder: 'Enter your ShipStation API secret', required: true}
+        ],
+        'shippo': [
+            {name: 'shippo_api_key', label: 'Shippo API Key', type: 'password', placeholder: 'Enter your Shippo API key', required: true}
+        ],
+
+        // Billing providers
+        'stripe': [
+            {name: 'stripe_api_key', label: 'Stripe Secret Key', type: 'password', placeholder: 'sk_live_...', required: true},
+            {name: 'stripe_webhook_secret', label: 'Webhook Secret', type: 'password', placeholder: 'whsec_...', required: true}
+        ],
+
+        // Email providers
+        'smtp': [
+            {name: 'smtp_host', label: 'SMTP Host', type: 'text', placeholder: 'smtp.example.com', required: true},
+            {name: 'smtp_port', label: 'SMTP Port', type: 'number', placeholder: '587', required: true},
+            {name: 'smtp_username', label: 'Username', type: 'text', placeholder: 'your-username', required: true},
+            {name: 'smtp_password', label: 'Password', type: 'password', placeholder: 'your-password', required: true},
+            {name: 'smtp_from', label: 'From Email', type: 'email', placeholder: 'noreply@example.com', required: true}
+        ],
+        'postmark': [
+            {name: 'postmark_api_key', label: 'Postmark Server API Token', type: 'password', placeholder: 'Enter your Postmark API token', required: true},
+            {name: 'postmark_from', label: 'From Email', type: 'email', placeholder: 'noreply@example.com', required: true}
+        ],
+        'resend': [
+            {name: 'resend_api_key', label: 'Resend API Key', type: 'password', placeholder: 're_...', required: true},
+            {name: 'resend_from', label: 'From Email', type: 'email', placeholder: 'noreply@example.com', required: true}
+        ],
+        'ses': [
+            {name: 'ses_access_key_id', label: 'AWS Access Key ID', type: 'text', placeholder: 'AKIA...', required: true},
+            {name: 'ses_secret_access_key', label: 'AWS Secret Access Key', type: 'password', placeholder: 'Enter your AWS secret key', required: true},
+            {name: 'ses_region', label: 'AWS Region', type: 'text', placeholder: 'us-east-1', required: true},
+            {name: 'ses_from', label: 'From Email', type: 'email', placeholder: 'noreply@example.com', required: true}
+        ]
+    },
+
+    getFields() {
+        return this.providerFields[this.selectedProvider] || [];
+    }
+}">
+    <!-- Back Link -->
+    <div>
+        <a href="/admin/settings/integrations"
+           class="inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Integrations
+        </a>
+    </div>
+
+    <!-- Page Header -->
+    {{template "page-header" (dict "Title" (printf "%s Integration" (.ProviderType | title)) "Description" (printf "Configure the provider for %s services" .ProviderType))}}
+
+    <!-- Configuration Form -->
+    <div class="overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10 p-6">
+        <form method="POST" action="/admin/settings/integrations/{{.ProviderType}}"
+              hx-post="/admin/settings/integrations/{{.ProviderType}}"
+              hx-swap="outerHTML"
+              class="space-y-6">
+            {{.CSRFField}}
+
+            <!-- Provider Selection -->
+            <div>
+                {{template "field" (dict
+                    "Label" "Provider"
+                    "Description" "Select the provider you want to use"
+                    "Required" true
+                    "Select" (dict
+                        "Name" "provider_name"
+                        "ID" "provider_name"
+                        "Value" .CurrentProvider
+                        "Required" true
+                        "Options" .ProviderOptions
+                        "Class" "x-model='selectedProvider'"))}}
+            </div>
+
+            <!-- Info Messages for Special Cases -->
+            <div x-show="selectedProvider === 'stripe_tax'" x-cloak>
+                <div class="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-4 text-sm text-blue-700 dark:text-blue-400">
+                    <p><strong>Note:</strong> Stripe Tax uses your billing Stripe API credentials. No additional configuration needed.</p>
+                </div>
+            </div>
+
+            <div x-show="selectedProvider === 'none' || selectedProvider === 'percentage'" x-cloak>
+                <div class="rounded-lg bg-zinc-50 dark:bg-zinc-900/50 p-4 text-sm text-zinc-600 dark:text-zinc-400">
+                    {{if eq .ProviderType "tax"}}
+                    <p><strong>Note:</strong>
+                        {{if eq .CurrentProvider "none"}}No tax calculation will be applied.{{end}}
+                        {{if eq .CurrentProvider "percentage"}}Tax rates are configured separately in the Tax Rates settings.{{end}}
+                    </p>
+                    {{end}}
+                </div>
+            </div>
+
+            <div x-show="selectedProvider === 'flat_rate'" x-cloak>
+                <div class="rounded-lg bg-zinc-50 dark:bg-zinc-900/50 p-4 text-sm text-zinc-600 dark:text-zinc-400">
+                    <p><strong>Note:</strong> Configure flat shipping rates in the Shipping Rates settings.</p>
+                </div>
+            </div>
+
+            <!-- Dynamic Provider Fields -->
+            <div x-show="getFields().length > 0" x-cloak>
+                <div class="space-y-4 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
+                    <h4 class="text-sm font-semibold text-zinc-900 dark:text-white">Provider Credentials</h4>
+
+                    <template x-for="field in getFields()" :key="field.name">
+                        <div>
+                            <label :for="field.name"
+                                   class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1"
+                                   x-text="field.label"></label>
+                            <input :type="field.type"
+                                   :name="field.name"
+                                   :id="field.name"
+                                   :placeholder="field.placeholder"
+                                   :required="field.required"
+                                   {{if .Config}}
+                                   :value="{{.Config}}[field.name] || ''"
+                                   {{end}}
+                                   class="relative block w-full appearance-none rounded-lg border px-[calc(theme(spacing.3.5)-1px)] py-[calc(theme(spacing.2.5)-1px)] sm:px-[calc(theme(spacing.3)-1px)] sm:py-[calc(theme(spacing.1.5)-1px)] text-base/6 text-zinc-950 placeholder:text-zinc-500 sm:text-sm/6 border-zinc-950/10 hover:border-zinc-950/20 dark:border-white/10 dark:hover:border-white/20 focus:outline focus:outline-2 focus:-outline-offset-1 focus:outline-blue-500 dark:text-white dark:placeholder:text-zinc-500 bg-transparent dark:bg-zinc-800">
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Active Toggle -->
+            <div>
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" name="is_active" {{if .IsActive}}checked{{end}}
+                           class="rounded border-zinc-300 dark:border-zinc-700">
+                    <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300">Enable this provider</span>
+                </label>
+                <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                    When enabled, this provider will be used for {{.ProviderType}} operations.
+                </p>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-4 pt-4 border-t border-zinc-200 dark:border-zinc-700">
+                <!-- Test Connection Button (if provider has fields) -->
+                <button type="button"
+                        x-show="getFields().length > 0"
+                        hx-post="/admin/settings/integrations/{{.ProviderType}}/test"
+                        hx-include="closest form"
+                        hx-swap="none"
+                        class="rounded-lg border border-zinc-950/10 text-zinc-950 bg-transparent px-[calc(theme(spacing.3.5)-1px)] py-[calc(theme(spacing.2.5)-1px)] sm:px-[calc(theme(spacing.3)-1px)] sm:py-[calc(theme(spacing.1.5)-1px)] sm:text-sm/6 text-base/6 font-semibold hover:border-zinc-950/20 hover:bg-zinc-950/[2.5%] dark:border-white/15 dark:text-white dark:hover:border-white/25 dark:hover:bg-white/5">
+                    Test Connection
+                </button>
+
+                <!-- Save Button -->
+                <button type="submit"
+                        class="rounded-lg border border-transparent bg-zinc-900 text-white px-[calc(theme(spacing.3.5)-1px)] py-[calc(theme(spacing.2.5)-1px)] sm:px-[calc(theme(spacing.3)-1px)] sm:py-[calc(theme(spacing.1.5)-1px)] sm:text-sm/6 text-base/6 font-semibold hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100">
+                    Save Configuration
+                </button>
+
+                <!-- Cancel Link -->
+                <a href="/admin/settings/integrations"
+                   class="text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Help Text -->
+    <div class="rounded-lg bg-zinc-50 dark:bg-zinc-900/50 p-4 text-sm text-zinc-600 dark:text-zinc-400">
+        <p><strong>Security:</strong> API credentials are encrypted before being stored in the database. Existing credentials are masked in the form for security.</p>
+
+        {{if eq .ProviderType "billing"}}
+        <p class="mt-2"><strong>Webhook URL:</strong> Configure webhooks in your Stripe dashboard to point to: <code class="px-1 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded">https://yourdomain.com/webhooks/stripe</code></p>
+        {{end}}
+
+        {{if eq .ProviderType "tax"}}
+        <p class="mt-2"><strong>Tax Nexus:</strong> Some providers require you to configure tax nexus (where you collect tax) in their dashboard before using their API.</p>
+        {{end}}
+    </div>
+</div>
+
+<style>
+    [x-cloak] {
+        display: none !important;
+    }
+</style>
+{{end}}

@@ -1,0 +1,87 @@
+{{define "title"}}Provider Integrations{{end}}
+
+{{define "content"}}
+<div class="space-y-8">
+    <!-- Page Header -->
+    {{template "page-header" (dict "Title" "Provider Integrations" "Description" "Configure third-party providers for tax, shipping, billing, and email")}}
+
+    <!-- Provider Cards Grid -->
+    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {{range .Providers}}
+        <div class="overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+            <div class="p-6">
+                <!-- Provider Type Icon and Title -->
+                <div class="flex items-start justify-between">
+                    <div class="flex items-center gap-3">
+                        {{if eq .Type "tax"}}
+                        <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/20">
+                            <svg class="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+                        {{else if eq .Type "shipping"}}
+                        <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/20">
+                            <svg class="h-6 w-6 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                        </div>
+                        {{else if eq .Type "billing"}}
+                        <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/20">
+                            <svg class="h-6 w-6 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                            </svg>
+                        </div>
+                        {{else if eq .Type "email"}}
+                        <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/20">
+                            <svg class="h-6 w-6 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+                        {{end}}
+                        <div>
+                            <h3 class="text-base font-semibold text-zinc-900 dark:text-white capitalize">{{.Type}}</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Current Provider -->
+                <div class="mt-4">
+                    {{if .IsConfigured}}
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Current provider:</p>
+                    <p class="text-base font-medium text-zinc-900 dark:text-white capitalize">{{.ProviderName}}</p>
+                    {{else}}
+                    <p class="text-sm text-zinc-500 dark:text-zinc-500 italic">Not configured</p>
+                    {{end}}
+                </div>
+
+                <!-- Status Badge -->
+                <div class="mt-4">
+                    {{if .IsConfigured}}
+                        {{if .IsActive}}
+                            {{template "badge" (dict "Content" "Active" "Color" "green")}}
+                        {{else}}
+                            {{template "badge" (dict "Content" "Inactive" "Color" "zinc")}}
+                        {{end}}
+                    {{else}}
+                        {{template "badge" (dict "Content" "Not Configured" "Color" "amber")}}
+                    {{end}}
+                </div>
+
+                <!-- Configure Link -->
+                <div class="mt-6">
+                    <a href="/admin/settings/integrations/{{.Type}}"
+                       class="text-sm font-medium text-zinc-950 hover:text-zinc-700 dark:text-white dark:hover:text-zinc-300">
+                        {{if .IsConfigured}}Manage{{else}}Configure{{end}} →
+                    </a>
+                </div>
+            </div>
+        </div>
+        {{end}}
+    </div>
+
+    <!-- Help Text -->
+    <div class="rounded-lg bg-zinc-50 dark:bg-zinc-900/50 p-4 text-sm text-zinc-600 dark:text-zinc-400">
+        <p><strong>Note:</strong> Provider integrations allow you to connect third-party services for tax calculation, shipping rates, payment processing, and transactional emails. Each provider requires API credentials from the service.</p>
+    </div>
+</div>
+{{end}}
