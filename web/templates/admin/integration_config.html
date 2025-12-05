@@ -82,8 +82,25 @@
                 </div>
             </div>
 
+            <!-- Coming Soon Notice -->
+            <div x-show="isComingSoon()" x-cloak>
+                <div class="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4">
+                    <div class="flex items-start gap-3">
+                        <svg class="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <div>
+                            <h4 class="text-sm font-semibold text-amber-800 dark:text-amber-200">Coming Soon</h4>
+                            <p class="mt-1 text-sm text-amber-700 dark:text-amber-300">
+                                This provider integration is not yet available. Please select a different provider or check back later.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Dynamic Provider Fields -->
-            <div x-show="getFields().length > 0" x-cloak>
+            <div x-show="getFields().length > 0 && !isComingSoon()" x-cloak>
                 <div class="space-y-4 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
                     <h4 class="text-sm font-semibold text-zinc-900 dark:text-white">Provider Credentials</h4>
 
@@ -130,9 +147,9 @@
 
             <!-- Action Buttons -->
             <div class="flex items-center gap-4 pt-4 border-t border-zinc-200 dark:border-zinc-700">
-                <!-- Test Connection Button (if provider has fields) -->
+                <!-- Test Connection Button (if provider has fields and is implemented) -->
                 <button type="button"
-                        x-show="getFields().length > 0"
+                        x-show="getFields().length > 0 && !isComingSoon()"
                         :disabled="testLoading"
                         @click="testConnection()"
                         :class="testLoading ? 'opacity-50 cursor-wait' : ''"
@@ -196,6 +213,9 @@ document.addEventListener('alpine:init', () => {
         testLoading: false,
         providerType: providerType,
 
+        // Providers that are not yet implemented
+        comingSoonProviders: ['taxjar', 'avalara', 'shipstation', 'shippo', 'flat_rate', 'resend', 'ses'],
+
         providerFields: {
             // Tax providers
             'none': [],
@@ -257,11 +277,16 @@ document.addEventListener('alpine:init', () => {
             ]
         },
 
+        isComingSoon() {
+            return this.comingSoonProviders.includes(this.selectedProvider);
+        },
+
         getFields() {
             return this.providerFields[this.selectedProvider] || [];
         },
 
         isFormValid() {
+            if (this.isComingSoon()) return false;
             const fields = this.getFields();
             if (fields.length === 0) return true;
             return fields.every(field => !field.required || (this.fieldValues[field.name] && this.fieldValues[field.name].trim() !== ''));
