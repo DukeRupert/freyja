@@ -234,12 +234,12 @@ func (f *DefaultFactory) CreateEmailSender(config *TenantProviderConfig) (email.
 func extractString(config map[string]interface{}, key string) (string, error) {
 	value, exists := config[key]
 	if !exists {
-		return "", fmt.Errorf("missing or invalid config key: %s", key)
+		return "", fmt.Errorf("config key %q not found", key)
 	}
 
 	strValue, ok := value.(string)
 	if !ok {
-		return "", fmt.Errorf("missing or invalid config key: %s", key)
+		return "", fmt.Errorf("config key %q must be string, got %T", key, value)
 	}
 
 	return strValue, nil
@@ -249,7 +249,7 @@ func extractString(config map[string]interface{}, key string) (string, error) {
 func extractFloat64(config map[string]interface{}, key string) (float64, error) {
 	value, exists := config[key]
 	if !exists {
-		return 0, fmt.Errorf("missing or invalid config key: %s", key)
+		return 0, fmt.Errorf("config key %q not found", key)
 	}
 
 	// Try float64 first (JSON numbers are typically float64)
@@ -267,14 +267,14 @@ func extractFloat64(config map[string]interface{}, key string) (float64, error) 
 		return float64(int64Value), nil
 	}
 
-	return 0, fmt.Errorf("missing or invalid config key: %s", key)
+	return 0, fmt.Errorf("config key %q must be numeric, got %T", key, value)
 }
 
 // extractInt safely extracts an int value from config map.
 func extractInt(config map[string]interface{}, key string) (int, error) {
 	value, exists := config[key]
 	if !exists {
-		return 0, fmt.Errorf("missing or invalid config key: %s", key)
+		return 0, fmt.Errorf("config key %q not found", key)
 	}
 
 	// JSON numbers are typically float64
@@ -292,5 +292,5 @@ func extractInt(config map[string]interface{}, key string) (int, error) {
 		return int(int64Value), nil
 	}
 
-	return 0, fmt.Errorf("missing or invalid config key: %s", key)
+	return 0, fmt.Errorf("config key %q must be numeric, got %T", key, value)
 }
