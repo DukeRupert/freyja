@@ -3,6 +3,7 @@
 {{define "content"}}
 <div class="space-y-8" x-data="{
     selectedProvider: '{{.CurrentProvider}}',
+    fieldValues: {},
 
     // Provider field definitions
     providerFields: {
@@ -33,7 +34,8 @@
 
         // Billing providers
         'stripe': [
-            {name: 'stripe_api_key', label: 'Stripe Secret Key', type: 'password', placeholder: 'sk_live_...', required: true},
+            {name: 'stripe_publishable_key', label: 'Publishable Key', type: 'text', placeholder: 'pk_live_...', required: true},
+            {name: 'stripe_api_key', label: 'Secret Key', type: 'password', placeholder: 'sk_live_...', required: true},
             {name: 'stripe_webhook_secret', label: 'Webhook Secret', type: 'password', placeholder: 'whsec_...', required: true}
         ],
 
@@ -63,6 +65,14 @@
 
     getFields() {
         return this.providerFields[this.selectedProvider] || [];
+    },
+
+    isFormValid() {
+        const fields = this.getFields();
+        // No required fields means form is valid
+        if (fields.length === 0) return true;
+        // Check all required fields have values
+        return fields.every(field => !field.required || (this.fieldValues[field.name] && this.fieldValues[field.name].trim() !== ''));
     }
 }">
     <!-- Back Link -->
@@ -104,7 +114,7 @@
               hx-post="/admin/settings/integrations/{{.ProviderType}}"
               hx-swap="outerHTML"
               class="space-y-6">
-            {{.CSRFField}}
+            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
 
             <!-- Provider Selection -->
             <div>
@@ -153,32 +163,20 @@
                     <template x-for="field in getFields()" :key="field.name">
                         <div>
                             <label :for="field.name"
-                                   class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1"
-                                   x-text="field.label"></label>
+                                   class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                                <span x-text="field.label"></span>
+                                <span x-show="field.required" class="text-red-600 dark:text-red-500">*</span>
+                            </label>
                             <input :type="field.type"
                                    :name="field.name"
                                    :id="field.name"
                                    :placeholder="field.placeholder"
                                    :required="field.required"
-                                   {{if .Config}}
-                                   :value="{{.Config}}[field.name] || ''"
-                                   {{end}}
+                                   x-model="fieldValues[field.name]"
                                    class="relative block w-full appearance-none rounded-lg border px-[calc(theme(spacing.3.5)-1px)] py-[calc(theme(spacing.2.5)-1px)] sm:px-[calc(theme(spacing.3)-1px)] sm:py-[calc(theme(spacing.1.5)-1px)] text-base/6 text-zinc-950 placeholder:text-zinc-500 sm:text-sm/6 border-zinc-950/10 hover:border-zinc-950/20 dark:border-white/10 dark:hover:border-white/20 focus:outline focus:outline-2 focus:-outline-offset-1 focus:outline-blue-500 dark:text-white dark:placeholder:text-zinc-500 bg-transparent dark:bg-zinc-800">
                         </div>
                     </template>
                 </div>
-            </div>
-
-            <!-- Active Toggle -->
-            <div>
-                <label class="flex items-center gap-2">
-                    <input type="checkbox" name="is_active" {{if .IsActive}}checked{{end}}
-                           class="rounded border-zinc-300 dark:border-zinc-700">
-                    <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300">Enable this provider</span>
-                </label>
-                <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                    When enabled, this provider will be used for {{.ProviderType}} operations.
-                </p>
             </div>
 
             <!-- Action Buttons -->
@@ -195,7 +193,11 @@
 
                 <!-- Save Button -->
                 <button type="submit"
-                        class="rounded-lg border border-transparent bg-zinc-900 text-white px-[calc(theme(spacing.3.5)-1px)] py-[calc(theme(spacing.2.5)-1px)] sm:px-[calc(theme(spacing.3)-1px)] sm:py-[calc(theme(spacing.1.5)-1px)] sm:text-sm/6 text-base/6 font-semibold hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100">
+                        :disabled="!isFormValid()"
+                        :class="isFormValid()
+                            ? 'bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100'
+                            : 'bg-zinc-300 text-zinc-500 cursor-not-allowed dark:bg-zinc-700 dark:text-zinc-400'"
+                        class="rounded-lg border border-transparent px-[calc(theme(spacing.3.5)-1px)] py-[calc(theme(spacing.2.5)-1px)] sm:px-[calc(theme(spacing.3)-1px)] sm:py-[calc(theme(spacing.1.5)-1px)] sm:text-sm/6 text-base/6 font-semibold">
                     Save Configuration
                 </button>
 

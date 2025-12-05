@@ -63,9 +63,9 @@ func (h *IntegrationsHandler) ListPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	providerTypes := []provider.ProviderType{
+		provider.ProviderTypeBilling,
 		provider.ProviderTypeTax,
 		provider.ProviderTypeShipping,
-		provider.ProviderTypeBilling,
 		provider.ProviderTypeEmail,
 	}
 
@@ -151,6 +151,12 @@ func (h *IntegrationsHandler) ConfigPage(w http.ResponseWriter, r *http.Request)
 	}
 
 	maskedConfig := maskSecrets(configMap)
+	providerOptions := getProviderOptions(providerType)
+
+	// Default to first provider option if none configured
+	if currentProvider == "" && len(providerOptions) > 0 {
+		currentProvider = providerOptions[0]["Value"]
+	}
 
 	data := storefront.BaseTemplateData(r)
 	data["CurrentPath"] = r.URL.Path
@@ -158,7 +164,7 @@ func (h *IntegrationsHandler) ConfigPage(w http.ResponseWriter, r *http.Request)
 	data["CurrentProvider"] = currentProvider
 	data["ConfigID"] = configID
 	data["Config"] = maskedConfig
-	data["ProviderOptions"] = getProviderOptions(providerType)
+	data["ProviderOptions"] = providerOptions
 	data["ConfigCorrupted"] = configCorrupted
 
 	h.renderer.RenderHTTP(w, "admin/integration_config", data)
@@ -354,6 +360,9 @@ func buildConfigMap(r *http.Request, providerType provider.ProviderType, provide
 
 	switch providerName {
 	case provider.ProviderNameStripe:
+		if publishableKey := strings.TrimSpace(r.FormValue("stripe_publishable_key")); publishableKey != "" {
+			configMap["stripe_publishable_key"] = publishableKey
+		}
 		if apiKey := strings.TrimSpace(r.FormValue("stripe_api_key")); apiKey != "" {
 			configMap["stripe_api_key"] = apiKey
 		}
@@ -477,32 +486,32 @@ func getProviderOptions(providerType provider.ProviderType) []map[string]string 
 	switch providerType {
 	case provider.ProviderTypeTax:
 		return []map[string]string{
-			{"value": string(provider.ProviderNameNoTax), "label": "None"},
-			{"value": string(provider.ProviderNamePercentage), "label": "Percentage (Database)"},
-			{"value": string(provider.ProviderNameStripeTax), "label": "Stripe Tax"},
-			{"value": string(provider.ProviderNameTaxJar), "label": "TaxJar"},
-			{"value": string(provider.ProviderNameAvalara), "label": "Avalara"},
+			{"Value": string(provider.ProviderNameNoTax), "Label": "None"},
+			{"Value": string(provider.ProviderNamePercentage), "Label": "Percentage (Database)"},
+			{"Value": string(provider.ProviderNameStripeTax), "Label": "Stripe Tax"},
+			{"Value": string(provider.ProviderNameTaxJar), "Label": "TaxJar"},
+			{"Value": string(provider.ProviderNameAvalara), "Label": "Avalara"},
 		}
 
 	case provider.ProviderTypeShipping:
 		return []map[string]string{
-			{"value": string(provider.ProviderNameManual), "label": "Flat Rate (Manual)"},
-			{"value": string(provider.ProviderNameEasyPost), "label": "EasyPost"},
-			{"value": string(provider.ProviderNameShipStation), "label": "ShipStation"},
-			{"value": string(provider.ProviderNameShippo), "label": "Shippo"},
+			{"Value": string(provider.ProviderNameManual), "Label": "Flat Rate (Manual)"},
+			{"Value": string(provider.ProviderNameEasyPost), "Label": "EasyPost"},
+			{"Value": string(provider.ProviderNameShipStation), "Label": "ShipStation"},
+			{"Value": string(provider.ProviderNameShippo), "Label": "Shippo"},
 		}
 
 	case provider.ProviderTypeBilling:
 		return []map[string]string{
-			{"value": string(provider.ProviderNameStripe), "label": "Stripe"},
+			{"Value": string(provider.ProviderNameStripe), "Label": "Stripe"},
 		}
 
 	case provider.ProviderTypeEmail:
 		return []map[string]string{
-			{"value": string(provider.ProviderNameSMTP), "label": "SMTP"},
-			{"value": string(provider.ProviderNamePostmark), "label": "Postmark"},
-			{"value": string(provider.ProviderNameResend), "label": "Resend"},
-			{"value": string(provider.ProviderNameSES), "label": "Amazon SES"},
+			{"Value": string(provider.ProviderNameSMTP), "Label": "SMTP"},
+			{"Value": string(provider.ProviderNamePostmark), "Label": "Postmark"},
+			{"Value": string(provider.ProviderNameResend), "Label": "Resend"},
+			{"Value": string(provider.ProviderNameSES), "Label": "Amazon SES"},
 		}
 
 	default:
@@ -517,9 +526,7 @@ func getMissingCredentials(providerName provider.ProviderName, configMap map[str
 
 	switch providerName {
 	case provider.ProviderNameStripe:
-		requiredFields = []string{"stripe_api_key", "stripe_webhook_secret"}
-	case provider.ProviderNameStripeTax:
-		requiredFields = []string{"stripe_api_key"}
+		requiredFields = []string{"stripe_publishable_key", "stripe_api_key", "stripe_webhook_secret"}
 	case provider.ProviderNameEasyPost:
 		requiredFields = []string{"easypost_api_key"}
 	case provider.ProviderNameShipStation:
@@ -538,8 +545,9 @@ func getMissingCredentials(providerName provider.ProviderName, configMap map[str
 		requiredFields = []string{"api_key"}
 	case provider.ProviderNameAvalara:
 		requiredFields = []string{"account_id", "license_key"}
-	case provider.ProviderNameNoTax, provider.ProviderNamePercentage, provider.ProviderNameManual:
+	case provider.ProviderNameNoTax, provider.ProviderNamePercentage, provider.ProviderNameManual, provider.ProviderNameStripeTax:
 		// These providers don't require credentials
+		// stripe_tax uses the billing provider's Stripe API key
 		return nil
 	default:
 		return nil
