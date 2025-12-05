@@ -122,14 +122,14 @@ func (f *DefaultFactory) CreateBillingProvider(config *TenantProviderConfig) (bi
 
 	switch config.Name {
 	case ProviderNameStripe:
-		apiKey, err := extractString(config.Config, "api_key")
+		apiKey, err := extractString(config.Config, "stripe_api_key")
 		if err != nil {
-			return nil, fmt.Errorf("failed to extract api_key: %w", err)
+			return nil, fmt.Errorf("failed to extract stripe_api_key: %w", err)
 		}
 
-		webhookSecret, err := extractString(config.Config, "webhook_secret")
+		webhookSecret, err := extractString(config.Config, "stripe_webhook_secret")
 		if err != nil {
-			return nil, fmt.Errorf("failed to extract webhook_secret: %w", err)
+			return nil, fmt.Errorf("failed to extract stripe_webhook_secret: %w", err)
 		}
 
 		stripeConfig := billing.StripeConfig{
@@ -161,9 +161,9 @@ func (f *DefaultFactory) CreateShippingProvider(config *TenantProviderConfig) (s
 
 	switch config.Name {
 	case ProviderNameEasyPost:
-		apiKey, err := extractString(config.Config, "api_key")
+		apiKey, err := extractString(config.Config, "easypost_api_key")
 		if err != nil {
-			return nil, fmt.Errorf("failed to extract api_key: %w", err)
+			return nil, fmt.Errorf("failed to extract easypost_api_key: %w", err)
 		}
 
 		return shipping.NewEasyPostProvider(shipping.EasyPostConfig{
@@ -196,37 +196,31 @@ func (f *DefaultFactory) CreateEmailSender(config *TenantProviderConfig) (email.
 
 	switch config.Name {
 	case ProviderNameSMTP:
-		host, err := extractString(config.Config, "host")
+		host, err := extractString(config.Config, "smtp_host")
 		if err != nil {
-			return nil, fmt.Errorf("failed to extract host: %w", err)
+			return nil, fmt.Errorf("failed to extract smtp_host: %w", err)
 		}
 
-		port, err := extractInt(config.Config, "port")
+		port, err := extractInt(config.Config, "smtp_port")
 		if err != nil {
-			return nil, fmt.Errorf("failed to extract port: %w", err)
+			return nil, fmt.Errorf("failed to extract smtp_port: %w", err)
 		}
 
-		username, err := extractString(config.Config, "username")
-		if err != nil {
-			return nil, fmt.Errorf("failed to extract username: %w", err)
-		}
+		// Username and password are optional for SMTP
+		username, _ := extractString(config.Config, "smtp_username")
+		password, _ := extractString(config.Config, "smtp_password")
 
-		password, err := extractString(config.Config, "password")
+		from, err := extractString(config.Config, "smtp_from")
 		if err != nil {
-			return nil, fmt.Errorf("failed to extract password: %w", err)
-		}
-
-		from, err := extractString(config.Config, "from")
-		if err != nil {
-			return nil, fmt.Errorf("failed to extract from: %w", err)
+			return nil, fmt.Errorf("failed to extract smtp_from: %w", err)
 		}
 
 		return email.NewSMTPSender(host, port, username, password, from), nil
 
 	case ProviderNamePostmark:
-		apiKey, err := extractString(config.Config, "api_key")
+		apiKey, err := extractString(config.Config, "postmark_api_key")
 		if err != nil {
-			return nil, fmt.Errorf("failed to extract api_key: %w", err)
+			return nil, fmt.Errorf("failed to extract postmark_api_key: %w", err)
 		}
 
 		return email.NewPostmarkSender(apiKey, nil), nil
