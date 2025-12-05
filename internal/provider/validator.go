@@ -246,6 +246,7 @@ func requireFloat64Range(config map[string]interface{}, key string, min, max flo
 }
 
 // requireIntRange validates that a config field is an int within range [min, max].
+// Safely handles float64 to int conversion with overflow protection.
 func requireIntRange(config map[string]interface{}, key string, min, max int, result *ValidationResult) int {
 	value, exists := config[key]
 	if !exists {
@@ -256,10 +257,20 @@ func requireIntRange(config map[string]interface{}, key string, min, max int, re
 	var intValue int
 	switch v := value.(type) {
 	case float64:
+		// Check for overflow before conversion
+		if v < float64(min) || v > float64(max) || v != float64(int(v)) {
+			result.AddError("field " + key + " must be a whole number between " + formatInt(min) + " and " + formatInt(max))
+			return 0
+		}
 		intValue = int(v)
 	case int:
 		intValue = v
 	case int64:
+		// Check for int overflow from int64
+		if v < int64(min) || v > int64(max) {
+			result.AddError("field " + key + " must be between " + formatInt(min) + " and " + formatInt(max))
+			return 0
+		}
 		intValue = int(v)
 	default:
 		result.AddError("field " + key + " must be a number")
