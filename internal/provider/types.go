@@ -95,3 +95,32 @@ func (v *ValidationResult) AddError(err string) {
 	v.Valid = false
 	v.Errors = append(v.Errors, err)
 }
+
+// IsValidProviderNameForType checks if a provider name is valid for the given provider type.
+// This prevents mismatched configurations (e.g., setting a tax provider as billing type).
+func IsValidProviderNameForType(name ProviderName, providerType ProviderType) bool {
+	switch providerType {
+	case ProviderTypeTax:
+		switch name {
+		case ProviderNameStripeTax, ProviderNameTaxJar, ProviderNameAvalara,
+			ProviderNamePercentage, ProviderNameNoTax:
+			return true
+		}
+	case ProviderTypeShipping:
+		switch name {
+		case ProviderNameShipStation, ProviderNameEasyPost, ProviderNameShippo, ProviderNameManual:
+			return true
+		}
+	case ProviderTypeBilling:
+		switch name {
+		case ProviderNameStripe:
+			return true
+		}
+	case ProviderTypeEmail:
+		switch name {
+		case ProviderNamePostmark, ProviderNameResend, ProviderNameSES, ProviderNameSMTP:
+			return true
+		}
+	}
+	return false
+}

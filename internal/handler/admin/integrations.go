@@ -182,6 +182,13 @@ func (h *IntegrationsHandler) SaveConfig(w http.ResponseWriter, r *http.Request)
 	providerType := provider.ProviderType(providerTypeStr)
 	providerName := provider.ProviderName(strings.TrimSpace(r.FormValue("provider_name")))
 
+	// Validate that provider name is appropriate for the provider type
+	// This prevents mismatched configurations (e.g., setting stripe_tax as billing provider)
+	if !provider.IsValidProviderNameForType(providerName, providerType) {
+		http.Error(w, fmt.Sprintf("Invalid provider %q for type %q", providerName, providerType), http.StatusBadRequest)
+		return
+	}
+
 	configMap := buildConfigMap(r, providerType, providerName)
 
 	// Validate that required credentials are present (not empty)
