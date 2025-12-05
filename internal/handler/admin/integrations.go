@@ -3,6 +3,7 @@ package admin
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -121,14 +122,26 @@ func (h *IntegrationsHandler) ConfigPage(w http.ResponseWriter, r *http.Request)
 	var configMap map[string]interface{}
 	var configID pgtype.UUID
 
+	var configCorrupted bool
 	if err == nil && config.ID.Valid {
 		currentProvider = config.Name
 		configID = config.ID
 
 		if config.ConfigEncrypted != "" {
 			decrypted, decryptErr := h.encryptor.Decrypt([]byte(config.ConfigEncrypted))
-			if decryptErr == nil {
-				json.Unmarshal(decrypted, &configMap)
+			if decryptErr != nil {
+				// Log error without exposing sensitive data
+				slog.Error("failed to decrypt provider configuration",
+					slog.String("provider_type", string(providerType)),
+					slog.String("error", decryptErr.Error()))
+				configCorrupted = true
+			} else {
+				if unmarshalErr := json.Unmarshal(decrypted, &configMap); unmarshalErr != nil {
+					slog.Error("failed to unmarshal provider configuration",
+						slog.String("provider_type", string(providerType)),
+						slog.String("error", unmarshalErr.Error()))
+					configCorrupted = true
+				}
 			}
 		}
 	}
@@ -146,6 +159,7 @@ func (h *IntegrationsHandler) ConfigPage(w http.ResponseWriter, r *http.Request)
 	data["ConfigID"] = configID
 	data["Config"] = maskedConfig
 	data["ProviderOptions"] = getProviderOptions(providerType)
+	data["ConfigCorrupted"] = configCorrupted
 
 	h.renderer.RenderHTTP(w, "admin/integration_config", data)
 }
