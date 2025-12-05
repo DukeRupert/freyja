@@ -609,7 +609,13 @@ func (h *IntegrationsHandler) testShippingConnection(name provider.ProviderName,
 	case provider.ProviderNameManual:
 		// No external connection needed
 		return nil
-	case provider.ProviderNameEasyPost, provider.ProviderNameShipStation, provider.ProviderNameShippo:
+	case provider.ProviderNameEasyPost:
+		apiKey, ok := config["easypost_api_key"].(string)
+		if !ok || apiKey == "" {
+			return fmt.Errorf("EasyPost API key is required")
+		}
+		return testEasyPostAPIKey(apiKey)
+	case provider.ProviderNameShipStation, provider.ProviderNameShippo:
 		return fmt.Errorf("test connection not implemented for %s", name)
 	default:
 		return fmt.Errorf("unsupported shipping provider: %s", name)
@@ -679,6 +685,37 @@ func testPostmarkAPIKey(apiKey string) error {
 		return fmt.Errorf("invalid API token")
 	}
 	if resp.StatusCode != 200 {
+		return fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// testEasyPostAPIKey tests an EasyPost API key by creating a test address
+func testEasyPostAPIKey(apiKey string) error {
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	// Create a minimal address verification request
+	// This works with both test and production API keys
+	payload := `{"address":{"street1":"417 MONTGOMERY ST","city":"SAN FRANCISCO","state":"CA","zip":"94104","country":"US"}}`
+
+	req, err := http.NewRequest("POST", "https://api.easypost.com/v2/addresses", strings.NewReader(payload))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.SetBasicAuth(apiKey, "")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("connection failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 401 {
+		return fmt.Errorf("invalid API key")
+	}
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
 		return fmt.Errorf("API returned status %d", resp.StatusCode)
 	}
 

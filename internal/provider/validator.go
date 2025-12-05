@@ -1,6 +1,9 @@
 package provider
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // ProviderValidator validates provider configurations before creating instances.
 // Each provider type has specific required configuration fields that must be present
@@ -128,7 +131,8 @@ func (v *DefaultValidator) ValidateShippingConfig(config *TenantProviderConfig) 
 		requireString(config.Config, "api_key", result)
 		requireString(config.Config, "api_secret", result)
 	case ProviderNameEasyPost:
-		requireStringPrefix(config.Config, "easypost_api_key", "EZAK", result)
+		// EZAK = production key, EZTK = test key
+		requireStringPrefixes(config.Config, "easypost_api_key", []string{"EZAK", "EZTK"}, result)
 	case ProviderNameShippo:
 		requireString(config.Config, "api_key", result)
 	case ProviderNameManual:
@@ -214,6 +218,23 @@ func requireStringPrefix(config map[string]interface{}, key string, prefix strin
 	}
 
 	return value
+}
+
+// requireStringPrefixes validates that a config field is a string starting with one of the prefixes.
+func requireStringPrefixes(config map[string]interface{}, key string, prefixes []string, result *ValidationResult) string {
+	value := requireString(config, key, result)
+	if value == "" {
+		return ""
+	}
+
+	for _, prefix := range prefixes {
+		if len(value) >= len(prefix) && value[:len(prefix)] == prefix {
+			return value
+		}
+	}
+
+	result.AddError("field " + key + " must start with one of: " + strings.Join(prefixes, ", "))
+	return ""
 }
 
 // requireFloat64Range validates that a config field is a float64 within range [min, max].
