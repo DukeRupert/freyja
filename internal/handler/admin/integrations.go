@@ -220,6 +220,10 @@ func (h *IntegrationsHandler) SaveConfig(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Invalidate cache BEFORE database update to ensure subsequent requests
+	// will fetch fresh config. This prevents stale data between update and invalidation.
+	h.registry.InvalidateCache(h.tenantID, providerType)
+
 	existingConfig, err := h.repo.GetDefaultProviderConfig(ctx, repository.GetDefaultProviderConfigParams{
 		TenantID: h.tenantID,
 		Type:     string(providerType),
@@ -275,8 +279,6 @@ func (h *IntegrationsHandler) SaveConfig(w http.ResponseWriter, r *http.Request)
 			return
 		}
 	}
-
-	h.registry.InvalidateCache(h.tenantID, providerType)
 
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", "/admin/settings/integrations")
