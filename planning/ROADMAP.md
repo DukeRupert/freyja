@@ -4,7 +4,7 @@
 
 This roadmap defines the path to MVP launch and the six months following. The MVP focuses on complete, reliable functionality for core use cases rather than breadth of features.
 
-**Last updated:** December 4, 2024
+**Last updated:** December 5, 2024
 
 ---
 
@@ -73,7 +73,7 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 - ✅ Product detail pages with coffee metadata
 - ✅ Dynamic pricing based on logged-in customer's price list
 - ✅ Grind and size selection via SKU variants
-- ⏳ Filters (roast level, origin, process) — not implemented
+- ✅ Filters: roast level, origin, tasting notes (minimal inline style)
 
 **Shopping Cart** ✅
 - ✅ Add/remove/update cart items (htmx dynamic updates)
@@ -426,7 +426,7 @@ These are noted for architectural awareness but not scheduled:
 3. ~~**Wholesale Service Layer**~~ ✅ Complete — InvoiceService, PaymentTermsService, FulfillmentService, Stripe Invoicing
 4. ~~**Wholesale Admin UI**~~ ✅ Complete — Invoice list/detail, payment recording, wholesale approval workflow
 5. ~~**Carrier Integration**~~ ✅ Complete — EasyPost integration with rates, labels, tracking, address validation
-6. **Polish** — Product filters, wholesale minimums, pick lists, wholesale application UI
+6. **Polish** — Wholesale minimums, pick lists, wholesale application UI
 
 ---
 

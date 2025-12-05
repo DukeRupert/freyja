@@ -3,6 +3,7 @@ package storefront
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -87,6 +88,7 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Parse filter params
 	roastLevel := r.URL.Query().Get("roast")
 	origin := r.URL.Query().Get("origin")
+	tastingNote := r.URL.Query().Get("note")
 
 	// Get filter options for the UI
 	filterOptions, err := h.repo.GetProductFilterOptions(ctx, h.tenantID)
@@ -97,22 +99,27 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	var products []ProductDisplay
 
 	// Check if any filters are applied
-	if roastLevel != "" || origin != "" {
+	if roastLevel != "" || origin != "" || tastingNote != "" {
 		// Use filtered query
-		var roastLevelParam, originParam pgtype.Text
+		var roastLevelParam, originParam, tastingNoteParam pgtype.Text
 		if roastLevel != "" {
 			roastLevelParam = pgtype.Text{String: roastLevel, Valid: true}
 		}
 		if origin != "" {
 			originParam = pgtype.Text{String: origin, Valid: true}
 		}
+		if tastingNote != "" {
+			tastingNoteParam = pgtype.Text{String: tastingNote, Valid: true}
+		}
 
 		filteredProducts, err := h.repo.ListActiveProductsFiltered(ctx, repository.ListActiveProductsFilteredParams{
-			TenantID:   h.tenantID,
-			RoastLevel: roastLevelParam,
-			Origin:     originParam,
+			TenantID:    h.tenantID,
+			RoastLevel:  roastLevelParam,
+			Origin:      originParam,
+			TastingNote: tastingNoteParam,
 		})
 		if err != nil {
+			slog.Error("failed to list filtered products", "error", err, "roast", roastLevel, "origin", origin, "note", tastingNote)
 			http.Error(w, "Failed to load products", http.StatusInternalServerError)
 			return
 		}
@@ -168,13 +175,18 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	if origin != "" {
 		activeFilters++
 	}
+	if tastingNote != "" {
+		activeFilters++
+	}
 
 	data := BaseTemplateData(r)
 	data["Products"] = products
 	data["RoastLevels"] = filterOptions.RoastLevels
 	data["Origins"] = filterOptions.Origins
+	data["TastingNotes"] = filterOptions.TastingNotes
 	data["SelectedRoast"] = roastLevel
 	data["SelectedOrigin"] = origin
+	data["SelectedNote"] = tastingNote
 	data["ActiveFilterCount"] = activeFilters
 	data["HasFilters"] = activeFilters > 0
 

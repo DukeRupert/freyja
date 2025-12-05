@@ -495,19 +495,24 @@ SELECT
     (SELECT ARRAY_AGG(DISTINCT p3.origin ORDER BY p3.origin)
      FROM products p3
      WHERE p3.tenant_id = $1 AND p3.status = 'active' AND p3.visibility = 'public' AND p3.origin IS NOT NULL
-    ) as origins
+    ) as origins,
+    (SELECT ARRAY_AGG(DISTINCT note ORDER BY note)
+     FROM products p4, UNNEST(p4.tasting_notes) AS note
+     WHERE p4.tenant_id = $1 AND p4.status = 'active' AND p4.visibility = 'public'
+    ) as tasting_notes
 `
 
 type GetProductFilterOptionsRow struct {
-	RoastLevels interface{} `json:"roast_levels"`
-	Origins     interface{} `json:"origins"`
+	RoastLevels  interface{} `json:"roast_levels"`
+	Origins      interface{} `json:"origins"`
+	TastingNotes interface{} `json:"tasting_notes"`
 }
 
 // Get distinct filter values for the product filters UI
 func (q *Queries) GetProductFilterOptions(ctx context.Context, tenantID pgtype.UUID) (GetProductFilterOptionsRow, error) {
 	row := q.db.QueryRow(ctx, getProductFilterOptions, tenantID)
 	var i GetProductFilterOptionsRow
-	err := row.Scan(&i.RoastLevels, &i.Origins)
+	err := row.Scan(&i.RoastLevels, &i.Origins, &i.TastingNotes)
 	return i, err
 }
 
@@ -965,7 +970,7 @@ SELECT
     (SELECT MIN(ple.price_cents)
      FROM product_skus ps
      JOIN price_list_entries ple ON ple.product_sku_id = ps.id
-     JOIN price_lists pl ON pl.id = ple.price_list_id AND pl.is_default = TRUE
+     JOIN price_lists pl ON pl.id = ple.price_list_id AND pl.list_type = 'default'
      WHERE ps.product_id = p.id AND ps.is_active = TRUE
     ) as base_price
 FROM products p
@@ -975,13 +980,15 @@ WHERE p.tenant_id = $1
   AND p.visibility = 'public'
   AND ($2::text IS NULL OR p.roast_level = $2::text)
   AND ($3::text IS NULL OR p.origin = $3::text)
+  AND ($4::text IS NULL OR $4::text = ANY(p.tasting_notes))
 ORDER BY p.sort_order ASC, p.created_at DESC
 `
 
 type ListActiveProductsFilteredParams struct {
-	TenantID   pgtype.UUID `json:"tenant_id"`
-	RoastLevel pgtype.Text `json:"roast_level"`
-	Origin     pgtype.Text `json:"origin"`
+	TenantID    pgtype.UUID `json:"tenant_id"`
+	RoastLevel  pgtype.Text `json:"roast_level"`
+	Origin      pgtype.Text `json:"origin"`
+	TastingNote pgtype.Text `json:"tasting_note"`
 }
 
 type ListActiveProductsFilteredRow struct {
@@ -1001,7 +1008,12 @@ type ListActiveProductsFilteredRow struct {
 
 // List active products with optional filters for roast level and origin
 func (q *Queries) ListActiveProductsFiltered(ctx context.Context, arg ListActiveProductsFilteredParams) ([]ListActiveProductsFilteredRow, error) {
-	rows, err := q.db.Query(ctx, listActiveProductsFiltered, arg.TenantID, arg.RoastLevel, arg.Origin)
+	rows, err := q.db.Query(ctx, listActiveProductsFiltered,
+		arg.TenantID,
+		arg.RoastLevel,
+		arg.Origin,
+		arg.TastingNote,
+	)
 	if err != nil {
 		return nil, err
 	}

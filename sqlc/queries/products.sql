@@ -36,7 +36,7 @@ SELECT
     (SELECT MIN(ple.price_cents)
      FROM product_skus ps
      JOIN price_list_entries ple ON ple.product_sku_id = ps.id
-     JOIN price_lists pl ON pl.id = ple.price_list_id AND pl.is_default = TRUE
+     JOIN price_lists pl ON pl.id = ple.price_list_id AND pl.list_type = 'default'
      WHERE ps.product_id = p.id AND ps.is_active = TRUE
     ) as base_price
 FROM products p
@@ -46,6 +46,7 @@ WHERE p.tenant_id = $1
   AND p.visibility = 'public'
   AND (sqlc.narg('roast_level')::text IS NULL OR p.roast_level = sqlc.narg('roast_level')::text)
   AND (sqlc.narg('origin')::text IS NULL OR p.origin = sqlc.narg('origin')::text)
+  AND (sqlc.narg('tasting_note')::text IS NULL OR sqlc.narg('tasting_note')::text = ANY(p.tasting_notes))
 ORDER BY p.sort_order ASC, p.created_at DESC;
 
 -- name: GetProductFilterOptions :one
@@ -58,7 +59,11 @@ SELECT
     (SELECT ARRAY_AGG(DISTINCT p3.origin ORDER BY p3.origin)
      FROM products p3
      WHERE p3.tenant_id = $1 AND p3.status = 'active' AND p3.visibility = 'public' AND p3.origin IS NOT NULL
-    ) as origins;
+    ) as origins,
+    (SELECT ARRAY_AGG(DISTINCT note ORDER BY note)
+     FROM products p4, UNNEST(p4.tasting_notes) AS note
+     WHERE p4.tenant_id = $1 AND p4.status = 'active' AND p4.visibility = 'public'
+    ) as tasting_notes;
 
 -- name: GetProductBySlug :one
 -- Get a single product by slug with all details

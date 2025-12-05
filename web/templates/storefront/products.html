@@ -13,54 +13,63 @@
     <!-- Filters Section -->
     <div class="mb-8" x-data="{ showMobileFilters: false }">
         <!-- Desktop Filters -->
-        <div class="hidden md:block">
-            <div class="flex flex-wrap items-center gap-4 rounded-lg bg-neutral-50 border border-neutral-200 p-4">
-                <span class="text-sm font-medium text-neutral-700">Filter by:</span>
-
+        <div class="hidden md:flex items-center justify-between border-b border-neutral-200 pb-4">
+            <div class="flex items-center gap-6">
                 <!-- Roast Level Filter -->
                 {{if .RoastLevels}}
-                <div class="relative">
+                <div class="flex items-center gap-2">
+                    <label for="roast-filter" class="text-sm text-neutral-500">Roast</label>
                     <select id="roast-filter"
                             onchange="applyFilters()"
-                            class="appearance-none rounded-lg border border-neutral-300 bg-white pl-3 pr-8 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500">
-                        <option value="">All Roasts</option>
+                            class="border-0 bg-transparent py-1 pl-0 pr-6 text-sm font-medium text-neutral-900 focus:ring-0 cursor-pointer">
+                        <option value="">All</option>
                         {{range .RoastLevels}}
                         <option value="{{.}}" {{if eq $.SelectedRoast .}}selected{{end}}>{{.}}</option>
                         {{end}}
                     </select>
-                    <svg class="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                    </svg>
                 </div>
                 {{end}}
 
                 <!-- Origin Filter -->
                 {{if .Origins}}
-                <div class="relative">
+                <div class="flex items-center gap-2">
+                    <label for="origin-filter" class="text-sm text-neutral-500">Origin</label>
                     <select id="origin-filter"
                             onchange="applyFilters()"
-                            class="appearance-none rounded-lg border border-neutral-300 bg-white pl-3 pr-8 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500">
-                        <option value="">All Origins</option>
+                            class="border-0 bg-transparent py-1 pl-0 pr-6 text-sm font-medium text-neutral-900 focus:ring-0 cursor-pointer">
+                        <option value="">All</option>
                         {{range .Origins}}
                         <option value="{{.}}" {{if eq $.SelectedOrigin .}}selected{{end}}>{{.}}</option>
                         {{end}}
                     </select>
-                    <svg class="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                    </svg>
+                </div>
+                {{end}}
+
+                <!-- Tasting Notes Filter -->
+                {{if .TastingNotes}}
+                <div class="flex items-center gap-2">
+                    <label for="note-filter" class="text-sm text-neutral-500">Notes</label>
+                    <select id="note-filter"
+                            onchange="applyFilters()"
+                            class="border-0 bg-transparent py-1 pl-0 pr-6 text-sm font-medium text-neutral-900 focus:ring-0 cursor-pointer">
+                        <option value="">All</option>
+                        {{range .TastingNotes}}
+                        <option value="{{.}}" {{if eq $.SelectedNote .}}selected{{end}}>{{.}}</option>
+                        {{end}}
+                    </select>
                 </div>
                 {{end}}
 
                 {{if .HasFilters}}
-                <a href="/products" class="text-sm text-teal-700 hover:text-teal-800 font-medium">
-                    Clear filters
+                <a href="/products" class="text-sm text-neutral-500 hover:text-neutral-700">
+                    Clear
                 </a>
                 {{end}}
-
-                <span class="ml-auto text-sm text-neutral-500">
-                    {{len .Products}} product{{if ne (len .Products) 1}}s{{end}}
-                </span>
             </div>
+
+            <span class="text-sm text-neutral-500">
+                {{len .Products}} product{{if ne (len .Products) 1}}s{{end}}
+            </span>
         </div>
 
         <!-- Mobile Filter Button -->
@@ -135,6 +144,19 @@
                             <option value="">All Origins</option>
                             {{range .Origins}}
                             <option value="{{.}}" {{if eq $.SelectedOrigin .}}selected{{end}}>{{.}}</option>
+                            {{end}}
+                        </select>
+                    </div>
+                    {{end}}
+
+                    {{if .TastingNotes}}
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-700 mb-2">Tasting Notes</label>
+                        <select id="mobile-note-filter"
+                                class="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500">
+                            <option value="">All Notes</option>
+                            {{range .TastingNotes}}
+                            <option value="{{.}}" {{if eq $.SelectedNote .}}selected{{end}}>{{.}}</option>
                             {{end}}
                         </select>
                     </div>
@@ -219,7 +241,7 @@
                     <div class="mt-4 flex items-baseline justify-between border-t border-neutral-200 pt-4">
                         <span class="text-sm text-neutral-500">Starting at</span>
                         <span class="text-xl font-bold text-neutral-900">
-                            ${{printf "%.2f" (divf .BasePrice.Int 100.0)}}
+                            ${{printf "%.2f" (divf .BasePrice.Int32 100.0)}}
                         </span>
                     </div>
                     {{end}}
@@ -249,24 +271,28 @@
 
 <script>
 function applyFilters() {
-    const roast = document.getElementById('roast-filter').value;
-    const origin = document.getElementById('origin-filter').value;
+    const roast = document.getElementById('roast-filter')?.value || '';
+    const origin = document.getElementById('origin-filter')?.value || '';
+    const note = document.getElementById('note-filter')?.value || '';
 
     const params = new URLSearchParams();
     if (roast) params.set('roast', roast);
     if (origin) params.set('origin', origin);
+    if (note) params.set('note', note);
 
     const queryString = params.toString();
     window.location.href = '/products' + (queryString ? '?' + queryString : '');
 }
 
 function applyMobileFilters() {
-    const roast = document.getElementById('mobile-roast-filter').value;
-    const origin = document.getElementById('mobile-origin-filter').value;
+    const roast = document.getElementById('mobile-roast-filter')?.value || '';
+    const origin = document.getElementById('mobile-origin-filter')?.value || '';
+    const note = document.getElementById('mobile-note-filter')?.value || '';
 
     const params = new URLSearchParams();
     if (roast) params.set('roast', roast);
     if (origin) params.set('origin', origin);
+    if (note) params.set('note', note);
 
     const queryString = params.toString();
     window.location.href = '/products' + (queryString ? '?' + queryString : '');
