@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // TemplateFuncs returns a FuncMap with custom template functions
@@ -133,6 +135,9 @@ func TemplateFuncs() template.FuncMap {
 		},
 		"contains": func(s, substr string) bool {
 			return strings.Contains(s, substr)
+		},
+		"title": func(s string) string {
+			return cases.Title(language.English).String(s)
 		},
 
 		// Conditional/Logic functions
