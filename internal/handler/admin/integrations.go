@@ -619,7 +619,13 @@ func (h *IntegrationsHandler) testShippingConnection(name provider.ProviderName,
 // testEmailConnection tests an email provider connection
 func (h *IntegrationsHandler) testEmailConnection(name provider.ProviderName, config map[string]interface{}) error {
 	switch name {
-	case provider.ProviderNameSMTP, provider.ProviderNamePostmark, provider.ProviderNameResend, provider.ProviderNameSES:
+	case provider.ProviderNamePostmark:
+		apiKey, ok := config["postmark_api_key"].(string)
+		if !ok || apiKey == "" {
+			return fmt.Errorf("Postmark API key is required")
+		}
+		return testPostmarkAPIKey(apiKey)
+	case provider.ProviderNameSMTP, provider.ProviderNameResend, provider.ProviderNameSES:
 		return fmt.Errorf("test connection not implemented for %s", name)
 	default:
 		return fmt.Errorf("unsupported email provider: %s", name)
@@ -645,6 +651,32 @@ func testStripeAPIKey(apiKey string) error {
 
 	if resp.StatusCode == 401 {
 		return fmt.Errorf("invalid API key")
+	}
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// testPostmarkAPIKey tests a Postmark API key by calling the Server API endpoint
+func testPostmarkAPIKey(apiKey string) error {
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest("GET", "https://api.postmarkapp.com/server", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-Postmark-Server-Token", apiKey)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("connection failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 401 {
+		return fmt.Errorf("invalid API token")
 	}
 	if resp.StatusCode != 200 {
 		return fmt.Errorf("API returned status %d", resp.StatusCode)

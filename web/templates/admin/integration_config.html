@@ -55,7 +55,7 @@
                         "Value" .CurrentProvider
                         "Required" true
                         "Options" .ProviderOptions
-                        "Class" "x-model='selectedProvider'"))}}
+                        "XModel" "selectedProvider"))}}
             </div>
 
             <!-- Info Messages for Special Cases -->
@@ -235,20 +235,24 @@ document.addEventListener('alpine:init', () => {
                 {name: 'smtp_port', label: 'SMTP Port', type: 'number', placeholder: '587', required: true},
                 {name: 'smtp_username', label: 'Username', type: 'text', placeholder: 'your-username', required: true},
                 {name: 'smtp_password', label: 'Password', type: 'password', placeholder: 'your-password', required: true},
+                {name: 'smtp_from_name', label: 'From Name', type: 'text', placeholder: 'Acme Coffee', required: true},
                 {name: 'smtp_from', label: 'From Email', type: 'email', placeholder: 'noreply@example.com', required: true}
             ],
             'postmark': [
                 {name: 'postmark_api_key', label: 'Postmark Server API Token', type: 'password', placeholder: 'Enter your Postmark API token', required: true},
+                {name: 'postmark_from_name', label: 'From Name', type: 'text', placeholder: 'Acme Coffee', required: true},
                 {name: 'postmark_from', label: 'From Email', type: 'email', placeholder: 'noreply@example.com', required: true}
             ],
             'resend': [
                 {name: 'resend_api_key', label: 'Resend API Key', type: 'password', placeholder: 're_...', required: true},
+                {name: 'resend_from_name', label: 'From Name', type: 'text', placeholder: 'Acme Coffee', required: true},
                 {name: 'resend_from', label: 'From Email', type: 'email', placeholder: 'noreply@example.com', required: true}
             ],
             'ses': [
                 {name: 'ses_access_key_id', label: 'AWS Access Key ID', type: 'text', placeholder: 'AKIA...', required: true},
                 {name: 'ses_secret_access_key', label: 'AWS Secret Access Key', type: 'password', placeholder: 'Enter your AWS secret key', required: true},
                 {name: 'ses_region', label: 'AWS Region', type: 'text', placeholder: 'us-east-1', required: true},
+                {name: 'ses_from_name', label: 'From Name', type: 'text', placeholder: 'Acme Coffee', required: true},
                 {name: 'ses_from', label: 'From Email', type: 'email', placeholder: 'noreply@example.com', required: true}
             ]
         },

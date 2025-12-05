@@ -17,6 +17,8 @@
     - ID: Select ID (defaults to Name)
     - Placeholder: First option placeholder text (e.g., "Select an option...")
     - Class: Additional CSS classes
+    - XModel: Alpine.js x-model binding (e.g., "selectedProvider")
+    - XOn: Alpine.js event handler (e.g., "change: handleChange()")
 */}}
 
 {{define "select"}}
@@ -24,6 +26,8 @@
         id="{{or .ID .Name}}"
         {{if .Required}}required{{end}}
         {{if .Disabled}}disabled{{end}}
+        {{if .XModel}}x-model="{{.XModel}}"{{end}}
+        {{if .XOn}}x-on:{{.XOn}}{{end}}
         class="{{template "select-classes" .}}">
   {{if .Placeholder}}
     <option value="">{{.Placeholder}}</option>
