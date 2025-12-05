@@ -504,6 +504,84 @@ result, err := provider.ValidateAddress(ctx, shipping.ValidateAddressParams{
 
 ---
 
+## Provider Configuration System
+
+### Choice: Database-Backed Registry with Encrypted Credentials
+
+**Packages:**
+- `internal/provider` (registry, factory, validator)
+- `internal/crypto` (AES-256-GCM encryption)
+
+**Rationale:**
+- Tenants can select their preferred providers for tax, shipping, billing, and email
+- Credentials stored encrypted at rest (no plaintext API keys in database)
+- Lazy loading with TTL-based caching reduces database queries
+- Interface-based design allows adding new providers without architecture changes
+
+**Architecture Components:**
+
+1. **Provider Registry** (`internal/provider/registry.go`)
+   - Central access point for provider instances
+   - TTL-based caching (1 hour default) for performance
+   - Automatic cache invalidation on config changes
+   - Thread-safe concurrent access
+
+2. **Provider Factory** (`internal/provider/factory.go`)
+   - Creates provider instances from decrypted configurations
+   - Validates credentials before instantiation
+   - Returns appropriate errors for invalid configs
+
+3. **Configuration Validator** (`internal/provider/validator.go`)
+   - Validates provider-specific configuration requirements
+   - Checks API key formats, required fields
+   - Used both on save and before instantiation
+
+4. **Encryption Service** (`internal/crypto/encrypt.go`)
+   - AES-256-GCM authenticated encryption
+   - Base64-encoded keys for environment variable storage
+   - Key generation utility for production setup
+
+**Database Schema:**
+```sql
+CREATE TABLE tenant_provider_configs (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL,
+    provider_type VARCHAR(50) NOT NULL,  -- 'tax', 'shipping', 'billing', 'email'
+    provider_name VARCHAR(50) NOT NULL,  -- 'stripe', 'easypost', 'percentage', etc.
+    config_encrypted BYTEA,              -- AES-256-GCM encrypted JSON
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ,
+    UNIQUE(tenant_id, provider_type)     -- One active provider per type per tenant
+);
+```
+
+**Provider Types:**
+- **Tax:** none, stripe_tax, percentage, taxjar, avalara
+- **Shipping:** flat_rate, easypost, shipstation, shippo
+- **Billing:** stripe (required)
+- **Email:** smtp, postmark, resend, ses
+
+**Usage Example:**
+```go
+// Get the tax calculator for a tenant
+taxCalc, err := registry.GetTaxCalculator(ctx, tenantID)
+if err != nil {
+    // Handle error (no config, invalid credentials, etc.)
+}
+
+// Use the tax calculator
+tax, err := taxCalc.Calculate(ctx, order)
+```
+
+**Security Considerations:**
+- Encryption key stored in environment variable (`ENCRYPTION_KEY`)
+- Keys never logged or exposed in error messages
+- Failed decryption logs warning but doesn't expose key material
+- Admin UI masks existing credentials (shows "••••" not actual values)
+
+---
+
 ## File Storage
 
 ### Choice: Local Filesystem (MVP) → S3-Compatible (Post-MVP)
@@ -695,6 +773,10 @@ Significant decisions should be recorded here as the project evolves.
 | 2024-12-03 | Rate limiting scoped by tenant_id | Multi-tenant isolation for rate limits; prevents cross-tenant interference |
 | 2024-12-03 | Atomic verification via transactions | Prevents race conditions on concurrent verification attempts |
 | 2024-12-03 | Client IP extraction via proxy headers | Supports X-Forwarded-For/X-Real-IP for Caddy/nginx deployments |
+| 2024-12-04 | Provider configuration system | Tenant-selectable providers with encrypted credentials for multi-tenant SaaS flexibility |
+| 2024-12-04 | AES-256-GCM for credential encryption | Industry standard authenticated encryption; prevents tampering and provides confidentiality |
+| 2024-12-04 | TTL-based provider caching | 1-hour cache reduces database queries while allowing timely config updates |
+| 2024-12-04 | Stripe Tax + percentage-based tax | Offers tenants choice between automatic (Stripe) and manual (state rates) tax calculation |
 
 ---
 

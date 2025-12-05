@@ -18,13 +18,14 @@ This roadmap defines the path to MVP launch and the six months following. The MV
 ✅ **Email Verification Complete** — Signup requires email verification before login
 ✅ **Account Dashboard Complete** — User account overview page
 ✅ **Profile Management Complete** — Settings page, address book with full CRUD, payment methods
+✅ **Provider Configuration System Complete** — Tenant-selectable providers with encrypted credentials
 
 **Codebase Metrics:**
-- 110+ Go source files (~20,000 lines)
-- 20 database migrations (45+ tables)
-- 75+ HTML templates (including 8 email templates)
-- 40+ HTTP handlers
-- 12+ service layers
+- 120+ Go source files (~22,000 lines)
+- 25 database migrations (50+ tables)
+- 80+ HTML templates (including 8 email templates)
+- 45+ HTTP handlers
+- 15+ service layers
 - 3,100+ lines of test code
 
 ---
@@ -239,10 +240,37 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 - ✅ Invoice detail with line items, payments, linked orders
 - ✅ Manual invoice creation from orders
 - ✅ Payment recording interface
+- ✅ Provider integrations settings (tax, shipping, billing, email)
+- ✅ Tax rate management
 
 **Not Yet Implemented** 🔲
 - 🔲 Customer editing and price list assignment
 - 🔲 Subscription admin overview
+
+### Provider Configuration System ✅ COMPLETE
+
+**Multi-Tenant Provider Selection** ✅
+- ✅ Database-backed provider registry with lazy loading
+- ✅ TTL-based caching (1 hour default) for performance
+- ✅ AES-256-GCM encryption for stored credentials
+- ✅ Provider interface pattern (tax, shipping, billing, email)
+
+**Tax Providers** ✅
+- ✅ None (no tax calculation)
+- ✅ Stripe Tax (automatic, address-based)
+- ✅ Percentage (state-based rate table)
+- ⏳ TaxJar, Avalara — interfaces ready, not implemented
+
+**Shipping Providers** ✅
+- ✅ Flat-rate (configurable rates)
+- ✅ EasyPost (real-time carrier rates)
+- ⏳ ShipStation, Shippo — interfaces ready
+
+**Admin UI** ✅
+- ✅ Provider integrations list page
+- ✅ Dynamic configuration forms per provider
+- ✅ Connection testing endpoint
+- ✅ Tax rate CRUD interface
 
 ### MVP Email Notifications ✅ COMPLETE
 
@@ -340,10 +368,13 @@ Target: Operational efficiency, customer retention tools, and preparation for sc
 - Payment recording
 - Basic chart of accounts mapping
 
-**Tax Automation**
-- Tax calculation service integration (TaxJar or similar)
-- Automatic rate determination by address
-- Tax reporting exports
+**Tax Automation** ✅ COMPLETE (Done Early)
+- ✅ Tax calculation interface with multiple implementations
+- ✅ Stripe Tax integration (automatic address-based rates)
+- ✅ Percentage-based tax with state rate table
+- ✅ Admin UI for managing state tax rates
+- ✅ Provider selection via admin settings
+- ⏳ Tax reporting exports — not implemented
 
 ### Month 5-6: Platform Hardening
 
@@ -406,18 +437,22 @@ These are noted for architectural awareness but not scheduled:
 | Background Jobs | ✅ Complete | Worker with concurrency, retry logic, cleanup jobs |
 | Account Dashboard | ✅ Complete | User account overview, subscriptions list |
 | Profile Management | ✅ Complete | Address book CRUD, settings, password change, payment methods |
+| Provider Config | ✅ Complete | Tenant-selectable providers, encrypted credentials, admin UI |
+| Tax Calculation | ✅ Complete | Stripe Tax + percentage-based with state rates |
 
 ### Architecture Highlights
 
-- **45+ database tables** across 20 migrations
-- **40+ HTTP handlers** for storefront, admin, and webhooks
-- **13+ service layers** (product, cart, user, order, checkout, subscription, account, password reset, email verification, payment terms, fulfillment, invoice, address)
+- **50+ database tables** across 25 migrations
+- **45+ HTTP handlers** for storefront, admin, and webhooks
+- **15+ service layers** (product, cart, user, order, checkout, subscription, account, password reset, email verification, payment terms, fulfillment, invoice, address, provider)
 - **Interface-based abstractions** for billing, shipping, email, storage, tax
 - **Multi-tenant isolation** on all queries (tenant_id scoping)
 - **Idempotent webhook processing** for payment reliability
 - **Comprehensive test coverage** for checkout (1,735 lines) and orders (1,374 lines)
 - **Stripe Invoicing integration** for wholesale billing
 - **Security hardening** for email verification (rate limiting, token hashing, atomic transactions)
+- **Provider configuration system** with encrypted credential storage (AES-256-GCM)
+- **Tenant-selectable providers** for tax, shipping, billing, and email with cached registry
 
 ### Remaining MVP Work
 
