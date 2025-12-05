@@ -11,6 +11,7 @@ import (
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/tax"
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/sync/singleflight"
 )
 
 // ProviderRegistry manages provider instances for all tenants.
@@ -55,6 +56,10 @@ type DefaultRegistry struct {
 	// cache stores provider instances keyed by "tenantID:providerType"
 	// Values are cacheEntry structs containing the provider and expiration time
 	cache sync.Map
+
+	// loadGroup ensures only one goroutine loads a provider for a given cache key at a time
+	// This prevents duplicate provider instantiation during concurrent requests
+	loadGroup singleflight.Group
 }
 
 // cacheKey generates a unique cache key for a tenant and provider type.
@@ -103,7 +108,9 @@ func NewDefaultRegistry(
 // GetTaxCalculator returns the tax calculator for the tenant.
 func (r *DefaultRegistry) GetTaxCalculator(ctx context.Context, tenantID pgtype.UUID) (tax.Calculator, error) {
 	key := makeCacheKey(tenantID, ProviderTypeTax)
+	keyString := fmt.Sprintf("%s:%s", key.tenantID, key.providerType)
 
+	// Check cache first
 	if cached, ok := r.cache.Load(key); ok {
 		entry := cached.(cacheEntry)
 		if entry.expiresAt.After(time.Now()) {
@@ -111,23 +118,42 @@ func (r *DefaultRegistry) GetTaxCalculator(ctx context.Context, tenantID pgtype.
 		}
 	}
 
-	calculator, err := r.loadTaxCalculator(ctx, tenantID)
+	// Use singleflight to ensure only one goroutine loads the provider for this key
+	result, err, _ := r.loadGroup.Do(keyString, func() (interface{}, error) {
+		// Double-check cache inside singleflight to handle race between cache check and Do
+		if cached, ok := r.cache.Load(key); ok {
+			entry := cached.(cacheEntry)
+			if entry.expiresAt.After(time.Now()) {
+				return entry.provider.(tax.Calculator), nil
+			}
+		}
+
+		calculator, err := r.loadTaxCalculator(ctx, tenantID)
+		if err != nil {
+			return nil, err
+		}
+
+		r.cache.Store(key, cacheEntry{
+			provider:  calculator,
+			expiresAt: time.Now().Add(r.cacheTTL),
+		})
+
+		return calculator, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	r.cache.Store(key, cacheEntry{
-		provider:  calculator,
-		expiresAt: time.Now().Add(r.cacheTTL),
-	})
-
-	return calculator, nil
+	return result.(tax.Calculator), nil
 }
 
 // GetBillingProvider returns the billing provider for the tenant.
 func (r *DefaultRegistry) GetBillingProvider(ctx context.Context, tenantID pgtype.UUID) (billing.Provider, error) {
 	key := makeCacheKey(tenantID, ProviderTypeBilling)
+	keyString := fmt.Sprintf("%s:%s", key.tenantID, key.providerType)
 
+	// Check cache first
 	if cached, ok := r.cache.Load(key); ok {
 		entry := cached.(cacheEntry)
 		if entry.expiresAt.After(time.Now()) {
@@ -135,17 +161,34 @@ func (r *DefaultRegistry) GetBillingProvider(ctx context.Context, tenantID pgtyp
 		}
 	}
 
-	provider, err := r.loadBillingProvider(ctx, tenantID)
+	// Use singleflight to ensure only one goroutine loads the provider for this key
+	result, err, _ := r.loadGroup.Do(keyString, func() (interface{}, error) {
+		// Double-check cache inside singleflight to handle race between cache check and Do
+		if cached, ok := r.cache.Load(key); ok {
+			entry := cached.(cacheEntry)
+			if entry.expiresAt.After(time.Now()) {
+				return entry.provider.(billing.Provider), nil
+			}
+		}
+
+		provider, err := r.loadBillingProvider(ctx, tenantID)
+		if err != nil {
+			return nil, err
+		}
+
+		r.cache.Store(key, cacheEntry{
+			provider:  provider,
+			expiresAt: time.Now().Add(r.cacheTTL),
+		})
+
+		return provider, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	r.cache.Store(key, cacheEntry{
-		provider:  provider,
-		expiresAt: time.Now().Add(r.cacheTTL),
-	})
-
-	return provider, nil
+	return result.(billing.Provider), nil
 }
 
 // InvalidateCache removes cached provider instances for the given tenant and type.
