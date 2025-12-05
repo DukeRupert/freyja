@@ -205,6 +205,12 @@ func (h *IntegrationsHandler) SaveConfig(w http.ResponseWriter, r *http.Request)
 	})
 
 	if err == nil && existingConfig.ID.Valid {
+		// Verify tenant ownership before updating
+		if existingConfig.TenantID != h.tenantID {
+			http.Error(w, "Unauthorized", http.StatusForbidden)
+			return
+		}
+
 		_, err = h.repo.UpdateProviderConfig(ctx, repository.UpdateProviderConfigParams{
 			ID:       existingConfig.ID,
 			TenantID: h.tenantID,
