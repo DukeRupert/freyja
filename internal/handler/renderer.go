@@ -203,7 +203,10 @@ func (r *Renderer) RenderHTTP(w http.ResponseWriter, name string, data interface
 
 	// Determine which base template to execute based on the template name
 	var execName string
-	if len(name) >= 6 && name[:6] == "admin/" {
+	if name == "admin/login" {
+		// Admin login is a standalone page with its own layout
+		execName = "admin_login"
+	} else if len(name) >= 6 && name[:6] == "admin/" {
 		execName = "admin_base"
 	} else if len(name) >= 11 && name[:11] == "storefront/" {
 		execName = "base"
