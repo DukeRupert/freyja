@@ -184,6 +184,13 @@ func (h *IntegrationsHandler) SaveConfig(w http.ResponseWriter, r *http.Request)
 
 	configMap := buildConfigMap(r, providerType, providerName)
 
+	// Validate that required credentials are present (not empty)
+	// This prevents credential rotation bypass via empty form submissions
+	if missingCreds := getMissingCredentials(providerName, configMap); len(missingCreds) > 0 {
+		http.Error(w, fmt.Sprintf("Missing required credentials: %s", strings.Join(missingCreds, ", ")), http.StatusBadRequest)
+		return
+	}
+
 	tenantConfig := &provider.TenantProviderConfig{
 		TenantID:  h.tenantID,
 		Type:      providerType,
@@ -492,4 +499,49 @@ func getProviderOptions(providerType provider.ProviderType) []map[string]string 
 	default:
 		return []map[string]string{}
 	}
+}
+
+// getMissingCredentials returns a list of required credential fields that are missing from configMap.
+// This is used to reject empty form submissions that would bypass credential rotation.
+func getMissingCredentials(providerName provider.ProviderName, configMap map[string]interface{}) []string {
+	var requiredFields []string
+
+	switch providerName {
+	case provider.ProviderNameStripe:
+		requiredFields = []string{"stripe_api_key", "stripe_webhook_secret"}
+	case provider.ProviderNameStripeTax:
+		requiredFields = []string{"stripe_api_key"}
+	case provider.ProviderNameEasyPost:
+		requiredFields = []string{"easypost_api_key"}
+	case provider.ProviderNameShipStation:
+		requiredFields = []string{"api_key", "api_secret"}
+	case provider.ProviderNameShippo:
+		requiredFields = []string{"api_key"}
+	case provider.ProviderNamePostmark:
+		requiredFields = []string{"postmark_api_key"}
+	case provider.ProviderNameResend:
+		requiredFields = []string{"api_key"}
+	case provider.ProviderNameSES:
+		requiredFields = []string{"access_key_id", "secret_access_key", "region"}
+	case provider.ProviderNameSMTP:
+		requiredFields = []string{"smtp_host", "smtp_port"}
+	case provider.ProviderNameTaxJar:
+		requiredFields = []string{"api_key"}
+	case provider.ProviderNameAvalara:
+		requiredFields = []string{"account_id", "license_key"}
+	case provider.ProviderNameNoTax, provider.ProviderNamePercentage, provider.ProviderNameManual:
+		// These providers don't require credentials
+		return nil
+	default:
+		return nil
+	}
+
+	var missing []string
+	for _, field := range requiredFields {
+		if _, exists := configMap[field]; !exists {
+			missing = append(missing, field)
+		}
+	}
+
+	return missing
 }
