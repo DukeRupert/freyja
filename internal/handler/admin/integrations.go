@@ -1,18 +1,16 @@
 package admin
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
-	"net/smtp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/dukerupert/freyja/internal/crypto"
+	"github.com/dukerupert/freyja/internal/email"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/handler/storefront"
 	"github.com/dukerupert/freyja/internal/provider"
@@ -649,7 +647,7 @@ func (h *IntegrationsHandler) testEmailConnection(name provider.ProviderName, co
 		}
 		username, _ := config["smtp_username"].(string)
 		password, _ := config["smtp_password"].(string)
-		return testSMTPConnection(host, port, username, password)
+		return email.TestSMTPConnection(host, port, username, password)
 	case provider.ProviderNameResend, provider.ProviderNameSES:
 		return fmt.Errorf("test connection not implemented for %s", name)
 	default:
@@ -736,44 +734,6 @@ func testEasyPostAPIKey(apiKey string) error {
 	}
 	if resp.StatusCode != 200 && resp.StatusCode != 201 {
 		return fmt.Errorf("API returned status %d", resp.StatusCode)
-	}
-
-	return nil
-}
-
-// testSMTPConnection tests an SMTP connection by connecting and authenticating
-func testSMTPConnection(host string, port int, username, password string) error {
-	addr := fmt.Sprintf("%s:%d", host, port)
-
-	// Try to connect with a timeout
-	conn, err := net.DialTimeout("tcp", addr, 10*time.Second)
-	if err != nil {
-		return fmt.Errorf("failed to connect to SMTP server: %w", err)
-	}
-	defer conn.Close()
-
-	// Create SMTP client
-	client, err := smtp.NewClient(conn, host)
-	if err != nil {
-		return fmt.Errorf("failed to create SMTP client: %w", err)
-	}
-	defer client.Quit()
-
-	// Try STARTTLS if available (common on port 587)
-	if ok, _ := client.Extension("STARTTLS"); ok {
-		config := &tls.Config{ServerName: host}
-		if err := client.StartTLS(config); err != nil {
-			// STARTTLS failed, but connection might still work without it
-			// Don't fail here, just log it
-		}
-	}
-
-	// Authenticate if credentials provided
-	if username != "" && password != "" {
-		auth := smtp.PlainAuth("", username, password, host)
-		if err := client.Auth(auth); err != nil {
-			return fmt.Errorf("authentication failed: %w", err)
-		}
 	}
 
 	return nil

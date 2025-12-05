@@ -138,6 +138,7 @@ func run() error {
 			cfg.Email.Username,
 			cfg.Email.Password,
 			cfg.Email.From,
+			cfg.Email.FromName,
 		)
 	}
 

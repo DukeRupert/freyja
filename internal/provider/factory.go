@@ -215,7 +215,9 @@ func (f *DefaultFactory) CreateEmailSender(config *TenantProviderConfig) (email.
 			return nil, fmt.Errorf("failed to extract smtp_from: %w", err)
 		}
 
-		return email.NewSMTPSender(host, port, username, password, from), nil
+		fromName, _ := extractString(config.Config, "from_name")
+
+		return email.NewSMTPSender(host, port, username, password, from, fromName), nil
 
 	case ProviderNamePostmark:
 		apiKey, err := extractString(config.Config, "postmark_api_key")

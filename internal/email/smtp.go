@@ -2,199 +2,228 @@ package email
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"log/slog"
-	"net/smtp"
-	"strings"
+	"time"
+
+	"github.com/wneessen/go-mail"
 )
 
-// SMTPSender implements Sender using standard SMTP.
-// This is the MVP implementation for development (Mailhog) and simple deployments.
-type SMTPSender struct {
-	host     string
-	port     int
-	username string
-	password string
-	from     string
-	logger   *slog.Logger
+// SMTPConfig holds SMTP connection parameters.
+type SMTPConfig struct {
+	Host     string
+	Port     int
+	Username string // optional - some servers allow unauthenticated relay
+	Password string // optional
+	From     string // default sender address
+	FromName string // optional sender display name
 }
 
-// NewSMTPSender creates a new SMTP email sender.
-func NewSMTPSender(host string, port int, username, password, from string) *SMTPSender {
+// SMTPSender implements Sender using go-mail for robust SMTP support.
+// Features:
+// - Automatic TLS/STARTTLS detection based on port
+// - Multiple auth methods (PLAIN, LOGIN, CRAM-MD5, SCRAM)
+// - Proper MIME multipart message construction
+// - Connection timeout handling
+type SMTPSender struct {
+	config *SMTPConfig
+	logger *slog.Logger
+}
+
+// NewSMTPSender creates a new SMTP email sender using go-mail.
+func NewSMTPSender(host string, port int, username, password, from, fromName string) *SMTPSender {
 	return &SMTPSender{
-		host:     host,
-		port:     port,
-		username: username,
-		password: password,
-		from:     from,
-		logger:   slog.Default(),
+		config: &SMTPConfig{
+			Host:     host,
+			Port:     port,
+			Username: username,
+			Password: password,
+			From:     from,
+			FromName: fromName,
+		},
+		logger: slog.Default(),
 	}
 }
 
-// Send sends an email via SMTP.
+// NewSMTPSenderFromConfig creates an SMTP sender from a config struct.
+func NewSMTPSenderFromConfig(config *SMTPConfig) *SMTPSender {
+	return &SMTPSender{
+		config: config,
+		logger: slog.Default(),
+	}
+}
+
+// Send sends an email via SMTP using go-mail.
 func (s *SMTPSender) Send(ctx context.Context, email *Email) (string, error) {
 	s.logger.Info("smtp: preparing email",
 		"to", email.To,
 		"from", email.From,
 		"subject", email.Subject,
-		"host", s.host,
-		"port", s.port,
+		"host", s.config.Host,
+		"port", s.config.Port,
 	)
 
-	// Build message
-	msg := s.buildMessage(email)
+	// Create message
+	msg := mail.NewMsg()
 
-	// Determine sender address
+	// Set sender
 	from := email.From
 	if from == "" {
-		from = s.from
+		from = s.config.From
+	}
+	if err := msg.From(from); err != nil {
+		return "", fmt.Errorf("invalid from address: %w", err)
 	}
 
-	// Connect to SMTP server
-	addr := fmt.Sprintf("%s:%d", s.host, s.port)
-
-	s.logger.Info("smtp: connecting to server", "addr", addr)
-
-	// For development (Mailhog), use plain SMTP
-	// For production, use TLS
-	var auth smtp.Auth
-	if s.username != "" && s.password != "" {
-		auth = smtp.PlainAuth("", s.username, s.password, s.host)
+	// Set recipients
+	if err := msg.To(email.To...); err != nil {
+		return "", fmt.Errorf("invalid to address: %w", err)
 	}
 
-	// Send email
-	err := smtp.SendMail(addr, auth, from, email.To, []byte(msg))
+	// Set subject
+	msg.Subject(email.Subject)
+
+	// Set body - prefer HTML with text fallback, or just text
+	if email.HTMLBody != "" && email.TextBody != "" {
+		msg.SetBodyString(mail.TypeTextPlain, email.TextBody)
+		msg.AddAlternativeString(mail.TypeTextHTML, email.HTMLBody)
+	} else if email.HTMLBody != "" {
+		msg.SetBodyString(mail.TypeTextHTML, email.HTMLBody)
+	} else {
+		msg.SetBodyString(mail.TypeTextPlain, email.TextBody)
+	}
+
+	// Add custom headers
+	for key, value := range email.Headers {
+		msg.SetGenHeader(mail.Header(key), value)
+	}
+
+	// Add attachments
+	for _, att := range email.Attachments {
+		msg.AttachReader(att.Filename, &bytesReader{data: att.Content},
+			mail.WithFileContentType(mail.ContentType(att.ContentType)))
+	}
+
+	// Create client with appropriate options
+	opts := s.buildClientOptions()
+
+	client, err := mail.NewClient(s.config.Host, opts...)
 	if err != nil {
+		return "", fmt.Errorf("failed to create SMTP client: %w", err)
+	}
+
+	// Send the message
+	if err := client.DialAndSend(msg); err != nil {
 		s.logger.Error("smtp: failed to send email", "error", err)
 		return "", fmt.Errorf("failed to send email: %w", err)
 	}
 
 	s.logger.Info("smtp: email sent successfully", "to", email.To)
 
-	// SMTP doesn't provide message IDs, generate one
-	return fmt.Sprintf("smtp-%d", len(email.To)), nil
+	// Generate a message ID (SMTP doesn't provide one reliably)
+	messageID := fmt.Sprintf("smtp-%d-%d", time.Now().UnixNano(), len(email.To))
+	return messageID, nil
 }
 
-// SendTemplate is not supported by basic SMTP.
+// SendTemplate is not supported by SMTP sender.
 func (s *SMTPSender) SendTemplate(ctx context.Context, templateID string, to []string, data map[string]interface{}) (string, error) {
 	return "", fmt.Errorf("template emails not supported by SMTP sender")
 }
 
-// buildMessage constructs the email message with headers.
-func (s *SMTPSender) buildMessage(email *Email) string {
-	var msg strings.Builder
-
-	// Headers
-	msg.WriteString(fmt.Sprintf("From: %s\r\n", email.From))
-	msg.WriteString(fmt.Sprintf("To: %s\r\n", strings.Join(email.To, ", ")))
-	msg.WriteString(fmt.Sprintf("Subject: %s\r\n", email.Subject))
-
-	// Custom headers
-	for key, value := range email.Headers {
-		msg.WriteString(fmt.Sprintf("%s: %s\r\n", key, value))
+// buildClientOptions returns go-mail client options based on configuration.
+func (s *SMTPSender) buildClientOptions() []mail.Option {
+	opts := []mail.Option{
+		mail.WithPort(s.config.Port),
+		mail.WithTimeout(30 * time.Second),
 	}
 
-	// Content type
-	if email.HTMLBody != "" {
-		msg.WriteString("MIME-Version: 1.0\r\n")
-		msg.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
-	} else {
-		msg.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
+	// TLS mode based on port (go-mail auto-detects, but we can be explicit)
+	switch s.config.Port {
+	case 465:
+		// Implicit TLS (SMTPS)
+		opts = append(opts, mail.WithSSL())
+	case 587:
+		// STARTTLS (submission port)
+		opts = append(opts, mail.WithTLSPolicy(mail.TLSMandatory))
+	case 25:
+		// Plain SMTP or opportunistic STARTTLS
+		opts = append(opts, mail.WithTLSPolicy(mail.TLSOpportunistic))
+	default:
+		// For other ports (like 1025 for Mailhog), try opportunistic TLS
+		opts = append(opts, mail.WithTLSPolicy(mail.TLSOpportunistic))
 	}
 
-	msg.WriteString("\r\n")
-
-	// Body
-	if email.HTMLBody != "" {
-		msg.WriteString(email.HTMLBody)
-	} else {
-		msg.WriteString(email.TextBody)
+	// Authentication if credentials provided
+	if s.config.Username != "" && s.config.Password != "" {
+		opts = append(opts,
+			mail.WithUsername(s.config.Username),
+			mail.WithPassword(s.config.Password),
+			mail.WithSMTPAuth(mail.SMTPAuthAutoDiscover),
+		)
 	}
 
-	return msg.String()
+	return opts
 }
 
-// SMTPTLSSender implements Sender using SMTP with TLS.
-// This is for production use with services like Gmail, SendGrid SMTP relay, etc.
-type SMTPTLSSender struct {
-	*SMTPSender
+// TestConnection verifies SMTP connectivity and authentication without sending email.
+func (s *SMTPSender) TestConnection() error {
+	return TestSMTPConnection(s.config.Host, s.config.Port, s.config.Username, s.config.Password)
 }
 
-// NewSMTPTLSSender creates a new SMTP sender with TLS support.
-func NewSMTPTLSSender(host string, port int, username, password, from string) *SMTPTLSSender {
-	return &SMTPTLSSender{
-		SMTPSender: NewSMTPSender(host, port, username, password, from),
+// TestSMTPConnection verifies SMTP connectivity and authentication.
+// This is a standalone function for use in the admin handler.
+func TestSMTPConnection(host string, port int, username, password string) error {
+	opts := []mail.Option{
+		mail.WithPort(port),
+		mail.WithTimeout(10 * time.Second),
 	}
+
+	// TLS mode based on port
+	switch port {
+	case 465:
+		opts = append(opts, mail.WithSSL())
+	case 587:
+		opts = append(opts, mail.WithTLSPolicy(mail.TLSMandatory))
+	case 25:
+		opts = append(opts, mail.WithTLSPolicy(mail.TLSOpportunistic))
+	default:
+		opts = append(opts, mail.WithTLSPolicy(mail.TLSOpportunistic))
+	}
+
+	// Authentication if credentials provided
+	if username != "" && password != "" {
+		opts = append(opts,
+			mail.WithUsername(username),
+			mail.WithPassword(password),
+			mail.WithSMTPAuth(mail.SMTPAuthAutoDiscover),
+		)
+	}
+
+	client, err := mail.NewClient(host, opts...)
+	if err != nil {
+		return fmt.Errorf("failed to create SMTP client: %w", err)
+	}
+
+	// Dial to test connection and authentication
+	if err := client.DialWithContext(context.Background()); err != nil {
+		return fmt.Errorf("connection failed: %w", err)
+	}
+	defer client.Close()
+
+	return nil
 }
 
-// Send sends an email via SMTP with TLS.
-func (s *SMTPTLSSender) Send(ctx context.Context, email *Email) (string, error) {
-	// Build message
-	msg := s.buildMessage(email)
+// bytesReader wraps a byte slice to implement io.Reader for attachments.
+type bytesReader struct {
+	data   []byte
+	offset int
+}
 
-	from := email.From
-	if from == "" {
-		from = s.from
+func (r *bytesReader) Read(p []byte) (n int, err error) {
+	if r.offset >= len(r.data) {
+		return 0, fmt.Errorf("EOF")
 	}
-
-	// Connect with TLS
-	addr := fmt.Sprintf("%s:%d", s.host, s.port)
-
-	// TLS config
-	tlsConfig := &tls.Config{
-		ServerName: s.host,
-	}
-
-	// Connect
-	conn, err := tls.Dial("tcp", addr, tlsConfig)
-	if err != nil {
-		return "", fmt.Errorf("failed to connect to SMTP server: %w", err)
-	}
-	defer conn.Close()
-
-	// Create SMTP client
-	client, err := smtp.NewClient(conn, s.host)
-	if err != nil {
-		return "", fmt.Errorf("failed to create SMTP client: %w", err)
-	}
-	defer client.Quit()
-
-	// Authenticate
-	if s.username != "" && s.password != "" {
-		auth := smtp.PlainAuth("", s.username, s.password, s.host)
-		if err := client.Auth(auth); err != nil {
-			return "", fmt.Errorf("SMTP authentication failed: %w", err)
-		}
-	}
-
-	// Set sender
-	if err := client.Mail(from); err != nil {
-		return "", fmt.Errorf("failed to set sender: %w", err)
-	}
-
-	// Set recipients
-	for _, to := range email.To {
-		if err := client.Rcpt(to); err != nil {
-			return "", fmt.Errorf("failed to set recipient: %w", err)
-		}
-	}
-
-	// Send message
-	w, err := client.Data()
-	if err != nil {
-		return "", fmt.Errorf("failed to open data writer: %w", err)
-	}
-
-	_, err = w.Write([]byte(msg))
-	if err != nil {
-		return "", fmt.Errorf("failed to write message: %w", err)
-	}
-
-	err = w.Close()
-	if err != nil {
-		return "", fmt.Errorf("failed to close data writer: %w", err)
-	}
-
-	return fmt.Sprintf("smtp-tls-%d", len(email.To)), nil
+	n = copy(p, r.data[r.offset:])
+	r.offset += n
+	return n, nil
 }
