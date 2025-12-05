@@ -80,4 +80,16 @@ func RegisterAdminRoutes(r *router.Router, deps AdminDeps) {
 	admin.Post("/admin/price-lists/{id}/edit", deps.PriceListHandler.HandleForm)
 	admin.Post("/admin/price-lists/{id}/entries", deps.PriceListHandler.UpdateEntry)
 	admin.Post("/admin/price-lists/{id}/delete", deps.PriceListHandler.Delete)
+
+	// Settings: Tax rates
+	admin.Get("/admin/settings/tax-rates", deps.TaxRateHandler.ListPage)
+	admin.Post("/admin/settings/tax-rates", deps.TaxRateHandler.Create)
+	admin.Post("/admin/settings/tax-rates/{id}", deps.TaxRateHandler.Update)
+	admin.Delete("/admin/settings/tax-rates/{id}", deps.TaxRateHandler.Delete)
+
+	// Settings: Provider integrations
+	admin.Get("/admin/settings/integrations", deps.IntegrationsHandler.ListPage)
+	admin.Get("/admin/settings/integrations/{type}", deps.IntegrationsHandler.ConfigPage)
+	admin.Post("/admin/settings/integrations/{type}", deps.IntegrationsHandler.SaveConfig)
+	admin.Post("/admin/settings/integrations/{type}/validate", deps.IntegrationsHandler.ValidateConfig)
 }

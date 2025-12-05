@@ -17,6 +17,7 @@ type Config struct {
 	TenantID      string
 	SessionSecret string
 	BaseURL       string
+	EncryptionKey string // Base64-encoded 32-byte key for encrypting provider credentials
 	Stripe        StripeConfig
 	Email         EmailConfig
 	Admin         AdminConfig
@@ -74,6 +75,7 @@ func NewConfig() (*Config, error) {
 		TenantID:      getEnv("TENANT_ID", "00000000-0000-0000-0000-000000000001"),
 		SessionSecret: getEnv("SESSION_SECRET", "dev-secret-change-in-production"),
 		BaseURL:       getEnv("BASE_URL", "http://localhost:3000"),
+		EncryptionKey: getEnv("ENCRYPTION_KEY", ""), // Must be set in production
 		Stripe: StripeConfig{
 			SecretKey:      getEnv("STRIPE_SECRET_KEY", "sk_test_your_key_here"),
 			PublishableKey: getEnv("STRIPE_PUBLISHABLE_KEY", "pk_test_your_key_here"),

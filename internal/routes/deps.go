@@ -66,6 +66,10 @@ type AdminDeps struct {
 
 	// Price Lists
 	PriceListHandler *admin.PriceListHandler
+
+	// Settings
+	TaxRateHandler      *admin.TaxRateHandler
+	IntegrationsHandler *admin.IntegrationsHandler
 }
 
 // WebhookDeps contains dependencies for webhook routes

@@ -15,6 +15,7 @@ import (
 	"github.com/dukerupert/freyja/internal/address"
 	"github.com/dukerupert/freyja/internal/billing"
 	"github.com/dukerupert/freyja/internal/bootstrap"
+	"github.com/dukerupert/freyja/internal/crypto"
 	"github.com/dukerupert/freyja/internal/email"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/handler/admin"
@@ -22,6 +23,7 @@ import (
 	"github.com/dukerupert/freyja/internal/handler/storefront"
 	"github.com/dukerupert/freyja/internal/handler/webhook"
 	"github.com/dukerupert/freyja/internal/middleware"
+	"github.com/dukerupert/freyja/internal/provider"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/router"
 	"github.com/dukerupert/freyja/internal/routes"
@@ -328,6 +330,33 @@ func run() error {
 		WholesaleApplicationHandler: storefront.NewWholesaleApplicationHandler(repo, renderer, cfg.TenantID),
 	}
 
+	// ==========================================================================
+	// Initialize provider configuration system
+	// ==========================================================================
+
+	// Initialize encryptor for provider credentials
+	var encryptor crypto.Encryptor
+	if cfg.EncryptionKey != "" {
+		encryptionKey, err := crypto.DecodeKeyBase64(cfg.EncryptionKey)
+		if err != nil {
+			return fmt.Errorf("invalid encryption key: %w", err)
+		}
+		encryptor, err = crypto.NewAESEncryptor(encryptionKey)
+		if err != nil {
+			return fmt.Errorf("failed to create encryptor: %w", err)
+		}
+	} else {
+		// Generate a temporary key for development (not persisted)
+		logger.Warn("ENCRYPTION_KEY not set - generating temporary key (credentials will not persist across restarts)")
+		tempKey, _ := crypto.GenerateKey()
+		encryptor, _ = crypto.NewAESEncryptor(tempKey)
+	}
+
+	// Initialize provider system components
+	providerValidator := provider.NewDefaultValidator()
+	providerFactory := provider.NewDefaultFactory(providerValidator)
+	providerRegistry := provider.NewDefaultRegistry(repo, providerFactory, encryptor, 0) // 0 = default 1 hour TTL
+
 	// Admin dependencies (consolidated handlers)
 	adminDeps := routes.AdminDeps{
 		LoginHandler:        admin.NewLoginHandler(userService, renderer),
@@ -339,6 +368,8 @@ func run() error {
 		SubscriptionHandler: admin.NewSubscriptionHandler(repo, renderer, cfg.TenantID),
 		InvoiceHandler:      admin.NewInvoiceHandler(invoiceService, repo, renderer, cfg.TenantID),
 		PriceListHandler:    admin.NewPriceListHandler(repo, renderer, cfg.TenantID),
+		TaxRateHandler:      admin.NewTaxRateHandler(repo, renderer, cfg.TenantID),
+		IntegrationsHandler: admin.NewIntegrationsHandler(repo, renderer, cfg.TenantID, encryptor, providerValidator, providerRegistry),
 	}
 
 	// Webhook dependencies
