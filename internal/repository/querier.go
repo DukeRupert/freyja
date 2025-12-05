@@ -137,6 +137,8 @@ type Querier interface {
 	// Subscription schedule queries
 	// Records a subscription schedule event (billing, pause, resume, cancel, etc.)
 	CreateSubscriptionScheduleEvent(ctx context.Context, arg CreateSubscriptionScheduleEventParams) (SubscriptionSchedule, error)
+	// Create a new tax rate
+	CreateTaxRate(ctx context.Context, arg CreateTaxRateParams) (TaxRate, error)
 	// Create a new user (retail account by default)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	// Record incoming webhook event for idempotency
@@ -171,6 +173,8 @@ type Querier interface {
 	DeleteProductSKU(ctx context.Context, arg DeleteProductSKUParams) error
 	// Delete a session
 	DeleteSession(ctx context.Context, token string) error
+	// Delete a tax rate
+	DeleteTaxRate(ctx context.Context, arg DeleteTaxRateParams) error
 	// Insert a new job into the queue
 	EnqueueJob(ctx context.Context, arg EnqueueJobParams) (Job, error)
 	// Mark a job as failed or reschedule it for retry
@@ -330,6 +334,8 @@ type Querier interface {
 	// Retrieves subscription with joined user, address, and payment method details
 	// Used for displaying subscription information to customers
 	GetSubscriptionWithDetails(ctx context.Context, arg GetSubscriptionWithDetailsParams) (GetSubscriptionWithDetailsRow, error)
+	// Get the active tax rate for a specific state within a tenant
+	GetTaxRateByState(ctx context.Context, arg GetTaxRateByStateParams) (TaxRate, error)
 	// Checkout queries
 	// Get the primary warehouse address for a tenant (for shipping origin calculations)
 	// Used by CheckoutService.GetShippingRates to determine shipping origin
@@ -427,6 +433,8 @@ type Querier interface {
 	// Lists all subscriptions for a customer with pagination
 	// Returns newest first
 	ListSubscriptionsForUser(ctx context.Context, arg ListSubscriptionsForUserParams) ([]Subscription, error)
+	// List all tax rates for a tenant (admin view)
+	ListTaxRates(ctx context.Context, tenantID pgtype.UUID) ([]TaxRate, error)
 	// Lists upcoming scheduled events for processing
 	// Used by background job to process subscription renewals
 	ListUpcomingScheduleEvents(ctx context.Context, arg ListUpcomingScheduleEventsParams) ([]ListUpcomingScheduleEventsRow, error)
@@ -518,6 +526,8 @@ type Querier interface {
 	// Updates subscription status and related timestamps
 	// Used when syncing from Stripe webhooks
 	UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscriptionStatusParams) (Subscription, error)
+	// Update an existing tax rate
+	UpdateTaxRate(ctx context.Context, arg UpdateTaxRateParams) (TaxRate, error)
 	// Update user password (tenant-scoped for security)
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	// Update user profile information (tenant-scoped for security)

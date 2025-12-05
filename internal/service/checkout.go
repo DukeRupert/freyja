@@ -60,6 +60,7 @@ type OrderTotal struct {
 	TotalCents    int32
 
 	TaxBreakdown      []tax.TaxBreakdown
+	TaxCalculationID  string // Stripe tax calculation ID for audit trail
 	ShippingRateID    string
 	DiscountCodeID    pgtype.UUID
 	DiscountCodeValue string
@@ -246,6 +247,7 @@ func (s *checkoutService) CalculateOrderTotal(ctx context.Context, params OrderT
 		DiscountCents:     0,
 		TotalCents:        total,
 		TaxBreakdown:      taxResult.Breakdown,
+		TaxCalculationID:  taxResult.ProviderTxID,
 		ShippingRateID:    params.SelectedShippingRate.RateID,
 		DiscountCodeID:    pgtype.UUID{},
 		DiscountCodeValue: "",
@@ -269,15 +271,16 @@ func (s *checkoutService) CreatePaymentIntent(ctx context.Context, params Paymen
 	}
 
 	metadata := map[string]string{
-		"tenant_id":        uuidToString(s.tenantID),
-		"cart_id":          params.CartID,
-		"customer_email":   params.CustomerEmail,
-		"shipping_address": string(shippingAddrJSON),
-		"billing_address":  string(billingAddrJSON),
-		"shipping_rate_id": params.OrderTotal.ShippingRateID,
-		"subtotal_cents":   strconv.FormatInt(int64(params.OrderTotal.SubtotalCents), 10),
-		"shipping_cents":   strconv.FormatInt(int64(params.OrderTotal.ShippingCents), 10),
-		"tax_cents":        strconv.FormatInt(int64(params.OrderTotal.TaxCents), 10),
+		"tenant_id":          uuidToString(s.tenantID),
+		"cart_id":            params.CartID,
+		"customer_email":     params.CustomerEmail,
+		"shipping_address":   string(shippingAddrJSON),
+		"billing_address":    string(billingAddrJSON),
+		"shipping_rate_id":   params.OrderTotal.ShippingRateID,
+		"subtotal_cents":     strconv.FormatInt(int64(params.OrderTotal.SubtotalCents), 10),
+		"shipping_cents":     strconv.FormatInt(int64(params.OrderTotal.ShippingCents), 10),
+		"tax_cents":          strconv.FormatInt(int64(params.OrderTotal.TaxCents), 10),
+		"tax_calculation_id": params.OrderTotal.TaxCalculationID,
 	}
 
 	paymentIntent, err := s.billingProvider.CreatePaymentIntent(ctx, billing.CreatePaymentIntentParams{

@@ -2,8 +2,11 @@ package billing
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/dukerupert/freyja/internal/tax"
+	"github.com/stripe/stripe-go/v83"
+	"github.com/stripe/stripe-go/v83/tax/calculation"
 )
 
 // StripeTaxCalculator delegates tax calculation to Stripe Tax.
@@ -41,27 +44,157 @@ func NewStripeTaxCalculator(estimateRate float64) tax.Calculator {
 	}
 }
 
-// CalculateTax returns an estimate for display purposes.
+// CalculateTax calls the Stripe Tax Calculation API to calculate tax.
 //
-// The actual tax calculation is performed by Stripe during payment intent creation.
-// This method returns an estimate based on estimateRate for frontend preview.
+// This implementation calls Stripe's Tax Calculation API to get accurate
+// tax calculations based on customer address and line items. Unlike the
+// old placeholder implementation, this returns actual tax amounts.
 //
-// The TaxResult.IsEstimate field is set to true to indicate this is not final.
-// The TaxResult.ProviderTxID is empty until Stripe calculates actual tax.
+// The tax calculation ID is returned in TaxResult.ProviderTxID for
+// later attachment to the payment intent.
 func (c *StripeTaxCalculator) CalculateTax(ctx context.Context, params tax.TaxParams) (*tax.TaxResult, error) {
-	// TODO: Implementation
-	//
-	// Steps:
-	// 1. Calculate subtotal from params.LineItems
-	// 2. Add params.ShippingCents
-	// 3. Calculate estimate: (subtotal + shipping) * c.estimateRate
-	// 4. Return TaxResult:
-	//    - TotalTaxCents: estimated amount
-	//    - Breakdown: single entry with "Estimated Tax"
-	//    - ProviderTxID: empty (will be filled when Stripe calculates)
-	//    - IsEstimate: true
-	//
-	// Note: Checkout service should check IsEstimate and enable Stripe Tax
-	// in CreatePaymentIntent call.
-	panic("not implemented")
+	// Build tax calculation request
+	calcParams := &stripe.TaxCalculationParams{
+		Currency: stripe.String("usd"),
+		CustomerDetails: &stripe.TaxCalculationCustomerDetailsParams{
+			Address: &stripe.AddressParams{
+				Line1:      stripe.String(params.ShippingAddress.Line1),
+				Line2:      stripe.String(params.ShippingAddress.Line2),
+				City:       stripe.String(params.ShippingAddress.City),
+				State:      stripe.String(params.ShippingAddress.State),
+				PostalCode: stripe.String(params.ShippingAddress.PostalCode),
+				Country:    stripe.String(params.ShippingAddress.Country),
+			},
+			AddressSource: stripe.String("shipping"),
+		},
+		LineItems: buildStripeTaxLineItems(params),
+	}
+
+	// Add tax exemption if provided
+	if params.TaxExemptionID != "" {
+		calcParams.CustomerDetails.TaxIDs = []*stripe.TaxCalculationCustomerDetailsTaxIDParams{
+			{
+				Type:  stripe.String("us_ein"),
+				Value: stripe.String(params.TaxExemptionID),
+			},
+		}
+	}
+
+	calc, err := calculation.New(calcParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate tax via Stripe: %w", err)
+	}
+
+	// Parse the response
+	totalTaxCents := int32(calc.TaxAmountExclusive)
+
+	// Build tax breakdown by jurisdiction
+	breakdown := buildTaxBreakdown(calc)
+
+	return &tax.TaxResult{
+		TotalTaxCents: totalTaxCents,
+		Breakdown:     breakdown,
+		ProviderTxID:  calc.ID, // Stripe tax calculation ID (txcd_...)
+		IsEstimate:    false,   // This is an actual calculation
+	}, nil
+}
+
+// buildStripeTaxLineItems converts our line items to Stripe's format
+func buildStripeTaxLineItems(params tax.TaxParams) []*stripe.TaxCalculationLineItemParams {
+	lineItems := make([]*stripe.TaxCalculationLineItemParams, 0, len(params.LineItems)+1)
+
+	// Add product line items
+	for _, item := range params.LineItems {
+		taxCode := "txcd_99999999" // general merchandise
+		if item.TaxCategory == "food" {
+			taxCode = "txcd_30011000" // food/beverages
+		}
+
+		// Convert UUID to string for reference
+		productIDStr := fmt.Sprintf("%x-%x-%x-%x-%x",
+			item.ProductID.Bytes[0:4],
+			item.ProductID.Bytes[4:6],
+			item.ProductID.Bytes[6:8],
+			item.ProductID.Bytes[8:10],
+			item.ProductID.Bytes[10:16])
+
+		lineItems = append(lineItems, &stripe.TaxCalculationLineItemParams{
+			Amount:    stripe.Int64(int64(item.TotalPrice)),
+			Reference: stripe.String(productIDStr),
+			TaxCode:   stripe.String(taxCode),
+		})
+	}
+
+	// Add shipping as a line item if present
+	if params.ShippingCents > 0 {
+		lineItems = append(lineItems, &stripe.TaxCalculationLineItemParams{
+			Amount:    stripe.Int64(int64(params.ShippingCents)),
+			Reference: stripe.String("shipping"),
+			TaxCode:   stripe.String("txcd_92010001"), // shipping tax code
+		})
+	}
+
+	return lineItems
+}
+
+// buildTaxBreakdown extracts tax breakdown by jurisdiction from Stripe response
+func buildTaxBreakdown(calc *stripe.TaxCalculation) []tax.TaxBreakdown {
+	// Stripe v83 TaxBreakdown structure is simpler
+	// It contains Amount, TaxRateDetails which has State, Country, PercentageDecimal, etc.
+	jurisdictionMap := make(map[string]*tax.TaxBreakdown)
+
+	if calc.TaxBreakdown != nil {
+		for _, item := range calc.TaxBreakdown {
+			if item.TaxRateDetails == nil {
+				continue
+			}
+
+			// Build jurisdiction key from state and country
+			state := item.TaxRateDetails.State
+			country := item.TaxRateDetails.Country
+			taxType := string(item.TaxRateDetails.TaxType)
+
+			// Determine jurisdiction name and level
+			var jurisdictionName, jurisdictionLevel string
+			if state != "" {
+				jurisdictionName = state
+				jurisdictionLevel = "state"
+			} else if country != "" {
+				jurisdictionName = country
+				jurisdictionLevel = "country"
+			} else {
+				continue // Skip if we don't have location info
+			}
+
+			key := fmt.Sprintf("%s|%s|%s", jurisdictionLevel, jurisdictionName, taxType)
+
+			// Parse percentage decimal (e.g., "8.5" -> 0.085)
+			var rate float64
+			if item.TaxRateDetails.PercentageDecimal != "" {
+				fmt.Sscanf(item.TaxRateDetails.PercentageDecimal, "%f", &rate)
+				rate = rate / 100.0 // Convert percentage to decimal
+			}
+
+			if existing, ok := jurisdictionMap[key]; ok {
+				// Aggregate amounts for same jurisdiction
+				existing.AmountCents += int32(item.Amount)
+			} else {
+				// New jurisdiction
+				jurisdictionMap[key] = &tax.TaxBreakdown{
+					Jurisdiction: jurisdictionLevel,
+					Name:         jurisdictionName,
+					Rate:         rate,
+					AmountCents:  int32(item.Amount),
+				}
+			}
+		}
+	}
+
+	// Convert map to slice
+	breakdown := make([]tax.TaxBreakdown, 0, len(jurisdictionMap))
+	for _, item := range jurisdictionMap {
+		breakdown = append(breakdown, *item)
+	}
+
+	return breakdown
 }

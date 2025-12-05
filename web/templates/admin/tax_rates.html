@@ -1,0 +1,156 @@
+{{define "title"}}Tax Rates{{end}}
+
+{{define "content"}}
+<div class="space-y-8">
+    <!-- Page Header -->
+    <div class="flex items-end justify-between gap-4">
+        {{template "page-header" (dict "Title" "Tax Rates" "Description" "Configure state sales tax rates for tax calculation")}}
+    </div>
+
+    <!-- Add New Tax Rate Form -->
+    <div class="overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10 p-6">
+        <h3 class="text-base font-semibold text-zinc-900 dark:text-white mb-4">Add New State Tax Rate</h3>
+        <form method="POST" action="/admin/settings/tax-rates" class="grid grid-cols-1 gap-4 sm:grid-cols-6">
+            <div class="sm:col-span-1">
+                <label for="state" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">State</label>
+                <select name="state" id="state" required
+                        class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+                    <option value="">Select state</option>
+                    {{range .StateCodes}}
+                    <option value="{{.}}">{{.}}</option>
+                    {{end}}
+                </select>
+            </div>
+
+            <div class="sm:col-span-1">
+                <label for="rate" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Rate (%)</label>
+                <input type="number" name="rate" id="rate" step="0.01" min="0" max="100" required
+                       placeholder="8.5"
+                       class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+            </div>
+
+            <div class="sm:col-span-2">
+                <label for="name" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Display Name (optional)</label>
+                <input type="text" name="name" id="name" placeholder="Washington State Sales Tax"
+                       class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+            </div>
+
+            <div class="sm:col-span-1 flex items-end gap-4">
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" name="tax_shipping" checked
+                           class="rounded border-zinc-300 dark:border-zinc-700">
+                    <span class="text-sm text-zinc-700 dark:text-zinc-300">Tax Shipping</span>
+                </label>
+            </div>
+
+            <div class="sm:col-span-1 flex items-end gap-4">
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" name="is_active" checked
+                           class="rounded border-zinc-300 dark:border-zinc-700">
+                    <span class="text-sm text-zinc-700 dark:text-zinc-300">Active</span>
+                </label>
+                <button type="submit"
+                        class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+                    Add Rate
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tax Rates Table -->
+    <div class="overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+        {{if .TaxRates}}
+        <table class="min-w-full text-left text-sm/6 text-zinc-950 dark:text-white">
+            <thead class="border-b border-zinc-950/5 dark:border-white/5 text-zinc-500 dark:text-zinc-400">
+                <tr>
+                    <th class="px-6 py-3 font-medium">State</th>
+                    <th class="px-6 py-3 font-medium">Rate</th>
+                    <th class="px-6 py-3 font-medium">Display Name</th>
+                    <th class="px-6 py-3 font-medium">Tax Shipping</th>
+                    <th class="px-6 py-3 font-medium">Status</th>
+                    <th class="px-6 py-3 font-medium text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-950/5 dark:divide-white/5">
+                {{range .TaxRates}}
+                {{if .IsConfigured}}
+                <tr class="hover:bg-zinc-950/[2.5%] dark:hover:bg-white/[2.5%]">
+                    <td class="px-6 py-4">
+                        <span class="font-medium">{{.State}}</span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <form method="POST" action="/admin/settings/tax-rates/{{.ID}}"
+                              hx-post="/admin/settings/tax-rates/{{.ID}}"
+                              hx-trigger="change from:find input"
+                              class="flex items-center gap-2">
+                            <input type="hidden" name="_method" value="PUT">
+                            <input type="hidden" name="name" value="{{.Name}}">
+                            <input type="hidden" name="tax_shipping" value="{{if .TaxShipping}}on{{end}}">
+                            <input type="hidden" name="is_active" value="{{if .IsActive}}on{{end}}">
+                            <input type="number" name="rate" step="0.01" min="0" max="100" value="{{.Rate}}"
+                                   class="w-20 rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800">
+                            <span class="text-zinc-500">%</span>
+                        </form>
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="text-zinc-600 dark:text-zinc-400">{{if .Name}}{{.Name}}{{else}}-{{end}}</span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <form method="POST" action="/admin/settings/tax-rates/{{.ID}}"
+                              hx-post="/admin/settings/tax-rates/{{.ID}}"
+                              hx-trigger="change from:find input">
+                            <input type="hidden" name="_method" value="PUT">
+                            <input type="hidden" name="rate" value="{{.Rate}}">
+                            <input type="hidden" name="name" value="{{.Name}}">
+                            <input type="hidden" name="is_active" value="{{if .IsActive}}on{{end}}">
+                            <label class="flex items-center">
+                                <input type="checkbox" name="tax_shipping" {{if .TaxShipping}}checked{{end}}
+                                       class="rounded border-zinc-300 dark:border-zinc-700">
+                            </label>
+                        </form>
+                    </td>
+                    <td class="px-6 py-4">
+                        <form method="POST" action="/admin/settings/tax-rates/{{.ID}}"
+                              hx-post="/admin/settings/tax-rates/{{.ID}}"
+                              hx-trigger="change from:find input">
+                            <input type="hidden" name="_method" value="PUT">
+                            <input type="hidden" name="rate" value="{{.Rate}}">
+                            <input type="hidden" name="name" value="{{.Name}}">
+                            <input type="hidden" name="tax_shipping" value="{{if .TaxShipping}}on{{end}}">
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" name="is_active" {{if .IsActive}}checked{{end}}
+                                       class="rounded border-zinc-300 dark:border-zinc-700">
+                                <span class="text-sm">{{if .IsActive}}Active{{else}}Inactive{{end}}</span>
+                            </label>
+                        </form>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <form method="POST" action="/admin/settings/tax-rates/{{.ID}}"
+                              onsubmit="return confirm('Delete tax rate for {{.State}}?')">
+                            <input type="hidden" name="_method" value="DELETE">
+                            <button type="submit" class="text-red-500 hover:text-red-700">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {{end}}
+                {{end}}
+            </tbody>
+        </table>
+        {{else}}
+        <div class="p-12 text-center">
+            <svg class="mx-auto h-12 w-12 text-zinc-300 dark:text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            <h3 class="mt-4 text-base font-medium text-zinc-900 dark:text-white">No tax rates configured</h3>
+            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Add state tax rates to enable automatic tax calculation.</p>
+        </div>
+        {{end}}
+    </div>
+
+    <!-- Help Text -->
+    <div class="rounded-lg bg-zinc-50 dark:bg-zinc-900/50 p-4 text-sm text-zinc-600 dark:text-zinc-400">
+        <p><strong>Note:</strong> Tax rates are stored as decimals (0.0000 to 1.0000) but displayed as percentages.
+        For example, 8.5% is stored as 0.0850. If no rate is configured for a state, no tax will be charged (no nexus).</p>
+    </div>
+</div>
+{{end}}

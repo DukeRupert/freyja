@@ -316,6 +316,12 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 	paymentMethodID.Valid = false
 
 	// Step 12: Create payment record
+	// Serialize payment intent metadata to JSON for storage (includes tax_calculation_id)
+	metadataJSON, err := json.Marshal(paymentIntent.Metadata)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize payment metadata: %w", err)
+	}
+
 	payment, err := s.repo.CreatePayment(ctx, repository.CreatePaymentParams{
 		TenantID:          s.tenantID,
 		BillingCustomerID: billingCustomer.ID,
@@ -325,6 +331,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 		Currency:          paymentIntent.Currency,
 		Status:            "succeeded",
 		PaymentMethodID:   paymentMethodID,
+		Metadata:          metadataJSON,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create payment: %w", err)

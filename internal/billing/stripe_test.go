@@ -978,7 +978,10 @@ func TestPostMVP_MethodsReturnNotImplemented(t *testing.T) {
 	})
 
 	t.Run("CancelSubscription returns not implemented", func(t *testing.T) {
-		err := mock.CancelSubscription(ctx, "sub_test_123", false)
+		err := mock.CancelSubscription(ctx, CancelSubscriptionParams{
+			SubscriptionID:    "sub_test_123",
+			CancelAtPeriodEnd: false,
+		})
 		assert.Error(t, err)
 		assert.True(t, errors.Is(err, ErrNotImplemented))
 	})

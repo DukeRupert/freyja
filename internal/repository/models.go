@@ -787,6 +787,18 @@ type SubscriptionSchedule struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+type TaxRate struct {
+	ID          pgtype.UUID        `json:"id"`
+	TenantID    pgtype.UUID        `json:"tenant_id"`
+	State       string             `json:"state"`
+	Rate        pgtype.Numeric     `json:"rate"`
+	TaxShipping bool               `json:"tax_shipping"`
+	Name        pgtype.Text        `json:"name"`
+	IsActive    bool               `json:"is_active"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 // Coffee roasters using the platform (multi-tenant root)
 type Tenant struct {
 	ID           pgtype.UUID        `json:"id"`
