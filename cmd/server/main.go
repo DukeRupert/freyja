@@ -354,7 +354,7 @@ func run() error {
 
 	// Initialize provider system components
 	providerValidator := provider.NewDefaultValidator()
-	providerFactory := provider.NewDefaultFactory(providerValidator)
+	providerFactory := provider.MustNewDefaultFactory(providerValidator) // Panics only during startup if validator is nil
 	providerRegistry := provider.NewDefaultRegistry(repo, providerFactory, encryptor, 0) // 0 = default 1 hour TTL
 
 	// Admin dependencies (consolidated handlers)

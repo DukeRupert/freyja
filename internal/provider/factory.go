@@ -38,14 +38,28 @@ type DefaultFactory struct {
 	validator ProviderValidator
 }
 
+// ErrNilValidator is returned when a nil validator is passed to NewDefaultFactory.
+var ErrNilValidator = fmt.Errorf("validator cannot be nil")
+
 // NewDefaultFactory creates a provider factory with configuration validation.
-func NewDefaultFactory(validator ProviderValidator) *DefaultFactory {
+// Returns an error if validator is nil.
+func NewDefaultFactory(validator ProviderValidator) (*DefaultFactory, error) {
 	if validator == nil {
-		panic("validator cannot be nil")
+		return nil, ErrNilValidator
 	}
 	return &DefaultFactory{
 		validator: validator,
+	}, nil
+}
+
+// MustNewDefaultFactory creates a provider factory with configuration validation.
+// Panics if validator is nil. Use only during application initialization.
+func MustNewDefaultFactory(validator ProviderValidator) *DefaultFactory {
+	factory, err := NewDefaultFactory(validator)
+	if err != nil {
+		panic(err)
 	}
+	return factory
 }
 
 // CreateTaxCalculator creates a tax calculator based on the provider name in config.
