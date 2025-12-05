@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -76,84 +77,206 @@ func NewDefaultRegistry(
 	encryptor crypto.Encryptor,
 	cacheTTL time.Duration,
 ) *DefaultRegistry {
-	// TODO: Initialize DefaultRegistry with provided dependencies
-	// TODO: Validate that repo, factory, and encryptor are not nil
-	// TODO: Set default cacheTTL to 1 hour if not provided or <= 0
-	// TODO: Initialize cache as sync.Map
-	// TODO: Return initialized registry
-	return nil
+	if repo == nil {
+		panic("repo cannot be nil")
+	}
+	if factory == nil {
+		panic("factory cannot be nil")
+	}
+	if encryptor == nil {
+		panic("encryptor cannot be nil")
+	}
+
+	if cacheTTL <= 0 {
+		cacheTTL = 1 * time.Hour
+	}
+
+	return &DefaultRegistry{
+		repo:      repo,
+		factory:   factory,
+		encryptor: encryptor,
+		cacheTTL:  cacheTTL,
+		cache:     sync.Map{},
+	}
 }
 
 // GetTaxCalculator returns the tax calculator for the tenant.
 func (r *DefaultRegistry) GetTaxCalculator(ctx context.Context, tenantID pgtype.UUID) (tax.Calculator, error) {
-	// TODO: Generate cache key using makeCacheKey(tenantID, ProviderTypeTax)
-	// TODO: Check cache using r.cache.Load(key)
-	// TODO: If cached and entry.expiresAt is after time.Now(), return cached instance
-	// TODO: If cache miss or expired, call r.loadTaxCalculator(ctx, tenantID)
-	// TODO: Store newly loaded instance in cache with TTL: r.cache.Store(key, cacheEntry{...})
-	// TODO: Return instance
-	return nil, nil
+	key := makeCacheKey(tenantID, ProviderTypeTax)
+
+	if cached, ok := r.cache.Load(key); ok {
+		entry := cached.(cacheEntry)
+		if entry.expiresAt.After(time.Now()) {
+			return entry.provider.(tax.Calculator), nil
+		}
+	}
+
+	calculator, err := r.loadTaxCalculator(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	r.cache.Store(key, cacheEntry{
+		provider:  calculator,
+		expiresAt: time.Now().Add(r.cacheTTL),
+	})
+
+	return calculator, nil
 }
 
 // GetBillingProvider returns the billing provider for the tenant.
 func (r *DefaultRegistry) GetBillingProvider(ctx context.Context, tenantID pgtype.UUID) (billing.Provider, error) {
-	// TODO: Generate cache key using makeCacheKey(tenantID, ProviderTypeBilling)
-	// TODO: Check cache using r.cache.Load(key)
-	// TODO: If cached and entry.expiresAt is after time.Now(), return cached instance
-	// TODO: If cache miss or expired, call r.loadBillingProvider(ctx, tenantID)
-	// TODO: Store newly loaded instance in cache with TTL: r.cache.Store(key, cacheEntry{...})
-	// TODO: Return instance
-	return nil, nil
+	key := makeCacheKey(tenantID, ProviderTypeBilling)
+
+	if cached, ok := r.cache.Load(key); ok {
+		entry := cached.(cacheEntry)
+		if entry.expiresAt.After(time.Now()) {
+			return entry.provider.(billing.Provider), nil
+		}
+	}
+
+	provider, err := r.loadBillingProvider(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	r.cache.Store(key, cacheEntry{
+		provider:  provider,
+		expiresAt: time.Now().Add(r.cacheTTL),
+	})
+
+	return provider, nil
 }
 
 // InvalidateCache removes cached provider instances for the given tenant and type.
 func (r *DefaultRegistry) InvalidateCache(tenantID pgtype.UUID, providerType ProviderType) {
-	// TODO: Generate cache key using makeCacheKey(tenantID, providerType)
-	// TODO: Delete from cache using r.cache.Delete(key)
+	key := makeCacheKey(tenantID, providerType)
+	r.cache.Delete(key)
 }
 
 // InvalidateAllCache clears all cached provider instances.
 func (r *DefaultRegistry) InvalidateAllCache() {
-	// TODO: Replace r.cache with a new sync.Map
-	// This is simpler than iterating and deleting each key
+	r.cache = sync.Map{}
 }
 
 // loadTaxCalculator loads tax calculator configuration from database and creates instance.
 func (r *DefaultRegistry) loadTaxCalculator(ctx context.Context, tenantID pgtype.UUID) (tax.Calculator, error) {
-	// TODO: Call r.loadConfig(ctx, tenantID, ProviderTypeTax) to get config from database
-	// TODO: If config is nil (no active provider configured), return error "no tax provider configured"
-	// TODO: Call r.factory.CreateTaxCalculator(config) to create instance
-	// TODO: Return instance or error
-	return nil, nil
+	config, err := r.loadConfig(ctx, tenantID, ProviderTypeTax)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load tax provider config: %w", err)
+	}
+
+	if config == nil {
+		return nil, fmt.Errorf("no tax provider configured for tenant")
+	}
+
+	calculator, err := r.factory.CreateTaxCalculator(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tax calculator: %w", err)
+	}
+
+	return calculator, nil
 }
 
 // loadBillingProvider loads billing provider configuration from database and creates instance.
 func (r *DefaultRegistry) loadBillingProvider(ctx context.Context, tenantID pgtype.UUID) (billing.Provider, error) {
-	// TODO: Call r.loadConfig(ctx, tenantID, ProviderTypeBilling) to get config from database
-	// TODO: If config is nil (no active provider configured), return error "no billing provider configured"
-	// TODO: Call r.factory.CreateBillingProvider(config) to create instance
-	// TODO: Return instance or error
-	return nil, nil
+	config, err := r.loadConfig(ctx, tenantID, ProviderTypeBilling)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load billing provider config: %w", err)
+	}
+
+	if config == nil {
+		return nil, fmt.Errorf("no billing provider configured for tenant")
+	}
+
+	provider, err := r.factory.CreateBillingProvider(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create billing provider: %w", err)
+	}
+
+	return provider, nil
 }
 
 // loadConfig loads and decrypts provider configuration from database.
 // Returns the default/highest priority active config for the given tenant and type.
 func (r *DefaultRegistry) loadConfig(ctx context.Context, tenantID pgtype.UUID, providerType ProviderType) (*TenantProviderConfig, error) {
-	// TODO: Call repository method to get active configs for tenant and type
-	//       Example: configs, err := r.repo.GetActiveProviderConfigs(ctx, tenantID, string(providerType))
-	// TODO: Handle database errors
-	// TODO: If no configs found, return nil, nil (not an error, just no provider configured)
-	// TODO: Find the config marked as default (is_default = true)
-	// TODO: If no default, find the config with highest priority (lowest priority number)
-	// TODO: Decrypt config.ConfigJSON using r.encryptor.Decrypt(config.ConfigJSON)
-	// TODO: Unmarshal decrypted JSON into config.Config map[string]interface{}
-	// TODO: Return config
+	// NOTE: Repository query method for provider configs does not exist yet.
+	// This is a stub implementation that should be replaced once the database
+	// queries are implemented via sqlc.
+	//
+	// Expected query signature:
+	// GetActiveProviderConfigs(ctx context.Context, tenantID pgtype.UUID, providerType string) ([]ProviderConfig, error)
+	//
+	// For now, return nil to indicate no provider is configured.
+	// When the database layer is ready, uncomment and implement the following:
+	//
+	// configs, err := r.repo.GetActiveProviderConfigs(ctx, tenantID, string(providerType))
+	// if err != nil {
+	//     return nil, fmt.Errorf("failed to query provider configs: %w", err)
+	// }
+	//
+	// if len(configs) == 0 {
+	//     return nil, nil
+	// }
+	//
+	// var selectedConfig *repository.ProviderConfig
+	// for i := range configs {
+	//     if configs[i].IsDefault {
+	//         selectedConfig = &configs[i]
+	//         break
+	//     }
+	// }
+	//
+	// if selectedConfig == nil {
+	//     selectedConfig = &configs[0]
+	//     for i := range configs {
+	//         if configs[i].Priority < selectedConfig.Priority {
+	//             selectedConfig = &configs[i]
+	//         }
+	//     }
+	// }
+	//
+	// decrypted, err := r.encryptor.Decrypt(selectedConfig.ConfigJSON)
+	// if err != nil {
+	//     return nil, fmt.Errorf("failed to decrypt config: %w", err)
+	// }
+	//
+	// var configMap map[string]interface{}
+	// if err := encoding/json.Unmarshal(decrypted, &configMap); err != nil {
+	//     return nil, fmt.Errorf("failed to unmarshal config JSON: %w", err)
+	// }
+	//
+	// return &TenantProviderConfig{
+	//     ID:         selectedConfig.ID,
+	//     TenantID:   selectedConfig.TenantID,
+	//     Type:       ProviderType(selectedConfig.Type),
+	//     Name:       ProviderName(selectedConfig.Name),
+	//     IsActive:   selectedConfig.IsActive,
+	//     IsDefault:  selectedConfig.IsDefault,
+	//     Priority:   selectedConfig.Priority,
+	//     Config:     configMap,
+	//     ConfigJSON: selectedConfig.ConfigJSON,
+	//     CreatedAt:  selectedConfig.CreatedAt.Time,
+	//     UpdatedAt:  selectedConfig.UpdatedAt.Time,
+	// }, nil
+
 	return nil, nil
 }
 
 // makeCacheKey creates a cache key from tenant ID and provider type.
 func makeCacheKey(tenantID pgtype.UUID, providerType ProviderType) cacheKey {
-	// TODO: Convert tenantID to string (handle pgtype.UUID properly)
-	// TODO: Return cacheKey{tenantID: tenantIDString, providerType: providerType}
-	return cacheKey{}
+	var tenantIDString string
+	if tenantID.Valid {
+		tenantIDString = fmt.Sprintf("%x-%x-%x-%x-%x",
+			tenantID.Bytes[0:4],
+			tenantID.Bytes[4:6],
+			tenantID.Bytes[6:8],
+			tenantID.Bytes[8:10],
+			tenantID.Bytes[10:16])
+	}
+
+	return cacheKey{
+		tenantID:     tenantIDString,
+		providerType: providerType,
+	}
 }

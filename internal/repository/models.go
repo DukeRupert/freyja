@@ -816,6 +816,43 @@ type Tenant struct {
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
+// Tenant-specific provider configurations with encrypted credentials
+type TenantProviderConfig struct {
+	ID       pgtype.UUID `json:"id"`
+	TenantID pgtype.UUID `json:"tenant_id"`
+	// Category of provider: tax, shipping, billing, email
+	Type string `json:"type"`
+	// Specific provider implementation name
+	Name     string `json:"name"`
+	IsActive bool   `json:"is_active"`
+	// True if this is the default provider for this type (only one per tenant per type)
+	IsDefault bool `json:"is_default"`
+	// Selection priority when multiple active providers exist (lower = higher priority)
+	Priority int32 `json:"priority"`
+	// AES-256-GCM encrypted JSON configuration including API keys
+	ConfigEncrypted string             `json:"config_encrypted"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Cached or manual shipping rates for rate lookup
+type TenantShippingRate struct {
+	ID                    pgtype.UUID `json:"id"`
+	TenantID              pgtype.UUID `json:"tenant_id"`
+	ProviderConfigID      pgtype.UUID `json:"provider_config_id"`
+	ServiceCode           string      `json:"service_code"`
+	ServiceName           string      `json:"service_name"`
+	OriginPostalCode      pgtype.Text `json:"origin_postal_code"`
+	DestinationPostalCode string      `json:"destination_postal_code"`
+	WeightGrams           int32       `json:"weight_grams"`
+	RateCents             int32       `json:"rate_cents"`
+	Currency              string      `json:"currency"`
+	// Cache expiration for provider rates, NULL for manual rates
+	ValidUntil pgtype.Timestamptz `json:"valid_until"`
+	Metadata   []byte             `json:"metadata"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
 // Customer accounts (retail and wholesale)
 type User struct {
 	ID            pgtype.UUID `json:"id"`

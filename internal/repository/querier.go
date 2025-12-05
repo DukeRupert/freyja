@@ -118,6 +118,10 @@ type Querier interface {
 	CreateProductImage(ctx context.Context, arg CreateProductImageParams) (ProductImage, error)
 	// Create a new product SKU
 	CreateProductSKU(ctx context.Context, arg CreateProductSKUParams) (ProductSku, error)
+	// Creates a new tenant provider configuration.
+	// If is_default is true, this will be the default provider for this type.
+	// The config_encrypted field should contain base64-encoded AES-256-GCM encrypted JSON.
+	CreateProviderConfig(ctx context.Context, arg CreateProviderConfigParams) (TenantProviderConfig, error)
 	// Create a new session
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	// Create a shipment record for an order
@@ -127,6 +131,10 @@ type Querier interface {
 	// =============================================================================
 	// Create a shipment line item for partial fulfillment
 	CreateShipmentItem(ctx context.Context, arg CreateShipmentItemParams) (ShipmentItem, error)
+	// Creates a new shipping rate (manual or cached from provider).
+	// For manual rates, valid_until should be NULL.
+	// For provider-cached rates, valid_until should be a future timestamp.
+	CreateShippingRate(ctx context.Context, arg CreateShippingRateParams) (TenantShippingRate, error)
 	// Subscription queries for the SubscriptionService
 	// Creates a new subscription record
 	// Returns the complete subscription with generated ID and timestamps
@@ -154,6 +162,9 @@ type Querier interface {
 	DeleteExpiredPasswordResetTokens(ctx context.Context) error
 	// Clean up expired sessions (for background job)
 	DeleteExpiredSessions(ctx context.Context) error
+	// Deletes shipping rates that have expired.
+	// Should be run periodically as a cleanup job.
+	DeleteExpiredShippingRates(ctx context.Context) error
 	// Cleanup old completed jobs (history is preserved in job_history table)
 	// Delete jobs older than the specified timestamp
 	DeleteOldCompletedJobs(ctx context.Context, processingCompletedAt pgtype.Timestamptz) error
@@ -171,8 +182,16 @@ type Querier interface {
 	DeleteProductImage(ctx context.Context, arg DeleteProductImageParams) error
 	// Soft delete a product SKU (set is_active to false)
 	DeleteProductSKU(ctx context.Context, arg DeleteProductSKUParams) error
+	// Deletes a provider configuration.
+	// Cascades to tenant_shipping_rates if this is a shipping provider.
+	DeleteProviderConfig(ctx context.Context, arg DeleteProviderConfigParams) error
 	// Delete a session
 	DeleteSession(ctx context.Context, token string) error
+	// Deletes a specific shipping rate.
+	DeleteShippingRate(ctx context.Context, arg DeleteShippingRateParams) error
+	// Deletes all shipping rates for a specific provider config.
+	// Used when removing a shipping provider configuration.
+	DeleteShippingRatesByProvider(ctx context.Context, arg DeleteShippingRatesByProviderParams) error
 	// Delete a tax rate
 	DeleteTaxRate(ctx context.Context, arg DeleteTaxRateParams) error
 	// Insert a new job into the queue
@@ -183,6 +202,10 @@ type Querier interface {
 	// Generate next invoice number for a tenant
 	// Format: INV-YYYYMM-XXXX (e.g., INV-202412-0001)
 	GenerateInvoiceNumber(ctx context.Context, tenantID pgtype.UUID) (interface{}, error)
+	// Retrieves all active provider configurations for a tenant and type.
+	// Results are ordered by is_default DESC (default first), then priority ASC (lower priority number first).
+	// Used by registry to load the best provider for a tenant.
+	GetActiveProviderConfigs(ctx context.Context, arg GetActiveProviderConfigsParams) ([]TenantProviderConfig, error)
 	// Get a single address by ID (no user validation - for system use)
 	GetAddressByID(ctx context.Context, id pgtype.UUID) (Address, error)
 	// Get a single address by ID (validates user ownership via customer_addresses)
@@ -219,6 +242,9 @@ type Querier interface {
 	GetDefaultPaymentTerms(ctx context.Context, tenantID pgtype.UUID) (PaymentTerm, error)
 	// Get the default price list for a tenant (used for guests and unassigned users)
 	GetDefaultPriceList(ctx context.Context, tenantID pgtype.UUID) (PriceList, error)
+	// Retrieves the default provider configuration for a tenant and type.
+	// Returns error if no default is configured.
+	GetDefaultProviderConfig(ctx context.Context, arg GetDefaultProviderConfigParams) (TenantProviderConfig, error)
 	// Get the default shipping address for a user
 	GetDefaultShippingAddress(ctx context.Context, arg GetDefaultShippingAddressParams) (GetDefaultShippingAddressRow, error)
 	// Get a valid (unused, non-expired) email verification token with user details
@@ -304,6 +330,9 @@ type Querier interface {
 	GetProductSKUs(ctx context.Context, productID pgtype.UUID) ([]ProductSku, error)
 	// Get all products available to a specific customer
 	GetProductsForCustomer(ctx context.Context, arg GetProductsForCustomerParams) ([]Product, error)
+	// Retrieves a specific provider configuration by ID.
+	// Used to load configuration for a known provider config.
+	GetProviderConfig(ctx context.Context, arg GetProviderConfigParams) (TenantProviderConfig, error)
 	// Get a single SKU by ID
 	GetSKUByID(ctx context.Context, id pgtype.UUID) (ProductSku, error)
 	// Get a SKU with its product details (for checkout display)
@@ -316,6 +345,12 @@ type Querier interface {
 	GetShipmentItems(ctx context.Context, shipmentID pgtype.UUID) ([]GetShipmentItemsRow, error)
 	// Get all shipments for an order
 	GetShipmentsByOrderID(ctx context.Context, orderID pgtype.UUID) ([]Shipment, error)
+	// Retrieves a cached shipping rate for a specific route and weight.
+	// Only returns rates that are still valid (valid_until is NULL or in future).
+	GetShippingRate(ctx context.Context, arg GetShippingRateParams) (TenantShippingRate, error)
+	// Retrieves all shipping rates for a specific provider config.
+	// Used to show manual rates configured for a tenant.
+	GetShippingRatesByProvider(ctx context.Context, arg GetShippingRatesByProviderParams) ([]TenantShippingRate, error)
 	// Retrieves subscription by database ID with tenant scoping
 	GetSubscriptionByID(ctx context.Context, arg GetSubscriptionByIDParams) (Subscription, error)
 	// Retrieves subscription by Stripe subscription ID
@@ -421,6 +456,10 @@ type Querier interface {
 	ListPaymentTerms(ctx context.Context, tenantID pgtype.UUID) ([]PaymentTerm, error)
 	// List all entries for a price list with product/SKU details
 	ListPriceListEntries(ctx context.Context, priceListID pgtype.UUID) ([]ListPriceListEntriesRow, error)
+	// Lists all provider configurations for a tenant, optionally filtered by type.
+	// Used in admin UI to show all configured providers.
+	// If type is empty string, returns all types.
+	ListProviderConfigs(ctx context.Context, arg ListProviderConfigsParams) ([]TenantProviderConfig, error)
 	// Lists all items in a subscription with product details
 	// Includes product name, SKU, and image for display
 	ListSubscriptionItemsForSubscription(ctx context.Context, arg ListSubscriptionItemsForSubscriptionParams) ([]ListSubscriptionItemsForSubscriptionRow, error)
@@ -471,6 +510,9 @@ type Querier interface {
 	SetPrimaryImage(ctx context.Context, arg SetPrimaryImageParams) error
 	// Submit a wholesale application (updates user profile with business info)
 	SubmitWholesaleApplication(ctx context.Context, arg SubmitWholesaleApplicationParams) error
+	// Removes is_default flag from all providers of a given type for a tenant.
+	// Used before setting a new default provider.
+	UnsetDefaultProvider(ctx context.Context, arg UnsetDefaultProviderParams) error
 	// Update an address
 	UpdateAddress(ctx context.Context, arg UpdateAddressParams) (Address, error)
 	// Update a billing customer
@@ -510,6 +552,9 @@ type Querier interface {
 	UpdateProductImage(ctx context.Context, arg UpdateProductImageParams) (ProductImage, error)
 	// Update an existing product SKU
 	UpdateProductSKU(ctx context.Context, arg UpdateProductSKUParams) (ProductSku, error)
+	// Updates an existing provider configuration.
+	// Note: Changing is_default requires handling the previous default.
+	UpdateProviderConfig(ctx context.Context, arg UpdateProviderConfigParams) (TenantProviderConfig, error)
 	// Update session data and extend expiration
 	UpdateSessionData(ctx context.Context, arg UpdateSessionDataParams) error
 	// Update shipment status

@@ -1,5 +1,7 @@
 package provider
 
+import "fmt"
+
 // ProviderValidator validates provider configurations before creating instances.
 // Each provider type has specific required configuration fields that must be present
 // and valid. Validation happens at two points:
@@ -31,158 +33,295 @@ type DefaultValidator struct {
 
 // NewDefaultValidator creates a provider configuration validator.
 func NewDefaultValidator() *DefaultValidator {
-	// TODO: Initialize DefaultValidator
-	// TODO: Return initialized validator
-	return nil
+	return &DefaultValidator{}
 }
 
 // ValidateTaxConfig validates tax provider configuration.
 func (v *DefaultValidator) ValidateTaxConfig(config *TenantProviderConfig) *ValidationResult {
-	// TODO: Initialize ValidationResult with Valid: true
-	// TODO: Check that config is not nil
-	// TODO: Check that config.Type == ProviderTypeTax
-	// TODO: Check that config.Config map is not nil
-	// TODO: Switch on config.Name:
-	//   - ProviderNameStripeTax:
-	//       * Require "api_key" field (string, non-empty)
-	//       * Require "api_key" starts with "sk_" (Stripe secret key format)
-	//   - ProviderNameTaxJar:
-	//       * Require "api_key" field (string, non-empty)
-	//   - ProviderNameAvalara:
-	//       * Require "account_id" field (string, non-empty)
-	//       * Require "license_key" field (string, non-empty)
-	//   - ProviderNamePercentage:
-	//       * Require "rate" field (number between 0.0 and 1.0)
-	//       * Example: 0.08 for 8% tax
-	//   - ProviderNameNoTax:
-	//       * No config required
-	//   - default:
-	//       * Add error: "unknown tax provider: {config.Name}"
-	// TODO: Return validation result
-	return nil
+	result := &ValidationResult{Valid: true}
+
+	if config == nil {
+		result.AddError("config cannot be nil")
+		return result
+	}
+
+	if config.Type != ProviderTypeTax {
+		result.AddError("config type must be tax")
+		return result
+	}
+
+	if config.Config == nil {
+		result.AddError("config map cannot be nil")
+		return result
+	}
+
+	switch config.Name {
+	case ProviderNameStripeTax:
+		requireStringPrefix(config.Config, "stripe_api_key", "sk_", result)
+	case ProviderNameTaxJar:
+		requireString(config.Config, "api_key", result)
+	case ProviderNameAvalara:
+		requireString(config.Config, "account_id", result)
+		requireString(config.Config, "license_key", result)
+	case ProviderNamePercentage:
+		// No secrets required - uses database rates
+	case ProviderNameNoTax:
+		// No config required
+	default:
+		result.AddError("unknown tax provider: " + string(config.Name))
+	}
+
+	return result
 }
 
 // ValidateBillingConfig validates billing provider configuration.
 func (v *DefaultValidator) ValidateBillingConfig(config *TenantProviderConfig) *ValidationResult {
-	// TODO: Initialize ValidationResult with Valid: true
-	// TODO: Check that config is not nil
-	// TODO: Check that config.Type == ProviderTypeBilling
-	// TODO: Check that config.Config map is not nil
-	// TODO: Switch on config.Name:
-	//   - ProviderNameStripe:
-	//       * Require "api_key" field (string, non-empty)
-	//       * Require "api_key" starts with "sk_" (Stripe secret key format)
-	//       * Require "webhook_secret" field (string, non-empty)
-	//       * Require "webhook_secret" starts with "whsec_" (Stripe webhook secret format)
-	//   - default:
-	//       * Add error: "unknown billing provider: {config.Name}"
-	// TODO: Return validation result
-	return nil
+	result := &ValidationResult{Valid: true}
+
+	if config == nil {
+		result.AddError("config cannot be nil")
+		return result
+	}
+
+	if config.Type != ProviderTypeBilling {
+		result.AddError("config type must be billing")
+		return result
+	}
+
+	if config.Config == nil {
+		result.AddError("config map cannot be nil")
+		return result
+	}
+
+	switch config.Name {
+	case ProviderNameStripe:
+		requireStringPrefix(config.Config, "stripe_api_key", "sk_", result)
+		requireStringPrefix(config.Config, "stripe_webhook_secret", "whsec_", result)
+	default:
+		result.AddError("unknown billing provider: " + string(config.Name))
+	}
+
+	return result
 }
 
 // ValidateShippingConfig validates shipping provider configuration.
 func (v *DefaultValidator) ValidateShippingConfig(config *TenantProviderConfig) *ValidationResult {
-	// TODO: Initialize ValidationResult with Valid: true
-	// TODO: Check that config is not nil
-	// TODO: Check that config.Type == ProviderTypeShipping
-	// TODO: Check that config.Config map is not nil
-	// TODO: Switch on config.Name:
-	//   - ProviderNameShipStation:
-	//       * Require "api_key" field (string, non-empty)
-	//       * Require "api_secret" field (string, non-empty)
-	//   - ProviderNameEasyPost:
-	//       * Require "api_key" field (string, non-empty)
-	//       * Require "api_key" starts with "EZAK" (EasyPost API key format)
-	//   - ProviderNameShippo:
-	//       * Require "api_key" field (string, non-empty)
-	//   - ProviderNameManual:
-	//       * No required fields (manual shipping uses tenant_shipping_rates table)
-	//   - default:
-	//       * Add error: "unknown shipping provider: {config.Name}"
-	// TODO: Return validation result
-	return nil
+	result := &ValidationResult{Valid: true}
+
+	if config == nil {
+		result.AddError("config cannot be nil")
+		return result
+	}
+
+	if config.Type != ProviderTypeShipping {
+		result.AddError("config type must be shipping")
+		return result
+	}
+
+	if config.Config == nil {
+		result.AddError("config map cannot be nil")
+		return result
+	}
+
+	switch config.Name {
+	case ProviderNameShipStation:
+		requireString(config.Config, "api_key", result)
+		requireString(config.Config, "api_secret", result)
+	case ProviderNameEasyPost:
+		requireStringPrefix(config.Config, "easypost_api_key", "EZAK", result)
+	case ProviderNameShippo:
+		requireString(config.Config, "api_key", result)
+	case ProviderNameManual:
+		// No required fields - uses tenant_shipping_rates table
+	default:
+		result.AddError("unknown shipping provider: " + string(config.Name))
+	}
+
+	return result
 }
 
 // ValidateEmailConfig validates email provider configuration.
 func (v *DefaultValidator) ValidateEmailConfig(config *TenantProviderConfig) *ValidationResult {
-	// TODO: Initialize ValidationResult with Valid: true
-	// TODO: Check that config is not nil
-	// TODO: Check that config.Type == ProviderTypeEmail
-	// TODO: Check that config.Config map is not nil
-	// TODO: Switch on config.Name:
-	//   - ProviderNamePostmark:
-	//       * Require "server_token" field (string, non-empty)
-	//       * Require "from_email" field (string, valid email format)
-	//   - ProviderNameResend:
-	//       * Require "api_key" field (string, non-empty)
-	//       * Require "from_email" field (string, valid email format)
-	//   - ProviderNameSES:
-	//       * Require "access_key_id" field (string, non-empty)
-	//       * Require "secret_access_key" field (string, non-empty)
-	//       * Require "region" field (string, non-empty, e.g., "us-east-1")
-	//       * Require "from_email" field (string, valid email format)
-	//   - ProviderNameSMTP:
-	//       * Require "host" field (string, non-empty)
-	//       * Require "port" field (number, 1-65535)
-	//       * Require "username" field (string, can be empty for no auth)
-	//       * Require "password" field (string, can be empty for no auth)
-	//       * Require "from_email" field (string, valid email format)
-	//   - default:
-	//       * Add error: "unknown email provider: {config.Name}"
-	// TODO: Return validation result
-	return nil
+	result := &ValidationResult{Valid: true}
+
+	if config == nil {
+		result.AddError("config cannot be nil")
+		return result
+	}
+
+	if config.Type != ProviderTypeEmail {
+		result.AddError("config type must be email")
+		return result
+	}
+
+	if config.Config == nil {
+		result.AddError("config map cannot be nil")
+		return result
+	}
+
+	switch config.Name {
+	case ProviderNamePostmark:
+		requireString(config.Config, "postmark_api_key", result)
+	case ProviderNameResend:
+		requireString(config.Config, "api_key", result)
+	case ProviderNameSES:
+		requireString(config.Config, "access_key_id", result)
+		requireString(config.Config, "secret_access_key", result)
+		requireString(config.Config, "region", result)
+	case ProviderNameSMTP:
+		requireString(config.Config, "smtp_host", result)
+		requireIntRange(config.Config, "smtp_port", 1, 65535, result)
+		requireString(config.Config, "smtp_from", result)
+	default:
+		result.AddError("unknown email provider: " + string(config.Name))
+	}
+
+	return result
 }
 
 // requireString validates that a config field exists and is a non-empty string.
 func requireString(config map[string]interface{}, key string, result *ValidationResult) string {
-	// TODO: Check if key exists in config map
-	// TODO: Type assert value to string
-	// TODO: If key missing, add error: "missing required field: {key}"
-	// TODO: If wrong type, add error: "field {key} must be a string"
-	// TODO: If empty string, add error: "field {key} cannot be empty"
-	// TODO: Return string value (or empty string if validation failed)
-	return ""
+	value, exists := config[key]
+	if !exists {
+		result.AddError("missing required field: " + key)
+		return ""
+	}
+
+	strValue, ok := value.(string)
+	if !ok {
+		result.AddError("field " + key + " must be a string")
+		return ""
+	}
+
+	if strValue == "" {
+		result.AddError("field " + key + " cannot be empty")
+		return ""
+	}
+
+	return strValue
 }
 
 // requireStringPrefix validates that a config field is a string starting with prefix.
 func requireStringPrefix(config map[string]interface{}, key string, prefix string, result *ValidationResult) string {
-	// TODO: Call requireString to get the value
-	// TODO: Check if value starts with prefix
-	// TODO: If not, add error: "field {key} must start with {prefix}"
-	// TODO: Return string value
-	return ""
+	value := requireString(config, key, result)
+	if value == "" {
+		return ""
+	}
+
+	if len(value) < len(prefix) || value[:len(prefix)] != prefix {
+		result.AddError("field " + key + " must start with " + prefix)
+		return ""
+	}
+
+	return value
 }
 
 // requireFloat64Range validates that a config field is a float64 within range [min, max].
 func requireFloat64Range(config map[string]interface{}, key string, min, max float64, result *ValidationResult) float64 {
-	// TODO: Check if key exists in config map
-	// TODO: Type assert value to float64 (handle both float64 and int from JSON)
-	// TODO: If key missing, add error: "missing required field: {key}"
-	// TODO: If wrong type, add error: "field {key} must be a number"
-	// TODO: If value < min or value > max, add error: "field {key} must be between {min} and {max}"
-	// TODO: Return float64 value (or 0 if validation failed)
-	return 0
+	value, exists := config[key]
+	if !exists {
+		result.AddError("missing required field: " + key)
+		return 0
+	}
+
+	var floatValue float64
+	switch v := value.(type) {
+	case float64:
+		floatValue = v
+	case int:
+		floatValue = float64(v)
+	case int64:
+		floatValue = float64(v)
+	default:
+		result.AddError("field " + key + " must be a number")
+		return 0
+	}
+
+	if floatValue < min || floatValue > max {
+		result.AddError("field " + key + " must be between " + formatFloat(min) + " and " + formatFloat(max))
+		return 0
+	}
+
+	return floatValue
 }
 
 // requireIntRange validates that a config field is an int within range [min, max].
 func requireIntRange(config map[string]interface{}, key string, min, max int, result *ValidationResult) int {
-	// TODO: Check if key exists in config map
-	// TODO: Type assert value to float64 (JSON numbers are float64)
-	// TODO: Convert float64 to int
-	// TODO: If key missing, add error: "missing required field: {key}"
-	// TODO: If wrong type, add error: "field {key} must be a number"
-	// TODO: If value < min or value > max, add error: "field {key} must be between {min} and {max}"
-	// TODO: Return int value (or 0 if validation failed)
-	return 0
+	value, exists := config[key]
+	if !exists {
+		result.AddError("missing required field: " + key)
+		return 0
+	}
+
+	var intValue int
+	switch v := value.(type) {
+	case float64:
+		intValue = int(v)
+	case int:
+		intValue = v
+	case int64:
+		intValue = int(v)
+	default:
+		result.AddError("field " + key + " must be a number")
+		return 0
+	}
+
+	if intValue < min || intValue > max {
+		result.AddError("field " + key + " must be between " + formatInt(min) + " and " + formatInt(max))
+		return 0
+	}
+
+	return intValue
 }
 
 // isValidEmail performs basic email validation.
 func isValidEmail(email string) bool {
-	// TODO: Implement basic email validation
-	// TODO: Check that email contains "@"
-	// TODO: Check that email has text before and after "@"
-	// TODO: Check that email has "." in domain part
-	// TODO: For MVP, simple validation is sufficient
-	// TODO: Could use regex or email parsing library for production
-	return false
+	if email == "" {
+		return false
+	}
+
+	// Find @ symbol
+	atIndex := -1
+	for i, ch := range email {
+		if ch == '@' {
+			if atIndex != -1 {
+				return false // Multiple @ symbols
+			}
+			atIndex = i
+		}
+	}
+
+	if atIndex == -1 {
+		return false // No @ symbol
+	}
+
+	if atIndex == 0 {
+		return false // Nothing before @
+	}
+
+	if atIndex == len(email)-1 {
+		return false // Nothing after @
+	}
+
+	// Check for dot in domain part (after @)
+	domain := email[atIndex+1:]
+	hasDot := false
+	for _, ch := range domain {
+		if ch == '.' {
+			hasDot = true
+			break
+		}
+	}
+
+	return hasDot
+}
+
+// formatFloat formats a float64 for error messages.
+func formatFloat(f float64) string {
+	return fmt.Sprintf("%.2f", f)
+}
+
+// formatInt formats an int for error messages.
+func formatInt(i int) string {
+	return fmt.Sprintf("%d", i)
 }
