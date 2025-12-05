@@ -117,10 +117,20 @@ WHERE tenant_id = $1
 ORDER BY service_code, destination_postal_code, weight_grams;
 
 -- name: DeleteExpiredShippingRates :exec
--- Deletes shipping rates that have expired.
--- Should be run periodically as a cleanup job.
+-- Deletes shipping rates that have expired across ALL tenants.
+-- IMPORTANT: This is a system-wide cleanup job. Only call from background worker
+-- context, never from tenant-scoped handlers. For tenant-specific cleanup,
+-- use DeleteExpiredShippingRatesForTenant instead.
 DELETE FROM tenant_shipping_rates
 WHERE valid_until IS NOT NULL AND valid_until < NOW();
+
+-- name: DeleteExpiredShippingRatesForTenant :exec
+-- Deletes expired shipping rates for a specific tenant.
+-- Use this when cleaning up in a tenant-scoped context.
+DELETE FROM tenant_shipping_rates
+WHERE tenant_id = $1
+    AND valid_until IS NOT NULL
+    AND valid_until < NOW();
 
 -- name: DeleteShippingRate :exec
 -- Deletes a specific shipping rate.

@@ -162,9 +162,14 @@ type Querier interface {
 	DeleteExpiredPasswordResetTokens(ctx context.Context) error
 	// Clean up expired sessions (for background job)
 	DeleteExpiredSessions(ctx context.Context) error
-	// Deletes shipping rates that have expired.
-	// Should be run periodically as a cleanup job.
+	// Deletes shipping rates that have expired across ALL tenants.
+	// IMPORTANT: This is a system-wide cleanup job. Only call from background worker
+	// context, never from tenant-scoped handlers. For tenant-specific cleanup,
+	// use DeleteExpiredShippingRatesForTenant instead.
 	DeleteExpiredShippingRates(ctx context.Context) error
+	// Deletes expired shipping rates for a specific tenant.
+	// Use this when cleaning up in a tenant-scoped context.
+	DeleteExpiredShippingRatesForTenant(ctx context.Context, tenantID pgtype.UUID) error
 	// Cleanup old completed jobs (history is preserved in job_history table)
 	// Delete jobs older than the specified timestamp
 	DeleteOldCompletedJobs(ctx context.Context, processingCompletedAt pgtype.Timestamptz) error

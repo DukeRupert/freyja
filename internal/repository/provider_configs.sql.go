@@ -139,10 +139,26 @@ DELETE FROM tenant_shipping_rates
 WHERE valid_until IS NOT NULL AND valid_until < NOW()
 `
 
-// Deletes shipping rates that have expired.
-// Should be run periodically as a cleanup job.
+// Deletes shipping rates that have expired across ALL tenants.
+// IMPORTANT: This is a system-wide cleanup job. Only call from background worker
+// context, never from tenant-scoped handlers. For tenant-specific cleanup,
+// use DeleteExpiredShippingRatesForTenant instead.
 func (q *Queries) DeleteExpiredShippingRates(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, deleteExpiredShippingRates)
+	return err
+}
+
+const deleteExpiredShippingRatesForTenant = `-- name: DeleteExpiredShippingRatesForTenant :exec
+DELETE FROM tenant_shipping_rates
+WHERE tenant_id = $1
+    AND valid_until IS NOT NULL
+    AND valid_until < NOW()
+`
+
+// Deletes expired shipping rates for a specific tenant.
+// Use this when cleaning up in a tenant-scoped context.
+func (q *Queries) DeleteExpiredShippingRatesForTenant(ctx context.Context, tenantID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteExpiredShippingRatesForTenant, tenantID)
 	return err
 }
 
