@@ -1,80 +1,7 @@
 {{define "title"}}Configure {{.ProviderType | title}} Integration{{end}}
 
 {{define "content"}}
-<div class="space-y-8" x-data="{
-    selectedProvider: '{{.CurrentProvider}}',
-    fieldValues: {},
-
-    // Provider field definitions
-    providerFields: {
-        // Tax providers
-        'none': [],
-        'percentage': [],
-        'stripe_tax': [],
-        'taxjar': [
-            {name: 'taxjar_api_key', label: 'TaxJar API Key', type: 'password', placeholder: 'Enter your TaxJar API key', required: true}
-        ],
-        'avalara': [
-            {name: 'avalara_account_id', label: 'Account ID', type: 'text', placeholder: 'Enter your Avalara account ID', required: true},
-            {name: 'avalara_license_key', label: 'License Key', type: 'password', placeholder: 'Enter your Avalara license key', required: true}
-        ],
-
-        // Shipping providers
-        'flat_rate': [],
-        'easypost': [
-            {name: 'easypost_api_key', label: 'EasyPost API Key', type: 'password', placeholder: 'Enter your EasyPost API key', required: true}
-        ],
-        'shipstation': [
-            {name: 'shipstation_api_key', label: 'API Key', type: 'password', placeholder: 'Enter your ShipStation API key', required: true},
-            {name: 'shipstation_api_secret', label: 'API Secret', type: 'password', placeholder: 'Enter your ShipStation API secret', required: true}
-        ],
-        'shippo': [
-            {name: 'shippo_api_key', label: 'Shippo API Key', type: 'password', placeholder: 'Enter your Shippo API key', required: true}
-        ],
-
-        // Billing providers
-        'stripe': [
-            {name: 'stripe_publishable_key', label: 'Publishable Key', type: 'text', placeholder: 'pk_live_...', required: true},
-            {name: 'stripe_api_key', label: 'Secret Key', type: 'password', placeholder: 'sk_live_...', required: true},
-            {name: 'stripe_webhook_secret', label: 'Webhook Secret', type: 'password', placeholder: 'whsec_...', required: true}
-        ],
-
-        // Email providers
-        'smtp': [
-            {name: 'smtp_host', label: 'SMTP Host', type: 'text', placeholder: 'smtp.example.com', required: true},
-            {name: 'smtp_port', label: 'SMTP Port', type: 'number', placeholder: '587', required: true},
-            {name: 'smtp_username', label: 'Username', type: 'text', placeholder: 'your-username', required: true},
-            {name: 'smtp_password', label: 'Password', type: 'password', placeholder: 'your-password', required: true},
-            {name: 'smtp_from', label: 'From Email', type: 'email', placeholder: 'noreply@example.com', required: true}
-        ],
-        'postmark': [
-            {name: 'postmark_api_key', label: 'Postmark Server API Token', type: 'password', placeholder: 'Enter your Postmark API token', required: true},
-            {name: 'postmark_from', label: 'From Email', type: 'email', placeholder: 'noreply@example.com', required: true}
-        ],
-        'resend': [
-            {name: 'resend_api_key', label: 'Resend API Key', type: 'password', placeholder: 're_...', required: true},
-            {name: 'resend_from', label: 'From Email', type: 'email', placeholder: 'noreply@example.com', required: true}
-        ],
-        'ses': [
-            {name: 'ses_access_key_id', label: 'AWS Access Key ID', type: 'text', placeholder: 'AKIA...', required: true},
-            {name: 'ses_secret_access_key', label: 'AWS Secret Access Key', type: 'password', placeholder: 'Enter your AWS secret key', required: true},
-            {name: 'ses_region', label: 'AWS Region', type: 'text', placeholder: 'us-east-1', required: true},
-            {name: 'ses_from', label: 'From Email', type: 'email', placeholder: 'noreply@example.com', required: true}
-        ]
-    },
-
-    getFields() {
-        return this.providerFields[this.selectedProvider] || [];
-    },
-
-    isFormValid() {
-        const fields = this.getFields();
-        // No required fields means form is valid
-        if (fields.length === 0) return true;
-        // Check all required fields have values
-        return fields.every(field => !field.required || (this.fieldValues[field.name] && this.fieldValues[field.name].trim() !== ''));
-    }
-}">
+<div class="space-y-8" x-data="integrationConfig('{{.CurrentProvider}}', '{{.ProviderType}}')">
     <!-- Back Link -->
     <div>
         <a href="/admin/settings/integrations"
@@ -110,7 +37,7 @@
 
     <!-- Configuration Form -->
     <div class="overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10 p-6">
-        <form method="POST" action="/admin/settings/integrations/{{.ProviderType}}"
+        <form id="integration-form" method="POST" action="/admin/settings/integrations/{{.ProviderType}}"
               hx-post="/admin/settings/integrations/{{.ProviderType}}"
               hx-swap="outerHTML"
               class="space-y-6">
@@ -179,16 +106,45 @@
                 </div>
             </div>
 
+            <!-- Test Connection Status -->
+            <div x-show="testStatus !== null" x-cloak class="rounded-lg p-4"
+                 :class="testStatus === 'success'
+                    ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+                    : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'">
+                <div class="flex items-center gap-3">
+                    <!-- Success Icon -->
+                    <svg x-show="testStatus === 'success'" class="h-5 w-5 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <!-- Error Icon -->
+                    <svg x-show="testStatus === 'error'" class="h-5 w-5 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    <span class="text-sm font-medium"
+                          :class="testStatus === 'success'
+                            ? 'text-green-800 dark:text-green-200'
+                            : 'text-red-800 dark:text-red-200'"
+                          x-text="testMessage"></span>
+                </div>
+            </div>
+
             <!-- Action Buttons -->
             <div class="flex items-center gap-4 pt-4 border-t border-zinc-200 dark:border-zinc-700">
                 <!-- Test Connection Button (if provider has fields) -->
                 <button type="button"
                         x-show="getFields().length > 0"
-                        hx-post="/admin/settings/integrations/{{.ProviderType}}/test"
-                        hx-include="closest form"
-                        hx-swap="none"
+                        :disabled="testLoading"
+                        @click="testConnection()"
+                        :class="testLoading ? 'opacity-50 cursor-wait' : ''"
                         class="rounded-lg border border-zinc-950/10 text-zinc-950 bg-transparent px-[calc(theme(spacing.3.5)-1px)] py-[calc(theme(spacing.2.5)-1px)] sm:px-[calc(theme(spacing.3)-1px)] sm:py-[calc(theme(spacing.1.5)-1px)] sm:text-sm/6 text-base/6 font-semibold hover:border-zinc-950/20 hover:bg-zinc-950/[2.5%] dark:border-white/15 dark:text-white dark:hover:border-white/25 dark:hover:bg-white/5">
-                    Test Connection
+                    <span x-show="!testLoading">Test Connection</span>
+                    <span x-show="testLoading" class="flex items-center gap-2">
+                        <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Testing...
+                    </span>
                 </button>
 
                 <!-- Save Button -->
@@ -229,4 +185,128 @@
         display: none !important;
     }
 </style>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('integrationConfig', (currentProvider, providerType) => ({
+        selectedProvider: currentProvider,
+        fieldValues: {},
+        testStatus: null,
+        testMessage: '',
+        testLoading: false,
+        providerType: providerType,
+
+        providerFields: {
+            // Tax providers
+            'none': [],
+            'percentage': [],
+            'stripe_tax': [],
+            'taxjar': [
+                {name: 'taxjar_api_key', label: 'TaxJar API Key', type: 'password', placeholder: 'Enter your TaxJar API key', required: true}
+            ],
+            'avalara': [
+                {name: 'avalara_account_id', label: 'Account ID', type: 'text', placeholder: 'Enter your Avalara account ID', required: true},
+                {name: 'avalara_license_key', label: 'License Key', type: 'password', placeholder: 'Enter your Avalara license key', required: true}
+            ],
+
+            // Shipping providers
+            'flat_rate': [],
+            'easypost': [
+                {name: 'easypost_api_key', label: 'EasyPost API Key', type: 'password', placeholder: 'Enter your EasyPost API key', required: true}
+            ],
+            'shipstation': [
+                {name: 'shipstation_api_key', label: 'API Key', type: 'password', placeholder: 'Enter your ShipStation API key', required: true},
+                {name: 'shipstation_api_secret', label: 'API Secret', type: 'password', placeholder: 'Enter your ShipStation API secret', required: true}
+            ],
+            'shippo': [
+                {name: 'shippo_api_key', label: 'Shippo API Key', type: 'password', placeholder: 'Enter your Shippo API key', required: true}
+            ],
+
+            // Billing providers
+            'stripe': [
+                {name: 'stripe_publishable_key', label: 'Publishable Key', type: 'text', placeholder: 'pk_live_...', required: true},
+                {name: 'stripe_api_key', label: 'Secret Key', type: 'password', placeholder: 'sk_live_...', required: true},
+                {name: 'stripe_webhook_secret', label: 'Webhook Secret', type: 'password', placeholder: 'whsec_...', required: true}
+            ],
+
+            // Email providers
+            'smtp': [
+                {name: 'smtp_host', label: 'SMTP Host', type: 'text', placeholder: 'smtp.example.com', required: true},
+                {name: 'smtp_port', label: 'SMTP Port', type: 'number', placeholder: '587', required: true},
+                {name: 'smtp_username', label: 'Username', type: 'text', placeholder: 'your-username', required: true},
+                {name: 'smtp_password', label: 'Password', type: 'password', placeholder: 'your-password', required: true},
+                {name: 'smtp_from', label: 'From Email', type: 'email', placeholder: 'noreply@example.com', required: true}
+            ],
+            'postmark': [
+                {name: 'postmark_api_key', label: 'Postmark Server API Token', type: 'password', placeholder: 'Enter your Postmark API token', required: true},
+                {name: 'postmark_from', label: 'From Email', type: 'email', placeholder: 'noreply@example.com', required: true}
+            ],
+            'resend': [
+                {name: 'resend_api_key', label: 'Resend API Key', type: 'password', placeholder: 're_...', required: true},
+                {name: 'resend_from', label: 'From Email', type: 'email', placeholder: 'noreply@example.com', required: true}
+            ],
+            'ses': [
+                {name: 'ses_access_key_id', label: 'AWS Access Key ID', type: 'text', placeholder: 'AKIA...', required: true},
+                {name: 'ses_secret_access_key', label: 'AWS Secret Access Key', type: 'password', placeholder: 'Enter your AWS secret key', required: true},
+                {name: 'ses_region', label: 'AWS Region', type: 'text', placeholder: 'us-east-1', required: true},
+                {name: 'ses_from', label: 'From Email', type: 'email', placeholder: 'noreply@example.com', required: true}
+            ]
+        },
+
+        getFields() {
+            return this.providerFields[this.selectedProvider] || [];
+        },
+
+        isFormValid() {
+            const fields = this.getFields();
+            if (fields.length === 0) return true;
+            return fields.every(field => !field.required || (this.fieldValues[field.name] && this.fieldValues[field.name].trim() !== ''));
+        },
+
+        async testConnection() {
+            this.testLoading = true;
+            this.testStatus = null;
+
+            const form = document.getElementById('integration-form');
+            if (!form) {
+                this.testStatus = 'error';
+                this.testMessage = 'Form not found';
+                this.testLoading = false;
+                return;
+            }
+
+            const formData = new FormData(form);
+            const providerSelect = form.querySelector('select[name=provider_name]');
+            if (providerSelect) {
+                formData.set('provider_name', providerSelect.value);
+            }
+
+            const csrfInput = form.querySelector('input[name=csrf_token]');
+            const csrfToken = csrfInput ? csrfInput.value : '';
+
+            try {
+                const response = await fetch('/admin/settings/integrations/' + this.providerType + '/test', {
+                    method: 'POST',
+                    headers: { 'X-CSRF-Token': csrfToken },
+                    body: formData
+                });
+
+                if (!response.ok && response.status === 403) {
+                    throw new Error('Session expired. Please refresh the page.');
+                }
+
+                const data = await response.json();
+                this.testStatus = data.success ? 'success' : 'error';
+                this.testMessage = data.message;
+            } catch (err) {
+                console.error('Test connection error:', err);
+                this.testStatus = 'error';
+                this.testMessage = err.message || 'Connection test failed';
+            } finally {
+                this.testLoading = false;
+            }
+        }
+    }));
+});
+</script>
 {{end}}

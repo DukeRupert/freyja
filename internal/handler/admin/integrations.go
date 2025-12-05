@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dukerupert/freyja/internal/crypto"
 	"github.com/dukerupert/freyja/internal/handler"
@@ -517,6 +518,151 @@ func getProviderOptions(providerType provider.ProviderType) []map[string]string 
 	default:
 		return []map[string]string{}
 	}
+}
+
+// TestConnection handles POST /admin/settings/integrations/{type}/test
+// It tests the connection to the provider using the provided credentials.
+func (h *IntegrationsHandler) TestConnection(w http.ResponseWriter, r *http.Request) {
+	providerTypeStr := r.PathValue("type")
+	if providerTypeStr == "" {
+		writeTestConnectionResponse(w, false, "Provider type required")
+		return
+	}
+
+	// For multipart form data, we need to use ParseMultipartForm
+	contentType := r.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		if err := r.ParseMultipartForm(32 << 20); err != nil {
+			writeTestConnectionResponse(w, false, "Invalid form data")
+			return
+		}
+	} else {
+		if err := r.ParseForm(); err != nil {
+			writeTestConnectionResponse(w, false, "Invalid form data")
+			return
+		}
+	}
+
+	providerType := provider.ProviderType(providerTypeStr)
+	providerName := provider.ProviderName(strings.TrimSpace(r.FormValue("provider_name")))
+
+	configMap := buildConfigMap(r, providerType, providerName)
+
+	// Test the connection based on provider type
+	var testErr error
+	switch providerType {
+	case provider.ProviderTypeBilling:
+		testErr = h.testBillingConnection(providerName, configMap)
+	case provider.ProviderTypeTax:
+		testErr = h.testTaxConnection(providerName, configMap)
+	case provider.ProviderTypeShipping:
+		testErr = h.testShippingConnection(providerName, configMap)
+	case provider.ProviderTypeEmail:
+		testErr = h.testEmailConnection(providerName, configMap)
+	default:
+		writeTestConnectionResponse(w, false, "Unknown provider type")
+		return
+	}
+
+	if testErr != nil {
+		writeTestConnectionResponse(w, false, testErr.Error())
+		return
+	}
+
+	writeTestConnectionResponse(w, true, "Connection successful")
+}
+
+// testBillingConnection tests a billing provider connection
+func (h *IntegrationsHandler) testBillingConnection(name provider.ProviderName, config map[string]interface{}) error {
+	switch name {
+	case provider.ProviderNameStripe:
+		apiKey, ok := config["stripe_api_key"].(string)
+		if !ok || apiKey == "" {
+			return fmt.Errorf("Stripe API key is required")
+		}
+		// Test by creating a temporary Stripe provider and making a simple API call
+		return testStripeAPIKey(apiKey)
+	default:
+		return fmt.Errorf("unsupported billing provider: %s", name)
+	}
+}
+
+// testTaxConnection tests a tax provider connection
+func (h *IntegrationsHandler) testTaxConnection(name provider.ProviderName, config map[string]interface{}) error {
+	switch name {
+	case provider.ProviderNameNoTax, provider.ProviderNamePercentage:
+		// No external connection needed
+		return nil
+	case provider.ProviderNameStripeTax:
+		// Stripe Tax uses billing Stripe credentials - no separate test needed
+		return nil
+	case provider.ProviderNameTaxJar, provider.ProviderNameAvalara:
+		return fmt.Errorf("test connection not implemented for %s", name)
+	default:
+		return fmt.Errorf("unsupported tax provider: %s", name)
+	}
+}
+
+// testShippingConnection tests a shipping provider connection
+func (h *IntegrationsHandler) testShippingConnection(name provider.ProviderName, config map[string]interface{}) error {
+	switch name {
+	case provider.ProviderNameManual:
+		// No external connection needed
+		return nil
+	case provider.ProviderNameEasyPost, provider.ProviderNameShipStation, provider.ProviderNameShippo:
+		return fmt.Errorf("test connection not implemented for %s", name)
+	default:
+		return fmt.Errorf("unsupported shipping provider: %s", name)
+	}
+}
+
+// testEmailConnection tests an email provider connection
+func (h *IntegrationsHandler) testEmailConnection(name provider.ProviderName, config map[string]interface{}) error {
+	switch name {
+	case provider.ProviderNameSMTP, provider.ProviderNamePostmark, provider.ProviderNameResend, provider.ProviderNameSES:
+		return fmt.Errorf("test connection not implemented for %s", name)
+	default:
+		return fmt.Errorf("unsupported email provider: %s", name)
+	}
+}
+
+// testStripeAPIKey tests a Stripe API key by making a simple API call
+func testStripeAPIKey(apiKey string) error {
+	// Use the Stripe Go SDK to test the API key
+	// We'll make a simple balance retrieve call which requires minimal permissions
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest("GET", "https://api.stripe.com/v1/balance", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.SetBasicAuth(apiKey, "")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("connection failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 401 {
+		return fmt.Errorf("invalid API key")
+	}
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// writeTestConnectionResponse writes a JSON response for test connection requests
+func writeTestConnectionResponse(w http.ResponseWriter, success bool, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	if !success {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": success,
+		"message": message,
+	})
 }
 
 // getMissingCredentials returns a list of required credential fields that are missing from configMap.

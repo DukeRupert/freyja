@@ -92,4 +92,5 @@ func RegisterAdminRoutes(r *router.Router, deps AdminDeps) {
 	admin.Get("/admin/settings/integrations/{type}", deps.IntegrationsHandler.ConfigPage)
 	admin.Post("/admin/settings/integrations/{type}", deps.IntegrationsHandler.SaveConfig)
 	admin.Post("/admin/settings/integrations/{type}/validate", deps.IntegrationsHandler.ValidateConfig)
+	admin.Post("/admin/settings/integrations/{type}/test", deps.IntegrationsHandler.TestConnection)
 }
