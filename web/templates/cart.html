@@ -43,7 +43,7 @@
               <div class="flex items-center border border-neutral-300 rounded-md overflow-hidden">
                 <button type="button"
                         hx-post="/cart/update"
-                        hx-vals='{"sku_id": "{{.SKUID}}", "quantity": "{{sub .Quantity 1}}"}'
+                        hx-vals='{"sku_id": "{{.SKUID}}", "quantity": "{{sub .Quantity 1}}", "csrf_token": "{{$.CSRFToken}}"}'
                         hx-target="#cart-summary"
                         hx-swap="outerHTML"
                         class="px-3 py-2 text-neutral-700 hover:bg-neutral-50 transition-colors">
@@ -57,14 +57,14 @@
                        name="quantity"
                        class="w-16 text-center border-x border-neutral-300 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-700 focus:z-10"
                        hx-post="/cart/update"
-                       hx-vals='{"sku_id": "{{.SKUID}}"}'
+                       hx-vals='{"sku_id": "{{.SKUID}}", "csrf_token": "{{$.CSRFToken}}"}'
                        hx-include="this"
                        hx-trigger="change"
                        hx-target="#cart-summary"
                        hx-swap="outerHTML">
                 <button type="button"
                         hx-post="/cart/update"
-                        hx-vals='{"sku_id": "{{.SKUID}}", "quantity": "{{add .Quantity 1}}"}'
+                        hx-vals='{"sku_id": "{{.SKUID}}", "quantity": "{{add .Quantity 1}}", "csrf_token": "{{$.CSRFToken}}"}'
                         hx-target="#cart-summary"
                         hx-swap="outerHTML"
                         class="px-3 py-2 text-neutral-700 hover:bg-neutral-50 transition-colors">
@@ -76,7 +76,7 @@
 
               <button type="button"
                       hx-post="/cart/remove"
-                      hx-vals='{"sku_id": "{{.SKUID}}"}'
+                      hx-vals='{"sku_id": "{{.SKUID}}", "csrf_token": "{{$.CSRFToken}}"}'
                       hx-target="#cart-item-{{.SKUID}}"
                       hx-swap="outerHTML swap:0.3s"
                       class="text-sm text-red-700 hover:text-red-800 font-medium transition-colors">
