@@ -32,6 +32,7 @@ import (
 	"github.com/dukerupert/freyja/internal/shipping"
 	"github.com/dukerupert/freyja/internal/storage"
 	"github.com/dukerupert/freyja/internal/tax"
+	"github.com/dukerupert/freyja/internal/telemetry"
 	"github.com/dukerupert/freyja/internal/worker"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -50,6 +51,28 @@ func run() error {
 
 	// Configure logger
 	logger := internal.NewLogger(os.Stdout, cfg.Env, cfg.LogLevel)
+
+	// Initialize telemetry
+	logger.Info("Initializing telemetry...")
+
+	// Initialize business metrics (Prometheus)
+	telemetry.InitBusinessMetrics("freyja")
+	logger.Info("Business metrics initialized")
+
+	// Initialize Sentry error tracking
+	sentryCleanup, err := telemetry.InitSentry(telemetry.SentryConfig{
+		DSN:              cfg.Sentry.DSN,
+		Enabled:          cfg.Sentry.Enabled,
+		Environment:      cfg.Sentry.Environment,
+		Release:          cfg.Sentry.Release,
+		SampleRate:       cfg.Sentry.SampleRate,
+		TracesSampleRate: cfg.Sentry.TracesSampleRate,
+		Debug:            cfg.Sentry.Debug,
+	}, logger)
+	if err != nil {
+		return fmt.Errorf("failed to initialize Sentry: %w", err)
+	}
+	defer sentryCleanup()
 
 	// Initialize database/sql connection for migrations
 	logger.Info("Connecting to database...")
@@ -287,7 +310,7 @@ func run() error {
 		ProductHandler: storefront.NewProductHandler(productService, repo, renderer, cfg.TenantID),
 
 		// Cart (consolidated handler)
-		CartHandler: storefront.NewCartHandler(cartService, renderer, cfg.Env != "development"),
+		CartHandler: storefront.NewCartHandler(cartService, renderer, cfg.Env != "development", cfg.TenantID),
 
 		// Auth (consolidated: signup, login, logout, password reset, email verification)
 		AuthHandler: storefront.NewAuthHandler(
@@ -421,9 +444,22 @@ func run() error {
 	// Create routers and register routes
 	// ==========================================================================
 
+	// Create user extractor for Sentry context
+	userExtractor := func(ctx context.Context) *telemetry.UserInfo {
+		user := middleware.GetUserFromContext(ctx)
+		if user == nil {
+			return nil
+		}
+		return &telemetry.UserInfo{
+			ID:    user.ID.String(),
+			Email: user.Email,
+		}
+	}
+
 	// Main tenant router (storefront + admin + webhooks)
 	r := router.New(
 		router.Recovery(logger),
+		telemetry.SentryMiddleware(), // Capture panics and add request context to Sentry
 		middleware.RequestID(),
 		metrics.Middleware(),
 		middleware.SecurityHeaders(securityConfig),
@@ -432,6 +468,7 @@ func run() error {
 		middleware.RateLimit(),
 		router.Logger(logger),
 		middleware.WithUser(userService),
+		telemetry.SentryContextMiddleware(cfg.TenantID, userExtractor), // Set tenant/user context for Sentry
 		middleware.WithRequestLogger(logger),
 		middleware.CSRF(csrfConfig),
 	)

@@ -22,6 +22,18 @@ type Config struct {
 	Email         EmailConfig
 	Admin         AdminConfig
 	Storage       StorageConfig
+	Sentry        SentryConfig
+}
+
+// SentryConfig holds configuration for Sentry error tracking
+type SentryConfig struct {
+	DSN              string
+	Enabled          bool
+	Environment      string
+	Release          string
+	SampleRate       float64
+	TracesSampleRate float64
+	Debug            bool
 }
 
 // AdminConfig contains initial admin user configuration.
@@ -118,6 +130,15 @@ func NewConfig() (*Config, error) {
 			R2BucketName:  getEnv("R2_BUCKET_NAME", ""),
 			R2PublicURL:   getEnv("R2_PUBLIC_URL", ""),
 		},
+		Sentry: SentryConfig{
+			DSN:              getEnv("SENTRY_DSN", ""),
+			Enabled:          getEnvBool("SENTRY_ENABLED", false), // Disabled by default for development
+			Environment:      getEnv("SENTRY_ENVIRONMENT", "development"),
+			Release:          getEnv("SENTRY_RELEASE", ""),
+			SampleRate:       getEnvFloat("SENTRY_SAMPLE_RATE", 1.0),
+			TracesSampleRate: getEnvFloat("SENTRY_TRACES_SAMPLE_RATE", 0.0), // Disabled by default
+			Debug:            getEnvBool("SENTRY_DEBUG", false),
+		},
 	}
 
 	// Validate env
@@ -167,6 +188,23 @@ func getEnvInt(key string, defaultValue uint16) uint16 {
 		var intValue uint16
 		if _, err := fmt.Sscanf(value, "%d", &intValue); err == nil {
 			return intValue
+		}
+	}
+	return defaultValue
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		return value == "true" || value == "1" || value == "yes"
+	}
+	return defaultValue
+}
+
+func getEnvFloat(key string, defaultValue float64) float64 {
+	if value := os.Getenv(key); value != "" {
+		var floatValue float64
+		if _, err := fmt.Sscanf(value, "%f", &floatValue); err == nil {
+			return floatValue
 		}
 	}
 	return defaultValue

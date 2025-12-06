@@ -7,6 +7,7 @@ import (
 
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/service"
+	"github.com/dukerupert/freyja/internal/telemetry"
 )
 
 // CartHandler handles all cart-related storefront routes
@@ -14,14 +15,16 @@ type CartHandler struct {
 	cartService service.CartService
 	renderer    *handler.Renderer
 	secure      bool
+	tenantID    string
 }
 
 // NewCartHandler creates a new cart handler
-func NewCartHandler(cartService service.CartService, renderer *handler.Renderer, secure bool) *CartHandler {
+func NewCartHandler(cartService service.CartService, renderer *handler.Renderer, secure bool, tenantID string) *CartHandler {
 	return &CartHandler{
 		cartService: cartService,
 		renderer:    renderer,
 		secure:      secure,
+		tenantID:    tenantID,
 	}
 }
 
@@ -104,6 +107,12 @@ func (h *CartHandler) Add(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Track add to cart
+	if telemetry.Business != nil {
+		telemetry.Business.CartUpdated.WithLabelValues(h.tenantID, "add").Inc()
+		telemetry.Business.CartItemsAdd.WithLabelValues(h.tenantID).Add(float64(quantity))
+	}
+
 	tmpl, err := h.renderer.Execute("cart_added")
 	if err != nil {
 		http.Error(w, "Failed to load template", http.StatusInternalServerError)
@@ -153,6 +162,11 @@ func (h *CartHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Track cart update
+	if telemetry.Business != nil {
+		telemetry.Business.CartUpdated.WithLabelValues(h.tenantID, "update_quantity").Inc()
+	}
+
 	tmpl, err := h.renderer.Execute("cart_summary")
 	if err != nil {
 		http.Error(w, "Failed to load template", http.StatusInternalServerError)
@@ -197,6 +211,11 @@ func (h *CartHandler) Remove(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.renderCartError(w, "Failed to remove item")
 		return
+	}
+
+	// Track cart item removal
+	if telemetry.Business != nil {
+		telemetry.Business.CartUpdated.WithLabelValues(h.tenantID, "remove").Inc()
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

@@ -7,9 +7,11 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/dukerupert/freyja/internal/billing"
 	"github.com/dukerupert/freyja/internal/service"
+	"github.com/dukerupert/freyja/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stripe/stripe-go/v83"
 )
@@ -65,6 +67,7 @@ func NewStripeHandler(provider billing.Provider, orderService service.OrderServi
 //	stripe listen --forward-to localhost:3000/webhooks/stripe
 //	stripe trigger payment_intent.succeeded
 func (h *StripeHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
+	startTime := time.Now()
 	log.Printf("[WEBHOOK] Received request: %s %s", r.Method, r.URL.Path)
 
 	// Only accept POST requests
@@ -121,6 +124,20 @@ func (h *StripeHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	// Log the event for debugging
 	log.Printf("Received Stripe webhook event: %s (ID: %s)", event.Type, event.ID)
+
+	// Track webhook received
+	tenantID := h.config.TenantID
+	if telemetry.Business != nil {
+		telemetry.Business.WebhookReceived.WithLabelValues(tenantID, string(event.Type)).Inc()
+	}
+
+	// Track processing time at the end
+	defer func() {
+		if telemetry.Business != nil {
+			duration := time.Since(startTime).Seconds()
+			telemetry.Business.WebhookLatency.WithLabelValues(tenantID, string(event.Type)).Observe(duration)
+		}
+	}()
 
 	// Handle the event based on type
 	switch event.Type {
@@ -217,9 +234,24 @@ func (h *StripeHandler) handlePaymentIntentSucceeded(event stripe.Event) {
 		// Log error for investigation - this is a critical failure
 		log.Printf("CRITICAL: Failed to create order from payment %s: %v", paymentIntent.ID, err)
 
-		// TODO: Send alert to operations team
-		// TODO: Queue for manual review
+		// Track failure in metrics and Sentry
+		if telemetry.Business != nil {
+			telemetry.Business.WebhookFailed.WithLabelValues(tenantID, "payment_intent.succeeded", "order_creation_failed").Inc()
+		}
+		telemetry.CaptureErrorWithTenant(err, tenantID, map[string]interface{}{
+			"payment_intent_id": paymentIntent.ID,
+			"amount":            paymentIntent.Amount,
+			"cart_id":           cartID,
+		})
 		return
+	}
+
+	// Track successful order creation
+	if telemetry.Business != nil {
+		telemetry.Business.PaymentSucceeded.WithLabelValues(tenantID, orderType).Inc()
+		telemetry.Business.OrdersCreated.WithLabelValues(tenantID, orderType).Inc()
+		telemetry.Business.OrderValue.WithLabelValues(tenantID, orderType).Observe(float64(order.Order.TotalCents))
+		telemetry.Business.WebhookProcessed.WithLabelValues(tenantID, "payment_intent.succeeded").Inc()
 	}
 
 	log.Printf("Order created successfully: %s (payment: %s, total: %d %s)",
@@ -235,18 +267,6 @@ func (h *StripeHandler) handlePaymentIntentSucceeded(event stripe.Event) {
 
 // handlePaymentIntentFailed processes failed payment events
 func (h *StripeHandler) handlePaymentIntentFailed(event stripe.Event) {
-	// TODO: Implement failure handling
-	//
-	// Steps:
-	// 1. Parse payment intent from event
-	// 2. Extract failure reason and error code
-	// 3. Log failure for debugging
-	// 4. Send email to customer with:
-	//    - What went wrong (card declined, insufficient funds, etc.)
-	//    - Instructions to retry with different payment method
-	// 5. Update cart status to "payment_failed"
-	// 6. Optionally: Implement retry logic with exponential backoff
-
 	var paymentIntent stripe.PaymentIntent
 	if err := json.Unmarshal(event.Data.Raw, &paymentIntent); err != nil {
 		log.Printf("Error parsing payment intent from webhook: %v", err)
@@ -255,11 +275,25 @@ func (h *StripeHandler) handlePaymentIntentFailed(event stripe.Event) {
 
 	log.Printf("Payment failed for payment intent: %s", paymentIntent.ID)
 
+	// Extract metadata
+	tenantID := paymentIntent.Metadata["tenant_id"]
+	if tenantID == "" {
+		tenantID = h.config.TenantID
+	}
+
+	failureReason := "unknown"
 	if paymentIntent.LastPaymentError != nil {
+		failureReason = string(paymentIntent.LastPaymentError.Code)
 		log.Printf("Failure reason: %s (code: %s, decline_code: %s)",
 			paymentIntent.LastPaymentError.Msg,
 			paymentIntent.LastPaymentError.Code,
 			paymentIntent.LastPaymentError.DeclineCode)
+	}
+
+	// Track payment failure
+	if telemetry.Business != nil {
+		telemetry.Business.PaymentFailed.WithLabelValues(tenantID, "one_time", failureReason).Inc()
+		telemetry.Business.WebhookProcessed.WithLabelValues(tenantID, "payment_intent.payment_failed").Inc()
 	}
 
 	// TODO: Notify customer of payment failure
@@ -268,14 +302,6 @@ func (h *StripeHandler) handlePaymentIntentFailed(event stripe.Event) {
 
 // handlePaymentIntentCanceled processes canceled payment events
 func (h *StripeHandler) handlePaymentIntentCanceled(event stripe.Event) {
-	// TODO: Implement cancellation handling
-	//
-	// Steps:
-	// 1. Parse payment intent from event
-	// 2. Mark cart as abandoned
-	// 3. Optionally: Send "complete your order" reminder email after 24 hours
-	// 4. Clean up any reserved inventory
-
 	var paymentIntent stripe.PaymentIntent
 	if err := json.Unmarshal(event.Data.Raw, &paymentIntent); err != nil {
 		log.Printf("Error parsing payment intent from webhook: %v", err)
@@ -283,6 +309,18 @@ func (h *StripeHandler) handlePaymentIntentCanceled(event stripe.Event) {
 	}
 
 	log.Printf("Payment intent canceled: %s", paymentIntent.ID)
+
+	// Extract metadata
+	tenantID := paymentIntent.Metadata["tenant_id"]
+	if tenantID == "" {
+		tenantID = h.config.TenantID
+	}
+
+	// Track checkout abandonment
+	if telemetry.Business != nil {
+		telemetry.Business.CheckoutAbandoned.WithLabelValues(tenantID).Inc()
+		telemetry.Business.WebhookProcessed.WithLabelValues(tenantID, "payment_intent.canceled").Inc()
+	}
 
 	// TODO: Clean up abandoned cart
 	// cartService.MarkAbandoned(paymentIntent.Metadata["cart_id"])

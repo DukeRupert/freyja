@@ -14,6 +14,7 @@ import (
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/service"
 	"github.com/dukerupert/freyja/internal/shipping"
+	"github.com/dukerupert/freyja/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -54,6 +55,8 @@ func NewCheckoutHandler(
 
 // Page handles GET /checkout
 func (h *CheckoutHandler) Page(w http.ResponseWriter, r *http.Request) {
+	tenantID := h.tenantID.String()
+
 	sessionID := GetSessionIDFromCookie(r)
 	if sessionID == "" {
 		http.Redirect(w, r, "/cart", http.StatusSeeOther)
@@ -75,6 +78,12 @@ func (h *CheckoutHandler) Page(w http.ResponseWriter, r *http.Request) {
 	if len(cartSummary.Items) == 0 {
 		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
+	}
+
+	// Track checkout started
+	if telemetry.Business != nil {
+		telemetry.Business.CheckoutStarted.WithLabelValues(tenantID).Inc()
+		telemetry.Business.CartValue.WithLabelValues(tenantID).Observe(float64(cartSummary.Subtotal))
 	}
 
 	data := BaseTemplateData(r)
@@ -285,8 +294,22 @@ func (h *CheckoutHandler) CreatePaymentIntent(w http.ResponseWriter, r *http.Req
 	paymentIntent, err := h.checkoutService.CreatePaymentIntent(r.Context(), params)
 	if err != nil {
 		logger.Error("Failed to create payment intent", "error", err, "cart_id", req.CartID)
+		// Track payment attempt failure
+		if telemetry.Business != nil {
+			telemetry.Business.PaymentFailed.WithLabelValues(h.tenantID.String(), "one_time", "create_failed").Inc()
+		}
+		// Use context-based capture - tenant/user context set by middleware
+		telemetry.CaptureErrorFromContext(r.Context(), err, map[string]interface{}{
+			"cart_id": req.CartID,
+			"email":   req.CustomerEmail,
+		})
 		http.Error(w, fmt.Sprintf("Failed to create payment intent: %v", err), http.StatusInternalServerError)
 		return
+	}
+
+	// Track payment attempt
+	if telemetry.Business != nil {
+		telemetry.Business.PaymentAttempts.WithLabelValues(h.tenantID.String(), "one_time").Inc()
 	}
 
 	logger.Info("Payment intent created", "payment_intent_id", paymentIntent.ID, "amount_cents", paymentIntent.AmountCents)

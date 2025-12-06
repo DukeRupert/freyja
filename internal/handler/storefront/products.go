@@ -10,6 +10,7 @@ import (
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/service"
+	"github.com/dukerupert/freyja/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -84,11 +85,25 @@ func convertToInt4(v interface{}) pgtype.Int4 {
 // List handles GET /products - shows product listing with filters
 func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := h.tenantID.String()
 
 	// Parse filter params
 	roastLevel := r.URL.Query().Get("roast")
 	origin := r.URL.Query().Get("origin")
 	tastingNote := r.URL.Query().Get("note")
+
+	// Track product searches/filters
+	if telemetry.Business != nil {
+		filterType := "none"
+		if roastLevel != "" {
+			filterType = "roast"
+		} else if origin != "" {
+			filterType = "origin"
+		} else if tastingNote != "" {
+			filterType = "note"
+		}
+		telemetry.Business.ProductSearches.WithLabelValues(tenantID, filterType).Inc()
+	}
 
 	// Get filter options for the UI
 	filterOptions, err := h.repo.GetProductFilterOptions(ctx, h.tenantID)
@@ -201,6 +216,7 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug := r.PathValue("slug")
+	tenantID := h.tenantID.String()
 
 	if slug == "" {
 		http.NotFound(w, r)
@@ -215,6 +231,11 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Error(w, "Failed to load product", http.StatusInternalServerError)
 		return
+	}
+
+	// Track product view
+	if telemetry.Business != nil {
+		telemetry.Business.ProductViews.WithLabelValues(tenantID, slug).Inc()
 	}
 
 	// Extract unique weights and grinds for option selectors
@@ -285,6 +306,12 @@ type SubscriptionSKU struct {
 // SubscribeProducts handles GET /subscribe - shows products available for subscription
 func (h *ProductHandler) SubscribeProducts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := h.tenantID.String()
+
+	// Track subscription page view
+	if telemetry.Business != nil {
+		telemetry.Business.SubscribePageView.WithLabelValues(tenantID).Inc()
+	}
 
 	// Get all active products
 	products, err := h.productService.ListProducts(ctx)
