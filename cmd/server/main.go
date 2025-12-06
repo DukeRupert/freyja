@@ -413,6 +413,8 @@ func run() error {
 	// CSRF config (insecure cookies allowed in development)
 	csrfConfig := middleware.CSRFConfig{
 		CookieSecure: !isDev,
+		// Skip CSRF validation for webhook endpoints (they use signature verification)
+		SkipPaths: []string{"/webhooks/"},
 	}
 
 	// ==========================================================================
