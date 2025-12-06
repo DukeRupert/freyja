@@ -19,6 +19,7 @@ This roadmap defines the path to MVP launch and the six months following. The MV
 ✅ **Account Dashboard Complete** — User account overview page
 ✅ **Profile Management Complete** — Settings page, address book with full CRUD, payment methods
 ✅ **Provider Configuration System Complete** — Tenant-selectable providers with encrypted credentials
+✅ **File Storage Complete** — Cloudflare R2 for production, local filesystem for development
 
 **Codebase Metrics:**
 - 120+ Go source files (~22,000 lines)
@@ -439,13 +440,14 @@ These are noted for architectural awareness but not scheduled:
 | Profile Management | ✅ Complete | Address book CRUD, settings, password change, payment methods |
 | Provider Config | ✅ Complete | Tenant-selectable providers, encrypted credentials, admin UI |
 | Tax Calculation | ✅ Complete | Stripe Tax + percentage-based with state rates |
+| File Storage | ✅ Complete | Cloudflare R2 (production) + local filesystem (development) |
 
 ### Architecture Highlights
 
 - **50+ database tables** across 25 migrations
 - **45+ HTTP handlers** for storefront, admin, and webhooks
 - **15+ service layers** (product, cart, user, order, checkout, subscription, account, password reset, email verification, payment terms, fulfillment, invoice, address, provider)
-- **Interface-based abstractions** for billing, shipping, email, storage, tax
+- **Interface-based abstractions** for billing, shipping, email, storage (R2/local), tax
 - **Multi-tenant isolation** on all queries (tenant_id scoping)
 - **Idempotent webhook processing** for payment reliability
 - **Comprehensive test coverage** for checkout (1,735 lines) and orders (1,374 lines)

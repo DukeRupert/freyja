@@ -21,6 +21,7 @@ type Config struct {
 	Stripe        StripeConfig
 	Email         EmailConfig
 	Admin         AdminConfig
+	Storage       StorageConfig
 }
 
 // AdminConfig contains initial admin user configuration.
@@ -46,6 +47,17 @@ type EmailConfig struct {
 	From          string
 	FromName      string
 	PostmarkToken string
+}
+
+type StorageConfig struct {
+	Provider      string // "local" or "r2"
+	LocalPath     string
+	LocalURL      string
+	R2AccountID   string
+	R2AccessKeyID string
+	R2SecretKey   string
+	R2BucketName  string
+	R2PublicURL   string
 }
 
 func NewConfig() (*Config, error) {
@@ -96,6 +108,16 @@ func NewConfig() (*Config, error) {
 			FirstName: getEnv("FREYJA_ADMIN_FIRST_NAME", ""),
 			LastName:  getEnv("FREYJA_ADMIN_LAST_NAME", ""),
 		},
+		Storage: StorageConfig{
+			Provider:      getEnv("STORAGE_PROVIDER", "local"),
+			LocalPath:     getEnv("LOCAL_STORAGE_PATH", "./web/static/uploads"),
+			LocalURL:      getEnv("LOCAL_STORAGE_URL", "/uploads"),
+			R2AccountID:   getEnv("R2_ACCOUNT_ID", ""),
+			R2AccessKeyID: getEnv("R2_ACCESS_KEY_ID", ""),
+			R2SecretKey:   getEnv("R2_SECRET_ACCESS_KEY", ""),
+			R2BucketName:  getEnv("R2_BUCKET_NAME", ""),
+			R2PublicURL:   getEnv("R2_PUBLIC_URL", ""),
+		},
 	}
 
 	// Validate env
@@ -115,6 +137,19 @@ func NewConfig() (*Config, error) {
 	// Validate JWT secret in production
 	if (cfg.Env == "prod" || cfg.Env == "production") && cfg.SessionSecret == "your-secret-key-change-in-production" {
 		return nil, fmt.Errorf("SESSION_SECRET must be set in production environment")
+	}
+
+	// Validate R2 configuration in production
+	if cfg.Env == "prod" && cfg.Storage.Provider == "r2" {
+		if cfg.Storage.R2AccountID == "" {
+			return nil, fmt.Errorf("R2_ACCOUNT_ID required when using R2 storage in production")
+		}
+		if cfg.Storage.R2AccessKeyID == "" || cfg.Storage.R2SecretKey == "" {
+			return nil, fmt.Errorf("R2 credentials required when using R2 storage in production")
+		}
+		if cfg.Storage.R2BucketName == "" {
+			return nil, fmt.Errorf("R2_BUCKET_NAME required when using R2 storage in production")
+		}
 	}
 
 	return cfg, nil

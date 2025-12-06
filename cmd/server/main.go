@@ -149,12 +149,12 @@ func run() error {
 	logger.Info("Email service initialized")
 
 	// Initialize file storage for product images
-	logger.Info("Initializing file storage...")
-	fileStorage, err := storage.NewLocalStorage("./web/static/uploads", "/uploads")
+	logger.Info("Initializing file storage...", "provider", cfg.Storage.Provider)
+	fileStorage, err := storage.NewStorage(cfg.Storage)
 	if err != nil {
 		return fmt.Errorf("failed to initialize file storage: %w", err)
 	}
-	logger.Info("File storage initialized")
+	logger.Info("File storage initialized", "provider", cfg.Storage.Provider)
 
 	// Note: Background worker initialization moved after service creation
 

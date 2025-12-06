@@ -584,22 +584,54 @@ tax, err := taxCalc.Calculate(ctx, order)
 
 ## File Storage
 
-### Choice: Local Filesystem (MVP) → S3-Compatible (Post-MVP)
+### Choice: Cloudflare R2 (Production) + Local Filesystem (Development)
 
-**MVP Approach:**
-- Store product images on local filesystem
-- Serve via Caddy static file handling
-- Simple, no additional services
+**Package:** `github.com/aws/aws-sdk-go-v2/service/s3`
 
-**Post-MVP:**
-- Migrate to S3-compatible storage (AWS S3, DigitalOcean Spaces, MinIO)
-- Enables CDN integration
-- Better for multi-instance deployment if needed
+**Rationale:**
+- **Cloudflare R2:** S3-compatible with zero egress fees (critical for serving images)
+- **Platform-controlled:** Single storage backend managed by Freyja (not per-tenant configuration)
+- **Simplicity for target market:** Coffee roasters don't want to manage AWS credentials
+- **Cost-effective:** ~$0.015/GB/month storage, free egress, generous free tier (10GB)
 
-**Abstraction:**
-- File storage interface from the start
-- Local implementation for MVP
-- S3 implementation added later
+**Architecture:**
+- `storage.Storage` interface with `Put`, `Get`, `Delete`, `URL`, `Exists` methods
+- `LocalStorage` implementation for development (stores in `./web/static/uploads/`)
+- `R2Storage` implementation for production (uses AWS SDK v2 with R2 endpoint)
+- Factory function `storage.NewStorage(cfg)` selects implementation based on config
+
+**Configuration (Environment Variables):**
+```bash
+# Development (default)
+STORAGE_PROVIDER=local
+LOCAL_STORAGE_PATH=./web/static/uploads
+LOCAL_STORAGE_URL=/uploads
+
+# Production
+STORAGE_PROVIDER=r2
+R2_ACCOUNT_ID=your_account_id
+R2_ACCESS_KEY_ID=your_access_key
+R2_SECRET_ACCESS_KEY=your_secret_key
+R2_BUCKET_NAME=freyja-files
+R2_PUBLIC_URL=https://files.your-domain.com
+```
+
+**Multi-Tenant Isolation:**
+- Storage keys include tenant ID prefix: `{tenant_id}/products/{product_id}/image.jpg`
+- All tenants share one R2 bucket with key-based isolation
+- Tenant ID validated on all storage operations
+
+**Why Not Per-Tenant Storage Configuration:**
+- Target customers (small coffee roasters) aren't technical
+- Storage costs are negligible (~$1/month for 100 tenants)
+- Reduces support burden (no "my S3 credentials stopped working" tickets)
+- Consistent UX: just upload images, no cloud provider setup
+
+**Alternatives Considered:**
+- AWS S3: Expensive egress ($0.09/GB)
+- DigitalOcean Spaces: Good but R2 egress is free
+- MinIO (self-hosted): Adds operational burden
+- Per-tenant buckets: Unnecessary complexity for target market
 
 ---
 
@@ -777,6 +809,8 @@ Significant decisions should be recorded here as the project evolves.
 | 2024-12-04 | AES-256-GCM for credential encryption | Industry standard authenticated encryption; prevents tampering and provides confidentiality |
 | 2024-12-04 | TTL-based provider caching | 1-hour cache reduces database queries while allowing timely config updates |
 | 2024-12-04 | Stripe Tax + percentage-based tax | Offers tenants choice between automatic (Stripe) and manual (state rates) tax calculation |
+| 2024-12-05 | Cloudflare R2 for file storage | Zero egress fees critical for serving product images; S3-compatible API; generous free tier |
+| 2024-12-05 | Platform-controlled storage (not per-tenant) | Target market (coffee roasters) aren't technical; storage costs negligible; reduces support burden |
 
 ---
 

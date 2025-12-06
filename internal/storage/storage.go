@@ -2,7 +2,10 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"io"
+
+	"github.com/dukerupert/freyja/internal"
 )
 
 // Storage defines the interface for file storage operations.
@@ -27,4 +30,23 @@ type Storage interface {
 
 	// Exists checks if a file exists at the given key.
 	Exists(ctx context.Context, key string) (bool, error)
+}
+
+// NewStorage creates a Storage implementation based on configuration.
+// Returns LocalStorage for "local" provider, R2Storage for "r2" provider.
+func NewStorage(cfg internal.StorageConfig) (Storage, error) {
+	switch cfg.Provider {
+	case "local", "":
+		return NewLocalStorage(cfg.LocalPath, cfg.LocalURL)
+	case "r2":
+		return NewR2Storage(R2Config{
+			AccountID:   cfg.R2AccountID,
+			AccessKeyID: cfg.R2AccessKeyID,
+			SecretKey:   cfg.R2SecretKey,
+			BucketName:  cfg.R2BucketName,
+			PublicURL:   cfg.R2PublicURL,
+		})
+	default:
+		return nil, fmt.Errorf("unknown storage provider: %s", cfg.Provider)
+	}
 }
