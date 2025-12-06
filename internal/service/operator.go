@@ -36,12 +36,13 @@ const (
 
 // Operator service errors
 var (
-	ErrOperatorNotFound     = errors.New("operator not found")
-	ErrOperatorSuspended    = errors.New("operator account is suspended")
-	ErrOperatorPending      = errors.New("operator account setup not complete")
-	ErrOperatorExists       = errors.New("operator with this email already exists")
-	ErrOperatorInvalidToken = errors.New("invalid or expired token")
-	ErrWeakPassword         = errors.New("password must be at least 8 characters")
+	ErrOperatorNotFound        = errors.New("operator not found")
+	ErrOperatorSuspended       = errors.New("operator account is suspended")
+	ErrOperatorPending         = errors.New("operator account setup not complete")
+	ErrOperatorExists          = errors.New("operator with this email already exists")
+	ErrOperatorInvalidToken    = errors.New("invalid or expired token")
+	ErrOperatorInvalidPassword = errors.New("invalid password")
+	ErrWeakPassword            = errors.New("password must be at least 8 characters")
 )
 
 // OperatorService provides business logic for tenant operator operations
