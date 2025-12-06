@@ -11,25 +11,39 @@ import (
 )
 
 type Querier interface {
+	// Activate a suspended operator account
+	ActivateOperator(ctx context.Context, arg ActivateOperatorParams) error
+	// Activate a pending tenant after password setup
+	ActivateTenant(ctx context.Context, id pgtype.UUID) error
 	// Add an item to cart (or update quantity if exists)
 	AddCartItem(ctx context.Context, arg AddCartItemParams) (CartItem, error)
 	// Admin update customer details
 	AdminUpdateCustomer(ctx context.Context, arg AdminUpdateCustomerParams) error
 	// Cancel a pending job
 	CancelJob(ctx context.Context, id pgtype.UUID) error
+	// Cancel a tenant subscription
+	CancelTenant(ctx context.Context, id pgtype.UUID) error
 	// Claim the next pending job using SKIP LOCKED for safe concurrent access
 	// This query finds the highest priority job that's ready to run
 	ClaimNextJob(ctx context.Context, arg ClaimNextJobParams) (Job, error)
 	// Remove all items from a cart
 	ClearCart(ctx context.Context, cartID pgtype.UUID) error
+	// Clear setup token after successful use
+	ClearOperatorSetupToken(ctx context.Context, id pgtype.UUID) error
+	// Clear grace period after successful payment
+	ClearTenantGracePeriod(ctx context.Context, id pgtype.UUID) error
 	// Mark a job as completed
 	CompleteJob(ctx context.Context, id pgtype.UUID) error
+	// Count active sessions for an operator
+	CountActiveOperatorSessions(ctx context.Context, operatorID pgtype.UUID) (int64, error)
 	// Count addresses for a user (for account dashboard)
 	CountAddressesForUser(ctx context.Context, arg CountAddressesForUserParams) (CountAddressesForUserRow, error)
 	// Count invoices for pagination
 	CountInvoices(ctx context.Context, tenantID pgtype.UUID) (int64, error)
 	// Count jobs by status
 	CountJobsByStatus(ctx context.Context, arg CountJobsByStatusParams) (int64, error)
+	// Count operators for a tenant
+	CountOperatorsByTenant(ctx context.Context, tenantID pgtype.UUID) (int64, error)
 	// Count total orders for pagination
 	CountOrders(ctx context.Context, tenantID pgtype.UUID) (int64, error)
 	// Count orders for a user (for account dashboard)
@@ -50,6 +64,8 @@ type Querier interface {
 	CountSubscriptions(ctx context.Context, tenantID pgtype.UUID) (int64, error)
 	// Counts subscriptions by status for pagination
 	CountSubscriptionsByStatus(ctx context.Context, arg CountSubscriptionsByStatusParams) (int64, error)
+	// Count tenants by status
+	CountTenantsByStatus(ctx context.Context, status string) (int64, error)
 	// Admin queries
 	// Count total users for pagination
 	CountUsers(ctx context.Context, tenantID pgtype.UUID) (int64, error)
@@ -91,6 +107,9 @@ type Querier interface {
 	// Record a payment against an invoice
 	// Note: The update_invoice_balance trigger automatically updates invoice totals
 	CreateInvoicePayment(ctx context.Context, arg CreateInvoicePaymentParams) (InvoicePayment, error)
+	// Operator Sessions: Sessions for tenant operators (separate from customer sessions)
+	// Create a new operator session
+	CreateOperatorSession(ctx context.Context, arg CreateOperatorSessionParams) (OperatorSession, error)
 	// Creates a new order record with all required fields
 	// Returns the complete order with generated ID and timestamps
 	CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error)
@@ -147,6 +166,13 @@ type Querier interface {
 	CreateSubscriptionScheduleEvent(ctx context.Context, arg CreateSubscriptionScheduleEventParams) (SubscriptionSchedule, error)
 	// Create a new tax rate
 	CreateTaxRate(ctx context.Context, arg CreateTaxRateParams) (TaxRate, error)
+	// Tenants: Coffee roasters using the platform (multi-tenant root)
+	// Create a new tenant (called after Stripe checkout)
+	CreateTenant(ctx context.Context, arg CreateTenantParams) (Tenant, error)
+	// Tenant Operators: People who manage a tenant (roaster staff who pay for Freyja)
+	// Separate from users table (storefront customers)
+	// Create a new tenant operator (called after Stripe checkout)
+	CreateTenantOperator(ctx context.Context, arg CreateTenantOperatorParams) (TenantOperator, error)
 	// Create a new user (retail account by default)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	// Record incoming webhook event for idempotency
@@ -158,6 +184,8 @@ type Querier interface {
 	DeleteCustomerAddress(ctx context.Context, arg DeleteCustomerAddressParams) error
 	// Delete expired email verification tokens (cleanup job)
 	DeleteExpiredEmailVerificationTokens(ctx context.Context) error
+	// Clean up expired operator sessions (background job)
+	DeleteExpiredOperatorSessions(ctx context.Context) error
 	// Delete expired password reset tokens (cleanup job)
 	DeleteExpiredPasswordResetTokens(ctx context.Context) error
 	// Clean up expired sessions (for background job)
@@ -173,6 +201,12 @@ type Querier interface {
 	// Cleanup old completed jobs (history is preserved in job_history table)
 	// Delete jobs older than the specified timestamp
 	DeleteOldCompletedJobs(ctx context.Context, processingCompletedAt pgtype.Timestamptz) error
+	// Delete an operator session (logout)
+	DeleteOperatorSession(ctx context.Context, tokenHash string) error
+	// Delete an operator session by ID
+	DeleteOperatorSessionByID(ctx context.Context, id pgtype.UUID) error
+	// Delete all sessions for an operator (e.g., password change, force logout)
+	DeleteOperatorSessionsByOperatorID(ctx context.Context, operatorID pgtype.UUID) error
 	// Delete a payment method
 	DeletePaymentMethod(ctx context.Context, arg DeletePaymentMethodParams) error
 	// Soft delete by deactivating (preserves referential integrity)
@@ -199,6 +233,8 @@ type Querier interface {
 	DeleteShippingRatesByProvider(ctx context.Context, arg DeleteShippingRatesByProviderParams) error
 	// Delete a tax rate
 	DeleteTaxRate(ctx context.Context, arg DeleteTaxRateParams) error
+	// Delete an operator (for cleanup/testing)
+	DeleteTenantOperator(ctx context.Context, arg DeleteTenantOperatorParams) error
 	// Insert a new job into the queue
 	EnqueueJob(ctx context.Context, arg EnqueueJobParams) (Job, error)
 	// Mark a job as failed or reschedule it for retry
@@ -279,6 +315,10 @@ type Querier interface {
 	GetJobByID(ctx context.Context, id pgtype.UUID) (Job, error)
 	// Get job queue statistics
 	GetJobStats(ctx context.Context, tenantID pgtype.UUID) (GetJobStatsRow, error)
+	// Get a valid (non-expired) operator session by token hash
+	GetOperatorSessionByTokenHash(ctx context.Context, tokenHash string) (OperatorSession, error)
+	// Get all active sessions for an operator (for "active sessions" UI)
+	GetOperatorSessionsForOperator(ctx context.Context, operatorID pgtype.UUID) ([]OperatorSession, error)
 	// Retrieves a single order by ID with tenant scoping
 	GetOrder(ctx context.Context, arg GetOrderParams) (Order, error)
 	// Retrieves a single order by order number with tenant scoping
@@ -378,10 +418,33 @@ type Querier interface {
 	GetSubscriptionWithDetails(ctx context.Context, arg GetSubscriptionWithDetailsParams) (GetSubscriptionWithDetailsRow, error)
 	// Get the active tax rate for a specific state within a tenant
 	GetTaxRateByState(ctx context.Context, arg GetTaxRateByStateParams) (TaxRate, error)
+	// Get tenant by ID
+	GetTenantByID(ctx context.Context, id pgtype.UUID) (Tenant, error)
+	// Get tenant by slug (for subdomain/path routing)
+	GetTenantBySlug(ctx context.Context, slug string) (Tenant, error)
+	// Get tenant by Stripe customer ID (for webhook processing)
+	GetTenantByStripeCustomerID(ctx context.Context, stripeCustomerID pgtype.Text) (Tenant, error)
+	// Get tenant by Stripe subscription ID (for webhook processing)
+	GetTenantByStripeSubscriptionID(ctx context.Context, stripeSubscriptionID pgtype.Text) (Tenant, error)
+	// Get operator by email (global lookup for login)
+	GetTenantOperatorByEmail(ctx context.Context, email string) (TenantOperator, error)
+	// Get operator by email within a specific tenant
+	GetTenantOperatorByEmailAndTenant(ctx context.Context, arg GetTenantOperatorByEmailAndTenantParams) (TenantOperator, error)
+	// Get operator by ID
+	GetTenantOperatorByID(ctx context.Context, id pgtype.UUID) (TenantOperator, error)
+	// Get operator by ID within a specific tenant (for session validation)
+	GetTenantOperatorByIDAndTenant(ctx context.Context, arg GetTenantOperatorByIDAndTenantParams) (TenantOperator, error)
+	// Get operator by valid (non-expired) reset token
+	GetTenantOperatorByResetToken(ctx context.Context, resetTokenHash pgtype.Text) (TenantOperator, error)
+	// Get operator by valid (non-expired) setup token
+	GetTenantOperatorBySetupToken(ctx context.Context, setupTokenHash pgtype.Text) (TenantOperator, error)
 	// Checkout queries
 	// Get the primary warehouse address for a tenant (for shipping origin calculations)
 	// Used by CheckoutService.GetShippingRates to determine shipping origin
 	GetTenantWarehouseAddress(ctx context.Context, tenantID pgtype.UUID) (GetTenantWarehouseAddressRow, error)
+	// Get tenants whose grace period has expired (for suspension job)
+	// Grace period is 7 days (168 hours)
+	GetTenantsWithExpiredGracePeriod(ctx context.Context) ([]Tenant, error)
 	// Get order items that still need to be shipped
 	GetUnfulfilledOrderItems(ctx context.Context, orderID pgtype.UUID) ([]GetUnfulfilledOrderItemsRow, error)
 	// =============================================================================
@@ -425,6 +488,8 @@ type Querier interface {
 	// Lists only active/trial subscriptions for a customer
 	// Used for checking if user has active subscriptions
 	ListActiveSubscriptionsForUser(ctx context.Context, arg ListActiveSubscriptionsForUserParams) ([]Subscription, error)
+	// List all active tenants (for admin/reporting)
+	ListActiveTenants(ctx context.Context) ([]Tenant, error)
 	// Get all addresses for a user with their associations
 	ListAddressesForUser(ctx context.Context, arg ListAddressesForUserParams) ([]ListAddressesForUserRow, error)
 	// List all payment terms including inactive (for admin)
@@ -484,6 +549,8 @@ type Querier interface {
 	ListSubscriptionsForUser(ctx context.Context, arg ListSubscriptionsForUserParams) ([]Subscription, error)
 	// List all tax rates for a tenant (admin view)
 	ListTaxRates(ctx context.Context, tenantID pgtype.UUID) ([]TaxRate, error)
+	// List all operators for a tenant (for future multi-user support)
+	ListTenantOperators(ctx context.Context, tenantID pgtype.UUID) ([]TenantOperator, error)
 	// Lists upcoming scheduled events for processing
 	// Used by background job to process subscription renewals
 	ListUpcomingScheduleEvents(ctx context.Context, arg ListUpcomingScheduleEventsParams) ([]ListUpcomingScheduleEventsRow, error)
@@ -516,10 +583,26 @@ type Querier interface {
 	SetDefaultPaymentTerms(ctx context.Context, arg SetDefaultPaymentTermsParams) error
 	// Set an address as the default shipping address for a user
 	SetDefaultShippingAddress(ctx context.Context, arg SetDefaultShippingAddressParams) error
+	// Set operator password and activate account (called during setup)
+	SetOperatorPassword(ctx context.Context, arg SetOperatorPasswordParams) error
+	// Set password reset token for an operator
+	SetOperatorResetToken(ctx context.Context, arg SetOperatorResetTokenParams) error
+	// Set or refresh setup token for an operator
+	SetOperatorSetupToken(ctx context.Context, arg SetOperatorSetupTokenParams) error
 	// Set a product image as primary (and unset others)
 	SetPrimaryImage(ctx context.Context, arg SetPrimaryImageParams) error
+	// Update tenant status
+	SetTenantStatus(ctx context.Context, arg SetTenantStatusParams) error
+	// Start grace period after payment failure
+	StartTenantGracePeriod(ctx context.Context, id pgtype.UUID) error
 	// Submit a wholesale application (updates user profile with business info)
 	SubmitWholesaleApplication(ctx context.Context, arg SubmitWholesaleApplicationParams) error
+	// Suspend an operator account
+	SuspendOperator(ctx context.Context, arg SuspendOperatorParams) error
+	// Suspend a tenant (grace period expired or manual suspension)
+	SuspendTenant(ctx context.Context, id pgtype.UUID) error
+	// Check if a slug is already taken
+	TenantSlugExists(ctx context.Context, slug string) (bool, error)
 	// Removes is_default flag from all providers of a given type for a tenant.
 	// Used before setting a new default provider.
 	UnsetDefaultProvider(ctx context.Context, arg UnsetDefaultProviderParams) error
@@ -537,6 +620,14 @@ type Querier interface {
 	UpdateInvoiceProviderID(ctx context.Context, arg UpdateInvoiceProviderIDParams) error
 	// Update invoice status
 	UpdateInvoiceStatus(ctx context.Context, arg UpdateInvoiceStatusParams) error
+	// Update last login timestamp
+	UpdateOperatorLastLogin(ctx context.Context, id pgtype.UUID) error
+	// Update operator password (for password resets)
+	UpdateOperatorPassword(ctx context.Context, arg UpdateOperatorPasswordParams) error
+	// Update operator profile information
+	UpdateOperatorProfile(ctx context.Context, arg UpdateOperatorProfileParams) (TenantOperator, error)
+	// Update session expiry (for sliding window sessions)
+	UpdateOperatorSessionExpiry(ctx context.Context, arg UpdateOperatorSessionExpiryParams) error
 	// Update order fulfillment status
 	UpdateOrderFulfillmentStatus(ctx context.Context, arg UpdateOrderFulfillmentStatusParams) error
 	// =============================================================================
@@ -583,6 +674,12 @@ type Querier interface {
 	UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscriptionStatusParams) (Subscription, error)
 	// Update an existing tax rate
 	UpdateTaxRate(ctx context.Context, arg UpdateTaxRateParams) (TaxRate, error)
+	// Update tenant profile information
+	UpdateTenantProfile(ctx context.Context, arg UpdateTenantProfileParams) (Tenant, error)
+	// Set Stripe customer ID for a tenant
+	UpdateTenantStripeCustomer(ctx context.Context, arg UpdateTenantStripeCustomerParams) error
+	// Set Stripe subscription ID for a tenant
+	UpdateTenantStripeSubscription(ctx context.Context, arg UpdateTenantStripeSubscriptionParams) error
 	// Update user password (tenant-scoped for security)
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	// Update user profile information (tenant-scoped for security)

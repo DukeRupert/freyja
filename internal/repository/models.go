@@ -5,6 +5,8 @@
 package repository
 
 import (
+	"net/netip"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -289,6 +291,18 @@ type JobHistory struct {
 	ProcessingCompletedAt pgtype.Timestamptz `json:"processing_completed_at"`
 	Metadata              []byte             `json:"metadata"`
 	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+}
+
+// Sessions for tenant operators (separate from customer sessions)
+type OperatorSession struct {
+	ID         pgtype.UUID `json:"id"`
+	OperatorID pgtype.UUID `json:"operator_id"`
+	// SHA-256 hash of session token (not stored in plaintext)
+	TokenHash string             `json:"token_hash"`
+	UserAgent pgtype.Text        `json:"user_agent"`
+	IpAddress *netip.Addr        `json:"ip_address"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 // Customer orders (retail, wholesale, subscription)
@@ -814,6 +828,33 @@ type Tenant struct {
 	TrialEndsAt  pgtype.Timestamptz `json:"trial_ends_at"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	// Stripe customer ID for platform subscription billing
+	StripeCustomerID pgtype.Text `json:"stripe_customer_id"`
+	// Stripe subscription ID for $149/month platform fee
+	StripeSubscriptionID pgtype.Text `json:"stripe_subscription_id"`
+	// When grace period started after payment failure (7 days before suspension)
+	GracePeriodStartedAt pgtype.Timestamptz `json:"grace_period_started_at"`
+}
+
+// People who manage a tenant (roaster staff who pay for Freyja)
+type TenantOperator struct {
+	ID           pgtype.UUID `json:"id"`
+	TenantID     pgtype.UUID `json:"tenant_id"`
+	Email        string      `json:"email"`
+	PasswordHash pgtype.Text `json:"password_hash"`
+	Name         pgtype.Text `json:"name"`
+	// owner (full access), admin (future), staff (future)
+	Role string `json:"role"`
+	// SHA-256 hash of setup token sent via email (48h expiry)
+	SetupTokenHash      pgtype.Text        `json:"setup_token_hash"`
+	SetupTokenExpiresAt pgtype.Timestamptz `json:"setup_token_expires_at"`
+	// SHA-256 hash of password reset token (1h expiry)
+	ResetTokenHash      pgtype.Text        `json:"reset_token_hash"`
+	ResetTokenExpiresAt pgtype.Timestamptz `json:"reset_token_expires_at"`
+	Status              string             `json:"status"`
+	LastLoginAt         pgtype.Timestamptz `json:"last_login_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 }
 
 // Tenant-specific provider configurations with encrypted credentials
