@@ -4,7 +4,7 @@
 
 This roadmap defines the path to MVP launch and the six months following. The MVP focuses on complete, reliable functionality for core use cases rather than breadth of features.
 
-**Last updated:** December 5, 2024
+**Last updated:** December 6, 2024
 
 ---
 
@@ -14,6 +14,7 @@ This roadmap defines the path to MVP launch and the six months following. The MV
 ✅ **Phase 4 Complete** — Flat-rate shipping + EasyPost carrier integration
 ✅ **Phase 5 Complete** — Subscriptions fully implemented with Stripe Billing
 ✅ **Phase 6 Complete** — Wholesale invoicing with full admin UI
+✅ **Wholesale Ordering Complete** — Matrix ordering UI, batch cart, application workflow
 ✅ **Email Notifications Complete** — Postmark/SMTP, background worker, 8 email types
 ✅ **Email Verification Complete** — Signup requires email verification before login
 ✅ **Account Dashboard Complete** — User account overview page
@@ -59,7 +60,7 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 - ✅ Password change with current password verification
 - ✅ Payment methods listing and default management
 - ✅ Stripe Customer Portal integration for payment method management
-- ⏳ Wholesale account application flow — schema ready, UI not implemented
+- ✅ Wholesale account application flow with status tracking
 
 **Price List System** ✅
 - ✅ Default retail price list
@@ -226,6 +227,42 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 - ✅ Payment recording interface
 - ✅ Wholesale customer management (detail view, approval workflow)
 
+### Wholesale Ordering ✅ COMPLETE
+
+**Wholesale Application Workflow** ✅
+- ✅ Application form with company information (company name, business type, tax ID)
+- ✅ Business type categorization (Café, Restaurant, Retailer, Hotel, Office, Other)
+- ✅ Estimated monthly volume and referral source collection
+- ✅ Application status tracking (Pending, Approved, Rejected)
+- ✅ Visual status indicators with next-action guidance
+
+**Matrix Ordering Interface** ✅
+- ✅ Spreadsheet-style bulk ordering UI (`/wholesale/order`)
+- ✅ Products grouped with SKU variants displayed as table rows
+- ✅ Columns: SKU Code, Size, Grind, Unit Price, Quantity, Stock Status
+- ✅ Real-time stock status indicators (In Stock, Low Stock, Backorder, Out of Stock)
+- ✅ Batch quantity entry across multiple products
+- ✅ Sticky footer with "Clear All" and "Add to Cart" actions
+- ✅ Cart summary displayed alongside ordering matrix
+
+**Wholesale Cart & Checkout** ✅
+- ✅ Batch add to cart (`POST /wholesale/cart/batch`)
+- ✅ Price list-scoped product queries (wholesale-only visibility)
+- ✅ Customer-specific pricing from assigned price list
+- ✅ Shares existing cart infrastructure with retail
+
+**Database Enhancements** ✅
+- ✅ `payment_terms` table (Net 15, Net 30, Net 60, Due on Receipt)
+- ✅ Extended customer fields: internal_note, minimum_spend_cents, multiple email contacts
+- ✅ `billing_cycle` configuration (weekly, biweekly, monthly, on_order)
+- ✅ `invoice_orders` linking table for consolidated billing
+- ✅ Order enhancements: customer_po_number, requested_delivery_date
+- ✅ Partial fulfillment tracking: quantity_dispatched per order item
+
+**Telemetry Integration** ✅
+- ✅ Wholesale page view tracking (`ProductViews` with "wholesale_ordering" label)
+- ✅ Batch cart addition metrics (`ProductAddToCart` with "wholesale_batch" label)
+
 ### MVP Admin Dashboard ✅ COMPLETE
 
 **Implemented** ✅
@@ -247,6 +284,7 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 **Not Yet Implemented** 🔲
 - 🔲 Customer editing and price list assignment
 - 🔲 Subscription admin overview
+- 🔲 Wholesale approval email notification
 
 ### Provider Configuration System ✅ COMPLETE
 
@@ -445,7 +483,7 @@ These are noted for architectural awareness but not scheduled:
 | Admin Dashboard | ✅ Complete | Products, orders, customers, invoices, wholesale approval |
 | Subscriptions | ✅ Complete | Full Stripe Billing integration, checkout flow, webhooks |
 | Invoicing | ✅ Complete | Full service layer + admin UI (list, detail, create, payments) |
-| Wholesale | ✅ Complete | Customer management, approval workflow, invoicing |
+| Wholesale | ✅ Complete | Customer management, approval workflow, invoicing, matrix ordering |
 | Email | ✅ Complete | Postmark + SMTP, 8 templates, background worker |
 | Background Jobs | ✅ Complete | Worker with concurrency, retry logic, cleanup jobs |
 | Account Dashboard | ✅ Complete | User account overview, subscriptions list |
@@ -473,11 +511,13 @@ These are noted for architectural awareness but not scheduled:
 ### Remaining MVP Work
 
 1. ~~**Subscriptions**~~ ✅ Complete — Full Stripe Billing integration with checkout flow
-2. ~~**Email Notifications**~~ ✅ Complete — Postmark + SMTP, background worker, 6 email templates
+2. ~~**Email Notifications**~~ ✅ Complete — Postmark + SMTP, background worker, 8 email templates
 3. ~~**Wholesale Service Layer**~~ ✅ Complete — InvoiceService, PaymentTermsService, FulfillmentService, Stripe Invoicing
 4. ~~**Wholesale Admin UI**~~ ✅ Complete — Invoice list/detail, payment recording, wholesale approval workflow
 5. ~~**Carrier Integration**~~ ✅ Complete — EasyPost integration with rates, labels, tracking, address validation
-6. **Polish** — Wholesale minimums, pick lists, wholesale application UI
+6. ~~**Wholesale Ordering**~~ ✅ Complete — Application workflow, matrix ordering UI, batch cart operations
+7. **Polish** — Wholesale minimums enforcement, pick lists, shipping confirmation emails
+8. **SaaS Onboarding** — Tenant operator tables, Stripe Checkout integration, setup flow (see AUTH_FLOWS.md)
 
 ---
 
@@ -489,6 +529,7 @@ These are noted for architectural awareness but not scheduled:
 | Phase 4 | ✅ Complete | Flat-rate + EasyPost shipping integration |
 | Phase 5 | ✅ Complete | Subscriptions with Stripe Billing |
 | Phase 6 | ✅ Complete | Wholesale invoicing with full admin UI |
+| Wholesale Ordering | ✅ Complete | Matrix ordering UI, application workflow |
 | MVP + 2 mo | ✅ Complete | Shipping provider integration (done early) |
 | MVP + 4 mo | — | Inventory management, discounts, reviews |
 | MVP + 6 mo | ✅ Partial | Telemetry complete (Prometheus + Sentry); accounting/security pending |

@@ -264,7 +264,13 @@ id := r.PathValue("id")
 
 **Authentication Methods:**
 - Email/password with bcrypt hashing
-- Magic link (email-based passwordless login) — planned
+- Magic link (email-based passwordless login) — deferred
+
+**Three Authentication Flows:**
+See [AUTH_FLOWS.md](./AUTH_FLOWS.md) for comprehensive documentation of:
+1. Tenant Operator signup (SaaS onboarding via Stripe Checkout) — planned
+2. Admin login (current transitional implementation) — implemented
+3. Storefront Customer signup (email verification required) — implemented
 
 **Email Verification:**
 - Required before login (prevents account enumeration via timing)
@@ -501,6 +507,118 @@ result, err := provider.ValidateAddress(ctx, shipping.ValidateAddressParams{
 - **Shippo:** Good alternative, similar pricing, but EasyPost Go SDK is more mature
 - **ShipEngine:** Owned by Stamps.com, good rates but less Go community support
 - **PirateShip:** No API available (why we chose EasyPost)
+
+---
+
+## Wholesale Ordering
+
+### Choice: Matrix-Style Ordering UI with Batch Cart Operations
+
+**Packages:**
+- `internal/handler/storefront/wholesale.go` (application workflow)
+- `internal/handler/storefront/wholesale_ordering.go` (matrix ordering)
+- `internal/service/payment_terms.go` (payment terms management)
+
+**Rationale:**
+- Wholesale customers order many SKUs simultaneously; standard product browsing is inefficient
+- Spreadsheet-style interface aligns with how B2B buyers already work (Excel/sheets)
+- Batch cart operations reduce HTTP round-trips for bulk ordering
+- Price list scoping ensures wholesale customers see their negotiated pricing
+
+### Architecture
+
+**Wholesale Application Workflow:**
+1. Authenticated retail customer visits `/wholesale/apply`
+2. Fills out application form (company name, business type, tax ID, volume estimate)
+3. Application stored with "pending" status
+4. Admin reviews and approves/rejects via admin UI
+5. Approved customers gain `account_type = "wholesale"` and price list assignment
+6. Customer accesses matrix ordering at `/wholesale/order`
+
+**Matrix Ordering Interface:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Ethiopian Yirgacheffe                                    [img] │
+├──────────┬────────┬────────┬──────────┬─────┬──────────────────┤
+│ SKU      │ Size   │ Grind  │ Price    │ Qty │ Stock            │
+├──────────┼────────┼────────┼──────────┼─────┼──────────────────┤
+│ ETH-12WB │ 12 oz  │ Whole  │ $14.00   │ [_] │ In Stock         │
+│ ETH-12G  │ 12 oz  │ Ground │ $14.00   │ [_] │ In Stock         │
+│ ETH-2LB  │ 2 lb   │ Whole  │ $42.00   │ [_] │ Low Stock (3)    │
+│ ETH-5LB  │ 5 lb   │ Whole  │ $95.00   │ [_] │ Backorder        │
+└──────────┴────────┴────────┴──────────┴─────┴──────────────────┘
+```
+
+**Database Query Pattern:**
+```sql
+-- ListProductsWithSKUsForWholesale: Single denormalized query for matrix display
+SELECT
+    p.id, p.name, p.slug, p.origin,
+    ps.id as sku_id, ps.sku, ps.weight_value, ps.weight_unit, ps.grind,
+    ps.inventory_quantity, ps.inventory_policy, ps.low_stock_threshold,
+    ple.price_cents
+FROM products p
+INNER JOIN product_skus ps ON ps.product_id = p.id AND ps.is_active = TRUE
+INNER JOIN price_list_entries ple ON ple.product_sku_id = ps.id AND ple.price_list_id = $2
+LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = TRUE
+WHERE p.tenant_id = $1
+  AND p.status = 'active'
+  AND (p.visibility = 'public' OR p.visibility = 'wholesale_only')
+ORDER BY p.sort_order, p.name, ps.weight_value, ps.grind
+```
+
+**Batch Cart Operation:**
+```go
+// POST /wholesale/cart/batch
+// Form fields: qty[{sku_id}] = quantity
+// Single request adds multiple items to cart
+func (h *WholesaleOrderingHandler) BatchAdd(w http.ResponseWriter, r *http.Request) {
+    // Parse all qty[uuid] fields from form
+    // Add each to cart in single transaction
+    // Return updated cart summary for htmx partial swap
+}
+```
+
+### Key Features
+
+**Price List Scoping:**
+- Wholesale customers assigned to tier-specific price lists (Café Tier 1, Restaurant Tier 2)
+- Query joins with `price_list_entries` to show correct pricing
+- Products with `visibility = 'wholesale_only'` only visible to wholesale accounts
+
+**Stock Status Display:**
+- Real-time inventory status per SKU
+- Status derived from `inventory_quantity`, `inventory_policy`, `low_stock_threshold`
+- Statuses: "In Stock", "Low Stock (N)", "Backorder", "Out of Stock"
+
+**Payment Terms:**
+- Reusable payment terms entity (Net 15, Net 30, Net 60, Due on Receipt)
+- Per-customer payment term assignment
+- Due date calculation: `CreateDate + PaymentTerms.Days`
+
+**Consolidated Billing:**
+- `billing_cycle` field: weekly, biweekly, monthly, on_order
+- Multiple orders accumulate during cycle
+- Single invoice generated at cycle close via `invoice_orders` linking table
+
+### Routes
+
+```go
+// Wholesale application (require authentication)
+GET    /wholesale/apply          → Application form
+POST   /wholesale/apply          → Submit application
+GET    /wholesale/status         → View application status
+
+// Wholesale ordering (require authentication + wholesale account type)
+GET    /wholesale/order          → Matrix ordering view
+POST   /wholesale/cart/batch     → Bulk add items to cart
+```
+
+### Telemetry
+
+All wholesale operations tracked via Prometheus metrics:
+- `freyja_product_views_total{tenant_id, source="wholesale_ordering"}` — Page views
+- `freyja_add_to_cart_total{tenant_id, source="wholesale_batch"}` — Batch additions
 
 ---
 
@@ -907,6 +1025,9 @@ Significant decisions should be recorded here as the project evolves.
 | 2024-12-06 | Prometheus for business metrics with tenant_id | Multi-tenant dashboards require per-tenant labels; global singleton pattern for simplicity |
 | 2024-12-06 | Sentry for error tracking with disable flag | Free tier (5K errors/month) sufficient for MVP; SENTRY_ENABLED=false by default for development |
 | 2024-12-06 | Sentry context middleware pattern | Automatic tenant/user context via middleware for HTTP handlers; explicit context for webhooks/background jobs |
+| 2024-12-06 | Matrix-style wholesale ordering UI | Spreadsheet interface matches B2B buyer workflows; batch cart operations reduce HTTP round-trips |
+| 2024-12-06 | Payment terms as reusable entity | Normalizes Net 15/30/60 terms; enables per-customer assignment and invoice due date calculation |
+| 2024-12-06 | invoice_orders linking table | Supports consolidated billing by mapping multiple orders to single invoice |
 
 ---
 
