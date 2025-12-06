@@ -31,6 +31,10 @@ const (
 	JobTypeOperatorPasswordReset = "email:operator_password_reset"
 	JobTypePlatformPaymentFailed = "email:platform_payment_failed"
 	JobTypePlatformSuspended     = "email:platform_suspended"
+
+	// Wholesale application email jobs
+	JobTypeWholesaleApproved = "email:wholesale_approved"
+	JobTypeWholesaleRejected = "email:wholesale_rejected"
 )
 
 // Email job payloads (JSON-serializable)
@@ -185,6 +189,23 @@ type PlatformSuspendedPayload struct {
 	Email            string `json:"email"`
 	Name             string `json:"name"`
 	UpdatePaymentURL string `json:"update_payment_url"`
+}
+
+// Wholesale Application Email Payloads
+
+// WholesaleApprovedPayload represents the payload for a wholesale approved email job
+type WholesaleApprovedPayload struct {
+	Email        string `json:"email"`
+	CustomerName string `json:"customer_name"`
+	LoginURL     string `json:"login_url"`
+}
+
+// WholesaleRejectedPayload represents the payload for a wholesale rejected email job
+type WholesaleRejectedPayload struct {
+	Email           string `json:"email"`
+	CustomerName    string `json:"customer_name"`
+	RejectionReason string `json:"rejection_reason"`
+	ShopURL         string `json:"shop_url"`
 }
 
 // Job enqueueing functions
@@ -541,6 +562,58 @@ func EnqueuePlatformSuspendedEmail(ctx context.Context, q repository.Querier, te
 	return err
 }
 
+// Wholesale Application Email Enqueue Functions
+
+// EnqueueWholesaleApprovedEmail enqueues a wholesale approved email job
+func EnqueueWholesaleApprovedEmail(ctx context.Context, q repository.Querier, tenantID uuid.UUID, payload WholesaleApprovedPayload) error {
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	_, err = q.EnqueueJob(ctx, repository.EnqueueJobParams{
+		TenantID:   pgtype.UUID{Bytes: tenantID, Valid: true},
+		JobType:    JobTypeWholesaleApproved,
+		Queue:      "email",
+		Payload:    payloadJSON,
+		Priority:   75, // Higher priority for approval emails
+		MaxRetries: 3,
+		ScheduledAt: pgtype.Timestamptz{
+			Time:  time.Now(),
+			Valid: true,
+		},
+		TimeoutSeconds: 30,
+		Metadata:       []byte("{}"),
+	})
+
+	return err
+}
+
+// EnqueueWholesaleRejectedEmail enqueues a wholesale rejected email job
+func EnqueueWholesaleRejectedEmail(ctx context.Context, q repository.Querier, tenantID uuid.UUID, payload WholesaleRejectedPayload) error {
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	_, err = q.EnqueueJob(ctx, repository.EnqueueJobParams{
+		TenantID:   pgtype.UUID{Bytes: tenantID, Valid: true},
+		JobType:    JobTypeWholesaleRejected,
+		Queue:      "email",
+		Payload:    payloadJSON,
+		Priority:   75, // Higher priority for rejection emails
+		MaxRetries: 3,
+		ScheduledAt: pgtype.Timestamptz{
+			Time:  time.Now(),
+			Valid: true,
+		},
+		TimeoutSeconds: 30,
+		Metadata:       []byte("{}"),
+	})
+
+	return err
+}
+
 // ProcessEmailJob processes an email job based on its type
 func ProcessEmailJob(ctx context.Context, job *repository.Job, emailService *email.Service, queries *repository.Queries) error {
 	switch job.JobType {
@@ -797,6 +870,36 @@ func ProcessEmailJob(ctx context.Context, job *repository.Job, emailService *ema
 		}
 
 		return emailService.SendPlatformSuspended(ctx, emailData)
+
+	// Wholesale Application Email Jobs
+	case JobTypeWholesaleApproved:
+		var payload WholesaleApprovedPayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal wholesale approved payload: %w", err)
+		}
+
+		emailData := email.WholesaleApprovedEmail{
+			Email:        payload.Email,
+			CustomerName: payload.CustomerName,
+			LoginURL:     payload.LoginURL,
+		}
+
+		return emailService.SendWholesaleApproved(ctx, emailData)
+
+	case JobTypeWholesaleRejected:
+		var payload WholesaleRejectedPayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal wholesale rejected payload: %w", err)
+		}
+
+		emailData := email.WholesaleRejectedEmail{
+			Email:           payload.Email,
+			CustomerName:    payload.CustomerName,
+			RejectionReason: payload.RejectionReason,
+			ShopURL:         payload.ShopURL,
+		}
+
+		return emailService.SendWholesaleRejected(ctx, emailData)
 
 	default:
 		return fmt.Errorf("unknown job type: %s", job.JobType)

@@ -1,0 +1,31 @@
+{{define "email_title"}}Your Wholesale Application Status{{end}}
+
+{{define "email_content"}}
+<h2>Wholesale Application Update</h2>
+
+<p>Hi {{.CustomerName}},</p>
+
+<p>
+  Thank you for your interest in our wholesale program. After reviewing your application, we're unable to approve your wholesale account at this time.
+</p>
+
+{{if .RejectionReason}}
+<p>
+  <strong>Reason:</strong> {{.RejectionReason}}
+</p>
+{{end}}
+
+<p>
+  You can still shop with us as a retail customer and enjoy our great products.
+</p>
+
+<p style="text-align: center; margin: 32px 0;">
+  <a href="{{.ShopURL}}" class="button">Continue Shopping</a>
+</p>
+
+<div class="divider"></div>
+
+<p style="font-size: 14px; color: #737373;">
+  If you have questions about this decision or would like to discuss your application, please contact us.
+</p>
+{{end}}

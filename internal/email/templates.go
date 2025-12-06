@@ -301,3 +301,36 @@ func (e PlatformSuspendedEmail) Subject() string {
 func (e PlatformSuspendedEmail) TemplateName() string {
 	return "platform_suspended.html"
 }
+
+// Wholesale Application Emails
+
+// WholesaleApprovedEmail represents a wholesale application approved email
+type WholesaleApprovedEmail struct {
+	Email        string
+	CustomerName string
+	LoginURL     string
+}
+
+func (e WholesaleApprovedEmail) Subject() string {
+	return "Your Wholesale Account Has Been Approved!"
+}
+
+func (e WholesaleApprovedEmail) TemplateName() string {
+	return "wholesale_approved.html"
+}
+
+// WholesaleRejectedEmail represents a wholesale application rejected email
+type WholesaleRejectedEmail struct {
+	Email           string
+	CustomerName    string
+	RejectionReason string
+	ShopURL         string
+}
+
+func (e WholesaleRejectedEmail) Subject() string {
+	return "Your Wholesale Application Status"
+}
+
+func (e WholesaleRejectedEmail) TemplateName() string {
+	return "wholesale_rejected.html"
+}

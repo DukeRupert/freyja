@@ -501,6 +501,54 @@ func (s *Service) SendPlatformSuspended(ctx context.Context, data PlatformSuspen
 	return nil
 }
 
+// Wholesale Application Email Methods
+
+// SendWholesaleApproved sends a wholesale application approved email
+func (s *Service) SendWholesaleApproved(ctx context.Context, data WholesaleApprovedEmail) error {
+	htmlBody, textBody, err := s.renderTemplate(data.TemplateName(), data)
+	if err != nil {
+		return fmt.Errorf("failed to render wholesale approved template: %w", err)
+	}
+
+	email := &Email{
+		To:       []string{data.Email},
+		From:     fmt.Sprintf("%s <%s>", s.fromName, s.fromAddress),
+		Subject:  data.Subject(),
+		HTMLBody: htmlBody,
+		TextBody: textBody,
+	}
+
+	_, err = s.sender.Send(ctx, email)
+	if err != nil {
+		return fmt.Errorf("failed to send wholesale approved email: %w", err)
+	}
+
+	return nil
+}
+
+// SendWholesaleRejected sends a wholesale application rejected email
+func (s *Service) SendWholesaleRejected(ctx context.Context, data WholesaleRejectedEmail) error {
+	htmlBody, textBody, err := s.renderTemplate(data.TemplateName(), data)
+	if err != nil {
+		return fmt.Errorf("failed to render wholesale rejected template: %w", err)
+	}
+
+	email := &Email{
+		To:       []string{data.Email},
+		From:     fmt.Sprintf("%s <%s>", s.fromName, s.fromAddress),
+		Subject:  data.Subject(),
+		HTMLBody: htmlBody,
+		TextBody: textBody,
+	}
+
+	_, err = s.sender.Send(ctx, email)
+	if err != nil {
+		return fmt.Errorf("failed to send wholesale rejected email: %w", err)
+	}
+
+	return nil
+}
+
 // Helper method to render a template
 func (s *Service) renderTemplate(templateName string, data interface{}) (string, string, error) {
 	tmpl, ok := s.templateCache[templateName]

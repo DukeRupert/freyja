@@ -1,0 +1,31 @@
+{{define "email_title"}}Your Wholesale Account Has Been Approved!{{end}}
+
+{{define "email_content"}}
+<h2>Welcome to Wholesale!</h2>
+
+<p>Hi {{.CustomerName}},</p>
+
+<p>
+  Great news! Your wholesale account application has been approved. You now have access to wholesale pricing and features.
+</p>
+
+<p>
+  <strong>What's next:</strong>
+</p>
+
+<ul style="margin: 16px 0; padding-left: 24px; color: #404040;">
+  <li>Browse our products at wholesale prices</li>
+  <li>Place orders with your assigned payment terms</li>
+  <li>Enjoy dedicated wholesale customer support</li>
+</ul>
+
+<p style="text-align: center; margin: 32px 0;">
+  <a href="{{.LoginURL}}" class="button">Start Shopping</a>
+</p>
+
+<div class="divider"></div>
+
+<p style="font-size: 14px; color: #737373;">
+  If you have any questions about your wholesale account, please don't hesitate to contact us.
+</p>
+{{end}}
