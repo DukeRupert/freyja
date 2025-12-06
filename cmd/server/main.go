@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -374,9 +375,16 @@ func run() error {
 	}
 
 	// Webhook dependencies
+	// TestMode allows Stripe CLI trigger testing without full metadata validation.
+	// Enable via STRIPE_WEBHOOK_TEST_MODE=true (development only!)
+	webhookTestMode := os.Getenv("STRIPE_WEBHOOK_TEST_MODE") == "true"
+	if webhookTestMode {
+		slog.Warn("Stripe webhook TEST MODE enabled - tenant isolation checks bypassed")
+	}
 	stripeWebhookHandler := webhook.NewStripeHandler(billingProvider, orderService, subscriptionService, webhook.StripeWebhookConfig{
 		WebhookSecret: cfg.Stripe.WebhookSecret,
 		TenantID:      cfg.TenantID,
+		TestMode:      webhookTestMode,
 	})
 	webhookDeps := routes.WebhookDeps{
 		StripeHandler: stripeWebhookHandler.HandleWebhook,

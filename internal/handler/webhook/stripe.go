@@ -30,6 +30,14 @@ type StripeWebhookConfig struct {
 	// TenantID is used to scope payment intents (for multi-tenant isolation)
 	// In production, this would come from the webhook endpoint URL or subdomain
 	TenantID string
+
+	// TestMode enables testing with Stripe CLI trigger commands.
+	// When true, webhook handlers will:
+	// - Log events without requiring tenant_id metadata match
+	// - Skip order/subscription creation for events lacking required metadata
+	// - Still validate webhook signatures
+	// WARNING: Never enable in production - this bypasses tenant isolation checks
+	TestMode bool
 }
 
 // NewStripeHandler creates a new Stripe webhook handler
@@ -177,8 +185,22 @@ func (h *StripeHandler) handlePaymentIntentSucceeded(event stripe.Event) {
 
 	// Verify this payment intent belongs to our tenant
 	if tenantID != h.config.TenantID {
+		if h.config.TestMode {
+			log.Printf("[TEST MODE] Tenant mismatch ignored - expected: %s, got: %s",
+				h.config.TenantID, tenantID)
+			log.Printf("[TEST MODE] Skipping order creation (missing required metadata)")
+			log.Printf("[TEST MODE] ✓ Webhook received and parsed successfully")
+			return
+		}
 		log.Printf("WARNING: Payment intent belongs to different tenant (expected: %s, got: %s)",
 			h.config.TenantID, tenantID)
+		return
+	}
+
+	// In test mode, validate required metadata before attempting order creation
+	if h.config.TestMode && cartID == "" {
+		log.Printf("[TEST MODE] Missing cart_id - skipping order creation")
+		log.Printf("[TEST MODE] ✓ Webhook received and parsed successfully")
 		return
 	}
 
@@ -292,6 +314,11 @@ func (h *StripeHandler) handleInvoicePaymentSucceeded(event stripe.Event) {
 	// Check if this invoice is for a subscription (Stripe v83 API structure)
 	subscription := getSubscriptionFromInvoice(&invoice)
 	if subscription == nil || subscription.ID == "" {
+		if h.config.TestMode {
+			log.Printf("[TEST MODE] Invoice %s is not for a subscription (CLI trigger event)", invoice.ID)
+			log.Printf("[TEST MODE] ✓ Webhook received and parsed successfully")
+			return
+		}
 		log.Printf("Invoice %s is not for a subscription, skipping order creation", invoice.ID)
 		return
 	}
@@ -306,6 +333,13 @@ func (h *StripeHandler) handleInvoicePaymentSucceeded(event stripe.Event) {
 
 	// Verify this subscription belongs to our tenant
 	if tenantID != h.config.TenantID {
+		if h.config.TestMode {
+			log.Printf("[TEST MODE] Tenant mismatch ignored - expected: %s, got: %s",
+				h.config.TenantID, tenantID)
+			log.Printf("[TEST MODE] Skipping order creation (missing required metadata)")
+			log.Printf("[TEST MODE] ✓ Webhook received and parsed successfully")
+			return
+		}
 		log.Printf("WARNING: Subscription belongs to different tenant (expected: %s, got: %s)",
 			h.config.TenantID, tenantID)
 		return
@@ -359,6 +393,11 @@ func (h *StripeHandler) handleInvoicePaymentFailed(event stripe.Event) {
 	// Check if this invoice is for a subscription (Stripe v83 API structure)
 	subscription := getSubscriptionFromInvoice(&invoice)
 	if subscription == nil || subscription.ID == "" {
+		if h.config.TestMode {
+			log.Printf("[TEST MODE] Invoice %s is not for a subscription (CLI trigger event)", invoice.ID)
+			log.Printf("[TEST MODE] ✓ Webhook received and parsed successfully")
+			return
+		}
 		log.Printf("Invoice %s is not for a subscription, skipping", invoice.ID)
 		return
 	}
@@ -373,6 +412,12 @@ func (h *StripeHandler) handleInvoicePaymentFailed(event stripe.Event) {
 
 	// Verify this subscription belongs to our tenant
 	if tenantID != h.config.TenantID {
+		if h.config.TestMode {
+			log.Printf("[TEST MODE] Tenant mismatch ignored - expected: %s, got: %s",
+				h.config.TenantID, tenantID)
+			log.Printf("[TEST MODE] ✓ Webhook received and parsed successfully")
+			return
+		}
 		log.Printf("WARNING: Subscription belongs to different tenant (expected: %s, got: %s)",
 			h.config.TenantID, tenantID)
 		return
@@ -423,6 +468,12 @@ func (h *StripeHandler) handleSubscriptionUpdated(event stripe.Event) {
 
 	// Verify this subscription belongs to our tenant
 	if tenantID != h.config.TenantID {
+		if h.config.TestMode {
+			log.Printf("[TEST MODE] Tenant mismatch ignored - expected: %s, got: %s",
+				h.config.TenantID, tenantID)
+			log.Printf("[TEST MODE] ✓ Webhook received and parsed successfully")
+			return
+		}
 		log.Printf("WARNING: Subscription belongs to different tenant (expected: %s, got: %s)",
 			h.config.TenantID, tenantID)
 		return
@@ -470,6 +521,12 @@ func (h *StripeHandler) handleSubscriptionDeleted(event stripe.Event) {
 
 	// Verify this subscription belongs to our tenant
 	if tenantID != h.config.TenantID {
+		if h.config.TestMode {
+			log.Printf("[TEST MODE] Tenant mismatch ignored - expected: %s, got: %s",
+				h.config.TenantID, tenantID)
+			log.Printf("[TEST MODE] ✓ Webhook received and parsed successfully")
+			return
+		}
 		log.Printf("WARNING: Subscription belongs to different tenant (expected: %s, got: %s)",
 			h.config.TenantID, tenantID)
 		return
