@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/dukerupert/freyja/internal/handler"
+	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/storage"
 	"github.com/google/uuid"
@@ -145,6 +146,7 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		"Product":     product,
 		"SKUs":        displaySKUs,
 		"Images":      images,
+		"CSRFToken":   middleware.GetCSRFToken(r.Context()),
 	}
 
 	h.renderer.RenderHTTP(w, "admin/product_detail", data)
@@ -873,6 +875,8 @@ func (h *ProductHandler) renderImageGallery(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	csrfToken := middleware.GetCSRFToken(r.Context())
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	if len(images) == 0 {
@@ -882,8 +886,14 @@ func (h *ProductHandler) renderImageGallery(w http.ResponseWriter, r *http.Reque
 
 	fmt.Fprint(w, `<div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">`)
 	for _, img := range images {
+		productIDStr := formatUUID(productUUID)
+		imageIDStr := formatUUID(img.ID)
+
 		// Image card
-		fmt.Fprint(w, `<div class="group relative overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">`)
+		fmt.Fprint(w, `<div class="group relative flex flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800">`)
+
+		// Image container
+		fmt.Fprint(w, `<div class="relative aspect-square">`)
 
 		// Image - escape user-provided content to prevent XSS
 		altText := ""
@@ -891,47 +901,47 @@ func (h *ProductHandler) renderImageGallery(w http.ResponseWriter, r *http.Reque
 			altText = html.EscapeString(img.AltText.String)
 		}
 		escapedURL := html.EscapeString(img.Url)
-		fmt.Fprintf(w, `<img src="%s" alt="%s" class="aspect-square w-full object-cover">`, escapedURL, altText)
+		fmt.Fprintf(w, `<img src="%s" alt="%s" class="h-full w-full object-cover">`, escapedURL, altText)
 
-		// Default badge
+		// Default badge (positioned in top-right corner of image)
 		if img.IsPrimary {
-			fmt.Fprint(w, `<div class="absolute left-2 top-2"><span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20 dark:bg-blue-900/50 dark:text-blue-300 dark:ring-blue-500/30">Default</span></div>`)
+			fmt.Fprint(w, `<div class="absolute right-2 top-2"><span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20 dark:bg-blue-900/50 dark:text-blue-300 dark:ring-blue-500/30">Default</span></div>`)
 		}
 
 		// Actions overlay
 		fmt.Fprint(w, `<div class="absolute inset-0 flex items-center justify-center gap-2 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">`)
 		if !img.IsPrimary {
-			fmt.Fprintf(w, `<button hx-post="/admin/products/%s/images/%s/default" hx-target="#image-gallery" hx-swap="innerHTML" class="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-zinc-900 hover:bg-zinc-100">Set Default</button>`,
-				formatUUID(productUUID), formatUUID(img.ID))
+			fmt.Fprintf(w, `<button hx-post="/admin/products/%s/images/%s/default" hx-target="#image-gallery" hx-swap="innerHTML" hx-vals='{"csrf_token": "%s"}' class="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-zinc-900 hover:bg-zinc-100">Set Default</button>`,
+				productIDStr, imageIDStr, csrfToken)
 		}
-		fmt.Fprintf(w, `<button hx-delete="/admin/products/%s/images/%s" hx-target="#image-gallery" hx-swap="innerHTML" hx-confirm="Delete this image?" class="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700">Delete</button>`,
-			formatUUID(productUUID), formatUUID(img.ID))
+		fmt.Fprintf(w, `<button hx-delete="/admin/products/%s/images/%s" hx-target="#image-gallery" hx-swap="innerHTML" hx-confirm="Delete this image?" hx-vals='{"csrf_token": "%s"}' class="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700">Delete</button>`,
+			productIDStr, imageIDStr, csrfToken)
 		fmt.Fprint(w, `</div>`)
 
-		// Metadata form (alt text, width, height)
-		fmt.Fprintf(w, `<form hx-post="/admin/products/%s/images/%s/metadata" hx-target="#image-gallery" hx-swap="innerHTML" class="border-t border-zinc-200 p-2 space-y-2 dark:border-zinc-700">`,
-			formatUUID(productUUID), formatUUID(img.ID))
-		// Alt text
-		fmt.Fprintf(w, `<input type="text" name="alt_text" value="%s" placeholder="Alt text" class="w-full rounded border-zinc-300 text-xs dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">`,
-			altText)
-		// Width and Height in a row
-		fmt.Fprint(w, `<div class="flex gap-2">`)
-		widthVal := ""
-		if img.Width.Valid {
-			widthVal = fmt.Sprintf("%d", img.Width.Int32)
+		fmt.Fprint(w, `</div>`) // Close image container
+
+		// Image info and alt text form
+		fmt.Fprint(w, `<div class="flex flex-col gap-2 border-t border-zinc-200 p-3 dark:border-zinc-700">`)
+
+		// Dimensions display
+		if img.Width.Valid && img.Height.Valid {
+			fmt.Fprintf(w, `<p class="text-xs text-zinc-500 dark:text-zinc-400">%d × %d px</p>`, img.Width.Int32, img.Height.Int32)
 		}
-		heightVal := ""
-		if img.Height.Valid {
-			heightVal = fmt.Sprintf("%d", img.Height.Int32)
-		}
-		fmt.Fprintf(w, `<input type="number" name="width" value="%s" placeholder="Width" class="w-1/2 rounded border-zinc-300 text-xs dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">`, widthVal)
-		fmt.Fprintf(w, `<input type="number" name="height" value="%s" placeholder="Height" class="w-1/2 rounded border-zinc-300 text-xs dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">`, heightVal)
+
+		// Alt text form with label and save feedback
+		fmt.Fprintf(w, `<form x-data="{ saved: false }" hx-post="/admin/products/%s/images/%s/metadata" hx-swap="none" @htmx:after-request="saved = true; setTimeout(() => saved = false, 2000)" class="space-y-1">`,
+			productIDStr, imageIDStr)
+		fmt.Fprintf(w, `<input type="hidden" name="csrf_token" value="%s">`, csrfToken)
+		fmt.Fprintf(w, `<label for="alt-%s" class="block text-xs font-medium text-zinc-600 dark:text-zinc-400">Alt text</label>`, imageIDStr)
+		fmt.Fprintf(w, `<div class="flex gap-2">`)
+		fmt.Fprintf(w, `<input type="text" id="alt-%s" name="alt_text" value="%s" placeholder="Describe the image" class="flex-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 placeholder:text-zinc-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500">`,
+			imageIDStr, altText)
+		fmt.Fprint(w, `<button type="submit" class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors" :class="saved ? 'bg-green-600 text-white' : 'bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100'"><span x-show="!saved">Save</span><span x-show="saved" x-cloak>Saved!</span></button>`)
 		fmt.Fprint(w, `</div>`)
-		// Save button
-		fmt.Fprint(w, `<button type="submit" class="w-full rounded bg-zinc-100 px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600">Save</button>`)
 		fmt.Fprint(w, `</form>`)
 
-		fmt.Fprint(w, `</div>`)
+		fmt.Fprint(w, `</div>`) // Close info section
+		fmt.Fprint(w, `</div>`) // Close card
 	}
 	fmt.Fprint(w, `</div>`)
 }

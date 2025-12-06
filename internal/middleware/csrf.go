@@ -199,7 +199,21 @@ func getSubmittedCSRFToken(r *http.Request) string {
 		return token
 	}
 
-	// Check form field
+	// Check content type to determine how to parse the form
+	contentType := r.Header.Get("Content-Type")
+
+	// Handle multipart forms (file uploads)
+	if len(contentType) >= 19 && contentType[:19] == "multipart/form-data" {
+		// Parse multipart form with 32MB max memory
+		if err := r.ParseMultipartForm(32 << 20); err == nil {
+			if token := r.FormValue(CSRFFormFieldName); token != "" {
+				return token
+			}
+		}
+		return ""
+	}
+
+	// Handle regular form submissions
 	if err := r.ParseForm(); err == nil {
 		if token := r.FormValue(CSRFFormFieldName); token != "" {
 			return token
