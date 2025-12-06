@@ -350,6 +350,21 @@ func (q *Queries) GetBaseProductForWhiteLabel(ctx context.Context, id pgtype.UUI
 	return i, err
 }
 
+const getPriceListForUser = `-- name: GetPriceListForUser :one
+SELECT upl.price_list_id
+FROM user_price_lists upl
+WHERE upl.user_id = $1
+LIMIT 1
+`
+
+// Get the price list assigned to a user, or NULL if none
+func (q *Queries) GetPriceListForUser(ctx context.Context, userID pgtype.UUID) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, getPriceListForUser, userID)
+	var price_list_id pgtype.UUID
+	err := row.Scan(&price_list_id)
+	return price_list_id, err
+}
+
 const getPrimaryImage = `-- name: GetPrimaryImage :one
 SELECT
     id,
@@ -1111,6 +1126,91 @@ func (q *Queries) ListAllProducts(ctx context.Context, tenantID pgtype.UUID) ([]
 			&i.UpdatedAt,
 			&i.PrimaryImageUrl,
 			&i.PrimaryImageAlt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProductsWithSKUsForWholesale = `-- name: ListProductsWithSKUsForWholesale :many
+SELECT
+    p.id as product_id,
+    p.name as product_name,
+    p.slug as product_slug,
+    p.origin as product_origin,
+    pi.url as product_image_url,
+    ps.id as sku_id,
+    ps.sku as sku_code,
+    ps.weight_value,
+    ps.weight_unit,
+    ps.grind,
+    ps.inventory_quantity,
+    ps.inventory_policy,
+    ps.low_stock_threshold,
+    ple.price_cents
+FROM products p
+INNER JOIN product_skus ps ON ps.product_id = p.id AND ps.is_active = TRUE
+INNER JOIN price_list_entries ple ON ple.product_sku_id = ps.id AND ple.price_list_id = $2
+LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = TRUE
+WHERE p.tenant_id = $1
+  AND p.status = 'active'
+  AND (p.visibility = 'public' OR p.visibility = 'wholesale_only')
+ORDER BY p.sort_order ASC, p.name ASC, ps.weight_value ASC, ps.grind ASC
+`
+
+type ListProductsWithSKUsForWholesaleParams struct {
+	TenantID    pgtype.UUID `json:"tenant_id"`
+	PriceListID pgtype.UUID `json:"price_list_id"`
+}
+
+type ListProductsWithSKUsForWholesaleRow struct {
+	ProductID         pgtype.UUID    `json:"product_id"`
+	ProductName       string         `json:"product_name"`
+	ProductSlug       string         `json:"product_slug"`
+	ProductOrigin     pgtype.Text    `json:"product_origin"`
+	ProductImageUrl   pgtype.Text    `json:"product_image_url"`
+	SkuID             pgtype.UUID    `json:"sku_id"`
+	SkuCode           string         `json:"sku_code"`
+	WeightValue       pgtype.Numeric `json:"weight_value"`
+	WeightUnit        string         `json:"weight_unit"`
+	Grind             string         `json:"grind"`
+	InventoryQuantity int32          `json:"inventory_quantity"`
+	InventoryPolicy   string         `json:"inventory_policy"`
+	LowStockThreshold pgtype.Int4    `json:"low_stock_threshold"`
+	PriceCents        int32          `json:"price_cents"`
+}
+
+// Get all active products with their SKUs and prices for wholesale ordering matrix view
+// This query denormalizes the data for efficient display in a table format
+func (q *Queries) ListProductsWithSKUsForWholesale(ctx context.Context, arg ListProductsWithSKUsForWholesaleParams) ([]ListProductsWithSKUsForWholesaleRow, error) {
+	rows, err := q.db.Query(ctx, listProductsWithSKUsForWholesale, arg.TenantID, arg.PriceListID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProductsWithSKUsForWholesaleRow{}
+	for rows.Next() {
+		var i ListProductsWithSKUsForWholesaleRow
+		if err := rows.Scan(
+			&i.ProductID,
+			&i.ProductName,
+			&i.ProductSlug,
+			&i.ProductOrigin,
+			&i.ProductImageUrl,
+			&i.SkuID,
+			&i.SkuCode,
+			&i.WeightValue,
+			&i.WeightUnit,
+			&i.Grind,
+			&i.InventoryQuantity,
+			&i.InventoryPolicy,
+			&i.LowStockThreshold,
+			&i.PriceCents,
 		); err != nil {
 			return nil, err
 		}

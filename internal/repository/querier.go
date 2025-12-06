@@ -315,6 +315,8 @@ type Querier interface {
 	GetPriceForSKU(ctx context.Context, arg GetPriceForSKUParams) (PriceListEntry, error)
 	// Get a price list by ID
 	GetPriceListByID(ctx context.Context, id pgtype.UUID) (PriceList, error)
+	// Get the price list assigned to a user, or NULL if none
+	GetPriceListForUser(ctx context.Context, userID pgtype.UUID) (pgtype.UUID, error)
 	// Get a price list with count of entries
 	GetPriceListWithEntryCount(ctx context.Context, arg GetPriceListWithEntryCountParams) (GetPriceListWithEntryCountRow, error)
 	// Get all SKU prices for a product on a specific price list
@@ -461,6 +463,9 @@ type Querier interface {
 	ListPaymentTerms(ctx context.Context, tenantID pgtype.UUID) ([]PaymentTerm, error)
 	// List all entries for a price list with product/SKU details
 	ListPriceListEntries(ctx context.Context, priceListID pgtype.UUID) ([]ListPriceListEntriesRow, error)
+	// Get all active products with their SKUs and prices for wholesale ordering matrix view
+	// This query denormalizes the data for efficient display in a table format
+	ListProductsWithSKUsForWholesale(ctx context.Context, arg ListProductsWithSKUsForWholesaleParams) ([]ListProductsWithSKUsForWholesaleRow, error)
 	// Lists all provider configurations for a tenant, optionally filtered by type.
 	// Used in admin UI to show all configured providers.
 	// If type is empty string, returns all types.

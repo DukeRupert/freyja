@@ -408,3 +408,37 @@ UPDATE product_images pi
 SET is_primary = (pi.id = $2)
 WHERE pi.tenant_id = $1
   AND pi.product_id = (SELECT product_id FROM product_images WHERE id = $2);
+
+-- name: GetPriceListForUser :one
+-- Get the price list assigned to a user, or NULL if none
+SELECT upl.price_list_id
+FROM user_price_lists upl
+WHERE upl.user_id = $1
+LIMIT 1;
+
+-- name: ListProductsWithSKUsForWholesale :many
+-- Get all active products with their SKUs and prices for wholesale ordering matrix view
+-- This query denormalizes the data for efficient display in a table format
+SELECT
+    p.id as product_id,
+    p.name as product_name,
+    p.slug as product_slug,
+    p.origin as product_origin,
+    pi.url as product_image_url,
+    ps.id as sku_id,
+    ps.sku as sku_code,
+    ps.weight_value,
+    ps.weight_unit,
+    ps.grind,
+    ps.inventory_quantity,
+    ps.inventory_policy,
+    ps.low_stock_threshold,
+    ple.price_cents
+FROM products p
+INNER JOIN product_skus ps ON ps.product_id = p.id AND ps.is_active = TRUE
+INNER JOIN price_list_entries ple ON ple.product_sku_id = ps.id AND ple.price_list_id = $2
+LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = TRUE
+WHERE p.tenant_id = $1
+  AND p.status = 'active'
+  AND (p.visibility = 'public' OR p.visibility = 'wholesale_only')
+ORDER BY p.sort_order ASC, p.name ASC, ps.weight_value ASC, ps.grind ASC;

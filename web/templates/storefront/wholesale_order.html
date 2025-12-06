@@ -1,0 +1,211 @@
+{{define "title"}}Wholesale Ordering{{end}}
+
+{{define "content"}}
+<div class="mx-auto max-w-7xl">
+    <!-- Page Header -->
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            {{template "sf-heading" (dict "Level" "1" "Content" "Wholesale Ordering")}}
+            <p class="mt-1 text-sm text-neutral-600">
+                Enter quantities and add multiple items to your cart at once
+            </p>
+        </div>
+
+        <!-- Cart Summary -->
+        <div id="cart-summary" class="flex items-center gap-4">
+            {{if .CartSummary}}
+            <div class="text-right">
+                <p class="text-sm text-neutral-600">Cart Total</p>
+                <p class="text-lg font-semibold text-neutral-900">${{printf "%.2f" (divf .CartSummary.Subtotal 100.0)}}</p>
+            </div>
+            {{end}}
+            <a href="/cart" class="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                View Cart
+                {{if .CartSummary}}
+                <span class="inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full bg-white text-teal-700 text-xs font-bold">
+                    {{.CartSummary.ItemCount}}
+                </span>
+                {{end}}
+            </a>
+        </div>
+    </div>
+
+    <div id="error-message" class="mb-4"></div>
+
+    {{if .Products}}
+    <form id="wholesale-order-form"
+          hx-post="/wholesale/cart/batch"
+          hx-target="#cart-summary"
+          hx-swap="innerHTML"
+          class="space-y-8">
+        {{.CSRFField}}
+
+        <!-- Products Table -->
+        {{range .Products}}
+        <div class="rounded-lg border border-neutral-200 bg-white shadow-sm overflow-hidden">
+            <!-- Product Header -->
+            <div class="flex items-center gap-4 border-b border-neutral-200 bg-neutral-50 px-4 py-3">
+                {{if .ImageURL}}
+                <div class="h-16 w-16 flex-shrink-0 rounded-lg bg-neutral-100 overflow-hidden">
+                    <img src="{{.ImageURL}}" alt="{{.ProductName}}" class="h-full w-full object-cover">
+                </div>
+                {{else}}
+                <div class="h-16 w-16 flex-shrink-0 rounded-lg bg-neutral-100 flex items-center justify-center">
+                    <svg class="h-8 w-8 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                </div>
+                {{end}}
+                <div class="flex-1 min-w-0">
+                    <h2 class="text-lg font-semibold text-neutral-900">
+                        <a href="/products/{{.ProductSlug}}" class="hover:text-teal-700">{{.ProductName}}</a>
+                    </h2>
+                    {{if .Origin}}
+                    <p class="text-sm text-neutral-600">{{.Origin}}</p>
+                    {{end}}
+                </div>
+            </div>
+
+            <!-- SKU Table -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-neutral-200">
+                    <thead class="bg-neutral-50">
+                        <tr>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                                Code
+                            </th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                                Size
+                            </th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                                Grind
+                            </th>
+                            <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                                Unit Price
+                            </th>
+                            <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-neutral-500 uppercase tracking-wider w-24">
+                                Qty
+                            </th>
+                            <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                                Status
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-neutral-200">
+                        {{range .SKUs}}
+                        <tr class="hover:bg-neutral-50">
+                            <td class="px-4 py-3 whitespace-nowrap text-sm font-mono text-neutral-600">
+                                {{.SKUCode}}
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-neutral-900">
+                                {{.Weight}}
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-neutral-900 capitalize">
+                                {{.Grind}}
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-neutral-900 text-right font-medium">
+                                ${{printf "%.2f" (divf .PriceCents 100.0)}}
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-center">
+                                <input type="number"
+                                       name="qty[{{.SKUID}}]"
+                                       min="0"
+                                       value=""
+                                       placeholder="0"
+                                       class="w-20 rounded-md border-neutral-300 text-center text-sm focus:border-teal-500 focus:ring-teal-500
+                                              {{if eq .StockStatus "Out of Stock"}}bg-neutral-100 cursor-not-allowed{{end}}"
+                                       {{if eq .StockStatus "Out of Stock"}}disabled{{end}}>
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-center">
+                                {{if eq .StockStatus "In Stock"}}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                    In Stock
+                                </span>
+                                {{else if eq .StockStatus "Low Stock"}}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                                    Low Stock
+                                </span>
+                                {{else if eq .StockStatus "Backorder"}}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                    Backorder
+                                </span>
+                                {{else}}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-neutral-100 text-neutral-800">
+                                    Out of Stock
+                                </span>
+                                {{end}}
+                            </td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- Sticky Footer Actions -->
+        <div class="sticky bottom-0 bg-white border-t border-neutral-200 shadow-lg -mx-4 px-4 py-4 sm:mx-0 sm:px-0 sm:rounded-lg sm:border sm:shadow-sm">
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <p class="text-sm text-neutral-600">
+                    Enter quantities above and click "Add to Cart" to add multiple items at once.
+                </p>
+                <div class="flex items-center gap-3">
+                    <button type="button"
+                            onclick="clearAllQuantities()"
+                            class="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50">
+                        Clear All
+                    </button>
+                    <button type="submit"
+                            class="rounded-lg bg-teal-700 px-6 py-2 text-sm font-medium text-white hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2">
+                        Add to Cart
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+    {{else}}
+    <!-- Empty State -->
+    {{template "sf-empty-state" (dict
+        "Icon" "<path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4\"/>"
+        "Title" "No products available"
+        "Description" "There are no wholesale products available at this time.")}}
+    {{end}}
+</div>
+
+<script>
+function clearAllQuantities() {
+    document.querySelectorAll('#wholesale-order-form input[type="number"]').forEach(input => {
+        input.value = '';
+    });
+}
+
+// Show success toast when items are added
+document.body.addEventListener('cartUpdated', function() {
+    // Simple toast notification
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-20 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-fade-in';
+    toast.textContent = 'Items added to cart';
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+
+    // Clear quantities after successful add
+    clearAllQuantities();
+});
+</script>
+
+<style>
+@keyframes fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+    animation: fade-in 0.3s ease-out;
+}
+</style>
+{{end}}

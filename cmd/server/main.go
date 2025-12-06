@@ -353,6 +353,7 @@ func run() error {
 
 		// Wholesale
 		WholesaleApplicationHandler: storefront.NewWholesaleApplicationHandler(repo, renderer, cfg.TenantID),
+		WholesaleOrderingHandler:    storefront.NewWholesaleOrderingHandler(repo, cartService, renderer, cfg.TenantID, cfg.Env != "development"),
 	}
 
 	// ==========================================================================

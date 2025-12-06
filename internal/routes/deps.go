@@ -38,6 +38,7 @@ type StorefrontDeps struct {
 
 	// Wholesale
 	WholesaleApplicationHandler *storefront.WholesaleApplicationHandler
+	WholesaleOrderingHandler    *storefront.WholesaleOrderingHandler
 }
 
 // AdminDeps contains dependencies for admin routes
