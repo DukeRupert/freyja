@@ -66,6 +66,18 @@ type BusinessMetrics struct {
 	JobsProcessed  *prometheus.CounterVec
 	JobsFailed     *prometheus.CounterVec
 	JobDuration    *prometheus.HistogramVec
+
+	// Revenue tracking
+	RevenueCollected *prometheus.CounterVec
+	RefundsIssued    *prometheus.CounterVec
+	RefundAmount     *prometheus.CounterVec
+
+	// Email delivery
+	EmailSent   *prometheus.CounterVec
+	EmailFailed *prometheus.CounterVec
+
+	// External API performance
+	StripeAPILatency *prometheus.HistogramVec
 }
 
 // NewBusinessMetrics creates and registers all business metrics
@@ -486,6 +498,73 @@ func NewBusinessMetrics(namespace string) *BusinessMetrics {
 				Buckets:   []float64{.1, .25, .5, 1, 2.5, 5, 10, 30, 60},
 			},
 			[]string{"tenant_id", "job_type"},
+		),
+
+		// =======================================================================
+		// Revenue Tracking
+		// =======================================================================
+		RevenueCollected: promauto.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      "revenue_collected_cents",
+				Help:      "Total revenue collected in cents (excludes refunds)",
+			},
+			[]string{"tenant_id", "order_type"}, // order_type: one_time, subscription
+		),
+		RefundsIssued: promauto.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      "refunds_issued_total",
+				Help:      "Total refunds issued to customers",
+			},
+			[]string{"tenant_id", "reason"}, // reason: customer_request, fraudulent, duplicate, etc.
+		),
+		RefundAmount: promauto.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      "refund_amount_cents",
+				Help:      "Total refund amount in cents",
+			},
+			[]string{"tenant_id"},
+		),
+
+		// =======================================================================
+		// Email Delivery
+		// =======================================================================
+		EmailSent: promauto.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      "emails_sent_total",
+				Help:      "Total emails sent by type",
+			},
+			[]string{"tenant_id", "email_type"}, // email_type: order_confirmation, subscription_renewal, password_reset, etc.
+		),
+		EmailFailed: promauto.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      "emails_failed_total",
+				Help:      "Total email delivery failures",
+			},
+			[]string{"tenant_id", "email_type", "error_type"},
+		),
+
+		// =======================================================================
+		// External API Performance
+		// =======================================================================
+		StripeAPILatency: promauto.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      "stripe_api_duration_seconds",
+				Help:      "Stripe API call duration (helps differentiate app slowness from Stripe issues)",
+				Buckets:   []float64{.1, .25, .5, 1, 2.5, 5, 10, 30},
+			},
+			[]string{"tenant_id", "operation"}, // operation: create_payment_intent, create_subscription, create_customer, etc.
 		),
 	}
 

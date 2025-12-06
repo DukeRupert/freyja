@@ -246,11 +246,12 @@ func (h *StripeHandler) handlePaymentIntentSucceeded(event stripe.Event) {
 		return
 	}
 
-	// Track successful order creation
+	// Track successful order creation and revenue
 	if telemetry.Business != nil {
 		telemetry.Business.PaymentSucceeded.WithLabelValues(tenantID, orderType).Inc()
 		telemetry.Business.OrdersCreated.WithLabelValues(tenantID, orderType).Inc()
 		telemetry.Business.OrderValue.WithLabelValues(tenantID, orderType).Observe(float64(order.Order.TotalCents))
+		telemetry.Business.RevenueCollected.WithLabelValues(tenantID, orderType).Add(float64(order.Order.TotalCents))
 		telemetry.Business.WebhookProcessed.WithLabelValues(tenantID, "payment_intent.succeeded").Inc()
 	}
 
