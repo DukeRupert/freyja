@@ -582,6 +582,97 @@ tax, err := taxCalc.Calculate(ctx, order)
 
 ---
 
+## Observability & Telemetry
+
+### Choice: Prometheus + Sentry
+
+**Packages:**
+- `github.com/prometheus/client_golang` (metrics)
+- `github.com/getsentry/sentry-go` (error tracking)
+
+**Rationale:**
+- Prometheus is the industry standard for metrics; integrates with Grafana for dashboards
+- Sentry provides structured error tracking with context (user, tenant, request info)
+- Free tier (5K errors/month) sufficient for solo developer MVP
+- Both can be disabled in development to avoid noise
+
+### Business Metrics (Prometheus)
+
+**Package:** `internal/telemetry/business_metrics.go`
+
+All business metrics include `tenant_id` label for per-tenant Grafana dashboards.
+
+**Metric Categories:**
+- **Product Engagement:** views, add-to-cart events, cart value
+- **Checkout Funnel:** started, abandoned, completed, conversion tracking
+- **Orders:** created, value distribution, payment success/failure
+- **Revenue:** collected revenue, refunds issued, refund amounts
+- **Subscriptions:** created, renewed, cancelled, failed payments
+- **Webhooks:** processed count, latency histogram, failures
+- **Email:** sent, failed (by type)
+- **External APIs:** Stripe API latency histogram
+
+**Usage Example:**
+```go
+// Record a product view
+telemetry.Business.ProductViews.WithLabelValues(tenantID, productID).Inc()
+
+// Record checkout completion
+telemetry.Business.CheckoutCompleted.WithLabelValues(tenantID).Inc()
+telemetry.Business.OrderValue.WithLabelValues(tenantID, "retail").Observe(float64(totalCents))
+telemetry.Business.RevenueCollected.WithLabelValues(tenantID, "retail").Add(float64(totalCents))
+```
+
+### Error Tracking (Sentry)
+
+**Package:** `internal/telemetry/sentry.go`
+
+**Features:**
+- Disabled by default (`SENTRY_ENABLED=false`) for development
+- Automatic tenant and user context via middleware
+- Context-aware error capture preserves request information
+- Panic recovery middleware for HTTP handlers
+
+**Environment Variables:**
+```bash
+SENTRY_DSN=https://xxx@sentry.io/xxx
+SENTRY_ENABLED=true          # false by default
+SENTRY_ENVIRONMENT=production
+SENTRY_RELEASE=v1.0.0
+SENTRY_SAMPLE_RATE=1.0       # 0.0-1.0, percentage of errors to capture
+SENTRY_TRACES_SAMPLE_RATE=0  # 0 to disable performance monitoring
+```
+
+**Middleware Pattern:**
+```go
+// Applied in main.go router setup
+r.Use(
+    telemetry.SentryMiddleware(),                           // Panic recovery
+    telemetry.SentryContextMiddleware(tenantID, userExtractor), // Tenant/user context
+)
+```
+
+**Error Capture:**
+```go
+// In HTTP handlers (uses context for tenant/user)
+telemetry.CaptureErrorFromContext(r.Context(), err, map[string]interface{}{
+    "order_id": orderID,
+})
+
+// In background jobs (explicit tenant)
+telemetry.CaptureErrorWithTenant(err, tenantID, map[string]interface{}{
+    "job_type": "invoice:generate",
+})
+```
+
+**Why This Architecture:**
+- Global singleton for metrics (simple, single Prometheus registry)
+- Middleware for HTTP context (automatic, no boilerplate in handlers)
+- Explicit context for non-HTTP paths (webhooks, background jobs)
+- Disable flag prevents consuming free tier during development
+
+---
+
 ## File Storage
 
 ### Choice: Cloudflare R2 (Production) + Local Filesystem (Development)
@@ -771,6 +862,8 @@ freyja/
 | gorilla/sessions | Session management | BSD-3 |
 | validator | Input validation | MIT |
 | slog (stdlib) | Logging | (stdlib) |
+| prometheus/client_golang | Metrics | Apache 2.0 |
+| sentry-go | Error tracking | MIT |
 
 ### Frontend
 
@@ -811,6 +904,9 @@ Significant decisions should be recorded here as the project evolves.
 | 2024-12-04 | Stripe Tax + percentage-based tax | Offers tenants choice between automatic (Stripe) and manual (state rates) tax calculation |
 | 2024-12-05 | Cloudflare R2 for file storage | Zero egress fees critical for serving product images; S3-compatible API; generous free tier |
 | 2024-12-05 | Platform-controlled storage (not per-tenant) | Target market (coffee roasters) aren't technical; storage costs negligible; reduces support burden |
+| 2024-12-06 | Prometheus for business metrics with tenant_id | Multi-tenant dashboards require per-tenant labels; global singleton pattern for simplicity |
+| 2024-12-06 | Sentry for error tracking with disable flag | Free tier (5K errors/month) sufficient for MVP; SENTRY_ENABLED=false by default for development |
+| 2024-12-06 | Sentry context middleware pattern | Automatic tenant/user context via middleware for HTTP handlers; explicit context for webhooks/background jobs |
 
 ---
 

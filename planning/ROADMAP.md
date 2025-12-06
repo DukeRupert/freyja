@@ -379,6 +379,18 @@ Target: Operational efficiency, customer retention tools, and preparation for sc
 
 ### Month 5-6: Platform Hardening
 
+**Observability & Telemetry** ✅ COMPLETE (Done Early)
+- ✅ Prometheus business metrics with tenant_id labels
+- ✅ Product engagement metrics (views, add-to-cart)
+- ✅ Checkout funnel tracking (started, abandoned, completed)
+- ✅ Order and revenue metrics by tenant and order type
+- ✅ Subscription lifecycle metrics
+- ✅ Webhook processing metrics with latency tracking
+- ✅ Email delivery tracking (sent, failed)
+- ✅ External API latency (Stripe)
+- ✅ Sentry error tracking with disable flag for development
+- ✅ Request-scoped Sentry context (tenant, user)
+
 **Multi-Tenancy Preparation**
 - Evaluate architecture changes for future SaaS model
 - Tenant isolation strategy
@@ -387,7 +399,7 @@ Target: Operational efficiency, customer retention tools, and preparation for sc
 **Performance & Reliability**
 - Query optimization and indexing review
 - Response time monitoring
-- Error tracking and alerting
+- ✅ Error tracking and alerting (Sentry)
 - Automated backup verification
 - Disaster recovery documentation
 
@@ -441,6 +453,7 @@ These are noted for architectural awareness but not scheduled:
 | Provider Config | ✅ Complete | Tenant-selectable providers, encrypted credentials, admin UI |
 | Tax Calculation | ✅ Complete | Stripe Tax + percentage-based with state rates |
 | File Storage | ✅ Complete | Cloudflare R2 (production) + local filesystem (development) |
+| Telemetry | ✅ Complete | Prometheus business metrics + Sentry error tracking |
 
 ### Architecture Highlights
 
@@ -455,6 +468,7 @@ These are noted for architectural awareness but not scheduled:
 - **Security hardening** for email verification (rate limiting, token hashing, atomic transactions)
 - **Provider configuration system** with encrypted credential storage (AES-256-GCM)
 - **Tenant-selectable providers** for tax, shipping, billing, and email with cached registry
+- **Business telemetry** with Prometheus metrics (tenant_id labels) and Sentry error tracking
 
 ### Remaining MVP Work
 
@@ -477,4 +491,4 @@ These are noted for architectural awareness but not scheduled:
 | Phase 6 | ✅ Complete | Wholesale invoicing with full admin UI |
 | MVP + 2 mo | ✅ Complete | Shipping provider integration (done early) |
 | MVP + 4 mo | — | Inventory management, discounts, reviews |
-| MVP + 6 mo | — | Accounting integration, platform hardening |
+| MVP + 6 mo | ✅ Partial | Telemetry complete (Prometheus + Sentry); accounting/security pending |
