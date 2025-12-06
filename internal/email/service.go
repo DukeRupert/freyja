@@ -407,6 +407,100 @@ func (s *Service) SendInvoiceOverdue(ctx context.Context, data InvoiceOverdueEma
 	return nil
 }
 
+// SaaS Platform Email Methods
+
+// SendOperatorSetup sends an operator account setup email
+func (s *Service) SendOperatorSetup(ctx context.Context, data OperatorSetupEmail) error {
+	htmlBody, textBody, err := s.renderTemplate(data.TemplateName(), data)
+	if err != nil {
+		return fmt.Errorf("failed to render operator setup template: %w", err)
+	}
+
+	email := &Email{
+		To:       []string{data.Email},
+		From:     fmt.Sprintf("%s <%s>", s.fromName, s.fromAddress),
+		Subject:  data.Subject(),
+		HTMLBody: htmlBody,
+		TextBody: textBody,
+	}
+
+	_, err = s.sender.Send(ctx, email)
+	if err != nil {
+		return fmt.Errorf("failed to send operator setup email: %w", err)
+	}
+
+	return nil
+}
+
+// SendOperatorPasswordReset sends an operator password reset email
+func (s *Service) SendOperatorPasswordReset(ctx context.Context, data OperatorPasswordResetEmail) error {
+	htmlBody, textBody, err := s.renderTemplate(data.TemplateName(), data)
+	if err != nil {
+		return fmt.Errorf("failed to render operator password reset template: %w", err)
+	}
+
+	email := &Email{
+		To:       []string{data.Email},
+		From:     fmt.Sprintf("%s <%s>", s.fromName, s.fromAddress),
+		Subject:  data.Subject(),
+		HTMLBody: htmlBody,
+		TextBody: textBody,
+	}
+
+	_, err = s.sender.Send(ctx, email)
+	if err != nil {
+		return fmt.Errorf("failed to send operator password reset email: %w", err)
+	}
+
+	return nil
+}
+
+// SendPlatformPaymentFailed sends a platform subscription payment failure email
+func (s *Service) SendPlatformPaymentFailed(ctx context.Context, data PlatformPaymentFailedEmail) error {
+	htmlBody, textBody, err := s.renderTemplate(data.TemplateName(), data)
+	if err != nil {
+		return fmt.Errorf("failed to render platform payment failed template: %w", err)
+	}
+
+	email := &Email{
+		To:       []string{data.Email},
+		From:     fmt.Sprintf("%s <%s>", s.fromName, s.fromAddress),
+		Subject:  data.Subject(),
+		HTMLBody: htmlBody,
+		TextBody: textBody,
+	}
+
+	_, err = s.sender.Send(ctx, email)
+	if err != nil {
+		return fmt.Errorf("failed to send platform payment failed email: %w", err)
+	}
+
+	return nil
+}
+
+// SendPlatformSuspended sends a platform subscription suspended email
+func (s *Service) SendPlatformSuspended(ctx context.Context, data PlatformSuspendedEmail) error {
+	htmlBody, textBody, err := s.renderTemplate(data.TemplateName(), data)
+	if err != nil {
+		return fmt.Errorf("failed to render platform suspended template: %w", err)
+	}
+
+	email := &Email{
+		To:       []string{data.Email},
+		From:     fmt.Sprintf("%s <%s>", s.fromName, s.fromAddress),
+		Subject:  data.Subject(),
+		HTMLBody: htmlBody,
+		TextBody: textBody,
+	}
+
+	_, err = s.sender.Send(ctx, email)
+	if err != nil {
+		return fmt.Errorf("failed to send platform suspended email: %w", err)
+	}
+
+	return nil
+}
+
 // Helper method to render a template
 func (s *Service) renderTemplate(templateName string, data interface{}) (string, string, error) {
 	tmpl, ok := s.templateCache[templateName]

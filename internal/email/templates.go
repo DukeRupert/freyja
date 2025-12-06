@@ -237,3 +237,67 @@ type Address struct {
 	PostalCode string
 	Country    string
 }
+
+// SaaS Platform Emails (for tenant operators)
+
+// OperatorSetupEmail represents an operator account setup email
+type OperatorSetupEmail struct {
+	Email     string
+	Name      string
+	SetupURL  string
+	ExpiresAt time.Time
+}
+
+func (e OperatorSetupEmail) Subject() string {
+	return "Complete Your Freyja Account Setup"
+}
+
+func (e OperatorSetupEmail) TemplateName() string {
+	return "operator_setup.html"
+}
+
+// OperatorPasswordResetEmail represents an operator password reset email
+type OperatorPasswordResetEmail struct {
+	Email     string
+	Name      string
+	ResetURL  string
+	ExpiresAt time.Time
+}
+
+func (e OperatorPasswordResetEmail) Subject() string {
+	return "Reset Your Freyja Password"
+}
+
+func (e OperatorPasswordResetEmail) TemplateName() string {
+	return "operator_password_reset.html"
+}
+
+// PlatformPaymentFailedEmail represents a platform subscription payment failure email
+type PlatformPaymentFailedEmail struct {
+	Email            string
+	Name             string
+	UpdatePaymentURL string
+}
+
+func (e PlatformPaymentFailedEmail) Subject() string {
+	return "Payment Issue with Your Freyja Subscription"
+}
+
+func (e PlatformPaymentFailedEmail) TemplateName() string {
+	return "platform_payment_failed.html"
+}
+
+// PlatformSuspendedEmail represents a platform subscription suspended email
+type PlatformSuspendedEmail struct {
+	Email            string
+	Name             string
+	UpdatePaymentURL string
+}
+
+func (e PlatformSuspendedEmail) Subject() string {
+	return "Your Freyja Store Has Been Suspended"
+}
+
+func (e PlatformSuspendedEmail) TemplateName() string {
+	return "platform_suspended.html"
+}

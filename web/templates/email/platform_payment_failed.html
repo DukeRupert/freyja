@@ -1,0 +1,31 @@
+{{define "email_title"}}Payment Issue with Your Freyja Subscription{{end}}
+
+{{define "email_content"}}
+<h2>Payment Issue</h2>
+
+<p>Hi{{if .Name}} {{.Name}}{{end}},</p>
+
+<p>
+  We were unable to process your payment for your Freyja subscription.
+</p>
+
+<p>
+  <strong>What happens next:</strong>
+</p>
+
+<ul style="margin: 16px 0; padding-left: 24px; color: #404040;">
+  <li>We'll automatically retry your payment in a few days</li>
+  <li>Your store will continue operating normally during the grace period</li>
+  <li>If payment isn't received within 7 days, your store will be temporarily suspended</li>
+</ul>
+
+<p style="text-align: center; margin: 32px 0;">
+  <a href="{{.UpdatePaymentURL}}" class="button">Update Payment Method</a>
+</p>
+
+<div class="divider"></div>
+
+<p style="font-size: 14px; color: #737373;">
+  If you believe this is an error or need assistance, please contact our support team.
+</p>
+{{end}}

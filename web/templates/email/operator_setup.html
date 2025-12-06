@@ -1,0 +1,30 @@
+{{define "email_title"}}Complete Your Account Setup - Freyja{{end}}
+
+{{define "email_content"}}
+<h2>Welcome to Freyja!</h2>
+
+<p>Hi{{if .Name}} {{.Name}}{{end}},</p>
+
+<p>
+  Your Freyja account has been created. Click the button below to set up your password and start using your new e-commerce platform:
+</p>
+
+<p style="text-align: center; margin: 32px 0;">
+  <a href="{{.SetupURL}}" class="button">Complete Setup</a>
+</p>
+
+<p>
+  This link will expire in 48 hours (at {{.ExpiresAt.Format "January 2, 2006 3:04 PM MST"}}).
+</p>
+
+<div class="divider"></div>
+
+<p style="font-size: 14px; color: #737373;">
+  If you didn't sign up for Freyja, you can safely ignore this email.
+</p>
+
+<p style="font-size: 14px; color: #737373;">
+  If the button doesn't work, copy and paste this link into your browser:<br>
+  <a href="{{.SetupURL}}" style="color: #2a7d7d; word-break: break-all;">{{.SetupURL}}</a>
+</p>
+{{end}}

@@ -1,0 +1,31 @@
+{{define "email_title"}}Your Freyja Store Has Been Suspended{{end}}
+
+{{define "email_content"}}
+<h2>Store Suspended</h2>
+
+<p>Hi{{if .Name}} {{.Name}}{{end}},</p>
+
+<p>
+  Unfortunately, we were unable to process your payment after multiple attempts. Your Freyja store has been temporarily suspended.
+</p>
+
+<p>
+  <strong>What this means:</strong>
+</p>
+
+<ul style="margin: 16px 0; padding-left: 24px; color: #404040;">
+  <li>Your online store is currently unavailable to customers</li>
+  <li>Your data is safe and will be preserved</li>
+  <li>Once payment is received, your store will be restored immediately</li>
+</ul>
+
+<p style="text-align: center; margin: 32px 0;">
+  <a href="{{.UpdatePaymentURL}}" class="button">Update Payment & Reactivate</a>
+</p>
+
+<div class="divider"></div>
+
+<p style="font-size: 14px; color: #737373;">
+  If you need assistance or have questions about your account, please contact our support team.
+</p>
+{{end}}

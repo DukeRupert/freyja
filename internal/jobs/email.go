@@ -25,6 +25,12 @@ const (
 	JobTypeInvoiceSent               = "email:invoice_sent"
 	JobTypeInvoiceReminder           = "email:invoice_reminder"
 	JobTypeInvoiceOverdue            = "email:invoice_overdue"
+
+	// SaaS platform email jobs
+	JobTypeOperatorSetup         = "email:operator_setup"
+	JobTypeOperatorPasswordReset = "email:operator_password_reset"
+	JobTypePlatformPaymentFailed = "email:platform_payment_failed"
+	JobTypePlatformSuspended     = "email:platform_suspended"
 )
 
 // Email job payloads (JSON-serializable)
@@ -147,6 +153,38 @@ type InvoiceOverduePayload struct {
 	BalanceCents  int64     `json:"balance_cents"`
 	DaysOverdue   int       `json:"days_overdue"`
 	PaymentURL    string    `json:"payment_url"`
+}
+
+// SaaS Platform Email Payloads
+
+// OperatorSetupPayload represents the payload for an operator setup email job
+type OperatorSetupPayload struct {
+	Email     string    `json:"email"`
+	Name      string    `json:"name"`
+	SetupURL  string    `json:"setup_url"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// OperatorPasswordResetPayload represents the payload for an operator password reset email job
+type OperatorPasswordResetPayload struct {
+	Email     string    `json:"email"`
+	Name      string    `json:"name"`
+	ResetURL  string    `json:"reset_url"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// PlatformPaymentFailedPayload represents the payload for a platform payment failed email job
+type PlatformPaymentFailedPayload struct {
+	Email            string `json:"email"`
+	Name             string `json:"name"`
+	UpdatePaymentURL string `json:"update_payment_url"`
+}
+
+// PlatformSuspendedPayload represents the payload for a platform suspended email job
+type PlatformSuspendedPayload struct {
+	Email            string `json:"email"`
+	Name             string `json:"name"`
+	UpdatePaymentURL string `json:"update_payment_url"`
 }
 
 // Job enqueueing functions
@@ -401,6 +439,108 @@ func EnqueueInvoiceOverdueEmail(ctx context.Context, q repository.Querier, tenan
 	return err
 }
 
+// SaaS Platform Email Enqueue Functions
+
+// EnqueueOperatorSetupEmail enqueues an operator setup email job
+func EnqueueOperatorSetupEmail(ctx context.Context, q repository.Querier, tenantID uuid.UUID, payload OperatorSetupPayload) error {
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	_, err = q.EnqueueJob(ctx, repository.EnqueueJobParams{
+		TenantID:   pgtype.UUID{Bytes: tenantID, Valid: true},
+		JobType:    JobTypeOperatorSetup,
+		Queue:      "email",
+		Payload:    payloadJSON,
+		Priority:   50, // Higher priority for setup emails
+		MaxRetries: 3,
+		ScheduledAt: pgtype.Timestamptz{
+			Time:  time.Now(),
+			Valid: true,
+		},
+		TimeoutSeconds: 30,
+		Metadata:       []byte("{}"),
+	})
+
+	return err
+}
+
+// EnqueueOperatorPasswordResetEmail enqueues an operator password reset email job
+func EnqueueOperatorPasswordResetEmail(ctx context.Context, q repository.Querier, tenantID uuid.UUID, payload OperatorPasswordResetPayload) error {
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	_, err = q.EnqueueJob(ctx, repository.EnqueueJobParams{
+		TenantID:   pgtype.UUID{Bytes: tenantID, Valid: true},
+		JobType:    JobTypeOperatorPasswordReset,
+		Queue:      "email",
+		Payload:    payloadJSON,
+		Priority:   50, // Higher priority for password resets
+		MaxRetries: 3,
+		ScheduledAt: pgtype.Timestamptz{
+			Time:  time.Now(),
+			Valid: true,
+		},
+		TimeoutSeconds: 30,
+		Metadata:       []byte("{}"),
+	})
+
+	return err
+}
+
+// EnqueuePlatformPaymentFailedEmail enqueues a platform payment failed email job
+func EnqueuePlatformPaymentFailedEmail(ctx context.Context, q repository.Querier, tenantID uuid.UUID, payload PlatformPaymentFailedPayload) error {
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	_, err = q.EnqueueJob(ctx, repository.EnqueueJobParams{
+		TenantID:   pgtype.UUID{Bytes: tenantID, Valid: true},
+		JobType:    JobTypePlatformPaymentFailed,
+		Queue:      "email",
+		Payload:    payloadJSON,
+		Priority:   80, // High priority for payment issues
+		MaxRetries: 3,
+		ScheduledAt: pgtype.Timestamptz{
+			Time:  time.Now(),
+			Valid: true,
+		},
+		TimeoutSeconds: 30,
+		Metadata:       []byte("{}"),
+	})
+
+	return err
+}
+
+// EnqueuePlatformSuspendedEmail enqueues a platform suspended email job
+func EnqueuePlatformSuspendedEmail(ctx context.Context, q repository.Querier, tenantID uuid.UUID, payload PlatformSuspendedPayload) error {
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	_, err = q.EnqueueJob(ctx, repository.EnqueueJobParams{
+		TenantID:   pgtype.UUID{Bytes: tenantID, Valid: true},
+		JobType:    JobTypePlatformSuspended,
+		Queue:      "email",
+		Payload:    payloadJSON,
+		Priority:   90, // Very high priority for suspension notices
+		MaxRetries: 3,
+		ScheduledAt: pgtype.Timestamptz{
+			Time:  time.Now(),
+			Valid: true,
+		},
+		TimeoutSeconds: 30,
+		Metadata:       []byte("{}"),
+	})
+
+	return err
+}
+
 // ProcessEmailJob processes an email job based on its type
 func ProcessEmailJob(ctx context.Context, job *repository.Job, emailService *email.Service, queries *repository.Queries) error {
 	switch job.JobType {
@@ -598,6 +738,65 @@ func ProcessEmailJob(ctx context.Context, job *repository.Job, emailService *ema
 		}
 
 		return emailService.SendInvoiceOverdue(ctx, emailData)
+
+	// SaaS Platform Email Jobs
+	case JobTypeOperatorSetup:
+		var payload OperatorSetupPayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal operator setup payload: %w", err)
+		}
+
+		emailData := email.OperatorSetupEmail{
+			Email:     payload.Email,
+			Name:      payload.Name,
+			SetupURL:  payload.SetupURL,
+			ExpiresAt: payload.ExpiresAt,
+		}
+
+		return emailService.SendOperatorSetup(ctx, emailData)
+
+	case JobTypeOperatorPasswordReset:
+		var payload OperatorPasswordResetPayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal operator password reset payload: %w", err)
+		}
+
+		emailData := email.OperatorPasswordResetEmail{
+			Email:     payload.Email,
+			Name:      payload.Name,
+			ResetURL:  payload.ResetURL,
+			ExpiresAt: payload.ExpiresAt,
+		}
+
+		return emailService.SendOperatorPasswordReset(ctx, emailData)
+
+	case JobTypePlatformPaymentFailed:
+		var payload PlatformPaymentFailedPayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal platform payment failed payload: %w", err)
+		}
+
+		emailData := email.PlatformPaymentFailedEmail{
+			Email:            payload.Email,
+			Name:             payload.Name,
+			UpdatePaymentURL: payload.UpdatePaymentURL,
+		}
+
+		return emailService.SendPlatformPaymentFailed(ctx, emailData)
+
+	case JobTypePlatformSuspended:
+		var payload PlatformSuspendedPayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal platform suspended payload: %w", err)
+		}
+
+		emailData := email.PlatformSuspendedEmail{
+			Email:            payload.Email,
+			Name:             payload.Name,
+			UpdatePaymentURL: payload.UpdatePaymentURL,
+		}
+
+		return emailService.SendPlatformSuspended(ctx, emailData)
 
 	default:
 		return fmt.Errorf("unknown job type: %s", job.JobType)
