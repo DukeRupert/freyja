@@ -66,11 +66,16 @@ func (h *CartHandler) Add(w http.ResponseWriter, r *http.Request) {
 	}
 
 	skuID := r.FormValue("sku_id")
+	if skuID == "" {
+		h.renderCartError(w, "Please select a size and grind option")
+		return
+	}
+
 	quantityStr := r.FormValue("quantity")
 
 	quantity, err := strconv.Atoi(quantityStr)
 	if err != nil || quantity < 1 {
-		http.Error(w, "Invalid quantity", http.StatusBadRequest)
+		h.renderCartError(w, "Invalid quantity")
 		return
 	}
 

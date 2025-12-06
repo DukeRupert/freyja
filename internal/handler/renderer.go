@@ -32,6 +32,26 @@ func NewRenderer(templatesDir string) (*Renderer, error) {
 		return nil, fmt.Errorf("failed to glob storefront components: %w", err)
 	}
 
+	// Get partial templates (standalone fragments for htmx responses)
+	partialsPattern := filepath.Join(templatesDir, "partials", "*.html")
+	partialFiles, err := filepath.Glob(partialsPattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to glob partials: %w", err)
+	}
+
+	// Parse each partial as a standalone template
+	for _, partial := range partialFiles {
+		partialTmpl, err := template.New("").Funcs(TemplateFuncs()).ParseFiles(partial)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse partial %s: %w", partial, err)
+		}
+
+		// Store with base name as key (without extension)
+		partialName := filepath.Base(partial)
+		partialName = partialName[:len(partialName)-len(filepath.Ext(partialName))]
+		templates[partialName] = partialTmpl
+	}
+
 	// Parse storefront layout once as base template
 	layoutPattern := filepath.Join(templatesDir, "layout.html")
 	baseTmpl, err := template.New("base").Funcs(TemplateFuncs()).ParseFiles(layoutPattern)
