@@ -79,31 +79,34 @@
                               this.price = match.price / 100;
                           }
                       },
-                      updateFormAction() {
-                          const form = document.getElementById('add-to-cart-form');
+                      handleSubmit(event) {
                           if (this.purchaseType === 'subscription') {
-                              form.action = '/subscribe/checkout';
-                              form.method = 'GET';
-                          } else {
-                              form.action = '/cart/add';
-                              form.method = 'POST';
+                              event.preventDefault();
+                              event.stopPropagation();
+                              const params = new URLSearchParams({
+                                  sku_id: this.selectedSKU,
+                                  quantity: this.quantity,
+                                  billing_interval: this.billingInterval
+                              });
+                              window.location.href = '/subscribe/checkout?' + params.toString();
                           }
                       }
                   }"
                   x-init="findMatchingSKU()"
-                  @change="findMatchingSKU()">
+                  @change="findMatchingSKU()"
+                  @submit="handleSubmit($event)">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
 
                 <!-- Purchase Type Toggle -->
                 <div class="flex rounded-lg bg-neutral-100 p-1">
                     <button type="button"
-                            @click="purchaseType = 'onetime'; updateFormAction()"
+                            @click="purchaseType = 'onetime'"
                             :class="purchaseType === 'onetime' ? 'bg-white shadow text-neutral-900' : 'text-neutral-600 hover:text-neutral-900'"
                             class="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors">
                         One-time purchase
                     </button>
                     <button type="button"
-                            @click="purchaseType = 'subscription'; updateFormAction()"
+                            @click="purchaseType = 'subscription'"
                             :class="purchaseType === 'subscription' ? 'bg-white shadow text-neutral-900' : 'text-neutral-600 hover:text-neutral-900'"
                             class="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors">
                         Subscribe & Save

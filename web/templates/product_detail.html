@@ -103,7 +103,8 @@
               hx-post="/cart/add"
               hx-target="#cart-feedback"
               hx-swap="innerHTML"
-              x-data="productForm()">
+              x-data="productForm()"
+              @submit="handleSubmit($event)">
 
           <!-- CSRF Token -->
           <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
@@ -274,22 +275,21 @@
 
               setPurchaseType(type) {
                 this.purchaseType = type;
-                const form = document.getElementById('product-form');
-                if (type === 'subscription') {
-                  form.action = '/subscribe/checkout';
-                  form.method = 'GET';
-                  // Remove htmx attributes for subscription
-                  form.removeAttribute('hx-post');
-                  form.removeAttribute('hx-target');
-                  form.removeAttribute('hx-swap');
-                } else {
-                  form.action = '/cart/add';
-                  form.method = 'POST';
-                  // Restore htmx attributes for cart
-                  form.setAttribute('hx-post', '/cart/add');
-                  form.setAttribute('hx-target', '#cart-feedback');
-                  form.setAttribute('hx-swap', 'innerHTML');
+              },
+
+              handleSubmit(event) {
+                if (this.purchaseType === 'subscription') {
+                  // Prevent htmx from handling - redirect to subscription checkout
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const params = new URLSearchParams({
+                    sku_id: this.selectedSKUID,
+                    quantity: this.quantity,
+                    billing_interval: this.billingInterval
+                  });
+                  window.location.href = '/subscribe/checkout?' + params.toString();
                 }
+                // For one-time purchases, let htmx handle the form normally
               },
 
               selectWeight(weight) {
