@@ -20,6 +20,7 @@ import (
 	"github.com/dukerupert/freyja/internal/email"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/handler/admin"
+	"github.com/dukerupert/freyja/internal/handler/api"
 	"github.com/dukerupert/freyja/internal/handler/saas"
 	"github.com/dukerupert/freyja/internal/handler/storefront"
 	"github.com/dukerupert/freyja/internal/handler/webhook"
@@ -387,6 +388,9 @@ func run() error {
 	// Initialize onboarding service
 	onboardingService := onboarding.NewService(repo)
 
+	// Initialize custom domain service
+	customDomainService := service.NewCustomDomainService(repo, logger)
+
 	// Admin dependencies (consolidated handlers)
 	adminDeps := routes.AdminDeps{
 		LoginHandler:        admin.NewLoginHandler(userService, renderer),
@@ -400,6 +404,7 @@ func run() error {
 		PriceListHandler:    admin.NewPriceListHandler(repo, renderer, cfg.TenantID),
 		TaxRateHandler:      admin.NewTaxRateHandler(repo, renderer, cfg.TenantID),
 		IntegrationsHandler: admin.NewIntegrationsHandler(repo, renderer, cfg.TenantID, encryptor, providerValidator, providerRegistry),
+		CustomDomainHandler: admin.NewCustomDomainHandler(customDomainService, renderer),
 		OnboardingHandler:   admin.NewOnboardingHandler(onboardingService, renderer, cfg.TenantID),
 	}
 
@@ -494,9 +499,15 @@ func run() error {
 		w.Write([]byte("OK"))
 	})
 
+	// API dependencies
+	apiDeps := routes.APIDeps{
+		DomainValidationHandler: api.NewDomainValidationHandler(customDomainService, logger),
+	}
+
 	// Register route groups
 	routes.RegisterStorefrontRoutes(r, storefrontDeps)
 	routes.RegisterAdminRoutes(r, adminDeps)
+	routes.RegisterAPIRoutes(r, apiDeps)
 	routes.RegisterWebhookRoutes(r, webhookDeps)
 
 	// Apply stricter rate limiting to auth endpoints

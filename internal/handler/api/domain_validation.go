@@ -49,44 +49,28 @@ func NewDomainValidationHandler(
 // - Single EXISTS query, no joins
 // - Critical path for on-demand TLS
 func (h *DomainValidationHandler) ValidateDomain(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement ValidateDomain
-	//
-	// Implementation steps:
-	// 1. Parse query parameter:
-	//    - domain := r.URL.Query().Get("domain")
-	//    - If domain is empty: return 400 Bad Request
-	//
-	// 2. Validate domain:
-	//    - isValid, err := h.service.ValidateDomainForCaddy(r.Context(), domain)
-	//    - If err != nil:
-	//      - Log error: h.logger.Error("domain validation failed", "domain", domain, "error", err)
-	//      - Return 500 Internal Server Error (Caddy will retry)
-	//
-	// 3. Return response:
-	//    - If isValid:
-	//      - w.WriteHeader(http.StatusOK)
-	//      - w.Write([]byte("OK"))
-	//      - Log: h.logger.Info("domain validation succeeded", "domain", domain)
-	//    - If !isValid:
-	//      - w.WriteHeader(http.StatusNotFound)
-	//      - w.Write([]byte("Not Found"))
-	//      - Log: h.logger.Debug("domain validation rejected", "domain", domain)
-	//
-	// 4. Record telemetry:
-	//    - telemetry.Business.CaddyValidationRequests.WithLabelValues(status).Inc()
-	//    - telemetry.Business.CaddyValidationLatency.Observe(duration)
-	//
-	// Caddy behavior:
-	// - On 200: Proceed with ACME challenge, issue certificate
-	// - On 404: Reject request, do not issue certificate
-	// - On 500: Retry after delay (up to 3 times)
-	//
-	// Why this prevents abuse:
-	// - Without this check, anyone could request a certificate for any domain
-	// - Caddy would attempt ACME challenge for attacker-controlled domains
-	// - This endpoint ensures only verified, active domains get certificates
+	domain := r.URL.Query().Get("domain")
+	if domain == "" {
+		http.Error(w, "domain parameter required", http.StatusBadRequest)
+		return
+	}
 
-	http.Error(w, "Not implemented", http.StatusNotImplemented)
+	isValid, err := h.service.ValidateDomainForCaddy(r.Context(), domain)
+	if err != nil {
+		h.logger.Error("domain validation failed", "domain", domain, "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	if isValid {
+		h.logger.Info("domain validation succeeded", "domain", domain)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	} else {
+		h.logger.Debug("domain validation rejected", "domain", domain)
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("Not Found"))
+	}
 }
 
 // ============================================================================

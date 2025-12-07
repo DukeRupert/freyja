@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/dukerupert/freyja/internal/handler/admin"
+	"github.com/dukerupert/freyja/internal/handler/api"
 	"github.com/dukerupert/freyja/internal/handler/saas"
 	"github.com/dukerupert/freyja/internal/handler/storefront"
 )
@@ -71,6 +72,7 @@ type AdminDeps struct {
 	// Settings
 	TaxRateHandler      *admin.TaxRateHandler
 	IntegrationsHandler *admin.IntegrationsHandler
+	CustomDomainHandler *admin.CustomDomainHandler
 
 	// Onboarding
 	OnboardingHandler *admin.OnboardingHandler
@@ -79,4 +81,9 @@ type AdminDeps struct {
 // WebhookDeps contains dependencies for webhook routes
 type WebhookDeps struct {
 	StripeHandler http.HandlerFunc
+}
+
+// APIDeps contains dependencies for API routes
+type APIDeps struct {
+	DomainValidationHandler *api.DomainValidationHandler
 }

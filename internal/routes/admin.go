@@ -94,6 +94,13 @@ func RegisterAdminRoutes(r *router.Router, deps AdminDeps) {
 	admin.Post("/admin/settings/integrations/{type}/validate", deps.IntegrationsHandler.ValidateConfig)
 	admin.Post("/admin/settings/integrations/{type}/test", deps.IntegrationsHandler.TestConnection)
 
+	// Settings: Custom domain
+	admin.Get("/admin/settings/domain", deps.CustomDomainHandler.ShowDomainSettings)
+	admin.Post("/admin/settings/domain", deps.CustomDomainHandler.InitiateDomain)
+	admin.Post("/admin/settings/domain/verify", deps.CustomDomainHandler.VerifyDomain)
+	admin.Post("/admin/settings/domain/activate", deps.CustomDomainHandler.ActivateDomain)
+	admin.Delete("/admin/settings/domain", deps.CustomDomainHandler.RemoveDomain)
+
 	// Onboarding checklist
 	admin.Get("/admin/onboarding", deps.OnboardingHandler.GetStatus)
 	admin.Get("/admin/api/onboarding", deps.OnboardingHandler.GetStatusJSON)

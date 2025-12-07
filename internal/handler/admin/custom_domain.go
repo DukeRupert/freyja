@@ -1,12 +1,13 @@
 package admin
 
 import (
+	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/service"
-	"github.com/google/uuid"
 )
 
 // CustomDomainHandler handles custom domain management routes
@@ -28,47 +29,26 @@ func NewCustomDomainHandler(
 
 // ShowDomainSettings handles GET /admin/settings/domain
 // Displays the custom domain settings page with current status
-//
-// UI States (see planning/CUSTOM_DOMAINS.md for mockups):
-// - status = 'none':     Show domain input form
-// - status = 'pending':  Show DNS instructions with CNAME + TXT records
-// - status = 'verified': Show "Activate Domain" button
-// - status = 'active':   Show domain is live with SSL certificate info
-// - status = 'failed':   Show error message with retry button
-//
-// Template data:
-// - CurrentPath: string (for nav highlighting)
-// - CustomDomain: *domain.CustomDomain (nil if no domain)
-// - CSRFToken: string
 func (h *CustomDomainHandler) ShowDomainSettings(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement ShowDomainSettings
-	//
-	// Implementation steps:
-	// 1. Get tenant ID from context:
-	//    - tenantID := middleware.GetTenantIDFromOperator(r.Context())
-	//
-	// 2. Get current domain status:
-	//    - customDomain, err := h.service.GetDomainStatus(r.Context(), tenantID)
-	//    - If err != nil: log error, show error page
-	//
-	// 3. Prepare template data:
-	//    - data := map[string]interface{}{
-	//        "CurrentPath": r.URL.Path,
-	//        "CustomDomain": customDomain, // nil if no domain configured
-	//        "CSRFToken": middleware.GetCSRFToken(r.Context()),
-	//      }
-	//
-	// 4. Render template:
-	//    - h.renderer.RenderHTTP(w, "admin/settings/custom_domain", data)
-	//
-	// Template logic (in custom_domain.html):
-	// - {{if not .CustomDomain}}: Show domain input form
-	// - {{if eq .CustomDomain.Status "pending"}}: Show DNS instructions
-	// - {{if eq .CustomDomain.Status "verified"}}: Show activate button
-	// - {{if eq .CustomDomain.Status "active"}}: Show success message
-	// - {{if eq .CustomDomain.Status "failed"}}: Show error + retry
+	ctx := r.Context()
+	tenantID := middleware.GetTenantIDFromOperator(ctx)
 
-	http.Error(w, "Not implemented", http.StatusNotImplemented)
+	customDomain, err := h.service.GetDomainStatus(ctx, tenantID)
+	if err != nil {
+		http.Error(w, "Failed to load custom domain settings", http.StatusInternalServerError)
+		return
+	}
+
+	data := map[string]interface{}{
+		"CurrentPath":  r.URL.Path,
+		"CustomDomain": customDomain,
+	}
+
+	if csrfToken := middleware.GetCSRFToken(ctx); csrfToken != "" {
+		data["CSRFToken"] = csrfToken
+	}
+
+	h.renderer.RenderHTTP(w, "admin/settings/custom_domain", data)
 }
 
 // InitiateDomain handles POST /admin/settings/domain
@@ -86,36 +66,32 @@ func (h *CustomDomainHandler) ShowDomainSettings(w http.ResponseWriter, r *http.
 // - ErrApexDomainNotAllowed: "Apex domains not supported. Use a subdomain like shop.example.com"
 // - ErrDomainAlreadyInUse: "This domain is already in use by another store"
 func (h *CustomDomainHandler) InitiateDomain(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement InitiateDomain
-	//
-	// Implementation steps:
-	// 1. Parse form:
-	//    - err := r.ParseForm()
-	//    - domain := r.FormValue("domain")
-	//    - Trim whitespace: domain = strings.TrimSpace(domain)
-	//
-	// 2. Get tenant ID from context:
-	//    - tenantID := middleware.GetTenantIDFromOperator(r.Context())
-	//
-	// 3. Initiate verification:
-	//    - customDomain, err := h.service.InitiateVerification(r.Context(), tenantID, domain)
-	//    - Handle errors:
-	//      - ErrInvalidDomain → flash error, redirect back
-	//      - ErrApexDomainNotAllowed → flash error, redirect back
-	//      - ErrDomainAlreadyInUse → flash error, redirect back
-	//
-	// 4. Flash success message:
-	//    - "Custom domain setup started. Please add the DNS records shown below."
-	//
-	// 5. Redirect to settings page:
-	//    - http.Redirect(w, r, "/admin/settings/domain", http.StatusSeeOther)
-	//    - Settings page will show DNS instructions (status is now 'pending')
-	//
-	// Security considerations:
-	// - CSRF token validation (middleware handles this)
-	// - Domain validation prevents injection attacks
+	ctx := r.Context()
+	tenantID := middleware.GetTenantIDFromOperator(ctx)
 
-	http.Error(w, "Not implemented", http.StatusNotImplemented)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	domain := strings.TrimSpace(r.FormValue("domain"))
+
+	_, err := h.service.InitiateVerification(ctx, tenantID, domain)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidDomain):
+			http.Error(w, "Please enter a valid domain name", http.StatusBadRequest)
+		case errors.Is(err, service.ErrApexDomainNotAllowed):
+			http.Error(w, "Apex domains not supported. Use a subdomain like shop.example.com", http.StatusBadRequest)
+		case errors.Is(err, service.ErrDomainAlreadyInUse):
+			http.Error(w, "This domain is already in use by another store", http.StatusConflict)
+		default:
+			http.Error(w, "Failed to set up custom domain", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	http.Redirect(w, r, "/admin/settings/domain", http.StatusSeeOther)
 }
 
 // VerifyDomain handles POST /admin/settings/domain/verify
@@ -133,34 +109,21 @@ func (h *CustomDomainHandler) InitiateDomain(w http.ResponseWriter, r *http.Requ
 // 2. If valid: mark domain as 'verified'
 // 3. If invalid: mark as 'failed' with error message
 func (h *CustomDomainHandler) VerifyDomain(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement VerifyDomain
-	//
-	// Implementation steps:
-	// 1. Get tenant ID from context:
-	//    - tenantID := middleware.GetTenantIDFromOperator(r.Context())
-	//
-	// 2. Check verification:
-	//    - verification, err := h.service.CheckVerification(r.Context(), tenantID)
-	//    - If err != nil: log error, flash error, redirect back
-	//
-	// 3. Handle verification result:
-	//    - If verification.Verified:
-	//      - Flash success: "Domain verified! You can now activate it."
-	//      - Redirect to settings page (will show activate button)
-	//    - If !verification.Verified:
-	//      - Flash error: verification.ErrorMessage
-	//      - Suggest: "DNS changes can take up to 48 hours. Please try again later."
-	//      - Redirect to settings page (will show retry button)
-	//
-	// 4. Redirect:
-	//    - http.Redirect(w, r, "/admin/settings/domain", http.StatusSeeOther)
-	//
-	// Note about DNS propagation:
-	// - DNS can take minutes to hours to propagate
-	// - Don't rate limit this endpoint (allow unlimited retries)
-	// - Show helpful error messages to guide tenant
+	ctx := r.Context()
+	tenantID := middleware.GetTenantIDFromOperator(ctx)
 
-	http.Error(w, "Not implemented", http.StatusNotImplemented)
+	verification, err := h.service.CheckVerification(ctx, tenantID)
+	if err != nil {
+		http.Error(w, "Failed to verify domain", http.StatusInternalServerError)
+		return
+	}
+
+	if !verification.Verified {
+		http.Error(w, verification.ErrorMessage+". DNS changes can take up to 48 hours to propagate.", http.StatusBadRequest)
+		return
+	}
+
+	http.Redirect(w, r, "/admin/settings/domain", http.StatusSeeOther)
 }
 
 // ActivateDomain handles POST /admin/settings/domain/activate
@@ -177,33 +140,20 @@ func (h *CustomDomainHandler) VerifyDomain(w http.ResponseWriter, r *http.Reques
 // - Storefront redirects from subdomain to custom domain
 // - Admin routes remain accessible on both domains
 func (h *CustomDomainHandler) ActivateDomain(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement ActivateDomain
-	//
-	// Implementation steps:
-	// 1. Get tenant ID from context:
-	//    - tenantID := middleware.GetTenantIDFromOperator(r.Context())
-	//
-	// 2. Activate domain:
-	//    - err := h.service.ActivateDomain(r.Context(), tenantID)
-	//    - Handle errors:
-	//      - ErrDomainNotVerified → flash error "Domain must be verified first"
-	//      - Other errors → log and show generic error
-	//
-	// 3. Flash success message:
-	//    - "Custom domain activated! Your storefront is now live at https://[domain]"
-	//
-	// 4. Redirect to settings page:
-	//    - http.Redirect(w, r, "/admin/settings/domain", http.StatusSeeOther)
-	//
-	// 5. Log activation for telemetry:
-	//    - telemetry.Business.CustomDomainActivated.WithLabelValues(tenantID.String()).Inc()
-	//
-	// Note about SSL certificates:
-	// - Caddy provisions certificate automatically on first HTTPS request
-	// - May take 10-30 seconds for first request (ACME challenge)
-	// - Subsequent requests are instant (certificate cached)
+	ctx := r.Context()
+	tenantID := middleware.GetTenantIDFromOperator(ctx)
 
-	http.Error(w, "Not implemented", http.StatusNotImplemented)
+	err := h.service.ActivateDomain(ctx, tenantID)
+	if err != nil {
+		if errors.Is(err, service.ErrDomainNotVerified) {
+			http.Error(w, "Domain must be verified first", http.StatusBadRequest)
+		} else {
+			http.Error(w, "Failed to activate domain", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	http.Redirect(w, r, "/admin/settings/domain", http.StatusSeeOther)
 }
 
 // RemoveDomain handles DELETE /admin/settings/domain
@@ -220,30 +170,16 @@ func (h *CustomDomainHandler) ActivateDomain(w http.ResponseWriter, r *http.Requ
 // - Custom domain stops serving traffic
 // - SSL certificate remains cached in Caddy for 90 days (no manual cleanup)
 func (h *CustomDomainHandler) RemoveDomain(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement RemoveDomain
-	//
-	// Implementation steps:
-	// 1. Get tenant ID from context:
-	//    - tenantID := middleware.GetTenantIDFromOperator(r.Context())
-	//
-	// 2. Confirm removal (optional):
-	//    - Could require confirmation checkbox: "I understand my custom domain will be removed"
-	//    - For simplicity, can skip confirmation (can always re-add)
-	//
-	// 3. Remove domain:
-	//    - err := h.service.RemoveDomain(r.Context(), tenantID)
-	//    - If err != nil: log error, flash error, redirect back
-	//
-	// 4. Flash success message:
-	//    - "Custom domain removed. Your storefront is now accessible at [subdomain].freyja.app"
-	//
-	// 5. Redirect to settings page:
-	//    - http.Redirect(w, r, "/admin/settings/domain", http.StatusSeeOther)
-	//
-	// 6. Log removal for telemetry:
-	//    - telemetry.Business.CustomDomainRemoved.WithLabelValues(tenantID.String()).Inc()
+	ctx := r.Context()
+	tenantID := middleware.GetTenantIDFromOperator(ctx)
 
-	http.Error(w, "Not implemented", http.StatusNotImplemented)
+	err := h.service.RemoveDomain(ctx, tenantID)
+	if err != nil {
+		http.Error(w, "Failed to remove custom domain", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/admin/settings/domain", http.StatusSeeOther)
 }
 
 // ============================================================================
