@@ -492,6 +492,35 @@ Target: Operational efficiency, customer retention tools, and preparation for sc
 
 ---
 
+### Month 6-7: Custom Domains
+
+**Custom Domain Support** 🔲
+- Custom domain configuration with DNS verification
+- Automatic SSL certificate provisioning via Caddy On-Demand TLS
+- Subdomain redirect (storefront only, admin remains accessible on both domains)
+- DNS health monitoring and failure detection
+- Admin UI for domain setup and verification
+
+**Database Schema:**
+- Custom domain columns on `tenants` table
+- Verification token storage (SHA-256 hashed)
+- Domain status tracking (pending, verified, active, failed)
+
+**Infrastructure:**
+- Caddy on-demand TLS configuration
+- Domain validation endpoint for Caddy
+- Background job for daily DNS health checks
+- Email notifications for domain verification and failures
+
+**Security:**
+- DNS TXT record verification prevents domain takeover
+- Hashed verification tokens prevent database compromise exposure
+- Subdomain-only initially (no apex domain support)
+
+**See:** `planning/CUSTOM_DOMAINS.md` for complete architecture and implementation details.
+
+---
+
 ## Future Considerations (Beyond MVP + 6 Months)
 
 These are noted for architectural awareness but not scheduled:
@@ -505,6 +534,8 @@ These are noted for architectural awareness but not scheduled:
 - Affiliate/referral program
 - International shipping and multi-currency
 - API access for customer integrations
+- Custom domain apex support (A/AAAA records)
+- Multiple custom domains per tenant
 
 ---
 

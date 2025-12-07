@@ -1184,6 +1184,12 @@ Significant decisions should be recorded here as the project evolves.
 | 2024-12-06 | Computed onboarding status pattern | Status dynamically computed from actual database state (products, configs) rather than stored; prevents stale data and reduces maintenance |
 | 2024-12-06 | CTE-based combined validation query | Single query with 14 EXISTS/NOT EXISTS checks via CTE pattern avoids N+1 and resolves ambiguous column references |
 | 2024-12-06 | Phase-based onboarding organization | Phase 1 (required for launch), Phase 2 (recommended), Phase 3 (wholesale); only skip flags stored in database |
+| 2024-12-06 | Caddy On-Demand TLS for custom domains | Automatic Let's Encrypt certificate provisioning; `ask` endpoint validates domain before cert issuance; zero manual certificate management |
+| 2024-12-06 | DNS verification for custom domains | TXT record verification prevents domain takeover; CNAME verification ensures traffic routing; both required before activation |
+| 2024-12-06 | Subdomain redirect strategy | Storefront routes redirect to custom domain when active; admin/SaaS/API routes accessible on both domains for reliability |
+| 2024-12-06 | No apex domain support initially | Require subdomain (www/shop) with CNAME to custom.freyja.app; simplifies DNS setup; apex domains require static IPs (deferred to future) |
+| 2024-12-06 | Custom domain on tenants table | One-to-one relationship; inline columns avoid joins on critical path (tenant resolution); simpler than separate table; migrate to table if multi-domain needed |
+| 2024-12-06 | SHA-256 hashed verification tokens | Prevents database compromise from exposing valid verification tokens; same pattern as password reset/email verification tokens |
 
 ---
 
