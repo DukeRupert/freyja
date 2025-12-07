@@ -15,6 +15,7 @@ import (
 	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // Custom domain service errors
@@ -132,291 +133,394 @@ func NewCustomDomainService(repo repository.Querier, logger *slog.Logger) Custom
 }
 
 // InitiateVerification starts the custom domain setup process
-func (s *customDomainService) InitiateVerification(ctx context.Context, tenantID uuid.UUID, domain string) (*domain.CustomDomain, error) {
-	// TODO: Implement InitiateVerification
-	//
-	// Implementation steps:
-	// 1. Validate domain format:
-	//    - Call validateDomainFormat(domain) helper
-	//    - Check it's not an apex domain (must have subdomain)
-	//    - Return ErrInvalidDomain or ErrApexDomainNotAllowed if invalid
-	//
-	// 2. Generate verification token:
-	//    - rawToken, tokenHash := generateVerificationToken()
-	//    - rawToken: 64-char hex string (show in UI)
-	//    - tokenHash: SHA-256 hash (store in DB)
-	//
-	// 3. Store in database:
-	//    - Call repo.SetCustomDomain(ctx, tenantID, domain, tokenHash)
-	//    - Handle UNIQUE constraint violation → ErrDomainAlreadyInUse
-	//
-	// 4. Build and return CustomDomain struct:
-	//    - Status: pending
-	//    - VerificationToken: rawToken (only time it's available)
-	//    - DNSInstructions: GetDNSInstructions()
-	//
-	// 5. Log event:
-	//    - logger.Info("custom domain initiated", "tenant_id", tenantID, "domain", domain)
+func (s *customDomainService) InitiateVerification(ctx context.Context, tenantID uuid.UUID, domainName string) (*domain.CustomDomain, error) {
+	domainName = strings.TrimSpace(strings.ToLower(domainName))
 
-	return nil, errors.New("not implemented")
+	if err := validateDomainFormat(domainName); err != nil {
+		return nil, err
+	}
+
+	_, tokenHash, err := generateDomainVerificationToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate verification token: %w", err)
+	}
+
+	var tenantPgUUID pgtype.UUID
+	if err := tenantPgUUID.Scan(tenantID.String()); err != nil {
+		return nil, fmt.Errorf("failed to convert tenant ID: %w", err)
+	}
+
+	var domainText pgtype.Text
+	domainText.String = domainName
+	domainText.Valid = true
+
+	var tokenText pgtype.Text
+	tokenText.String = tokenHash
+	tokenText.Valid = true
+
+	err = s.repo.SetCustomDomain(ctx, repository.SetCustomDomainParams{
+		ID:                            tenantPgUUID,
+		CustomDomain:                  domainText,
+		CustomDomainVerificationToken: tokenText,
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
+			return nil, ErrDomainAlreadyInUse
+		}
+		return nil, fmt.Errorf("failed to set custom domain: %w", err)
+	}
+
+	s.logger.Info("custom domain initiated", "tenant_id", tenantID, "domain", domainName)
+
+	customDomain := &domain.CustomDomain{
+		TenantID:          tenantID,
+		Domain:            domainName,
+		Status:            domain.CustomDomainStatusPending,
+		VerificationToken: tokenHash,
+	}
+	customDomain.DNSInstructions = customDomain.GetDNSInstructions()
+
+	return customDomain, nil
 }
 
 // CheckVerification performs DNS verification for a pending domain
 func (s *customDomainService) CheckVerification(ctx context.Context, tenantID uuid.UUID) (*domain.DomainVerification, error) {
-	// TODO: Implement CheckVerification
-	//
-	// Implementation steps:
-	// 1. Get current domain status:
-	//    - customDomain := GetDomainStatus(ctx, tenantID)
-	//    - Ensure status is 'pending' or 'failed' (can retry)
-	//    - Return ErrDomainNotConfigured if no domain
-	//
-	// 2. Mark as 'verifying':
-	//    - repo.MarkDomainVerifying(ctx, tenantID)
-	//    - Prevents concurrent verification attempts
-	//
-	// 3. Verify CNAME record:
-	//    - cnameTarget, err := lookupCNAME(customDomain.Domain, 10*time.Second)
-	//    - Check if cnameTarget ends with "custom.freyja.app"
-	//    - If not, record error "CNAME not found or incorrect"
-	//
-	// 4. Verify TXT record:
-	//    - txtRecords, err := lookupTXT("_freyja-verify."+domain, 10*time.Second)
-	//    - expectedValue := "freyja-verify=" + rawToken (need to retrieve from hash somehow?)
-	//    - NOTE: Problem - we store hash, not raw token. Need to rethink this.
-	//    - Alternative: Store raw token temporarily in session or require user to copy it
-	//    - Check if any txtRecord matches expectedValue
-	//
-	// 5. Update database based on result:
-	//    - If both valid: repo.MarkDomainVerified(ctx, tenantID)
-	//    - If invalid: repo.MarkDomainVerificationFailed(ctx, tenantID, errorMsg)
-	//
-	// 6. Return verification result:
-	//    - DomainVerification struct with CNAMEValid, TXTValid, ErrorMessage
-	//
-	// 7. Log result:
-	//    - logger.Info("domain verification completed", "tenant_id", tenantID, "verified", verified)
+	customDomain, err := s.GetDomainStatus(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	if customDomain == nil {
+		return nil, ErrDomainNotConfigured
+	}
+	if !customDomain.CanVerify() {
+		return nil, fmt.Errorf("domain cannot be verified in current status: %s", customDomain.Status)
+	}
 
-	return nil, errors.New("not implemented")
+	tenantPgUUID, err := convertToPgUUID(tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.repo.MarkDomainVerifying(ctx, tenantPgUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to mark domain as verifying: %w", err)
+	}
+
+	verification := &domain.DomainVerification{
+		Domain:     customDomain.Domain,
+		VerifiedAt: time.Now(),
+	}
+
+	cnameTarget, err := lookupCNAME(customDomain.Domain, domain.CustomDomainDNSTimeout)
+	if err != nil {
+		verification.ErrorMessage = fmt.Sprintf("CNAME lookup failed: %v", err)
+	} else {
+		verification.CNAMETarget = cnameTarget
+		verification.CNAMEValid = strings.HasSuffix(cnameTarget, domain.CustomDomainCNAMETarget)
+	}
+
+	status, err := s.repo.GetCustomDomainStatus(ctx, tenantPgUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get custom domain status: %w", err)
+	}
+
+	txtRecords, err := lookupTXT(domain.CustomDomainTXTPrefix+"."+customDomain.Domain, domain.CustomDomainDNSTimeout)
+	if err != nil {
+		if verification.ErrorMessage != "" {
+			verification.ErrorMessage += "; "
+		}
+		verification.ErrorMessage += fmt.Sprintf("TXT lookup failed: %v", err)
+	} else {
+		var tokenHash string
+		if status.CustomDomainVerificationToken.Valid {
+			tokenHash = status.CustomDomainVerificationToken.String
+		}
+		if tokenHash != "" {
+			hashLen := len(tokenHash)
+			prefixLen := 64
+			if hashLen < prefixLen {
+				prefixLen = hashLen
+			}
+			expectedPrefix := domain.CustomDomainTXTValuePrefix + tokenHash[:prefixLen]
+			for _, record := range txtRecords {
+				if strings.HasPrefix(record, expectedPrefix) {
+					verification.TXTValid = true
+					verification.TXTValue = record
+					break
+				}
+			}
+		}
+	}
+
+	verification.Verified = verification.CNAMEValid && verification.TXTValid
+
+	if verification.Verified {
+		err = s.repo.MarkDomainVerified(ctx, tenantPgUUID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to mark domain as verified: %w", err)
+		}
+		s.logger.Info("domain verification succeeded", "tenant_id", tenantID, "domain", customDomain.Domain)
+	} else {
+		if verification.ErrorMessage == "" {
+			if !verification.CNAMEValid {
+				verification.ErrorMessage = "CNAME record not found or does not point to custom.freyja.app"
+			}
+			if !verification.TXTValid {
+				if verification.ErrorMessage != "" {
+					verification.ErrorMessage += "; "
+				}
+				verification.ErrorMessage += "TXT verification record not found"
+			}
+		}
+		var errorMsg pgtype.Text
+		errorMsg.String = verification.ErrorMessage
+		errorMsg.Valid = true
+
+		err = s.repo.MarkDomainVerificationFailed(ctx, repository.MarkDomainVerificationFailedParams{
+			ID:                         tenantPgUUID,
+			CustomDomainErrorMessage:   errorMsg,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to mark verification as failed: %w", err)
+		}
+		s.logger.Info("domain verification failed", "tenant_id", tenantID, "domain", customDomain.Domain, "error", verification.ErrorMessage)
+	}
+
+	return verification, nil
 }
 
 // ActivateDomain activates a verified custom domain
 func (s *customDomainService) ActivateDomain(ctx context.Context, tenantID uuid.UUID) error {
-	// TODO: Implement ActivateDomain
-	//
-	// Implementation steps:
-	// 1. Get current domain status:
-	//    - customDomain := GetDomainStatus(ctx, tenantID)
-	//    - Ensure status is 'verified'
-	//    - Return ErrDomainNotVerified if not
-	//
-	// 2. Activate domain:
-	//    - repo.ActivateCustomDomain(ctx, tenantID)
-	//    - Sets status = 'active', activated_at = NOW, last_checked_at = NOW
-	//
-	// 3. Log activation:
-	//    - logger.Info("custom domain activated", "tenant_id", tenantID, "domain", customDomain.Domain)
-	//
-	// 4. Trigger Caddy reload (optional, Caddy polls):
-	//    - On-demand TLS will provision certificate on first request
-	//    - No manual reload needed, but could signal Caddy for faster provisioning
+	customDomain, err := s.GetDomainStatus(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+	if customDomain == nil {
+		return ErrDomainNotConfigured
+	}
+	if !customDomain.CanActivate() {
+		if customDomain.Status == domain.CustomDomainStatusActive {
+			return ErrDomainAlreadyActive
+		}
+		return ErrDomainNotVerified
+	}
 
-	return errors.New("not implemented")
+	tenantPgUUID, err := convertToPgUUID(tenantID)
+	if err != nil {
+		return err
+	}
+
+	err = s.repo.ActivateCustomDomain(ctx, tenantPgUUID)
+	if err != nil {
+		return fmt.Errorf("failed to activate custom domain: %w", err)
+	}
+
+	s.logger.Info("custom domain activated", "tenant_id", tenantID, "domain", customDomain.Domain)
+
+	return nil
 }
 
 // RemoveDomain removes a custom domain configuration
 func (s *customDomainService) RemoveDomain(ctx context.Context, tenantID uuid.UUID) error {
-	// TODO: Implement RemoveDomain
-	//
-	// Implementation steps:
-	// 1. Deactivate domain:
-	//    - repo.DeactivateCustomDomain(ctx, tenantID)
-	//    - Sets all custom_domain_* columns to NULL, status = 'none'
-	//
-	// 2. Log removal:
-	//    - logger.Info("custom domain removed", "tenant_id", tenantID)
-	//
-	// 3. Note about certificates:
-	//    - Caddy will keep certificate cached for 90 days (Let's Encrypt validity)
-	//    - Certificate won't renew, will expire naturally
-	//    - No manual cleanup needed
+	tenantPgUUID, err := convertToPgUUID(tenantID)
+	if err != nil {
+		return err
+	}
 
-	return errors.New("not implemented")
+	err = s.repo.DeactivateCustomDomain(ctx, tenantPgUUID)
+	if err != nil {
+		return fmt.Errorf("failed to deactivate custom domain: %w", err)
+	}
+
+	s.logger.Info("custom domain removed", "tenant_id", tenantID)
+
+	return nil
 }
 
 // GetDomainStatus retrieves current custom domain status for a tenant
 func (s *customDomainService) GetDomainStatus(ctx context.Context, tenantID uuid.UUID) (*domain.CustomDomain, error) {
-	// TODO: Implement GetDomainStatus
-	//
-	// Implementation steps:
-	// 1. Query database:
-	//    - status, err := repo.GetCustomDomainStatus(ctx, tenantID)
-	//    - Handle sql.ErrNoRows → tenant not found
-	//
-	// 2. Check if domain is configured:
-	//    - If status.custom_domain is NULL or empty, return nil (no domain)
-	//    - If status.custom_domain_status == 'none', return nil
-	//
-	// 3. Build CustomDomain struct:
-	//    - Map database columns to domain.CustomDomain
-	//    - VerificationToken: empty string (we don't store raw token)
-	//    - DNSInstructions: can be computed from domain
-	//
-	// 4. Return CustomDomain:
-	//    - Includes status, timestamps, error message if any
+	tenantPgUUID, err := convertToPgUUID(tenantID)
+	if err != nil {
+		return nil, err
+	}
 
-	return nil, errors.New("not implemented")
+	status, err := s.repo.GetCustomDomainStatus(ctx, tenantPgUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get custom domain status: %w", err)
+	}
+
+	if !status.CustomDomain.Valid || status.CustomDomain.String == "" || status.CustomDomainStatus == "none" {
+		return nil, nil
+	}
+
+	customDomain := &domain.CustomDomain{
+		TenantID: tenantID,
+		Domain:   status.CustomDomain.String,
+		Status:   domain.CustomDomainStatus(status.CustomDomainStatus),
+	}
+
+	if status.CustomDomainVerificationToken.Valid {
+		customDomain.VerificationToken = status.CustomDomainVerificationToken.String
+	}
+
+	if status.CustomDomainVerifiedAt.Valid {
+		t := status.CustomDomainVerifiedAt.Time
+		customDomain.VerifiedAt = &t
+	}
+
+	if status.CustomDomainActivatedAt.Valid {
+		t := status.CustomDomainActivatedAt.Time
+		customDomain.ActivatedAt = &t
+	}
+
+	if status.CustomDomainLastCheckedAt.Valid {
+		t := status.CustomDomainLastCheckedAt.Time
+		customDomain.LastCheckedAt = &t
+	}
+
+	if status.CustomDomainErrorMessage.Valid && status.CustomDomainErrorMessage.String != "" {
+		msg := status.CustomDomainErrorMessage.String
+		customDomain.ErrorMessage = &msg
+	}
+
+	customDomain.DNSInstructions = customDomain.GetDNSInstructions()
+
+	return customDomain, nil
 }
 
 // ValidateDomainForCaddy validates a domain for Caddy's on-demand TLS
-func (s *customDomainService) ValidateDomainForCaddy(ctx context.Context, domain string) (bool, error) {
-	// TODO: Implement ValidateDomainForCaddy
-	//
-	// Implementation steps:
-	// 1. Query database:
-	//    - isValid, err := repo.ValidateDomainForCaddy(ctx, domain)
-	//    - Returns boolean from EXISTS query
-	//
-	// 2. Return result:
-	//    - Return (isValid, nil) in all cases
-	//    - Caddy expects 200 (true) or 404 (false), no errors
-	//
-	// 3. Performance note:
-	//    - This is CRITICAL PATH for certificate issuance
-	//    - Must complete in < 5ms
-	//    - Uses idx_tenants_custom_domain_active index
-	//
-	// 4. Security note:
-	//    - Prevents certificate issuance for unauthorized domains
-	//    - Only returns true for domains with status = 'active'
+func (s *customDomainService) ValidateDomainForCaddy(ctx context.Context, domainName string) (bool, error) {
+	var domainText pgtype.Text
+	domainText.String = domainName
+	domainText.Valid = true
 
-	return false, errors.New("not implemented")
+	result, err := s.repo.ValidateDomainForCaddy(ctx, domainText)
+	if err != nil {
+		return false, nil
+	}
+
+	return result, nil
 }
 
 // PerformHealthCheck checks if an active domain's CNAME is still valid
-func (s *customDomainService) PerformHealthCheck(ctx context.Context, tenantID uuid.UUID, domain string) error {
-	// TODO: Implement PerformHealthCheck
-	//
-	// Implementation steps:
-	// 1. Lookup CNAME:
-	//    - cnameTarget, err := lookupCNAME(domain, 10*time.Second)
-	//    - If err != nil, treat as failed check
-	//
-	// 2. Validate CNAME points to custom.freyja.app:
-	//    - isValid := strings.HasSuffix(cnameTarget, "custom.freyja.app")
-	//
-	// 3. Update database:
-	//    - If valid: repo.UpdateCustomDomainHealthCheck(ctx, tenantID, true, nil)
-	//    - If invalid: repo.UpdateCustomDomainHealthCheck(ctx, tenantID, false, "CNAME not found...")
-	//
-	// 4. Send email notification if health check fails:
-	//    - if !isValid: emailService.SendCustomDomainFailureEmail(tenant)
-	//    - Email template: "Your custom domain configuration has an issue"
-	//
-	// 5. Log result:
-	//    - logger.Info("domain health check", "tenant_id", tenantID, "domain", domain, "valid", isValid)
-	//
-	// 6. Return error only if database update fails:
-	//    - DNS lookup failures are expected (domain might be temporarily down)
-	//    - Return nil if health check completes (even if DNS invalid)
+func (s *customDomainService) PerformHealthCheck(ctx context.Context, tenantID uuid.UUID, domainName string) error {
+	cnameTarget, err := lookupCNAME(domainName, domain.CustomDomainDNSTimeout)
 
-	return errors.New("not implemented")
+	isHealthy := false
+	var errorMessage string
+
+	if err != nil {
+		errorMessage = fmt.Sprintf("CNAME lookup failed: %v", err)
+	} else {
+		isHealthy = strings.HasSuffix(cnameTarget, domain.CustomDomainCNAMETarget)
+		if !isHealthy {
+			errorMessage = fmt.Sprintf("CNAME record does not point to %s (found: %s)", domain.CustomDomainCNAMETarget, cnameTarget)
+		}
+	}
+
+	tenantPgUUID, err := convertToPgUUID(tenantID)
+	if err != nil {
+		return err
+	}
+
+	var errorMsg pgtype.Text
+	errorMsg.String = errorMessage
+	errorMsg.Valid = errorMessage != ""
+
+	err = s.repo.UpdateCustomDomainHealthCheck(ctx, repository.UpdateCustomDomainHealthCheckParams{
+		ID:                       tenantPgUUID,
+		Column2:                  isHealthy,
+		CustomDomainErrorMessage: errorMsg,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update health check status: %w", err)
+	}
+
+	s.logger.Info("domain health check completed", "tenant_id", tenantID, "domain", domainName, "healthy", isHealthy)
+
+	return nil
 }
 
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 
-// validateDomainFormat validates the domain format
-func validateDomainFormat(domain string) error {
-	// TODO: Implement validateDomainFormat
-	//
-	// Validation rules:
-	// 1. Domain must not be empty
-	// 2. Domain must not contain protocol (reject "https://example.com")
-	// 3. Domain must not contain path (reject "example.com/path")
-	// 4. Domain must be a valid hostname
-	// 5. Domain must be a subdomain, not apex (reject "example.com", accept "shop.example.com")
-	//
-	// Implementation:
-	// - Use net.ParseRequestURI to validate format
-	// - Check for single dot: if strings.Count(domain, ".") == 1, it's apex
-	// - Return ErrApexDomainNotAllowed if apex
-	// - Return ErrInvalidDomain if other format issues
-
-	return errors.New("not implemented")
+// convertToPgUUID converts a uuid.UUID to pgtype.UUID
+func convertToPgUUID(id uuid.UUID) (pgtype.UUID, error) {
+	var pgUUID pgtype.UUID
+	if err := pgUUID.Scan(id.String()); err != nil {
+		return pgUUID, fmt.Errorf("failed to convert UUID: %w", err)
+	}
+	return pgUUID, nil
 }
 
-// generateVerificationToken generates a cryptographically secure verification token
-func generateVerificationToken() (rawToken string, tokenHash string, error error) {
-	// TODO: Implement generateVerificationToken
-	//
-	// Implementation steps:
-	// 1. Generate 32 random bytes:
-	//    - bytes := make([]byte, domain.CustomDomainVerificationTokenLength)
-	//    - _, err := rand.Read(bytes)
-	//    - Return error if random generation fails
-	//
-	// 2. Encode to hex string:
-	//    - rawToken := hex.EncodeToString(bytes)
-	//    - This is 64 characters (32 bytes * 2 hex chars per byte)
-	//
-	// 3. Hash token with SHA-256:
-	//    - hash := sha256.Sum256([]byte(rawToken))
-	//    - tokenHash := hex.EncodeToString(hash[:])
-	//
-	// 4. Return both:
-	//    - rawToken: shown in UI (not stored in DB)
-	//    - tokenHash: stored in DB
-	//
-	// Security rationale:
-	// - Raw token never stored in database
-	// - Database compromise doesn't expose valid tokens
-	// - Same pattern as password reset tokens, email verification tokens
+// validateDomainFormat validates the domain format
+func validateDomainFormat(domainName string) error {
+	if domainName == "" {
+		return ErrInvalidDomain
+	}
 
-	return "", "", errors.New("not implemented")
+	if strings.Contains(domainName, "://") {
+		return ErrInvalidDomain
+	}
+
+	if strings.Contains(domainName, "/") {
+		return ErrInvalidDomain
+	}
+
+	if strings.Count(domainName, ".") < 1 {
+		return ErrInvalidDomain
+	}
+
+	if strings.Count(domainName, ".") == 1 {
+		return ErrApexDomainNotAllowed
+	}
+
+	return nil
+}
+
+// generateDomainVerificationToken generates a cryptographically secure verification token
+func generateDomainVerificationToken() (rawToken string, tokenHash string, err error) {
+	bytes := make([]byte, domain.CustomDomainVerificationTokenLength)
+	_, err = rand.Read(bytes)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate random bytes: %w", err)
+	}
+
+	rawToken = hex.EncodeToString(bytes)
+
+	hash := sha256.Sum256([]byte(rawToken))
+	tokenHash = hex.EncodeToString(hash[:])
+
+	return rawToken, tokenHash, nil
 }
 
 // lookupCNAME performs a CNAME DNS lookup with timeout
-func lookupCNAME(domain string, timeout time.Duration) (string, error) {
-	// TODO: Implement lookupCNAME
-	//
-	// Implementation steps:
-	// 1. Create context with timeout:
-	//    - ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	//    - defer cancel()
-	//
-	// 2. Perform CNAME lookup:
-	//    - resolver := net.DefaultResolver
-	//    - cname, err := resolver.LookupCNAME(ctx, domain)
-	//    - Return error if lookup fails
-	//
-	// 3. Normalize result:
-	//    - CNAME records end with a dot (e.g., "custom.freyja.app.")
-	//    - Strip trailing dot: strings.TrimSuffix(cname, ".")
-	//
-	// 4. Return normalized CNAME target
+func lookupCNAME(domainName string, timeout time.Duration) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
-	return "", errors.New("not implemented")
+	resolver := net.DefaultResolver
+	cname, err := resolver.LookupCNAME(ctx, domainName)
+	if err != nil {
+		return "", err
+	}
+
+	cname = strings.TrimSuffix(cname, ".")
+
+	return cname, nil
 }
 
 // lookupTXT performs a TXT DNS lookup with timeout
-func lookupTXT(domain string, timeout time.Duration) ([]string, error) {
-	// TODO: Implement lookupTXT
-	//
-	// Implementation steps:
-	// 1. Create context with timeout:
-	//    - ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	//    - defer cancel()
-	//
-	// 2. Perform TXT lookup:
-	//    - resolver := net.DefaultResolver
-	//    - records, err := resolver.LookupTXT(ctx, domain)
-	//    - Return error if lookup fails
-	//
-	// 3. Return TXT records:
-	//    - Multiple TXT records may exist (e.g., SPF, DKIM)
-	//    - Caller will search for the one matching "freyja-verify=..."
+func lookupTXT(domainName string, timeout time.Duration) ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
-	return nil, errors.New("not implemented")
+	resolver := net.DefaultResolver
+	records, err := resolver.LookupTXT(ctx, domainName)
+	if err != nil {
+		return nil, err
+	}
+
+	return records, nil
 }

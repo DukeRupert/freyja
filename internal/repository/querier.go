@@ -11,6 +11,10 @@ import (
 )
 
 type Querier interface {
+	// Activate a verified custom domain
+	// Domain must be in 'verified' status
+	// After this, Caddy will provision TLS certificate and serve traffic
+	ActivateCustomDomain(ctx context.Context, id pgtype.UUID) error
 	// Activate a suspended operator account
 	ActivateOperator(ctx context.Context, arg ActivateOperatorParams) error
 	// Activate a pending tenant after password setup
@@ -76,6 +80,12 @@ type Querier interface {
 	// Claim the next pending job using SKIP LOCKED for safe concurrent access
 	// This query finds the highest priority job that's ready to run
 	ClaimNextJob(ctx context.Context, arg ClaimNextJobParams) (Job, error)
+	// ============================================================================
+	// BACKGROUND JOBS - CLEANUP
+	// ============================================================================
+	// Remove domains stuck in 'pending' status for > 30 days
+	// Used by weekly cleanup job to free up abandoned domain claims
+	CleanupStalePendingDomains(ctx context.Context) error
 	// Remove all items from a cart
 	ClearCart(ctx context.Context, cartID pgtype.UUID) error
 	// Clear setup token after successful use
@@ -227,6 +237,10 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	// Record incoming webhook event for idempotency
 	CreateWebhookEvent(ctx context.Context, arg CreateWebhookEventParams) (WebhookEvent, error)
+	// Deactivate a custom domain (set back to 'none')
+	// Removes all custom domain data
+	// Used when tenant removes their custom domain
+	DeactivateCustomDomain(ctx context.Context, id pgtype.UUID) error
 	// Decrements inventory for a SKU after order placement
 	// Uses optimistic locking to prevent overselling
 	DecrementSKUStock(ctx context.Context, arg DecrementSKUStockParams) error
@@ -293,6 +307,12 @@ type Querier interface {
 	// Generate next invoice number for a tenant
 	// Format: INV-YYYYMM-XXXX (e.g., INV-202412-0001)
 	GenerateInvoiceNumber(ctx context.Context, tenantID pgtype.UUID) (interface{}, error)
+	// ============================================================================
+	// BACKGROUND JOBS - HEALTH MONITORING
+	// ============================================================================
+	// Get all tenants with active custom domains for health monitoring
+	// Used by daily background job to verify CNAME records are still valid
+	GetActiveCustomDomains(ctx context.Context) ([]GetActiveCustomDomainsRow, error)
 	// Retrieves all active provider configurations for a tenant and type.
 	// Results are ordered by is_default DESC (default first), then priority ASC (lower priority number first).
 	// Used by registry to load the best provider for a tenant.
@@ -327,6 +347,18 @@ type Querier interface {
 	GetCartItemCount(ctx context.Context, cartID pgtype.UUID) (int32, error)
 	// Get all items in a cart with product details
 	GetCartItems(ctx context.Context, cartID pgtype.UUID) ([]GetCartItemsRow, error)
+	// Get count of custom domains by status
+	// Used for admin dashboard metrics
+	GetCustomDomainCount(ctx context.Context) (GetCustomDomainCountRow, error)
+	// Get current custom domain status for a tenant
+	// Returns all custom domain fields for display in admin UI
+	GetCustomDomainStatus(ctx context.Context, id pgtype.UUID) (GetCustomDomainStatusRow, error)
+	// ============================================================================
+	// ADMIN QUERIES
+	// ============================================================================
+	// Get all custom domains filtered by status
+	// Used for admin reporting and monitoring
+	GetCustomDomainsByStatus(ctx context.Context, customDomainStatus string) ([]GetCustomDomainsByStatusRow, error)
 	// Get wholesale customers due for consolidated invoice generation
 	// Used by billing cycle job to find accounts ready for invoicing
 	GetCustomersForBillingCycle(ctx context.Context, arg GetCustomersForBillingCycleParams) ([]GetCustomersForBillingCycleRow, error)
@@ -480,6 +512,21 @@ type Querier interface {
 	GetSubscriptionWithDetails(ctx context.Context, arg GetSubscriptionWithDetailsParams) (GetSubscriptionWithDetailsRow, error)
 	// Get the active tax rate for a specific state within a tenant
 	GetTaxRateByState(ctx context.Context, arg GetTaxRateByStateParams) (TaxRate, error)
+	// ============================================================================
+	// CUSTOM DOMAIN QUERIES
+	// ============================================================================
+	// These queries manage tenant custom domains including:
+	// - DNS verification workflow
+	// - Domain activation and deactivation
+	// - Health monitoring
+	// ============================================================================
+	// ============================================================================
+	// TENANT RESOLUTION
+	// ============================================================================
+	// Lookup tenant by custom domain (used in tenant resolution middleware)
+	// CRITICAL PATH: This query runs on every request to a custom domain
+	// Returns tenant only if domain status is 'active'
+	GetTenantByCustomDomain(ctx context.Context, customDomain pgtype.Text) (GetTenantByCustomDomainRow, error)
 	// Get tenant by ID
 	GetTenantByID(ctx context.Context, id pgtype.UUID) (Tenant, error)
 	// Get tenant by slug (for subdomain/path routing)
@@ -631,6 +678,17 @@ type Querier interface {
 	// =============================================================================
 	// List wholesale orders with customer details
 	ListWholesaleOrders(ctx context.Context, arg ListWholesaleOrdersParams) ([]ListWholesaleOrdersRow, error)
+	// Mark domain verification as failed with error message
+	// Parameters:
+	//   $1: tenant_id (UUID)
+	//   $2: error_message (TEXT)
+	MarkDomainVerificationFailed(ctx context.Context, arg MarkDomainVerificationFailedParams) error
+	// Mark domain as 'verified' after successful DNS verification
+	// Domain can now be activated by tenant
+	MarkDomainVerified(ctx context.Context, id pgtype.UUID) error
+	// Mark domain as 'verifying' during DNS check
+	// Used to prevent concurrent verification attempts
+	MarkDomainVerifying(ctx context.Context, id pgtype.UUID) error
 	// Mark an email verification token as used
 	MarkEmailVerificationTokenUsed(ctx context.Context, arg MarkEmailVerificationTokenUsedParams) error
 	// Mark invoice as viewed (first view only)
@@ -641,6 +699,16 @@ type Querier interface {
 	RecalculateOrderFulfillmentStatus(ctx context.Context, arg RecalculateOrderFulfillmentStatusParams) error
 	// Remove an item from cart
 	RemoveCartItem(ctx context.Context, arg RemoveCartItemParams) error
+	// ============================================================================
+	// CUSTOM DOMAIN MANAGEMENT
+	// ============================================================================
+	// Initiate custom domain setup
+	// Sets domain to 'pending' status and stores verification token hash
+	// Parameters:
+	//   $1: tenant_id (UUID)
+	//   $2: custom_domain (VARCHAR) - e.g., "shop.example.com"
+	//   $3: verification_token_hash (VARCHAR) - SHA-256 hash of verification token
+	SetCustomDomain(ctx context.Context, arg SetCustomDomainParams) error
 	// Set a payment method as the default for a billing customer
 	SetDefaultPaymentMethod(ctx context.Context, arg SetDefaultPaymentMethodParams) error
 	// Set payment terms as default (clears previous default)
@@ -684,6 +752,12 @@ type Querier interface {
 	// Marks cart as converted to order
 	// Prevents duplicate order creation from same cart
 	UpdateCartStatus(ctx context.Context, arg UpdateCartStatusParams) error
+	// Update last_checked_at timestamp after health check
+	// Parameters:
+	//   $1: tenant_id (UUID)
+	//   $2: is_healthy (BOOLEAN) - true if CNAME still valid
+	//   $3: error_message (TEXT) - NULL if healthy, error message if unhealthy
+	UpdateCustomDomainHealthCheck(ctx context.Context, arg UpdateCustomDomainHealthCheckParams) error
 	// Link invoice to billing provider
 	UpdateInvoiceProviderID(ctx context.Context, arg UpdateInvoiceProviderIDParams) error
 	// Update invoice status
@@ -764,6 +838,13 @@ type Querier interface {
 	UpdateWholesaleCustomer(ctx context.Context, arg UpdateWholesaleCustomerParams) error
 	// Create or update a price list entry
 	UpsertPriceListEntry(ctx context.Context, arg UpsertPriceListEntryParams) error
+	// ============================================================================
+	// CADDY VALIDATION
+	// ============================================================================
+	// Validate domain for Caddy's on-demand TLS 'ask' endpoint
+	// Returns true if domain is valid and active, false otherwise
+	// Caddy calls this before issuing a Let's Encrypt certificate
+	ValidateDomainForCaddy(ctx context.Context, customDomain pgtype.Text) (bool, error)
 	// Mark user email as verified
 	VerifyUserEmail(ctx context.Context, id pgtype.UUID) error
 }

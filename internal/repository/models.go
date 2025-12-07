@@ -845,6 +845,20 @@ type Tenant struct {
 	StripeSubscriptionID pgtype.Text `json:"stripe_subscription_id"`
 	// When grace period started after payment failure (7 days before suspension)
 	GracePeriodStartedAt pgtype.Timestamptz `json:"grace_period_started_at"`
+	// Tenant custom domain (e.g., shop.example.com); UNIQUE across all tenants
+	CustomDomain pgtype.Text `json:"custom_domain"`
+	// Domain status: none, pending, verifying, verified, active, failed
+	CustomDomainStatus string `json:"custom_domain_status"`
+	// SHA-256 hash of verification token (for DNS TXT record)
+	CustomDomainVerificationToken pgtype.Text `json:"custom_domain_verification_token"`
+	// Timestamp when DNS verification succeeded
+	CustomDomainVerifiedAt pgtype.Timestamptz `json:"custom_domain_verified_at"`
+	// Timestamp when domain went live
+	CustomDomainActivatedAt pgtype.Timestamptz `json:"custom_domain_activated_at"`
+	// Last DNS health check (background job)
+	CustomDomainLastCheckedAt pgtype.Timestamptz `json:"custom_domain_last_checked_at"`
+	// Error message if verification/health check failed
+	CustomDomainErrorMessage pgtype.Text `json:"custom_domain_error_message"`
 }
 
 // People who manage a tenant (roaster staff who pay for Freyja)

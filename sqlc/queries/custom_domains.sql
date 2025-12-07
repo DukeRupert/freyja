@@ -15,7 +15,7 @@
 -- Lookup tenant by custom domain (used in tenant resolution middleware)
 -- CRITICAL PATH: This query runs on every request to a custom domain
 -- Returns tenant only if domain status is 'active'
-SELECT id, slug, name, subdomain, custom_domain, custom_domain_status, status
+SELECT id, slug, name, custom_domain, custom_domain_status, status
 FROM tenants
 WHERE custom_domain = $1
   AND custom_domain_status = 'active'
@@ -109,6 +109,7 @@ WHERE id = $1;
 SELECT
     custom_domain,
     custom_domain_status,
+    custom_domain_verification_token,
     custom_domain_verified_at,
     custom_domain_activated_at,
     custom_domain_last_checked_at,

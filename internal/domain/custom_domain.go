@@ -151,10 +151,14 @@ func (cd CustomDomain) GetCNAMERecord() DNSRecord {
 
 // GetTXTRecord returns the TXT DNS record instruction
 func (cd CustomDomain) GetTXTRecord() DNSRecord {
+	tokenValue := cd.VerificationToken
+	if len(tokenValue) > 64 {
+		tokenValue = tokenValue[:64]
+	}
 	return DNSRecord{
 		Type:  "TXT",
 		Name:  CustomDomainTXTPrefix + "." + cd.Domain,
-		Value: CustomDomainTXTValuePrefix + cd.VerificationToken,
+		Value: CustomDomainTXTValuePrefix + tokenValue,
 		TTL:   3600,
 	}
 }

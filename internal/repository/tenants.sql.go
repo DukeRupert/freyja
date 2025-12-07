@@ -78,7 +78,7 @@ INSERT INTO tenants (
     status
 ) VALUES (
     $1, $2, $3, $4
-) RETURNING id, name, slug, email, phone, website, business_name, tax_id, settings, status, trial_ends_at, created_at, updated_at, stripe_customer_id, stripe_subscription_id, grace_period_started_at
+) RETURNING id, name, slug, email, phone, website, business_name, tax_id, settings, status, trial_ends_at, created_at, updated_at, stripe_customer_id, stripe_subscription_id, grace_period_started_at, custom_domain, custom_domain_status, custom_domain_verification_token, custom_domain_verified_at, custom_domain_activated_at, custom_domain_last_checked_at, custom_domain_error_message
 `
 
 type CreateTenantParams struct {
@@ -115,12 +115,19 @@ func (q *Queries) CreateTenant(ctx context.Context, arg CreateTenantParams) (Ten
 		&i.StripeCustomerID,
 		&i.StripeSubscriptionID,
 		&i.GracePeriodStartedAt,
+		&i.CustomDomain,
+		&i.CustomDomainStatus,
+		&i.CustomDomainVerificationToken,
+		&i.CustomDomainVerifiedAt,
+		&i.CustomDomainActivatedAt,
+		&i.CustomDomainLastCheckedAt,
+		&i.CustomDomainErrorMessage,
 	)
 	return i, err
 }
 
 const getTenantByID = `-- name: GetTenantByID :one
-SELECT id, name, slug, email, phone, website, business_name, tax_id, settings, status, trial_ends_at, created_at, updated_at, stripe_customer_id, stripe_subscription_id, grace_period_started_at
+SELECT id, name, slug, email, phone, website, business_name, tax_id, settings, status, trial_ends_at, created_at, updated_at, stripe_customer_id, stripe_subscription_id, grace_period_started_at, custom_domain, custom_domain_status, custom_domain_verification_token, custom_domain_verified_at, custom_domain_activated_at, custom_domain_last_checked_at, custom_domain_error_message
 FROM tenants
 WHERE id = $1
 LIMIT 1
@@ -147,12 +154,19 @@ func (q *Queries) GetTenantByID(ctx context.Context, id pgtype.UUID) (Tenant, er
 		&i.StripeCustomerID,
 		&i.StripeSubscriptionID,
 		&i.GracePeriodStartedAt,
+		&i.CustomDomain,
+		&i.CustomDomainStatus,
+		&i.CustomDomainVerificationToken,
+		&i.CustomDomainVerifiedAt,
+		&i.CustomDomainActivatedAt,
+		&i.CustomDomainLastCheckedAt,
+		&i.CustomDomainErrorMessage,
 	)
 	return i, err
 }
 
 const getTenantBySlug = `-- name: GetTenantBySlug :one
-SELECT id, name, slug, email, phone, website, business_name, tax_id, settings, status, trial_ends_at, created_at, updated_at, stripe_customer_id, stripe_subscription_id, grace_period_started_at
+SELECT id, name, slug, email, phone, website, business_name, tax_id, settings, status, trial_ends_at, created_at, updated_at, stripe_customer_id, stripe_subscription_id, grace_period_started_at, custom_domain, custom_domain_status, custom_domain_verification_token, custom_domain_verified_at, custom_domain_activated_at, custom_domain_last_checked_at, custom_domain_error_message
 FROM tenants
 WHERE slug = $1
 LIMIT 1
@@ -179,12 +193,19 @@ func (q *Queries) GetTenantBySlug(ctx context.Context, slug string) (Tenant, err
 		&i.StripeCustomerID,
 		&i.StripeSubscriptionID,
 		&i.GracePeriodStartedAt,
+		&i.CustomDomain,
+		&i.CustomDomainStatus,
+		&i.CustomDomainVerificationToken,
+		&i.CustomDomainVerifiedAt,
+		&i.CustomDomainActivatedAt,
+		&i.CustomDomainLastCheckedAt,
+		&i.CustomDomainErrorMessage,
 	)
 	return i, err
 }
 
 const getTenantByStripeCustomerID = `-- name: GetTenantByStripeCustomerID :one
-SELECT id, name, slug, email, phone, website, business_name, tax_id, settings, status, trial_ends_at, created_at, updated_at, stripe_customer_id, stripe_subscription_id, grace_period_started_at
+SELECT id, name, slug, email, phone, website, business_name, tax_id, settings, status, trial_ends_at, created_at, updated_at, stripe_customer_id, stripe_subscription_id, grace_period_started_at, custom_domain, custom_domain_status, custom_domain_verification_token, custom_domain_verified_at, custom_domain_activated_at, custom_domain_last_checked_at, custom_domain_error_message
 FROM tenants
 WHERE stripe_customer_id = $1
 LIMIT 1
@@ -211,12 +232,19 @@ func (q *Queries) GetTenantByStripeCustomerID(ctx context.Context, stripeCustome
 		&i.StripeCustomerID,
 		&i.StripeSubscriptionID,
 		&i.GracePeriodStartedAt,
+		&i.CustomDomain,
+		&i.CustomDomainStatus,
+		&i.CustomDomainVerificationToken,
+		&i.CustomDomainVerifiedAt,
+		&i.CustomDomainActivatedAt,
+		&i.CustomDomainLastCheckedAt,
+		&i.CustomDomainErrorMessage,
 	)
 	return i, err
 }
 
 const getTenantByStripeSubscriptionID = `-- name: GetTenantByStripeSubscriptionID :one
-SELECT id, name, slug, email, phone, website, business_name, tax_id, settings, status, trial_ends_at, created_at, updated_at, stripe_customer_id, stripe_subscription_id, grace_period_started_at
+SELECT id, name, slug, email, phone, website, business_name, tax_id, settings, status, trial_ends_at, created_at, updated_at, stripe_customer_id, stripe_subscription_id, grace_period_started_at, custom_domain, custom_domain_status, custom_domain_verification_token, custom_domain_verified_at, custom_domain_activated_at, custom_domain_last_checked_at, custom_domain_error_message
 FROM tenants
 WHERE stripe_subscription_id = $1
 LIMIT 1
@@ -243,12 +271,19 @@ func (q *Queries) GetTenantByStripeSubscriptionID(ctx context.Context, stripeSub
 		&i.StripeCustomerID,
 		&i.StripeSubscriptionID,
 		&i.GracePeriodStartedAt,
+		&i.CustomDomain,
+		&i.CustomDomainStatus,
+		&i.CustomDomainVerificationToken,
+		&i.CustomDomainVerifiedAt,
+		&i.CustomDomainActivatedAt,
+		&i.CustomDomainLastCheckedAt,
+		&i.CustomDomainErrorMessage,
 	)
 	return i, err
 }
 
 const getTenantsWithExpiredGracePeriod = `-- name: GetTenantsWithExpiredGracePeriod :many
-SELECT id, name, slug, email, phone, website, business_name, tax_id, settings, status, trial_ends_at, created_at, updated_at, stripe_customer_id, stripe_subscription_id, grace_period_started_at
+SELECT id, name, slug, email, phone, website, business_name, tax_id, settings, status, trial_ends_at, created_at, updated_at, stripe_customer_id, stripe_subscription_id, grace_period_started_at, custom_domain, custom_domain_status, custom_domain_verification_token, custom_domain_verified_at, custom_domain_activated_at, custom_domain_last_checked_at, custom_domain_error_message
 FROM tenants
 WHERE status = 'past_due'
   AND grace_period_started_at IS NOT NULL
@@ -284,6 +319,13 @@ func (q *Queries) GetTenantsWithExpiredGracePeriod(ctx context.Context) ([]Tenan
 			&i.StripeCustomerID,
 			&i.StripeSubscriptionID,
 			&i.GracePeriodStartedAt,
+			&i.CustomDomain,
+			&i.CustomDomainStatus,
+			&i.CustomDomainVerificationToken,
+			&i.CustomDomainVerifiedAt,
+			&i.CustomDomainActivatedAt,
+			&i.CustomDomainLastCheckedAt,
+			&i.CustomDomainErrorMessage,
 		); err != nil {
 			return nil, err
 		}
@@ -296,7 +338,7 @@ func (q *Queries) GetTenantsWithExpiredGracePeriod(ctx context.Context) ([]Tenan
 }
 
 const listActiveTenants = `-- name: ListActiveTenants :many
-SELECT id, name, slug, email, phone, website, business_name, tax_id, settings, status, trial_ends_at, created_at, updated_at, stripe_customer_id, stripe_subscription_id, grace_period_started_at
+SELECT id, name, slug, email, phone, website, business_name, tax_id, settings, status, trial_ends_at, created_at, updated_at, stripe_customer_id, stripe_subscription_id, grace_period_started_at, custom_domain, custom_domain_status, custom_domain_verification_token, custom_domain_verified_at, custom_domain_activated_at, custom_domain_last_checked_at, custom_domain_error_message
 FROM tenants
 WHERE status = 'active'
 ORDER BY created_at DESC
@@ -329,6 +371,13 @@ func (q *Queries) ListActiveTenants(ctx context.Context) ([]Tenant, error) {
 			&i.StripeCustomerID,
 			&i.StripeSubscriptionID,
 			&i.GracePeriodStartedAt,
+			&i.CustomDomain,
+			&i.CustomDomainStatus,
+			&i.CustomDomainVerificationToken,
+			&i.CustomDomainVerifiedAt,
+			&i.CustomDomainActivatedAt,
+			&i.CustomDomainLastCheckedAt,
+			&i.CustomDomainErrorMessage,
 		); err != nil {
 			return nil, err
 		}
@@ -414,7 +463,7 @@ SET
     business_name = COALESCE($6, business_name),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, name, slug, email, phone, website, business_name, tax_id, settings, status, trial_ends_at, created_at, updated_at, stripe_customer_id, stripe_subscription_id, grace_period_started_at
+RETURNING id, name, slug, email, phone, website, business_name, tax_id, settings, status, trial_ends_at, created_at, updated_at, stripe_customer_id, stripe_subscription_id, grace_period_started_at, custom_domain, custom_domain_status, custom_domain_verification_token, custom_domain_verified_at, custom_domain_activated_at, custom_domain_last_checked_at, custom_domain_error_message
 `
 
 type UpdateTenantProfileParams struct {
@@ -454,6 +503,13 @@ func (q *Queries) UpdateTenantProfile(ctx context.Context, arg UpdateTenantProfi
 		&i.StripeCustomerID,
 		&i.StripeSubscriptionID,
 		&i.GracePeriodStartedAt,
+		&i.CustomDomain,
+		&i.CustomDomainStatus,
+		&i.CustomDomainVerificationToken,
+		&i.CustomDomainVerifiedAt,
+		&i.CustomDomainActivatedAt,
+		&i.CustomDomainLastCheckedAt,
+		&i.CustomDomainErrorMessage,
 	)
 	return i, err
 }
