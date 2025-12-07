@@ -23,6 +23,56 @@ type Querier interface {
 	CancelJob(ctx context.Context, id pgtype.UUID) error
 	// Cancel a tenant subscription
 	CancelTenant(ctx context.Context, id pgtype.UUID) error
+	// ============================================================================
+	// ONBOARDING VALIDATION QUERIES
+	// ============================================================================
+	// These queries check actual data to determine completion status.
+	// Each returns a single boolean indicating if the step is complete.
+	// Validation: account_activated
+	// True if any operator for this tenant is active (has set password and can log in)
+	CheckAccountActivated(ctx context.Context, tenantID pgtype.UUID) (bool, error)
+	// Validation: business_info
+	// True if tenant has name and email set
+	CheckBusinessInfo(ctx context.Context, id pgtype.UUID) (bool, error)
+	// Validation: coffee_attributes
+	// True if all active products have origin and roast_level set
+	// Returns true if there are no active products (vacuous truth)
+	CheckCoffeeAttributes(ctx context.Context, tenantID pgtype.UUID) (bool, error)
+	// Validation: email_configured
+	// True if any email provider is configured and active
+	CheckEmailConfigured(ctx context.Context, tenantID pgtype.UUID) (bool, error)
+	// Validation: first_product
+	// True if at least one active product exists
+	CheckFirstProduct(ctx context.Context, tenantID pgtype.UUID) (bool, error)
+	// Validation: first_sku
+	// True if at least one SKU exists for an active product
+	CheckFirstSKU(ctx context.Context, tenantID pgtype.UUID) (bool, error)
+	// Validation: payment_terms
+	// True if at least one payment term is marked as default
+	CheckPaymentTerms(ctx context.Context, tenantID pgtype.UUID) (bool, error)
+	// Validation: pricing_set
+	// True if all SKUs of active products have price list entries in the default price list
+	// Returns true if there are no active products (vacuous truth - nothing to price)
+	CheckPricingSet(ctx context.Context, tenantID pgtype.UUID) (bool, error)
+	// Validation: product_images
+	// True if all active products have at least one image
+	// Returns true if there are no active products (vacuous truth)
+	CheckProductImages(ctx context.Context, tenantID pgtype.UUID) (bool, error)
+	// Validation: shipping_configured
+	// True if at least one active shipping method exists
+	CheckShippingConfigured(ctx context.Context, tenantID pgtype.UUID) (bool, error)
+	// Validation: stripe_connected
+	// True if Stripe billing provider is configured and active
+	CheckStripeConnected(ctx context.Context, tenantID pgtype.UUID) (bool, error)
+	// Validation: tax_configured
+	// True if any tax provider is configured and active (including 'no_tax')
+	CheckTaxConfigured(ctx context.Context, tenantID pgtype.UUID) (bool, error)
+	// Validation: warehouse_address
+	// True if a warehouse address exists
+	CheckWarehouseAddress(ctx context.Context, tenantID pgtype.UUID) (bool, error)
+	// Validation: wholesale_pricing
+	// True if at least one wholesale price list with entries exists
+	CheckWholesalePricing(ctx context.Context, tenantID pgtype.UUID) (bool, error)
 	// Claim the next pending job using SKIP LOCKED for safe concurrent access
 	// This query finds the highest priority job that's ready to run
 	ClaimNextJob(ctx context.Context, arg ClaimNextJobParams) (Job, error)
@@ -251,6 +301,13 @@ type Querier interface {
 	GetAddressByID(ctx context.Context, id pgtype.UUID) (Address, error)
 	// Get a single address by ID (validates user ownership via customer_addresses)
 	GetAddressByIDForUser(ctx context.Context, arg GetAddressByIDForUserParams) (GetAddressByIDForUserRow, error)
+	// ============================================================================
+	// COMBINED VALIDATION QUERY (PERFORMANCE OPTIMIZATION)
+	// ============================================================================
+	// Single query that returns all validation results at once.
+	// Use this instead of 14 separate queries for better performance.
+	// Uses a CTE to anchor the tenant_id parameter and avoid ambiguous references.
+	GetAllOnboardingValidations(ctx context.Context, dollar_1 pgtype.UUID) (GetAllOnboardingValidationsRow, error)
 	// Get the base product for a white-label product
 	GetBaseProductForWhiteLabel(ctx context.Context, id pgtype.UUID) (Product, error)
 	// Retrieves billing customer by Stripe customer ID
@@ -398,6 +455,11 @@ type Querier interface {
 	// Retrieves all shipping rates for a specific provider config.
 	// Used to show manual rates configured for a tenant.
 	GetShippingRatesByProvider(ctx context.Context, arg GetShippingRatesByProviderParams) ([]TenantShippingRate, error)
+	// ============================================================================
+	// ONBOARDING SKIP TRACKING
+	// ============================================================================
+	// Get all skipped items for a tenant
+	GetSkippedItems(ctx context.Context, tenantID pgtype.UUID) ([]OnboardingItemSkip, error)
 	// Retrieves subscription by database ID with tenant scoping
 	GetSubscriptionByID(ctx context.Context, arg GetSubscriptionByIDParams) (Subscription, error)
 	// Retrieves subscription by Stripe subscription ID
@@ -481,6 +543,8 @@ type Querier interface {
 	// Mark all unused password reset tokens for a user as used
 	// (Called after successful password reset to invalidate other tokens)
 	InvalidateUserPasswordResetTokens(ctx context.Context, arg InvalidateUserPasswordResetTokensParams) error
+	// Check if a specific item is skipped
+	IsItemSkipped(ctx context.Context, arg IsItemSkippedParams) (bool, error)
 	// List all active products for a tenant with their primary image
 	ListActiveProducts(ctx context.Context, tenantID pgtype.UUID) ([]ListActiveProductsRow, error)
 	// List active products with optional filters for roast level and origin
@@ -593,6 +657,8 @@ type Querier interface {
 	SetPrimaryImage(ctx context.Context, arg SetPrimaryImageParams) error
 	// Update tenant status
 	SetTenantStatus(ctx context.Context, arg SetTenantStatusParams) error
+	// Mark an item as skipped (idempotent - updates timestamp if already skipped)
+	SkipItem(ctx context.Context, arg SkipItemParams) (OnboardingItemSkip, error)
 	// Start grace period after payment failure
 	StartTenantGracePeriod(ctx context.Context, id pgtype.UUID) error
 	// Submit a wholesale application (updates user profile with business info)
@@ -606,6 +672,8 @@ type Querier interface {
 	// Removes is_default flag from all providers of a given type for a tenant.
 	// Used before setting a new default provider.
 	UnsetDefaultProvider(ctx context.Context, arg UnsetDefaultProviderParams) error
+	// Remove skip flag (if user wants to complete the item)
+	UnskipItem(ctx context.Context, arg UnskipItemParams) error
 	// Update an address
 	UpdateAddress(ctx context.Context, arg UpdateAddressParams) (Address, error)
 	// Update a billing customer

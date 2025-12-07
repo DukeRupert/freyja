@@ -15,7 +15,9 @@ This roadmap defines the path to MVP launch and the six months following. The MV
 ✅ **Phase 5 Complete** — Subscriptions fully implemented with Stripe Billing
 ✅ **Phase 6 Complete** — Wholesale invoicing with full admin UI
 ✅ **Wholesale Ordering Complete** — Matrix ordering UI, batch cart, application workflow
-✅ **Email Notifications Complete** — Postmark/SMTP, background worker, 8 email types
+✅ **Email Notifications Complete** — Postmark/SMTP, background worker, 14 email types
+✅ **SaaS Onboarding Complete** — Tenant operators, Stripe Checkout, operator middleware
+✅ **Tenant Onboarding Checklist Complete** — Dashboard widget with launch readiness tracking
 ✅ **Email Verification Complete** — Signup requires email verification before login
 ✅ **Account Dashboard Complete** — User account overview page
 ✅ **Profile Management Complete** — Settings page, address book with full CRUD, payment methods
@@ -23,11 +25,11 @@ This roadmap defines the path to MVP launch and the six months following. The MV
 ✅ **File Storage Complete** — Cloudflare R2 for production, local filesystem for development
 
 **Codebase Metrics:**
-- 120+ Go source files (~22,000 lines)
-- 25 database migrations (50+ tables)
-- 80+ HTML templates (including 8 email templates)
-- 45+ HTTP handlers
-- 15+ service layers
+- 130+ Go source files (~24,000 lines)
+- 27 database migrations (50+ tables)
+- 95+ HTML templates (including 14 email templates)
+- 55+ HTTP handlers
+- 18+ service layers (including OperatorService, OnboardingService)
 - 3,100+ lines of test code
 
 ---
@@ -284,7 +286,6 @@ Target: A roaster can sell coffee online to retail and wholesale customers with 
 **Not Yet Implemented** 🔲
 - 🔲 Customer editing and price list assignment
 - 🔲 Subscription admin overview
-- 🔲 Wholesale approval email notification
 
 ### Provider Configuration System ✅ COMPLETE
 
@@ -450,6 +451,47 @@ Target: Operational efficiency, customer retention tools, and preparation for sc
 
 ---
 
+### SaaS Onboarding ✅ COMPLETE
+
+**Database Schema** ✅
+- ✅ `tenant_operators` table (owner/staff roles, email/password auth)
+- ✅ `operator_sessions` table (cookie-based sessions)
+- ✅ Tenant status tracking (pending, active, past_due, suspended, cancelled)
+
+**Operator Authentication** ✅
+- ✅ Cookie-based sessions with PostgreSQL storage
+- ✅ Password hashing with bcrypt
+- ✅ Session invalidation and multi-device logout
+- ✅ Role-based access control (owner, staff)
+
+**Middleware** ✅
+- ✅ `WithOperator` — Loads operator from session cookie into context
+- ✅ `RequireOperator` — Blocks unauthenticated requests
+- ✅ `RequireActiveTenant` — Requires tenant status = active
+- ✅ `RequireOwner` — Restricts to owner role only
+
+**Services** ✅
+- ✅ `OperatorService` — CRUD for operators, session management, password reset
+- ✅ `OnboardingService` — Stripe Checkout session creation, subscription management
+
+**Handlers** ✅
+- ✅ `/saas/setup/*` — Account setup flow (invited operators)
+- ✅ `/saas/auth/*` — Login, logout, password reset
+- ✅ `/saas/billing/*` — Subscription management, Stripe Customer Portal
+- ✅ `/webhooks/saas-stripe` — SaaS-specific Stripe webhooks
+
+**Email Templates** ✅
+- ✅ Operator setup invitation
+- ✅ Operator password reset
+- ✅ Platform payment failed (with grace period info)
+- ✅ Platform suspended notification
+
+**Wholesale Notifications** ✅
+- ✅ Wholesale application approved email
+- ✅ Wholesale application rejected email
+
+---
+
 ## Future Considerations (Beyond MVP + 6 Months)
 
 These are noted for architectural awareness but not scheduled:
@@ -492,12 +534,14 @@ These are noted for architectural awareness but not scheduled:
 | Tax Calculation | ✅ Complete | Stripe Tax + percentage-based with state rates |
 | File Storage | ✅ Complete | Cloudflare R2 (production) + local filesystem (development) |
 | Telemetry | ✅ Complete | Prometheus business metrics + Sentry error tracking |
+| SaaS Onboarding | ✅ Complete | Tenant operators, Stripe Checkout, middleware, email templates |
+| Tenant Onboarding | ✅ Complete | Dashboard checklist widget, launch readiness tracking, action links |
 
 ### Architecture Highlights
 
-- **50+ database tables** across 25 migrations
-- **45+ HTTP handlers** for storefront, admin, and webhooks
-- **15+ service layers** (product, cart, user, order, checkout, subscription, account, password reset, email verification, payment terms, fulfillment, invoice, address, provider)
+- **50+ database tables** across 27 migrations
+- **50+ HTTP handlers** for storefront, admin, SaaS, and webhooks
+- **17+ service layers** (product, cart, user, order, checkout, subscription, account, password reset, email verification, payment terms, fulfillment, invoice, address, provider, operator, onboarding)
 - **Interface-based abstractions** for billing, shipping, email, storage (R2/local), tax
 - **Multi-tenant isolation** on all queries (tenant_id scoping)
 - **Idempotent webhook processing** for payment reliability
@@ -507,6 +551,8 @@ These are noted for architectural awareness but not scheduled:
 - **Provider configuration system** with encrypted credential storage (AES-256-GCM)
 - **Tenant-selectable providers** for tax, shipping, billing, and email with cached registry
 - **Business telemetry** with Prometheus metrics (tenant_id labels) and Sentry error tracking
+- **Three authentication flows** — tenant operators (SaaS admin), admin (transitional), storefront customers
+- **Operator middleware stack** — WithOperator, RequireOperator, RequireActiveTenant, RequireOwner
 
 ### Remaining MVP Work
 
@@ -517,7 +563,7 @@ These are noted for architectural awareness but not scheduled:
 5. ~~**Carrier Integration**~~ ✅ Complete — EasyPost integration with rates, labels, tracking, address validation
 6. ~~**Wholesale Ordering**~~ ✅ Complete — Application workflow, matrix ordering UI, batch cart operations
 7. **Polish** — Wholesale minimums enforcement, pick lists, shipping confirmation emails
-8. **SaaS Onboarding** — Tenant operator tables, Stripe Checkout integration, setup flow (see AUTH_FLOWS.md)
+8. ~~**SaaS Onboarding**~~ ✅ Complete — Tenant operators, Stripe Checkout integration, operator middleware, email templates
 
 ---
 

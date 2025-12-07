@@ -293,6 +293,17 @@ type JobHistory struct {
 	CreatedAt             pgtype.Timestamptz `json:"created_at"`
 }
 
+// Stores explicit skip flags for optional onboarding steps
+type OnboardingItemSkip struct {
+	ID       pgtype.UUID `json:"id"`
+	TenantID pgtype.UUID `json:"tenant_id"`
+	// Step ID from ONBOARDING.md (e.g., business_info, product_images)
+	ItemID    string             `json:"item_id"`
+	SkippedAt pgtype.Timestamptz `json:"skipped_at"`
+	// Operator who skipped this item (for audit)
+	SkippedBy pgtype.UUID `json:"skipped_by"`
+}
+
 // Sessions for tenant operators (separate from customer sessions)
 type OperatorSession struct {
 	ID         pgtype.UUID `json:"id"`
@@ -855,6 +866,8 @@ type TenantOperator struct {
 	LastLoginAt         pgtype.Timestamptz `json:"last_login_at"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	// When operator completed initial password setup via email link
+	SetupCompletedAt pgtype.Timestamptz `json:"setup_completed_at"`
 }
 
 // Tenant-specific provider configurations with encrypted credentials

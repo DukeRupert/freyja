@@ -93,4 +93,11 @@ func RegisterAdminRoutes(r *router.Router, deps AdminDeps) {
 	admin.Post("/admin/settings/integrations/{type}", deps.IntegrationsHandler.SaveConfig)
 	admin.Post("/admin/settings/integrations/{type}/validate", deps.IntegrationsHandler.ValidateConfig)
 	admin.Post("/admin/settings/integrations/{type}/test", deps.IntegrationsHandler.TestConnection)
+
+	// Onboarding checklist
+	admin.Get("/admin/onboarding", deps.OnboardingHandler.GetStatus)
+	admin.Get("/admin/api/onboarding", deps.OnboardingHandler.GetStatusJSON)
+	admin.Get("/admin/api/onboarding/launch-ready", deps.OnboardingHandler.IsLaunchReady)
+	admin.Post("/admin/onboarding/{item_id}/skip", deps.OnboardingHandler.SkipItem)
+	admin.Delete("/admin/onboarding/{item_id}/skip", deps.OnboardingHandler.UnskipItem)
 }

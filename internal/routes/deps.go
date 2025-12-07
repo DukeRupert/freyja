@@ -71,6 +71,9 @@ type AdminDeps struct {
 	// Settings
 	TaxRateHandler      *admin.TaxRateHandler
 	IntegrationsHandler *admin.IntegrationsHandler
+
+	// Onboarding
+	OnboardingHandler *admin.OnboardingHandler
 }
 
 // WebhookDeps contains dependencies for webhook routes

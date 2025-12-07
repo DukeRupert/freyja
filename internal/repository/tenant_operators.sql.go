@@ -72,7 +72,7 @@ INSERT INTO tenant_operators (
     status
 ) VALUES (
     $1, $2, $3, $4, $5, $6, 'pending'
-) RETURNING id, tenant_id, email, password_hash, name, role, setup_token_hash, setup_token_expires_at, reset_token_hash, reset_token_expires_at, status, last_login_at, created_at, updated_at
+) RETURNING id, tenant_id, email, password_hash, name, role, setup_token_hash, setup_token_expires_at, reset_token_hash, reset_token_expires_at, status, last_login_at, created_at, updated_at, setup_completed_at
 `
 
 type CreateTenantOperatorParams struct {
@@ -112,6 +112,7 @@ func (q *Queries) CreateTenantOperator(ctx context.Context, arg CreateTenantOper
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SetupCompletedAt,
 	)
 	return i, err
 }
@@ -134,7 +135,7 @@ func (q *Queries) DeleteTenantOperator(ctx context.Context, arg DeleteTenantOper
 }
 
 const getTenantOperatorByEmail = `-- name: GetTenantOperatorByEmail :one
-SELECT id, tenant_id, email, password_hash, name, role, setup_token_hash, setup_token_expires_at, reset_token_hash, reset_token_expires_at, status, last_login_at, created_at, updated_at
+SELECT id, tenant_id, email, password_hash, name, role, setup_token_hash, setup_token_expires_at, reset_token_hash, reset_token_expires_at, status, last_login_at, created_at, updated_at, setup_completed_at
 FROM tenant_operators
 WHERE email = $1
 LIMIT 1
@@ -159,12 +160,13 @@ func (q *Queries) GetTenantOperatorByEmail(ctx context.Context, email string) (T
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SetupCompletedAt,
 	)
 	return i, err
 }
 
 const getTenantOperatorByEmailAndTenant = `-- name: GetTenantOperatorByEmailAndTenant :one
-SELECT id, tenant_id, email, password_hash, name, role, setup_token_hash, setup_token_expires_at, reset_token_hash, reset_token_expires_at, status, last_login_at, created_at, updated_at
+SELECT id, tenant_id, email, password_hash, name, role, setup_token_hash, setup_token_expires_at, reset_token_hash, reset_token_expires_at, status, last_login_at, created_at, updated_at, setup_completed_at
 FROM tenant_operators
 WHERE tenant_id = $1
   AND email = $2
@@ -195,12 +197,13 @@ func (q *Queries) GetTenantOperatorByEmailAndTenant(ctx context.Context, arg Get
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SetupCompletedAt,
 	)
 	return i, err
 }
 
 const getTenantOperatorByID = `-- name: GetTenantOperatorByID :one
-SELECT id, tenant_id, email, password_hash, name, role, setup_token_hash, setup_token_expires_at, reset_token_hash, reset_token_expires_at, status, last_login_at, created_at, updated_at
+SELECT id, tenant_id, email, password_hash, name, role, setup_token_hash, setup_token_expires_at, reset_token_hash, reset_token_expires_at, status, last_login_at, created_at, updated_at, setup_completed_at
 FROM tenant_operators
 WHERE id = $1
 LIMIT 1
@@ -225,12 +228,13 @@ func (q *Queries) GetTenantOperatorByID(ctx context.Context, id pgtype.UUID) (Te
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SetupCompletedAt,
 	)
 	return i, err
 }
 
 const getTenantOperatorByIDAndTenant = `-- name: GetTenantOperatorByIDAndTenant :one
-SELECT id, tenant_id, email, password_hash, name, role, setup_token_hash, setup_token_expires_at, reset_token_hash, reset_token_expires_at, status, last_login_at, created_at, updated_at
+SELECT id, tenant_id, email, password_hash, name, role, setup_token_hash, setup_token_expires_at, reset_token_hash, reset_token_expires_at, status, last_login_at, created_at, updated_at, setup_completed_at
 FROM tenant_operators
 WHERE id = $1
   AND tenant_id = $2
@@ -261,12 +265,13 @@ func (q *Queries) GetTenantOperatorByIDAndTenant(ctx context.Context, arg GetTen
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SetupCompletedAt,
 	)
 	return i, err
 }
 
 const getTenantOperatorByResetToken = `-- name: GetTenantOperatorByResetToken :one
-SELECT id, tenant_id, email, password_hash, name, role, setup_token_hash, setup_token_expires_at, reset_token_hash, reset_token_expires_at, status, last_login_at, created_at, updated_at
+SELECT id, tenant_id, email, password_hash, name, role, setup_token_hash, setup_token_expires_at, reset_token_hash, reset_token_expires_at, status, last_login_at, created_at, updated_at, setup_completed_at
 FROM tenant_operators
 WHERE reset_token_hash = $1
   AND reset_token_expires_at > NOW()
@@ -292,12 +297,13 @@ func (q *Queries) GetTenantOperatorByResetToken(ctx context.Context, resetTokenH
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SetupCompletedAt,
 	)
 	return i, err
 }
 
 const getTenantOperatorBySetupToken = `-- name: GetTenantOperatorBySetupToken :one
-SELECT id, tenant_id, email, password_hash, name, role, setup_token_hash, setup_token_expires_at, reset_token_hash, reset_token_expires_at, status, last_login_at, created_at, updated_at
+SELECT id, tenant_id, email, password_hash, name, role, setup_token_hash, setup_token_expires_at, reset_token_hash, reset_token_expires_at, status, last_login_at, created_at, updated_at, setup_completed_at
 FROM tenant_operators
 WHERE setup_token_hash = $1
   AND setup_token_expires_at > NOW()
@@ -324,12 +330,13 @@ func (q *Queries) GetTenantOperatorBySetupToken(ctx context.Context, setupTokenH
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SetupCompletedAt,
 	)
 	return i, err
 }
 
 const listTenantOperators = `-- name: ListTenantOperators :many
-SELECT id, tenant_id, email, password_hash, name, role, setup_token_hash, setup_token_expires_at, reset_token_hash, reset_token_expires_at, status, last_login_at, created_at, updated_at
+SELECT id, tenant_id, email, password_hash, name, role, setup_token_hash, setup_token_expires_at, reset_token_hash, reset_token_expires_at, status, last_login_at, created_at, updated_at, setup_completed_at
 FROM tenant_operators
 WHERE tenant_id = $1
 ORDER BY created_at ASC
@@ -360,6 +367,7 @@ func (q *Queries) ListTenantOperators(ctx context.Context, tenantID pgtype.UUID)
 			&i.LastLoginAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SetupCompletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -500,7 +508,7 @@ SET
     updated_at = NOW()
 WHERE id = $1
   AND tenant_id = $2
-RETURNING id, tenant_id, email, password_hash, name, role, setup_token_hash, setup_token_expires_at, reset_token_hash, reset_token_expires_at, status, last_login_at, created_at, updated_at
+RETURNING id, tenant_id, email, password_hash, name, role, setup_token_hash, setup_token_expires_at, reset_token_hash, reset_token_expires_at, status, last_login_at, created_at, updated_at, setup_completed_at
 `
 
 type UpdateOperatorProfileParams struct {
@@ -534,6 +542,7 @@ func (q *Queries) UpdateOperatorProfile(ctx context.Context, arg UpdateOperatorP
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SetupCompletedAt,
 	)
 	return i, err
 }

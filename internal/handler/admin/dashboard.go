@@ -6,28 +6,32 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/handler"
+	"github.com/dukerupert/freyja/internal/onboarding"
 	"github.com/dukerupert/freyja/internal/repository"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // DashboardHandler handles the admin dashboard page
 type DashboardHandler struct {
-	repo     repository.Querier
-	renderer *handler.Renderer
-	tenantID pgtype.UUID
+	repo              repository.Querier
+	renderer          *handler.Renderer
+	tenantID          pgtype.UUID
+	onboardingService *onboarding.Service
 }
 
 // NewDashboardHandler creates a new dashboard handler
-func NewDashboardHandler(repo repository.Querier, renderer *handler.Renderer, tenantID string) *DashboardHandler {
+func NewDashboardHandler(repo repository.Querier, renderer *handler.Renderer, tenantID string, onboardingService *onboarding.Service) *DashboardHandler {
 	var tenantUUID pgtype.UUID
 	if err := tenantUUID.Scan(tenantID); err != nil {
 		panic(fmt.Sprintf("invalid tenant ID: %v", err))
 	}
 
 	return &DashboardHandler{
-		repo:     repo,
-		renderer: renderer,
-		tenantID: tenantUUID,
+		repo:              repo,
+		renderer:          renderer,
+		tenantID:          tenantUUID,
+		onboardingService: onboardingService,
 	}
 }
 
@@ -127,6 +131,19 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		revenueCents = int64(rc)
 	}
 
+	// Get onboarding status
+	tenantUUID, err := uuid.FromBytes(h.tenantID.Bytes[:])
+	if err != nil {
+		http.Error(w, "Invalid tenant ID", http.StatusInternalServerError)
+		return
+	}
+
+	onboardingStatus, err := h.onboardingService.GetStatus(r.Context(), tenantUUID)
+	if err != nil {
+		// Log but don't fail - dashboard should still work without onboarding
+		onboardingStatus = nil
+	}
+
 	data := map[string]interface{}{
 		"CurrentPath": r.URL.Path,
 		"OrderStats": map[string]interface{}{
@@ -143,6 +160,7 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"PendingApplications": userStats.PendingApplications,
 		},
 		"RecentOrders": displayOrders,
+		"Onboarding":   onboardingStatus,
 	}
 
 	h.renderer.RenderHTTP(w, "admin/dashboard", data)

@@ -268,9 +268,15 @@ id := r.PathValue("id")
 
 **Three Authentication Flows:**
 See [AUTH_FLOWS.md](./AUTH_FLOWS.md) for comprehensive documentation of:
-1. Tenant Operator signup (SaaS onboarding via Stripe Checkout) — planned
+1. Tenant Operator signup (SaaS onboarding via Stripe Checkout) — **implemented**
 2. Admin login (current transitional implementation) — implemented
 3. Storefront Customer signup (email verification required) — implemented
+
+**Operator Authentication (SaaS Admin):**
+- Separate session system (`operator_sessions` table)
+- Cookie name: `freyja_operator` (distinct from storefront `freyja_session`)
+- Role-based access: `owner` and `staff` roles
+- Tenant status enforcement via middleware
 
 **Email Verification:**
 - Required before login (prevents account enumeration via timing)
@@ -341,6 +347,13 @@ See [AUTH_FLOWS.md](./AUTH_FLOWS.md) for comprehensive documentation of:
 - Subscription welcome
 - Subscription payment failed
 - Subscription cancelled
+- Invoice sent, reminder, overdue
+- Operator setup invitation (SaaS onboarding)
+- Operator password reset (SaaS admin)
+- Platform payment failed (SaaS subscription issue)
+- Platform suspended (SaaS account suspension)
+- Wholesale application approved
+- Wholesale application rejected
 
 **Template System:**
 - Go HTML templates in `/web/templates/email/`
@@ -389,6 +402,142 @@ See [AUTH_FLOWS.md](./AUTH_FLOWS.md) for comprehensive documentation of:
 **Future Migration:**
 - If scale demands, can migrate to dedicated queue (e.g., River for Go/PostgreSQL)
 - Interface abstraction allows swap without application changes
+
+---
+
+## SaaS Operator Authentication
+
+### Choice: Separate Session System with Middleware Stack
+
+**Packages:**
+- `internal/middleware/operator.go` (middleware functions)
+- `internal/service/operator.go` (operator service)
+- `internal/service/onboarding.go` (Stripe Checkout integration)
+
+**Rationale:**
+- Tenant operators (store owners/staff) need different authentication from storefront customers
+- Separate session table prevents cookie collision and simplifies session management
+- Middleware stack provides flexible, composable route protection
+- Tenant status enforcement at middleware level ensures suspended tenants can't access admin
+
+### Database Schema
+
+```sql
+-- Tenant operators (store owners and staff)
+CREATE TABLE tenant_operators (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    email VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    role VARCHAR(50) NOT NULL DEFAULT 'staff',  -- 'owner' or 'staff'
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(tenant_id, email)
+);
+
+-- Operator sessions (separate from customer sessions)
+CREATE TABLE operator_sessions (
+    id UUID PRIMARY KEY,
+    operator_id UUID NOT NULL REFERENCES tenant_operators(id),
+    token_hash VARCHAR(64) NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### Middleware Stack
+
+**Package:** `internal/middleware/operator.go`
+
+Four middleware functions provide composable route protection:
+
+```go
+// WithOperator loads operator from session cookie (if present)
+// Does NOT block requests - just adds operator to context if authenticated
+func WithOperator(operatorService service.OperatorService) func(http.Handler) http.Handler
+
+// RequireOperator blocks unauthenticated requests
+// Returns 401 Unauthorized if no operator in context
+func RequireOperator(next http.Handler) http.Handler
+
+// RequireActiveTenant checks tenant subscription status
+// Returns 403 Forbidden for suspended/cancelled tenants
+func RequireActiveTenant(queries *repository.Queries) func(http.Handler) http.Handler
+
+// RequireOwner restricts to owner role only
+// Returns 403 Forbidden for staff operators
+func RequireOwner(next http.Handler) http.Handler
+```
+
+**Context Helpers:**
+```go
+// Get operator from request context
+operator := middleware.GetOperatorFromContext(ctx)
+
+// Get operator ID (returns uuid.Nil if not authenticated)
+operatorID := middleware.GetOperatorID(ctx)
+
+// Get tenant ID from authenticated operator
+tenantID := middleware.GetTenantIDFromOperator(ctx)
+
+// Get tenant (only available after RequireActiveTenant)
+tenant := middleware.GetTenantFromContext(ctx)
+```
+
+### Route Protection Patterns
+
+```go
+// Public routes (landing page, pricing)
+r.Get("/", homeHandler)
+
+// Operator login (no auth required)
+r.Get("/saas/auth/login", loginFormHandler)
+r.Post("/saas/auth/login", loginHandler)
+
+// Authenticated operator routes
+r.Group(func(r *router) {
+    r.Use(WithOperator(operatorService))
+    r.Use(RequireOperator)
+    r.Use(RequireActiveTenant(queries))
+
+    // All operators can access dashboard
+    r.Get("/admin", dashboardHandler)
+
+    // Owner-only routes
+    r.Group(func(r *router) {
+        r.Use(RequireOwner)
+        r.Get("/admin/settings/billing", billingHandler)
+        r.Post("/admin/operators/invite", inviteHandler)
+    })
+})
+```
+
+### Session Management
+
+**Cookie Configuration:**
+- Name: `freyja_operator` (distinct from storefront `freyja_session`)
+- HttpOnly: true
+- Secure: true (in production)
+- SameSite: Lax
+- Path: /
+- MaxAge: 7 days (configurable)
+
+**Token Security:**
+- 32-byte cryptographically secure tokens via `crypto/rand`
+- Tokens stored as SHA-256 hashes (not plaintext)
+- Session lookup via hash comparison
+
+### Tenant Status Enforcement
+
+The `RequireActiveTenant` middleware checks tenant subscription status:
+- `active` — Full access allowed
+- `pending` — Limited access (setup flow only)
+- `past_due` — Grace period access (with banner warning)
+- `suspended` — Blocked (redirect to reactivation page)
+- `cancelled` — Blocked (redirect to reactivation page)
 
 ---
 
@@ -1028,6 +1177,13 @@ Significant decisions should be recorded here as the project evolves.
 | 2024-12-06 | Matrix-style wholesale ordering UI | Spreadsheet interface matches B2B buyer workflows; batch cart operations reduce HTTP round-trips |
 | 2024-12-06 | Payment terms as reusable entity | Normalizes Net 15/30/60 terms; enables per-customer assignment and invoice due date calculation |
 | 2024-12-06 | invoice_orders linking table | Supports consolidated billing by mapping multiple orders to single invoice |
+| 2024-12-06 | Separate operator session system | Tenant operators use `operator_sessions` table with distinct cookie; isolates SaaS admin auth from storefront customers |
+| 2024-12-06 | Operator middleware stack | Four middleware functions (WithOperator, RequireOperator, RequireActiveTenant, RequireOwner) provide flexible route protection |
+| 2024-12-06 | Tenant status enforcement via middleware | RequireActiveTenant blocks requests for suspended/cancelled tenants at middleware level |
+| 2024-12-06 | Wholesale approval email notifications | Automated emails on application approval/rejection improve B2B customer experience |
+| 2024-12-06 | Computed onboarding status pattern | Status dynamically computed from actual database state (products, configs) rather than stored; prevents stale data and reduces maintenance |
+| 2024-12-06 | CTE-based combined validation query | Single query with 14 EXISTS/NOT EXISTS checks via CTE pattern avoids N+1 and resolves ambiguous column references |
+| 2024-12-06 | Phase-based onboarding organization | Phase 1 (required for launch), Phase 2 (recommended), Phase 3 (wholesale); only skip flags stored in database |
 
 ---
 

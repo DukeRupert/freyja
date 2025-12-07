@@ -1,0 +1,181 @@
+{{/*
+  Onboarding Checklist Widget - Dashboard Component
+
+  Usage:
+    {{template "onboarding-widget" .Onboarding}}
+
+  Parameters (OnboardingStatus struct):
+    - LaunchReady: bool - whether store is ready to launch
+    - Progress: OnboardingProgress - completion stats
+    - Phase1: OnboardingPhase - required items
+    - Phase2: OnboardingPhase - recommended items
+    - Phase3: OnboardingPhase - wholesale items
+*/}}
+
+{{define "onboarding-widget"}}
+{{if not .LaunchReady}}
+<section class="rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10"
+         id="onboarding-widget">
+    <!-- Header with progress -->
+    <div class="border-b border-zinc-950/5 px-6 py-4 dark:border-white/5">
+        <div class="flex items-center justify-between">
+            <div>
+                {{template "heading" (dict "Level" "3" "Content" "Launch Checklist")}}
+                <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                    Complete these steps to launch your store
+                </p>
+            </div>
+            <div class="text-right">
+                <span class="text-2xl font-bold text-zinc-950 dark:text-white">
+                    {{.Progress.CompletedCount}}/{{.Progress.TotalRequired}}
+                </span>
+                <p class="text-sm text-zinc-500 dark:text-zinc-400">steps complete</p>
+            </div>
+        </div>
+
+        <!-- Progress bar -->
+        <div class="mt-4 h-2 w-full rounded-full bg-zinc-100 dark:bg-zinc-800">
+            <div class="h-2 rounded-full bg-teal-600 transition-all duration-300"
+                 style="width: {{.Progress.PercentComplete}}%"></div>
+        </div>
+    </div>
+
+    <!-- Checklist items -->
+    <div class="divide-y divide-zinc-950/5 dark:divide-white/5">
+        {{range .Phase1.Items}}
+        {{template "onboarding-item" .}}
+        {{end}}
+    </div>
+
+    <!-- Phase 2: Recommended (collapsed by default) -->
+    {{if not .Phase2.AllComplete}}
+    <div x-data="{ expanded: false }" class="border-t border-zinc-950/5 dark:border-white/5">
+        <button @click="expanded = !expanded"
+                class="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-zinc-950/[2.5%] dark:hover:bg-white/[2.5%]">
+            <div class="flex items-center gap-3">
+                <span class="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                    Recommended ({{.Phase2.CompletedCount}}/{{.Phase2.TotalCount}})
+                </span>
+            </div>
+            <svg class="h-5 w-5 text-zinc-400 transition-transform duration-200"
+                 :class="expanded ? 'rotate-180' : ''"
+                 fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            </svg>
+        </button>
+        <div x-show="expanded" x-collapse class="divide-y divide-zinc-950/5 dark:divide-white/5">
+            {{range .Phase2.Items}}
+            {{template "onboarding-item" .}}
+            {{end}}
+        </div>
+    </div>
+    {{end}}
+
+    <!-- Phase 3: Wholesale (collapsed by default) -->
+    {{if not .Phase3.AllComplete}}
+    <div x-data="{ expanded: false }" class="border-t border-zinc-950/5 dark:border-white/5">
+        <button @click="expanded = !expanded"
+                class="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-zinc-950/[2.5%] dark:hover:bg-white/[2.5%]">
+            <div class="flex items-center gap-3">
+                <span class="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                    Wholesale Setup ({{.Phase3.CompletedCount}}/{{.Phase3.TotalCount}})
+                </span>
+            </div>
+            <svg class="h-5 w-5 text-zinc-400 transition-transform duration-200"
+                 :class="expanded ? 'rotate-180' : ''"
+                 fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            </svg>
+        </button>
+        <div x-show="expanded" x-collapse class="divide-y divide-zinc-950/5 dark:divide-white/5">
+            {{range .Phase3.Items}}
+            {{template "onboarding-item" .}}
+            {{end}}
+        </div>
+    </div>
+    {{end}}
+</section>
+{{else}}
+<!-- Launch Ready Banner (dismissible) -->
+<section x-data="{ dismissed: localStorage.getItem('onboarding-dismissed') === 'true' }"
+         x-show="!dismissed"
+         class="rounded-2xl bg-teal-50 p-6 ring-1 ring-teal-600/20 dark:bg-teal-500/10 dark:ring-teal-500/20">
+    <div class="flex items-start justify-between">
+        <div class="flex items-start gap-4">
+            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-teal-600 text-white">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+            </div>
+            <div>
+                {{template "heading" (dict "Level" "3" "Content" "Your store is ready!")}}
+                <p class="mt-1 text-base/7 text-teal-900 dark:text-teal-300">
+                    You've completed all the required setup steps. Your customers can now browse and purchase your products.
+                </p>
+            </div>
+        </div>
+        <button @click="dismissed = true; localStorage.setItem('onboarding-dismissed', 'true')"
+                class="text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300">
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+    </div>
+</section>
+{{end}}
+{{end}}
+
+{{/*
+  Individual checklist item
+*/}}
+{{define "onboarding-item"}}
+<div class="flex items-center gap-4 px-6 py-4 {{if eq .Status "completed"}}bg-zinc-950/[1%] dark:bg-white/[1%]{{end}}">
+    <!-- Status icon -->
+    <div class="flex-shrink-0">
+        {{if eq .Status "completed"}}
+        <div class="flex h-6 w-6 items-center justify-center rounded-full bg-teal-600 text-white">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+        </div>
+        {{else if eq .Status "skipped"}}
+        <div class="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-300 text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5" />
+            </svg>
+        </div>
+        {{else}}
+        <div class="flex h-6 w-6 items-center justify-center rounded-full border-2 border-zinc-300 dark:border-zinc-600">
+            <span class="sr-only">Not started</span>
+        </div>
+        {{end}}
+    </div>
+
+    <!-- Content -->
+    <div class="min-w-0 flex-1">
+        <p class="font-medium text-zinc-950 dark:text-white {{if eq .Status "completed"}}line-through text-zinc-500 dark:text-zinc-400{{end}}">
+            {{.Name}}
+        </p>
+        <p class="text-sm text-zinc-500 dark:text-zinc-400">
+            {{.Description}}
+        </p>
+    </div>
+
+    <!-- Action -->
+    <div class="flex-shrink-0">
+        {{if eq .Status "completed"}}
+        <span class="text-sm text-teal-600 dark:text-teal-400">Done</span>
+        {{else if eq .Status "skipped"}}
+        <span class="text-sm text-zinc-400">Skipped</span>
+        {{else}}
+        <a href="{{.ActionURL}}"
+           class="inline-flex items-center gap-1 rounded-lg border border-zinc-950/10 bg-white px-3 py-1.5 text-sm font-medium text-zinc-950 transition-colors hover:bg-zinc-50 dark:border-white/10 dark:bg-zinc-800 dark:text-white dark:hover:bg-zinc-700">
+            {{.ActionLabel}}
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+            </svg>
+        </a>
+        {{end}}
+    </div>
+</div>
+{{end}}

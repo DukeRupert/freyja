@@ -24,6 +24,7 @@ import (
 	"github.com/dukerupert/freyja/internal/handler/storefront"
 	"github.com/dukerupert/freyja/internal/handler/webhook"
 	"github.com/dukerupert/freyja/internal/middleware"
+	"github.com/dukerupert/freyja/internal/onboarding"
 	"github.com/dukerupert/freyja/internal/provider"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/router"
@@ -383,11 +384,14 @@ func run() error {
 	providerFactory := provider.MustNewDefaultFactory(providerValidator) // Panics only during startup if validator is nil
 	providerRegistry := provider.NewDefaultRegistry(repo, providerFactory, encryptor, 0) // 0 = default 1 hour TTL
 
+	// Initialize onboarding service
+	onboardingService := onboarding.NewService(repo)
+
 	// Admin dependencies (consolidated handlers)
 	adminDeps := routes.AdminDeps{
 		LoginHandler:        admin.NewLoginHandler(userService, renderer),
 		LogoutHandler:       admin.NewLogoutHandler(userService),
-		DashboardHandler:    admin.NewDashboardHandler(repo, renderer, cfg.TenantID),
+		DashboardHandler:    admin.NewDashboardHandler(repo, renderer, cfg.TenantID, onboardingService),
 		ProductHandler:      admin.NewProductHandler(repo, renderer, fileStorage, cfg.TenantID),
 		OrderHandler:        admin.NewOrderHandler(repo, renderer, cfg.TenantID),
 		CustomerHandler:     admin.NewCustomerHandler(repo, invoiceService, renderer, cfg.TenantID),
@@ -396,6 +400,7 @@ func run() error {
 		PriceListHandler:    admin.NewPriceListHandler(repo, renderer, cfg.TenantID),
 		TaxRateHandler:      admin.NewTaxRateHandler(repo, renderer, cfg.TenantID),
 		IntegrationsHandler: admin.NewIntegrationsHandler(repo, renderer, cfg.TenantID, encryptor, providerValidator, providerRegistry),
+		OnboardingHandler:   admin.NewOnboardingHandler(onboardingService, renderer, cfg.TenantID),
 	}
 
 	// Webhook dependencies
