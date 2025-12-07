@@ -1,0 +1,300 @@
+{{define "title"}}Custom Domain{{end}}
+
+{{define "content"}}
+<div class="space-y-8">
+    <!-- Page Header -->
+    {{template "page-header" (dict "Title" "Custom Domain" "Description" "Use your own domain for your storefront")}}
+
+    {{if not .CustomDomain}}
+    <!-- State 1: No Custom Domain Configured -->
+    <div class="overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+        <div class="p-6">
+            <h3 class="text-lg font-semibold text-zinc-900 dark:text-white mb-4">Set Up Custom Domain</h3>
+            <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
+                Configure your own domain (e.g., shop.example.com) to serve your storefront instead of using the default freyja.app subdomain.
+            </p>
+
+            <form method="POST" action="/admin/settings/domain" class="space-y-4">
+                {{if .CSRFToken}}
+                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                {{end}}
+
+                <div>
+                    <label for="domain" class="block text-sm font-medium text-zinc-900 dark:text-white mb-2">Domain</label>
+                    <input
+                        type="text"
+                        id="domain"
+                        name="domain"
+                        placeholder="shop.example.com or www.example.com"
+                        required
+                        class="block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-zinc-900 dark:text-white placeholder-zinc-500 focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+                    >
+                    <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                        Note: Apex domains (example.com) are not supported. Please use a subdomain like shop.example.com or www.example.com
+                    </p>
+                </div>
+
+                <button
+                    type="submit"
+                    class="inline-flex justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 dark:bg-teal-500 dark:hover:bg-teal-400"
+                >
+                    Set Up Custom Domain
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {{else if eq .CustomDomain.Status "pending"}}
+    <!-- State 2: Pending Verification -->
+    <div class="overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+        <div class="p-6">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/20">
+                    <svg class="h-6 w-6 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">{{.CustomDomain.Domain}}</h3>
+                    {{template "badge" (dict "Content" "Verification Required" "Color" "amber")}}
+                </div>
+            </div>
+
+            <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
+                Add these DNS records to your domain to verify ownership:
+            </p>
+
+            <!-- DNS Instructions -->
+            <div class="space-y-6">
+                <!-- CNAME Record -->
+                <div class="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-4">
+                    <h4 class="text-sm font-semibold text-zinc-900 dark:text-white mb-3">1. CNAME Record</h4>
+                    <div class="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                            <p class="text-zinc-500 dark:text-zinc-400 mb-1">Type</p>
+                            <code class="text-zinc-900 dark:text-white font-mono">CNAME</code>
+                        </div>
+                        <div>
+                            <p class="text-zinc-500 dark:text-zinc-400 mb-1">Name</p>
+                            <code class="text-zinc-900 dark:text-white font-mono">{{.CustomDomain.DNSInstructions.CNAME.Name}}</code>
+                        </div>
+                        <div>
+                            <p class="text-zinc-500 dark:text-zinc-400 mb-1">Value</p>
+                            <code class="text-zinc-900 dark:text-white font-mono">{{.CustomDomain.DNSInstructions.CNAME.Value}}</code>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TXT Record -->
+                <div class="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-4">
+                    <h4 class="text-sm font-semibold text-zinc-900 dark:text-white mb-3">2. TXT Record (Verification)</h4>
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <p class="text-zinc-500 dark:text-zinc-400 mb-1">Name</p>
+                            <code class="text-zinc-900 dark:text-white font-mono text-xs break-all">{{.CustomDomain.DNSInstructions.TXT.Name}}</code>
+                        </div>
+                        <div>
+                            <p class="text-zinc-500 dark:text-zinc-400 mb-1">Value</p>
+                            <code class="text-zinc-900 dark:text-white font-mono text-xs break-all">{{.CustomDomain.DNSInstructions.TXT.Value}}</code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="mt-6 flex gap-3">
+                <form method="POST" action="/admin/settings/domain/verify">
+                    {{if .CSRFToken}}
+                    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                    {{end}}
+                    <button
+                        type="submit"
+                        class="inline-flex justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 dark:bg-teal-500 dark:hover:bg-teal-400"
+                    >
+                        Verify Domain
+                    </button>
+                </form>
+
+                <form method="POST" action="/admin/settings/domain">
+                    {{if .CSRFToken}}
+                    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                    <input type="hidden" name="_method" value="DELETE">
+                    {{end}}
+                    <button
+                        type="submit"
+                        class="inline-flex justify-center rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-900 dark:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    >
+                        Cancel
+                    </button>
+                </form>
+            </div>
+
+            <p class="mt-4 text-xs text-zinc-500 dark:text-zinc-400">
+                DNS changes can take up to 48 hours to propagate, but are often available within minutes.
+            </p>
+        </div>
+    </div>
+
+    {{else if eq .CustomDomain.Status "verified"}}
+    <!-- State 3: Verified, Ready to Activate -->
+    <div class="overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+        <div class="p-6">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/20">
+                    <svg class="h-6 w-6 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">{{.CustomDomain.Domain}}</h3>
+                    {{template "badge" (dict "Content" "Verified" "Color" "green")}}
+                </div>
+            </div>
+
+            <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
+                Your domain has been verified! Activate it to start serving traffic on your custom domain.
+            </p>
+
+            <div class="flex gap-3">
+                <form method="POST" action="/admin/settings/domain/activate">
+                    {{if .CSRFToken}}
+                    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                    {{end}}
+                    <button
+                        type="submit"
+                        class="inline-flex justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 dark:bg-teal-500 dark:hover:bg-teal-400"
+                    >
+                        Activate Domain
+                    </button>
+                </form>
+
+                <form method="POST" action="/admin/settings/domain">
+                    {{if .CSRFToken}}
+                    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                    <input type="hidden" name="_method" value="DELETE">
+                    {{end}}
+                    <button
+                        type="submit"
+                        class="inline-flex justify-center rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-900 dark:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    >
+                        Remove Domain
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {{else if eq .CustomDomain.Status "active"}}
+    <!-- State 4: Active -->
+    <div class="overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+        <div class="p-6">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/20">
+                    <svg class="h-6 w-6 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">{{.CustomDomain.Domain}}</h3>
+                    {{template "badge" (dict "Content" "Active" "Color" "green")}}
+                </div>
+            </div>
+
+            <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+                Your storefront is live at:
+            </p>
+
+            <a href="https://{{.CustomDomain.Domain}}" target="_blank" class="inline-flex items-center gap-2 text-base font-medium text-teal-600 dark:text-teal-400 hover:text-teal-500">
+                https://{{.CustomDomain.Domain}}
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+            </a>
+
+            {{if .CustomDomain.ActivatedAt}}
+            <p class="mt-4 text-xs text-zinc-500 dark:text-zinc-400">
+                Activated on {{.CustomDomain.ActivatedAt.Format "January 2, 2006"}}
+            </p>
+            {{end}}
+
+            <div class="mt-6">
+                <form method="POST" action="/admin/settings/domain">
+                    {{if .CSRFToken}}
+                    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                    <input type="hidden" name="_method" value="DELETE">
+                    {{end}}
+                    <button
+                        type="submit"
+                        class="inline-flex justify-center rounded-lg border border-red-300 dark:border-red-700 px-4 py-2 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    >
+                        Remove Domain
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {{else if eq .CustomDomain.Status "failed"}}
+    <!-- State 5: Failed -->
+    <div class="overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+        <div class="p-6">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/20">
+                    <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">{{.CustomDomain.Domain}}</h3>
+                    {{template "badge" (dict "Content" "Verification Failed" "Color" "red")}}
+                </div>
+            </div>
+
+            {{if .CustomDomain.ErrorMessage}}
+            <div class="rounded-lg bg-red-50 dark:bg-red-900/20 p-4 mb-6">
+                <p class="text-sm text-red-800 dark:text-red-200">
+                    {{.CustomDomain.ErrorMessage}}
+                </p>
+            </div>
+            {{end}}
+
+            <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
+                Please verify your DNS settings and try again. DNS changes can take up to 48 hours to propagate.
+            </p>
+
+            <div class="flex gap-3">
+                <form method="POST" action="/admin/settings/domain/verify">
+                    {{if .CSRFToken}}
+                    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                    {{end}}
+                    <button
+                        type="submit"
+                        class="inline-flex justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 dark:bg-teal-500 dark:hover:bg-teal-400"
+                    >
+                        Retry Verification
+                    </button>
+                </form>
+
+                <form method="POST" action="/admin/settings/domain">
+                    {{if .CSRFToken}}
+                    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                    <input type="hidden" name="_method" value="DELETE">
+                    {{end}}
+                    <button
+                        type="submit"
+                        class="inline-flex justify-center rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-900 dark:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    >
+                        Remove Domain
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {{end}}
+
+    <!-- Help Text -->
+    <div class="rounded-lg bg-zinc-50 dark:bg-zinc-900/50 p-4 text-sm text-zinc-600 dark:text-zinc-400">
+        <p><strong>Note:</strong> Custom domains allow you to serve your storefront on your own domain instead of the default freyja.app subdomain. After activation, Caddy will automatically provision an SSL certificate via Let's Encrypt.</p>
+    </div>
+</div>
+{{end}}
