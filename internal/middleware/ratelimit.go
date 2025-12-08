@@ -178,7 +178,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 
 		if !rl.Allow(key) {
 			w.Header().Set("Retry-After", "1")
-			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+			respondTooManyRequests(w, r)
 			return
 		}
 
