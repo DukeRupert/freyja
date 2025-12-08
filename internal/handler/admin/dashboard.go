@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/onboarding"
 	"github.com/dukerupert/freyja/internal/repository"
@@ -37,14 +38,14 @@ func NewDashboardHandler(repo repository.Querier, renderer *handler.Renderer, te
 
 func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Method not allowed"))
 		return
 	}
 
 	// Get order stats (last 30 days)
 	thirtyDaysAgo := pgtype.Timestamptz{}
 	if err := thirtyDaysAgo.Scan(time.Now().AddDate(0, 0, -30)); err != nil {
-		http.Error(w, "Failed to calculate date range", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -53,14 +54,14 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: thirtyDaysAgo,
 	})
 	if err != nil {
-		http.Error(w, "Failed to load order stats", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
 	// Get user stats
 	userStats, err := h.repo.GetUserStats(r.Context(), h.tenantID)
 	if err != nil {
-		http.Error(w, "Failed to load user stats", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -71,7 +72,7 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Offset:   0,
 	})
 	if err != nil {
-		http.Error(w, "Failed to load recent orders", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -134,7 +135,7 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get onboarding status
 	tenantUUID, err := uuid.FromBytes(h.tenantID.Bytes[:])
 	if err != nil {
-		http.Error(w, "Invalid tenant ID", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 

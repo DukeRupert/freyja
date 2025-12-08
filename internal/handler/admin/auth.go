@@ -1,11 +1,11 @@
 package admin
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/service"
@@ -92,13 +92,22 @@ func (h *LoginHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 		)
 
 		var errMsg string
-		if errors.Is(err, service.ErrInvalidPassword) || errors.Is(err, service.ErrUserNotFound) {
+		errCode := domain.ErrorCode(err)
+		switch errCode {
+		case domain.EUNAUTHORIZED:
 			errMsg = "Invalid email or password"
-		} else if errors.Is(err, service.ErrAccountSuspended) {
-			errMsg = "Your account has been suspended"
-		} else if errors.Is(err, service.ErrEmailNotVerified) {
-			errMsg = "Please verify your email before logging in"
-		} else {
+		case domain.EFORBIDDEN:
+			// Could be suspended or email not verified
+			if domain.ErrorMessage(err) == service.ErrAccountSuspended.Error() {
+				errMsg = "Your account has been suspended"
+			} else if domain.ErrorMessage(err) == service.ErrEmailNotVerified.Error() {
+				errMsg = "Please verify your email before logging in"
+			} else {
+				errMsg = domain.ErrorMessage(err)
+			}
+		case domain.ENOTFOUND:
+			errMsg = "Invalid email or password"
+		default:
 			errMsg = "Login failed. Please try again."
 		}
 		h.showFormWithError(w, r, &errMsg, email)
@@ -131,7 +140,7 @@ func (h *LoginHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 			"user_id", userIDStr,
 			"error", err,
 		)
-		http.Error(w, "Failed to create session", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
