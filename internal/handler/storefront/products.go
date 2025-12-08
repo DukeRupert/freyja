@@ -274,7 +274,7 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	data["Images"] = detail.Images
 	data["RequestPath"] = r.URL.Path
 
-	h.renderer.RenderHTTP(w, "product_detail", data)
+	h.renderer.RenderHTTP(w, "storefront/product_detail", data)
 }
 
 // =============================================================================
