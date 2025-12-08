@@ -1,8 +1,8 @@
-# Freyja
+# Hiri
 
 ## Project Purpose
 
-Freyja is an e-commerce platform built exclusively for coffee roasters. It provides the business-critical features that small roasting operations need to sell both direct-to-consumer and wholesale—without the enterprise pricing or complexity of general-purpose platforms.
+Hiri is an e-commerce platform built exclusively for coffee roasters. It provides the business-critical features that small roasting operations need to sell both direct-to-consumer and wholesale—without the enterprise pricing or complexity of general-purpose platforms.
 
 ## The Problem
 
@@ -23,7 +23,7 @@ Small coffee roasters (1-5 locations) face a difficult choice when setting up e-
 
 ## The Solution
 
-Freyja provides a focused, affordable platform that treats B2C and B2B as equally important from day one.
+Hiri provides a focused, affordable platform that treats B2C and B2B as equally important from day one.
 
 **Core thesis:** By building exclusively for coffee products, we eliminate the complexity that general-purpose platforms must carry. This lets a solo developer build and maintain what would otherwise require a team, passing the cost savings to customers.
 
@@ -45,16 +45,16 @@ Independent coffee roasters with 1-5 retail locations who:
 - Value reliability and simplicity over endless customization options
 - Would rather pay a fair, predictable price than negotiate enterprise contracts
 
-## What Freyja Is Not
+## What Hiri Is Not
 
 - A general-purpose e-commerce platform (we will never sell "products"—only coffee)
-- A marketplace (each instance serves one roaster)
+- A marketplace (each roaster gets their own store)
 - A platform for large-scale distributors or multinational coffee companies
 - A point-of-sale system (focused on online sales, not in-store)
 
 ## Success Criteria
 
-Freyja succeeds if a small roaster can:
+Hiri succeeds if a small roaster can:
 
 1. Set up a complete online store in a day, not a week
 2. Manage both retail and wholesale customers in one place
@@ -64,4 +64,5 @@ Freyja succeeds if a small roaster can:
 
 ## Project Name
 
-Freyja is the Norse goddess associated with prosperity and abundance. The name reflects the project's goal: helping small coffee businesses thrive.
+Hiri is the name for the traditional trade voyages of the Motu people of Papua New Guinea. For centuries, Motu traders sailed large multi-hulled canoes called lakatoi along the Gulf of Papua, exchanging clay pots for sago with neighboring communities. These voyages were so central to commerce in the region that the trade language developed for them—Hiri Motu—became one of Papua New Guinea's three official languages.
+The name reflects both the project's purpose (enabling trade) and its origin (the founder grew up in a Motu village).
