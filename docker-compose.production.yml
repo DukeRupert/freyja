@@ -1,15 +1,32 @@
 services:
-  app:
-    image: ${FREYJA_IMAGE:-freyja:latest}
-    container_name: freyja-app
+  caddy:
+    build: ./deploy/caddy
+    container_name: freyja-caddy
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3000:3000"
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      - HETZNER_DNS_API_TOKEN=${HETZNER_DNS_API_TOKEN}
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - freyja-network
+
+  app:
+    image: ${FREYJA_IMAGE:-ghcr.io/dukerupert/freyja:latest}
+    container_name: freyja-app
+    restart: unless-stopped
+    expose:
+      - "3000"
     environment:
       - ENV=prod
       - PORT=3000
+      - BASE_URL=https://hiri.coffee
       - DATABASE_URL=postgres://freyja:${POSTGRES_PASSWORD}@postgres:5432/freyja?sslmode=disable
-      - TENANT_ID=${TENANT_ID}
       - SESSION_SECRET=${SESSION_SECRET}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
@@ -48,6 +65,8 @@ services:
 volumes:
   postgres_data:
   uploads:
+  caddy_data:
+  caddy_config:
 
 networks:
   freyja-network:

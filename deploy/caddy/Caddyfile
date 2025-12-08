@@ -1,0 +1,11 @@
+{
+    email logan@fireflysoftware.dev
+}
+
+hiri.coffee, *.hiri.coffee {
+    tls {
+        dns hetzner {env.HETZNER_DNS_API_TOKEN}
+    }
+
+    reverse_proxy app:3000
+}
