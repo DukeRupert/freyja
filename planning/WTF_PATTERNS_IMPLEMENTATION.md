@@ -134,18 +134,61 @@ type ProductService interface {
 
 ## 3. Tenant Context Helpers
 
-**Status:** [ ] Not Started
+**Status:** [x] Complete (Phase 1)
 
 **Goal:** Centralized tenant extraction from context, making tenant isolation bugs harder to write.
 
 ### Tasks
 
-- [ ] Create `internal/domain/context.go` with context helpers
-- [ ] Implement `NewContextWithTenant()` and `TenantFromContext()`
-- [ ] Add `TenantIDFromContext()` convenience function
-- [ ] Update middleware to set tenant in context after authentication
-- [ ] Update repository layer to use context helpers
-- [ ] Add panic/error if tenant missing where required
+- [x] Create `internal/domain/context.go` with context helpers
+- [x] Implement `NewContextWithTenant()` and `TenantFromContext()`
+- [x] Add `TenantIDFromContext()` and `RequireTenantID()` convenience functions
+- [x] Add `MustTenant()` for cases needing full tenant struct
+- [x] Add user context helpers (`NewContextWithUser()`, `UserFromContext()`, etc.)
+- [x] Add operator context helpers (`NewContextWithOperator()`, `OperatorFromContext()`, etc.)
+- [x] Add request ID context helpers
+- [x] Add convenience helpers (`IsAuthenticated()`, `IsOperator()`, `IsOwner()`, `HasTenant()`)
+- [x] Add tests for all context helpers
+- [ ] Update middleware to use domain context helpers (incremental migration)
+- [ ] Update repository layer to use context helpers (incremental migration)
+
+### Files Created
+
+- `internal/domain/context.go` - Context helpers for tenant, user, operator, request ID
+- `internal/domain/context_test.go` - Comprehensive tests for all helpers
+
+### Domain Types
+
+```go
+// Minimal structs for context storage (full records fetched from DB if needed)
+type Tenant struct {
+    ID     uuid.UUID
+    Slug   string
+    Name   string
+    Status string
+}
+
+type User struct {
+    ID          uuid.UUID
+    TenantID    uuid.UUID
+    Email       string
+    AccountType string // "customer", "admin", "wholesale"
+}
+
+type Operator struct {
+    ID       uuid.UUID
+    TenantID uuid.UUID
+    Email    string
+    Role     string // "owner", "admin", "staff"
+    Status   string // "active", "inactive"
+}
+```
+
+### Migration Notes
+
+The middleware package (`internal/middleware/`) currently defines its own context keys
+and helper functions. These will be migrated to use `domain.NewContextWithTenant()` etc.
+in future work. Both patterns coexist during the transition.
 
 ### Implementation Reference
 
@@ -158,7 +201,8 @@ type contextKey int
 const (
     tenantContextKey contextKey = iota
     userContextKey
-    flashContextKey
+    operatorContextKey
+    requestIDContextKey
 )
 
 func NewContextWithTenant(ctx context.Context, tenant *Tenant) context.Context {
