@@ -707,22 +707,22 @@ async function validateAddress(alpineData) {
       },
       body: JSON.stringify({
         shipping_address: {
-          FullName: alpineData.shippingName,
-          AddressLine1: alpineData.shippingAddress1,
-          AddressLine2: alpineData.shippingAddress2,
-          City: alpineData.shippingCity,
-          State: alpineData.shippingState,
-          PostalCode: alpineData.shippingPostalCode,
-          Country: 'US'
+          full_name: alpineData.shippingName,
+          address_line1: alpineData.shippingAddress1,
+          address_line2: alpineData.shippingAddress2,
+          city: alpineData.shippingCity,
+          state: alpineData.shippingState,
+          postal_code: alpineData.shippingPostalCode,
+          country: 'US'
         },
         billing_address: {
-          FullName: alpineData.shippingName,
-          AddressLine1: alpineData.shippingAddress1,
-          AddressLine2: alpineData.shippingAddress2,
-          City: alpineData.shippingCity,
-          State: alpineData.shippingState,
-          PostalCode: alpineData.shippingPostalCode,
-          Country: 'US'
+          full_name: alpineData.shippingName,
+          address_line1: alpineData.shippingAddress1,
+          address_line2: alpineData.shippingAddress2,
+          city: alpineData.shippingCity,
+          state: alpineData.shippingState,
+          postal_code: alpineData.shippingPostalCode,
+          country: 'US'
         }
       })
     });
@@ -738,12 +738,12 @@ async function validateAddress(alpineData) {
     if (result.shipping_result.IsValid && result.billing_result.IsValid) {
       // Update address with normalized version if available
       if (result.shipping_result.NormalizedAddress) {
-        alpineData.shippingName = result.shipping_result.NormalizedAddress.FullName || alpineData.shippingName;
-        alpineData.shippingAddress1 = result.shipping_result.NormalizedAddress.AddressLine1 || alpineData.shippingAddress1;
-        alpineData.shippingAddress2 = result.shipping_result.NormalizedAddress.AddressLine2 || alpineData.shippingAddress2;
-        alpineData.shippingCity = result.shipping_result.NormalizedAddress.City || alpineData.shippingCity;
-        alpineData.shippingState = result.shipping_result.NormalizedAddress.State || alpineData.shippingState;
-        alpineData.shippingPostalCode = result.shipping_result.NormalizedAddress.PostalCode || alpineData.shippingPostalCode;
+        alpineData.shippingName = result.shipping_result.NormalizedAddress.full_name || alpineData.shippingName;
+        alpineData.shippingAddress1 = result.shipping_result.NormalizedAddress.address_line1 || alpineData.shippingAddress1;
+        alpineData.shippingAddress2 = result.shipping_result.NormalizedAddress.address_line2 || alpineData.shippingAddress2;
+        alpineData.shippingCity = result.shipping_result.NormalizedAddress.city || alpineData.shippingCity;
+        alpineData.shippingState = result.shipping_result.NormalizedAddress.state || alpineData.shippingState;
+        alpineData.shippingPostalCode = result.shipping_result.NormalizedAddress.postal_code || alpineData.shippingPostalCode;
       }
 
       // Mark as complete and advance to next step
@@ -774,21 +774,21 @@ async function calculateTotal(alpineData) {
 
   // Determine billing address
   const billingAddress = alpineData.sameAsShipping ? {
-    FullName: alpineData.shippingName,
-    AddressLine1: alpineData.shippingAddress1,
-    AddressLine2: alpineData.shippingAddress2,
-    City: alpineData.shippingCity,
-    State: alpineData.shippingState,
-    PostalCode: alpineData.shippingPostalCode,
-    Country: 'US'
+    full_name: alpineData.shippingName,
+    address_line1: alpineData.shippingAddress1,
+    address_line2: alpineData.shippingAddress2,
+    city: alpineData.shippingCity,
+    state: alpineData.shippingState,
+    postal_code: alpineData.shippingPostalCode,
+    country: 'US'
   } : {
-    FullName: alpineData.billingName,
-    AddressLine1: alpineData.billingAddress1,
-    AddressLine2: alpineData.billingAddress2,
-    City: alpineData.billingCity,
-    State: alpineData.billingState,
-    PostalCode: alpineData.billingPostalCode,
-    Country: 'US'
+    full_name: alpineData.billingName,
+    address_line1: alpineData.billingAddress1,
+    address_line2: alpineData.billingAddress2,
+    city: alpineData.billingCity,
+    state: alpineData.billingState,
+    postal_code: alpineData.billingPostalCode,
+    country: 'US'
   };
 
   try {
@@ -801,13 +801,13 @@ async function calculateTotal(alpineData) {
       body: JSON.stringify({
         cart_id: alpineData.cartID,
         shipping_address: {
-          FullName: alpineData.shippingName,
-          AddressLine1: alpineData.shippingAddress1,
-          AddressLine2: alpineData.shippingAddress2,
-          City: alpineData.shippingCity,
-          State: alpineData.shippingState,
-          PostalCode: alpineData.shippingPostalCode,
-          Country: 'US'
+          full_name: alpineData.shippingName,
+          address_line1: alpineData.shippingAddress1,
+          address_line2: alpineData.shippingAddress2,
+          city: alpineData.shippingCity,
+          state: alpineData.shippingState,
+          postal_code: alpineData.shippingPostalCode,
+          country: 'US'
         },
         billing_address: billingAddress,
         selected_shipping_rate: alpineData.shippingRates[alpineData.selectedRate]
@@ -846,13 +846,13 @@ async function loadShippingRates(alpineData) {
       body: JSON.stringify({
         cart_id: alpineData.cartID,
         shipping_address: {
-          FullName: alpineData.shippingName,
-          AddressLine1: alpineData.shippingAddress1,
-          AddressLine2: alpineData.shippingAddress2,
-          City: alpineData.shippingCity,
-          State: alpineData.shippingState,
-          PostalCode: alpineData.shippingPostalCode,
-          Country: 'US'
+          full_name: alpineData.shippingName,
+          address_line1: alpineData.shippingAddress1,
+          address_line2: alpineData.shippingAddress2,
+          city: alpineData.shippingCity,
+          state: alpineData.shippingState,
+          postal_code: alpineData.shippingPostalCode,
+          country: 'US'
         }
       })
     });
@@ -910,21 +910,21 @@ async function loadPaymentIntent(alpineData) {
 
   // Determine billing address
   const billingAddress = alpineData.sameAsShipping ? {
-    FullName: alpineData.shippingName,
-    AddressLine1: alpineData.shippingAddress1,
-    AddressLine2: alpineData.shippingAddress2,
-    City: alpineData.shippingCity,
-    State: alpineData.shippingState,
-    PostalCode: alpineData.shippingPostalCode,
-    Country: 'US'
+    full_name: alpineData.shippingName,
+    address_line1: alpineData.shippingAddress1,
+    address_line2: alpineData.shippingAddress2,
+    city: alpineData.shippingCity,
+    state: alpineData.shippingState,
+    postal_code: alpineData.shippingPostalCode,
+    country: 'US'
   } : {
-    FullName: alpineData.billingName,
-    AddressLine1: alpineData.billingAddress1,
-    AddressLine2: alpineData.billingAddress2,
-    City: alpineData.billingCity,
-    State: alpineData.billingState,
-    PostalCode: alpineData.billingPostalCode,
-    Country: 'US'
+    full_name: alpineData.billingName,
+    address_line1: alpineData.billingAddress1,
+    address_line2: alpineData.billingAddress2,
+    city: alpineData.billingCity,
+    state: alpineData.billingState,
+    postal_code: alpineData.billingPostalCode,
+    country: 'US'
   };
 
   try {
@@ -939,13 +939,13 @@ async function loadPaymentIntent(alpineData) {
         customer_email: alpineData.email,
         order_total: alpineData.orderTotal,
         shipping_address: {
-          FullName: alpineData.shippingName,
-          AddressLine1: alpineData.shippingAddress1,
-          AddressLine2: alpineData.shippingAddress2,
-          City: alpineData.shippingCity,
-          State: alpineData.shippingState,
-          PostalCode: alpineData.shippingPostalCode,
-          Country: 'US'
+          full_name: alpineData.shippingName,
+          address_line1: alpineData.shippingAddress1,
+          address_line2: alpineData.shippingAddress2,
+          city: alpineData.shippingCity,
+          state: alpineData.shippingState,
+          postal_code: alpineData.shippingPostalCode,
+          country: 'US'
         },
         billing_address: billingAddress,
         idempotency_key: alpineData.cartID + '-' + Date.now()

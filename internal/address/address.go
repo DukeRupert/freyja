@@ -14,16 +14,16 @@ type Validator interface {
 
 // Address represents a physical address for shipping or billing.
 type Address struct {
-	Type         string // "shipping" or "billing"
-	FullName     string
-	Company      string
-	AddressLine1 string
-	AddressLine2 string
-	City         string
-	State        string
-	PostalCode   string
-	Country      string
-	Phone        string
+	Type         string `json:"type,omitempty"` // "shipping" or "billing"
+	FullName     string `json:"full_name"`
+	Company      string `json:"company,omitempty"`
+	AddressLine1 string `json:"address_line1"`
+	AddressLine2 string `json:"address_line2,omitempty"`
+	City         string `json:"city"`
+	State        string `json:"state"`
+	PostalCode   string `json:"postal_code"`
+	Country      string `json:"country"`
+	Phone        string `json:"phone,omitempty"`
 }
 
 // ValidationResult contains the outcome of address validation.

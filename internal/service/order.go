@@ -298,16 +298,32 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 		stripeCustomerID = newCustomer.ID
 	}
 
-	// Step 12: Create billing customer record (links user to Stripe customer)
-	billingCustomer, err := s.repo.CreateBillingCustomer(ctx, repository.CreateBillingCustomerParams{
-		TenantID:           s.tenantID,
-		UserID:             userID,
-		Provider:           "stripe",
-		ProviderCustomerID: stripeCustomerID,
-		Metadata:           []byte("{}"),
+	// Step 12: Get or create billing customer record (links user to Stripe customer)
+	var billingCustomer repository.BillingCustomer
+	existingBillingCustomer, err := s.repo.GetBillingCustomerByUserID(ctx, repository.GetBillingCustomerByUserIDParams{
+		TenantID: s.tenantID,
+		UserID:   userID,
+		Provider: "stripe",
 	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create billing customer: %w", err)
+	if err != nil && err != pgx.ErrNoRows {
+		return nil, fmt.Errorf("failed to check for existing billing customer: %w", err)
+	}
+
+	if err == pgx.ErrNoRows {
+		// No existing billing customer - create new one
+		billingCustomer, err = s.repo.CreateBillingCustomer(ctx, repository.CreateBillingCustomerParams{
+			TenantID:           s.tenantID,
+			UserID:             userID,
+			Provider:           "stripe",
+			ProviderCustomerID: stripeCustomerID,
+			Metadata:           []byte("{}"),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create billing customer: %w", err)
+		}
+	} else {
+		// Reuse existing billing customer
+		billingCustomer = existingBillingCustomer
 	}
 
 	// Step 11: Create payment method (skipped - would require payment method details)
