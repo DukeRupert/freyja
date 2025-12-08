@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/billing"
+	"github.com/dukerupert/freyja/internal/domain"
+	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/service"
 	"github.com/dukerupert/freyja/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -73,7 +75,7 @@ func (h *StripeHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	// Only accept POST requests
 	if r.Method != http.MethodPost {
 		log.Printf("[WEBHOOK] Rejected: method %s not allowed", r.Method)
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Method not allowed"))
 		return
 	}
 
@@ -81,7 +83,7 @@ func (h *StripeHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Printf("[WEBHOOK] Error reading payload: %v", err)
-		http.Error(w, "Error reading request body", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Error reading request body"))
 		return
 	}
 	log.Printf("[WEBHOOK] Payload size: %d bytes", len(payload))
@@ -90,7 +92,7 @@ func (h *StripeHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	signature := r.Header.Get("Stripe-Signature")
 	if signature == "" {
 		log.Printf("[WEBHOOK] Missing Stripe-Signature header")
-		http.Error(w, "Missing signature", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Missing signature"))
 		return
 	}
 	log.Printf("[WEBHOOK] Signature header present (length: %d)", len(signature))
@@ -109,7 +111,7 @@ func (h *StripeHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("[WEBHOOK] Signature verification FAILED: %v", err)
 		log.Printf("[WEBHOOK] Signature: %s", signature)
-		http.Error(w, "Invalid signature", http.StatusUnauthorized)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "Invalid signature"))
 		return
 	}
 	log.Printf("[WEBHOOK] Signature verification SUCCESS")
@@ -118,7 +120,7 @@ func (h *StripeHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	var event stripe.Event
 	if err := json.Unmarshal(payload, &event); err != nil {
 		log.Printf("Error parsing webhook JSON: %v", err)
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid JSON"))
 		return
 	}
 

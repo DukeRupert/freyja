@@ -704,7 +704,7 @@ func (h *AccountHandler) renderAddressError(w http.ResponseWriter, r *http.Reque
 		w.Write([]byte(fmt.Sprintf(`<p class="text-red-600 text-sm">%s</p>`, message)))
 		return
 	}
-	http.Error(w, message, http.StatusBadRequest)
+	handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "%s", message))
 }
 
 // =============================================================================

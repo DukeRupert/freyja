@@ -11,6 +11,8 @@ import (
 	"github.com/stripe/stripe-go/v83/webhook"
 
 	"github.com/dukerupert/freyja/internal/billing"
+	"github.com/dukerupert/freyja/internal/domain"
+	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/service"
 )
 
@@ -45,7 +47,7 @@ func (h *WebhookHandler) HandleStripeWebhook(w http.ResponseWriter, r *http.Requ
 		slog.Error("saas webhook: failed to read body",
 			"error", err,
 		)
-		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Failed to read request body"))
 		return
 	}
 
@@ -56,7 +58,7 @@ func (h *WebhookHandler) HandleStripeWebhook(w http.ResponseWriter, r *http.Requ
 		slog.Error("saas webhook: signature verification failed",
 			"error", err,
 		)
-		http.Error(w, "Invalid signature", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid signature"))
 		return
 	}
 
@@ -68,19 +70,19 @@ func (h *WebhookHandler) HandleStripeWebhook(w http.ResponseWriter, r *http.Requ
 	// Handle event types
 	switch event.Type {
 	case "checkout.session.completed":
-		h.handleCheckoutSessionCompleted(ctx, w, event)
+		h.handleCheckoutSessionCompleted(ctx, w, r, event)
 
 	case "invoice.paid":
-		h.handleInvoicePaid(ctx, w, event)
+		h.handleInvoicePaid(ctx, w, r, event)
 
 	case "invoice.payment_failed":
-		h.handleInvoicePaymentFailed(ctx, w, event)
+		h.handleInvoicePaymentFailed(ctx, w, r, event)
 
 	case "customer.subscription.updated":
-		h.handleSubscriptionUpdated(ctx, w, event)
+		h.handleSubscriptionUpdated(ctx, w, r, event)
 
 	case "customer.subscription.deleted":
-		h.handleSubscriptionDeleted(ctx, w, event)
+		h.handleSubscriptionDeleted(ctx, w, r, event)
 
 	default:
 		slog.Debug("saas webhook: unhandled event type",
@@ -90,13 +92,13 @@ func (h *WebhookHandler) HandleStripeWebhook(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func (h *WebhookHandler) handleCheckoutSessionCompleted(ctx context.Context, w http.ResponseWriter, event stripe.Event) {
+func (h *WebhookHandler) handleCheckoutSessionCompleted(ctx context.Context, w http.ResponseWriter, r *http.Request, event stripe.Event) {
 	var session stripe.CheckoutSession
 	if err := json.Unmarshal(event.Data.Raw, &session); err != nil {
 		slog.Error("saas webhook: failed to parse checkout session",
 			"error", err,
 		)
-		http.Error(w, "Failed to parse event", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Failed to parse event"))
 		return
 	}
 
@@ -161,13 +163,13 @@ func (h *WebhookHandler) handleCheckoutSessionCompleted(ctx context.Context, w h
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *WebhookHandler) handleInvoicePaid(ctx context.Context, w http.ResponseWriter, event stripe.Event) {
+func (h *WebhookHandler) handleInvoicePaid(ctx context.Context, w http.ResponseWriter, r *http.Request, event stripe.Event) {
 	var invoice stripe.Invoice
 	if err := json.Unmarshal(event.Data.Raw, &invoice); err != nil {
 		slog.Error("saas webhook: failed to parse invoice",
 			"error", err,
 		)
-		http.Error(w, "Failed to parse event", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Failed to parse event"))
 		return
 	}
 
@@ -182,13 +184,13 @@ func (h *WebhookHandler) handleInvoicePaid(ctx context.Context, w http.ResponseW
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *WebhookHandler) handleInvoicePaymentFailed(ctx context.Context, w http.ResponseWriter, event stripe.Event) {
+func (h *WebhookHandler) handleInvoicePaymentFailed(ctx context.Context, w http.ResponseWriter, r *http.Request, event stripe.Event) {
 	var invoice stripe.Invoice
 	if err := json.Unmarshal(event.Data.Raw, &invoice); err != nil {
 		slog.Error("saas webhook: failed to parse invoice",
 			"error", err,
 		)
-		http.Error(w, "Failed to parse event", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Failed to parse event"))
 		return
 	}
 
@@ -203,13 +205,13 @@ func (h *WebhookHandler) handleInvoicePaymentFailed(ctx context.Context, w http.
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *WebhookHandler) handleSubscriptionUpdated(ctx context.Context, w http.ResponseWriter, event stripe.Event) {
+func (h *WebhookHandler) handleSubscriptionUpdated(ctx context.Context, w http.ResponseWriter, r *http.Request, event stripe.Event) {
 	var subscription stripe.Subscription
 	if err := json.Unmarshal(event.Data.Raw, &subscription); err != nil {
 		slog.Error("saas webhook: failed to parse subscription",
 			"error", err,
 		)
-		http.Error(w, "Failed to parse event", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Failed to parse event"))
 		return
 	}
 
@@ -224,13 +226,13 @@ func (h *WebhookHandler) handleSubscriptionUpdated(ctx context.Context, w http.R
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *WebhookHandler) handleSubscriptionDeleted(ctx context.Context, w http.ResponseWriter, event stripe.Event) {
+func (h *WebhookHandler) handleSubscriptionDeleted(ctx context.Context, w http.ResponseWriter, r *http.Request, event stripe.Event) {
 	var subscription stripe.Subscription
 	if err := json.Unmarshal(event.Data.Raw, &subscription); err != nil {
 		slog.Error("saas webhook: failed to parse subscription",
 			"error", err,
 		)
-		http.Error(w, "Failed to parse event", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Failed to parse event"))
 		return
 	}
 

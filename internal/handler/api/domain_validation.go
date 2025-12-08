@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/dukerupert/freyja/internal/domain"
+	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/service"
 )
 
@@ -49,25 +51,25 @@ func NewDomainValidationHandler(
 // - Single EXISTS query, no joins
 // - Critical path for on-demand TLS
 func (h *DomainValidationHandler) ValidateDomain(w http.ResponseWriter, r *http.Request) {
-	domain := r.URL.Query().Get("domain")
-	if domain == "" {
-		http.Error(w, "domain parameter required", http.StatusBadRequest)
+	domainParam := r.URL.Query().Get("domain")
+	if domainParam == "" {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "domain parameter required"))
 		return
 	}
 
-	isValid, err := h.service.ValidateDomainForCaddy(r.Context(), domain)
+	isValid, err := h.service.ValidateDomainForCaddy(r.Context(), domainParam)
 	if err != nil {
-		h.logger.Error("domain validation failed", "domain", domain, "error", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		h.logger.Error("domain validation failed", "domain", domainParam, "error", err)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
 	if isValid {
-		h.logger.Info("domain validation succeeded", "domain", domain)
+		h.logger.Info("domain validation succeeded", "domain", domainParam)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	} else {
-		h.logger.Debug("domain validation rejected", "domain", domain)
+		h.logger.Debug("domain validation rejected", "domain", domainParam)
 		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte("Not Found"))
 	}

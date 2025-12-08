@@ -6,6 +6,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/dukerupert/freyja/internal/domain"
+	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/service"
 )
 
@@ -36,7 +38,7 @@ func (h *BillingHandler) RedirectToBillingPortal(w http.ResponseWriter, r *http.
 	tenantID, ok := ctx.Value("tenant_id").(uuid.UUID)
 	if !ok {
 		slog.Error("billing: tenant_id not found in context")
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "Unauthorized"))
 		return
 	}
 
@@ -48,7 +50,7 @@ func (h *BillingHandler) RedirectToBillingPortal(w http.ResponseWriter, r *http.
 			"tenant_id", tenantID,
 			"error", err,
 		)
-		http.Error(w, "Failed to access billing portal", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 

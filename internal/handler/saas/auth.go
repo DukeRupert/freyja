@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/service"
@@ -127,7 +128,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 			"operator_id", operatorID,
 			"error", err,
 		)
-		http.Error(w, "Failed to create session", http.StatusInternalServerError)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINTERNAL, "", "Failed to create session"))
 		return
 	}
 

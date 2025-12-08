@@ -70,7 +70,7 @@ func (h *CartHandler) Add(w http.ResponseWriter, r *http.Request) {
 
 	skuID := r.FormValue("sku_id")
 	if skuID == "" {
-		h.renderCartError(w, "Please select a size and grind option")
+		h.renderCartError(w, r, "Please select a size and grind option")
 		return
 	}
 
@@ -78,7 +78,7 @@ func (h *CartHandler) Add(w http.ResponseWriter, r *http.Request) {
 
 	quantity, err := strconv.Atoi(quantityStr)
 	if err != nil || quantity < 1 {
-		h.renderCartError(w, "Invalid quantity")
+		h.renderCartError(w, r, "Invalid quantity")
 		return
 	}
 
@@ -97,14 +97,14 @@ func (h *CartHandler) Add(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		errCode := domain.ErrorCode(err)
 		if errCode == domain.ENOTFOUND {
-			h.renderCartError(w, "Product not found")
+			h.renderCartError(w, r, "Product not found")
 			return
 		}
 		if errCode == domain.EINVALID {
-			h.renderCartError(w, domain.ErrorMessage(err))
+			h.renderCartError(w, r, domain.ErrorMessage(err))
 			return
 		}
-		h.renderCartError(w, "Failed to add item")
+		h.renderCartError(w, r, "Failed to add item")
 		return
 	}
 
@@ -159,7 +159,7 @@ func (h *CartHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	summary, err := h.cartService.UpdateItemQuantity(ctx, cart.ID.String(), skuID, quantity)
 	if err != nil {
-		h.renderCartError(w, "Failed to update item")
+		h.renderCartError(w, r, "Failed to update item")
 		return
 	}
 
@@ -210,7 +210,7 @@ func (h *CartHandler) Remove(w http.ResponseWriter, r *http.Request) {
 
 	_, err = h.cartService.RemoveItem(ctx, cart.ID.String(), skuID)
 	if err != nil {
-		h.renderCartError(w, "Failed to remove item")
+		h.renderCartError(w, r, "Failed to remove item")
 		return
 	}
 
@@ -223,10 +223,10 @@ func (h *CartHandler) Remove(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *CartHandler) renderCartError(w http.ResponseWriter, message string) {
+func (h *CartHandler) renderCartError(w http.ResponseWriter, r *http.Request, message string) {
 	tmpl, err := h.renderer.Execute("cart_error")
 	if err != nil {
-		http.Error(w, "An unexpected error occurred", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -234,6 +234,6 @@ func (h *CartHandler) renderCartError(w http.ResponseWriter, message string) {
 		"Message": message,
 	}
 	if err := tmpl.ExecuteTemplate(w, "cart_error", data); err != nil {
-		http.Error(w, "An unexpected error occurred", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 )
 
@@ -55,7 +56,7 @@ func (h *PageHandler) ServePage(pageName string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		tmpl, ok := h.templates[pageName]
 		if !ok {
-			http.Error(w, "Page not found", http.StatusNotFound)
+			handler.NotFoundResponse(w, r)
 			return
 		}
 
@@ -64,7 +65,7 @@ func (h *PageHandler) ServePage(pageName string) http.HandlerFunc {
 		}
 
 		if err := tmpl.ExecuteTemplate(w, "saas-base", data); err != nil {
-			http.Error(w, "Failed to render page", http.StatusInternalServerError)
+			handler.ErrorResponse(w, r, domain.Errorf(domain.EINTERNAL, "", "Failed to render page"))
 			return
 		}
 	}
