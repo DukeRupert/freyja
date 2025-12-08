@@ -54,6 +54,8 @@ func ErrorCodeToHTTPStatus(code string) int {
 		return http.StatusConflict // 409
 	case domain.EGONE:
 		return http.StatusGone // 410
+	case domain.ETOOLARGE:
+		return http.StatusRequestEntityTooLarge // 413
 	case domain.ERATELIMIT:
 		return http.StatusTooManyRequests // 429
 	case domain.EINTERNAL:

@@ -102,6 +102,12 @@ func respondBadRequest(w http.ResponseWriter, r *http.Request, message string) {
 	respondWithError(w, r, err)
 }
 
+// respondTooLarge is a convenience wrapper for 413 errors.
+func respondTooLarge(w http.ResponseWriter, r *http.Request, message string) {
+	err := domain.Errorf(domain.ETOOLARGE, "", message)
+	respondWithError(w, r, err)
+}
+
 // errorCodeToHTTPStatus maps domain error codes to HTTP status codes.
 func errorCodeToHTTPStatus(code string) int {
 	switch code {
@@ -119,6 +125,8 @@ func errorCodeToHTTPStatus(code string) int {
 		return http.StatusConflict // 409
 	case domain.EGONE:
 		return http.StatusGone // 410
+	case domain.ETOOLARGE:
+		return http.StatusRequestEntityTooLarge // 413
 	case domain.ERATELIMIT:
 		return http.StatusTooManyRequests // 429
 	case domain.EINTERNAL:

@@ -8,16 +8,17 @@ import (
 // Application error codes.
 // These map to HTTP status codes and determine user-facing messages.
 const (
-	ECONFLICT     = "conflict"        // 409 - Resource conflict (duplicate email, etc.)
-	EINTERNAL     = "internal"        // 500 - Internal server error (hide details)
-	EINVALID      = "invalid"         // 400 - Validation error (bad input)
-	ENOTFOUND     = "not_found"       // 404 - Resource not found
-	EUNAUTHORIZED = "unauthorized"    // 401 - Authentication required
-	EFORBIDDEN    = "forbidden"       // 403 - Authenticated but not permitted
-	ENOTIMPL      = "not_implemented" // 501 - Feature not implemented
-	ERATELIMIT    = "rate_limit"      // 429 - Too many requests
+	ECONFLICT     = "conflict"         // 409 - Resource conflict (duplicate email, etc.)
+	EINTERNAL     = "internal"         // 500 - Internal server error (hide details)
+	EINVALID      = "invalid"          // 400 - Validation error (bad input)
+	ENOTFOUND     = "not_found"        // 404 - Resource not found
+	EUNAUTHORIZED = "unauthorized"     // 401 - Authentication required
+	EFORBIDDEN    = "forbidden"        // 403 - Authenticated but not permitted
+	ENOTIMPL      = "not_implemented"  // 501 - Feature not implemented
+	ERATELIMIT    = "rate_limit"       // 429 - Too many requests
 	EPAYMENT      = "payment_required" // 402 - Payment failed or required
-	EGONE         = "gone"            // 410 - Resource permanently deleted
+	EGONE         = "gone"             // 410 - Resource permanently deleted
+	ETOOLARGE     = "too_large"        // 413 - Request payload too large
 )
 
 // Error represents an application error with a code and message.
