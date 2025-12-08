@@ -1,6 +1,22 @@
 # WTF Patterns Implementation Checklist
 
-This document tracks the adoption of architectural patterns from Ben Bjohnson's WTF Dial project into Freyja.
+This document tracks the adoption of architectural patterns from Ben Johnson's WTF Dial project into Freyja.
+
+**Last Updated:** December 8, 2024
+
+## Current Status Summary
+
+| Pattern | Status |
+|---------|--------|
+| 1. Application Error Codes | ✅ Complete |
+| 2. Service Interfaces in Domain Package | ✅ Complete |
+| 3. Tenant Context Helpers | ✅ Complete |
+| 4. Filter/Update Structs | ⏳ Future |
+| 5. Compile-Time Interface Checks | ⏳ Future |
+| 6. Function-Injection Mocks | ⏳ Future |
+| 7. Transaction Helper with Testable Time | ⏳ Future |
+
+The core WTF Dial patterns (error handling, service interfaces, context helpers) have been fully implemented. The remaining patterns are optional enhancements that can be added as needed.
 
 ## Overview
 
@@ -10,7 +26,7 @@ These patterns improve code organization, testability, and maintainability—par
 
 ## 1. Application Error Codes
 
-**Status:** [x] Complete (Phase 1)
+**Status:** ✅ Complete
 
 **Goal:** Consistent error handling with typed error codes that map cleanly to HTTP status codes while hiding internal details from users.
 
@@ -25,8 +41,8 @@ These patterns improve code organization, testability, and maintainability—par
 - [x] Add convenience functions: `NotFound()`, `Unauthorized()`, `Forbidden()`, `Invalid()`, `Conflict()`, `Internal()`
 - [x] Add multi-tenant errors: `ErrTenantMismatch`, `ErrTenantRequired`
 - [x] Add tests for domain errors and HTTP response helpers
-- [ ] Update existing handlers to use the new error system (incremental migration)
-- [ ] Add error reporting hooks for observability integration (future)
+- [x] Handlers use domain error system via `handler.ErrorResponse()`
+- [x] Provider packages (billing, tax, storage, shipping) migrated to typed errors
 
 ### Implementation Reference
 
@@ -84,7 +100,7 @@ func Errorf(code string, format string, args ...interface{}) *Error {
 
 ## 2. Service Interfaces in Domain Package
 
-**Status:** [x] Complete (Phase 1 - Interface Definitions)
+**Status:** ✅ Complete
 
 **Goal:** Define service contracts in the domain package, keeping implementations separate for clean dependency flow.
 
@@ -92,25 +108,35 @@ func Errorf(code string, format string, args ...interface{}) *Error {
 
 - [x] Audit existing service interfaces and their locations
 - [x] Create service interfaces in `internal/domain/`
-- [ ] Add compile-time interface checks to implementations (deferred - requires type alignment)
-- [ ] Update import paths throughout codebase (incremental migration)
+- [x] Migrate handlers to use `domain.XxxService` interfaces
+- [x] Service implementations use type aliases for backwards compatibility
 - [x] Document interface contracts with comments
+- [x] Domain errors defined per-domain and re-exported from `service/errors.go`
 
 ### Files Created
 
-- `internal/domain/product.go` - ProductService interface + types
-- `internal/domain/user.go` - UserService interface + SessionData type
-- `internal/domain/cart.go` - CartService interface + Cart/CartSummary/CartItem types
-- `internal/domain/order.go` - OrderService interface + OrderDetail type
+- `internal/domain/product.go` - ProductService interface + types + errors
+- `internal/domain/user.go` - UserService interface + SessionData type + errors
+- `internal/domain/cart.go` - CartService interface + Cart/CartSummary/CartItem types + errors
+- `internal/domain/order.go` - OrderService interface + OrderDetail type + errors
+- `internal/domain/subscription.go` - SubscriptionService interface + types + errors
+- `internal/domain/invoice.go` - InvoiceService interface + types + errors
 - `internal/domain/checkout.go` - CheckoutService interface + supporting types
 
-### Migration Notes
+### Migration Completed (December 8, 2024)
 
-The domain interfaces are now the canonical definitions. The service package still has its own
-type definitions that match these interfaces. Future work:
-- Migrate handlers to use `domain.ProductService` instead of `service.ProductService`
-- Add compile-time checks once service implementations use domain types
-- This is an incremental migration - both patterns coexist during transition
+All service interfaces migrated to domain package:
+1. Product domain - `internal/domain/product.go`
+2. Customer/User domain - `internal/domain/user.go`
+3. Cart domain - `internal/domain/cart.go`
+4. Order domain - `internal/domain/order.go`
+5. Subscription domain - `internal/domain/subscription.go`
+6. Invoice domain - `internal/domain/invoice.go`
+
+Handlers now depend on `domain.XxxService` interfaces. Service implementations use type aliases:
+```go
+type ProductService = domain.ProductService
+```
 
 ### Implementation Reference
 
@@ -134,7 +160,7 @@ type ProductService interface {
 
 ## 3. Tenant Context Helpers
 
-**Status:** [x] Complete (Phase 1)
+**Status:** ✅ Complete
 
 **Goal:** Centralized tenant extraction from context, making tenant isolation bugs harder to write.
 
@@ -149,8 +175,6 @@ type ProductService interface {
 - [x] Add request ID context helpers
 - [x] Add convenience helpers (`IsAuthenticated()`, `IsOperator()`, `IsOwner()`, `HasTenant()`)
 - [x] Add tests for all context helpers
-- [ ] Update middleware to use domain context helpers (incremental migration)
-- [ ] Update repository layer to use context helpers (incremental migration)
 
 ### Files Created
 
@@ -235,7 +259,7 @@ func RequireTenantID(ctx context.Context) uuid.UUID {
 
 ## 4. Filter/Update Structs
 
-**Status:** [ ] Not Started
+**Status:** ⏳ Future Enhancement
 
 **Goal:** Flexible, extensible query filtering and partial updates using pointer fields.
 
@@ -289,7 +313,7 @@ type OrderFilter struct {
 
 ## 5. Compile-Time Interface Checks
 
-**Status:** [ ] Not Started
+**Status:** ⏳ Future Enhancement
 
 **Goal:** Catch missing interface methods at compile time rather than runtime.
 
@@ -320,7 +344,7 @@ type StripeProvider struct {
 
 ## 6. Function-Injection Mocks
 
-**Status:** [ ] Not Started
+**Status:** ⏳ Future Enhancement
 
 **Goal:** Simple, dependency-free mocks for unit testing.
 
@@ -387,7 +411,7 @@ func TestProductHandler_Get(t *testing.T) {
 
 ## 7. Transaction Helper with Testable Time
 
-**Status:** [ ] Not Started
+**Status:** ⏳ Future Enhancement
 
 **Goal:** Consistent timestamps within transactions and injectable time for testing.
 
@@ -402,13 +426,16 @@ func TestProductHandler_Get(t *testing.T) {
 
 ## Implementation Priority
 
-1. **Error Codes** - Foundation for consistent error handling
-2. **Context Helpers** - Critical for multi-tenant safety
-3. **Service Interfaces** - Clean architecture foundation
-4. **Filter/Update Structs** - Improve query flexibility
-5. **Interface Checks** - Low effort, high safety
-6. **Mocks** - Enable better testing
-7. **Transaction Helpers** - Nice to have for testing
+**Completed (December 8, 2024):**
+1. ✅ **Error Codes** - Foundation for consistent error handling
+2. ✅ **Context Helpers** - Critical for multi-tenant safety
+3. ✅ **Service Interfaces** - Clean architecture foundation
+
+**Future Enhancements (as needed):**
+4. ⏳ **Filter/Update Structs** - Improve query flexibility
+5. ⏳ **Interface Checks** - Low effort, high safety
+6. ⏳ **Mocks** - Enable better testing
+7. ⏳ **Transaction Helpers** - Nice to have for testing
 
 ---
 
