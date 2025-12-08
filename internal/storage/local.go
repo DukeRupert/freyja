@@ -63,7 +63,7 @@ func (s *LocalStorage) Get(ctx context.Context, key string) (io.ReadCloser, erro
 	file, err := os.Open(fullPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("file not found: %s", key)
+			return nil, ErrFileNotFound(key)
 		}
 		return nil, fmt.Errorf("failed to open file: %w", err)
 	}

@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/dukerupert/freyja/internal"
@@ -47,6 +46,6 @@ func NewStorage(cfg internal.StorageConfig) (Storage, error) {
 			PublicURL:   cfg.R2PublicURL,
 		})
 	default:
-		return nil, fmt.Errorf("unknown storage provider: %s", cfg.Provider)
+		return nil, ErrUnknownProvider(cfg.Provider)
 	}
 }

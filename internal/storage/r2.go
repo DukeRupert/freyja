@@ -31,13 +31,13 @@ type R2Storage struct {
 // NewR2Storage creates a new Cloudflare R2 storage implementation.
 func NewR2Storage(cfg R2Config) (*R2Storage, error) {
 	if cfg.AccountID == "" {
-		return nil, fmt.Errorf("R2 account ID is required")
+		return nil, ErrR2AccountIDRequired
 	}
 	if cfg.AccessKeyID == "" || cfg.SecretKey == "" {
-		return nil, fmt.Errorf("R2 credentials are required")
+		return nil, ErrR2CredentialsRequired
 	}
 	if cfg.BucketName == "" {
-		return nil, fmt.Errorf("R2 bucket name is required")
+		return nil, ErrR2BucketRequired
 	}
 
 	endpoint := fmt.Sprintf("https://%s.r2.cloudflarestorage.com", cfg.AccountID)
