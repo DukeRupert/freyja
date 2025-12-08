@@ -36,46 +36,51 @@ Show enough information to be useful without overwhelming. Tables and lists shou
 
 ### Color Palette
 
+The palette draws subtle inspiration from Hiri Moale festival colors—the red ochre and white of ceremonial body paint, the golden tan of grass skirts and sago palm sails, the deep browns of clay pots and lakatoi hulls, and the coastal waters of the Gulf of Papua. These influences appear in muted, professional form.
+
 **Base colors (used most frequently):**
 
 | Role | Color | Usage |
 |------|-------|-------|
-| Background | Off-white / warm gray (#FAFAF8 or similar) | Page backgrounds |
+| Background | Warm off-white (#FAF9F7) | Page backgrounds—a hint of the cream found in kina shells |
 | Surface | White (#FFFFFF) | Cards, panels, inputs |
-| Border | Light warm gray (#E8E6E3) | Dividers, input borders |
-| Text primary | Near-black (#1A1A1A) | Headings, body text |
-| Text secondary | Medium gray (#6B6B6B) | Labels, helper text, timestamps |
+| Border | Warm gray (#E5E2DE) | Dividers, input borders |
+| Text primary | Deep brown-black (#1C1917) | Headings, body text—echoes lakatoi wood |
+| Text secondary | Warm gray (#78716C) | Labels, helper text, timestamps |
 
 **Accent colors (used sparingly):**
 
 | Role | Color | Usage |
 |------|-------|-------|
-| Primary action | Muted teal (#2A7D7D or similar) | Primary buttons, links, focus states |
-| Primary hover | Darker teal (#1F5F5F) | Button hover states |
-| Secondary accent | Warm amber (#B5873A) | Highlights, badges, occasional emphasis |
+| Primary action | Ocean teal (#2D7A7A) | Primary buttons, links, focus states—the Gulf waters |
+| Primary hover | Deep teal (#1E5E5E) | Button hover states |
+| Secondary accent | Sunset amber (#C4873A) | Highlights, badges—the lakatoi returning at dusk |
 
 **Semantic colors:**
 
 | Role | Color | Usage |
 |------|-------|-------|
-| Success | Muted green (#3D8B6E) | Success messages, positive status |
-| Warning | Warm amber (#B5873A) | Warnings, pending states |
-| Error | Muted red (#C45D4A) | Errors, destructive actions |
-| Info | Muted blue (#4A7FB5) | Informational messages |
+| Success | Coastal green (#3D8B6E) | Success messages, positive status |
+| Warning | Trade amber (#C4873A) | Warnings, pending states |
+| Error | Ochre red (#B85C4A) | Errors, destructive actions—muted red ochre |
+| Info | Water blue (#4A7FA8) | Informational messages |
 
-**Coffee tones (optional accents):**
+**Heritage tones (optional accents):**
 
-| Name | Color | Usage |
-|------|-------|-------|
-| Roast dark | Deep brown (#3D2E2A) | Occasional accent, footer |
-| Roast medium | Warm brown (#6B5144) | Secondary accents |
-| Crema | Cream (#F5F0E8) | Alternative background, highlights |
+| Name | Color | Inspiration | Usage |
+|------|-------|-------------|-------|
+| Uro clay | Terracotta (#A66B4B) | Traditional clay pots | Subtle accents, illustrations |
+| Kina | Ivory cream (#F5F0E6) | Pearl shell currency | Alternative backgrounds, highlights |
+| Lakatoi | Deep wood brown (#3D2E27) | Trading canoe hulls | Footer, dark accents |
+| Sail tan | Golden sand (#D4C4A8) | Sago palm sails | Warm highlights, empty states |
 
 **Usage guidelines:**
 - The interface should feel predominantly neutral with color used purposefully
 - Primary accent (teal) is reserved for interactive elements and focus
+- Heritage tones are for subtle warmth, not theming—use very sparingly
 - Avoid using multiple accent colors in close proximity
 - Semantic colors appear only when conveying status or feedback
+- The palette should feel warm and grounded, never cold or stark
 
 ### Typography
 
@@ -409,12 +414,15 @@ Products you create will appear here. Start by adding your first coffee.
 
 ## Brand Heritage
 
-The Hiri name comes from the traditional trade voyages of the Motu people of Papua New Guinea. The UI doesn't need to be overtly themed around this heritage.
+The Hiri name comes from the traditional trade voyages of the Motu people of Papua New Guinea. The UI doesn't need to be overtly themed around this heritage, but the visual language carries subtle echoes of the festival and its traditions.
 
 **What the name brings:**
 - A sense of purposeful exchange—commerce as connection
 - Warmth and humanity (trade between communities, not corporations)
 - Groundedness in craft and tradition
+
+**Color inspiration:**
+The palette draws from Hiri Moale festival imagery—the red ochre and white of ceremonial body paint, the golden grass skirts swaying in the Hiri Hanenamo dance, the terracotta of traded clay pots (uro), the deep wood of lakatoi hulls, and the coastal teal of Gulf waters. These appear in muted, professional form throughout the interface.
 
 **Subtle nods (use sparingly):**
 - Logo: Could incorporate sail or wave geometry (the lakatoi trading canoes had distinctive crab-claw sails)
