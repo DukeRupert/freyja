@@ -2,7 +2,6 @@ package shipping
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -11,21 +10,6 @@ import (
 	"time"
 
 	"github.com/EasyPost/easypost-go/v5"
-)
-
-var (
-	// ErrNoRates is returned when no shipping rates are available.
-	ErrNoRates = errors.New("no shipping rates available")
-	// ErrInvalidRate is returned when a rate ID is invalid or expired.
-	ErrInvalidRate = errors.New("invalid or expired rate")
-	// ErrLabelNotFound is returned when a label cannot be found.
-	ErrLabelNotFound = errors.New("label not found")
-	// ErrAddressInvalid is returned when address validation fails.
-	ErrAddressInvalid = errors.New("address validation failed")
-	// ErrTenantMismatch is returned when tenant validation fails.
-	ErrTenantMismatch = errors.New("tenant_id mismatch: resource belongs to different tenant")
-	// ErrLabelAlreadyPurchased is returned when attempting to purchase a label that already exists.
-	ErrLabelAlreadyPurchased = errors.New("label already purchased for this shipment")
 )
 
 // Conversion constants for metric to imperial units.
@@ -51,7 +35,7 @@ type EasyPostConfig struct {
 // NewEasyPostProvider creates a new EasyPost shipping provider.
 func NewEasyPostProvider(cfg EasyPostConfig) (*EasyPostProvider, error) {
 	if cfg.APIKey == "" {
-		return nil, errors.New("EasyPost API key is required")
+		return nil, ErrMissingAPIKey
 	}
 
 	logger := cfg.Logger
@@ -478,7 +462,7 @@ func (p *EasyPostProvider) filterRatesByService(rates []Rate, services []string)
 func parseRateID(rateID string) (shipmentID, epRateID string, err error) {
 	shipmentID, epRateID, ok := strings.Cut(rateID, ":")
 	if !ok || shipmentID == "" || epRateID == "" {
-		return "", "", errors.New("invalid rate ID format: expected 'shipment_id:rate_id'")
+		return "", "", ErrInvalidRateIDFormat
 	}
 	return shipmentID, epRateID, nil
 }
@@ -510,12 +494,12 @@ func gramsToOunces(grams int32) float64 {
 func dollarsToCents(dollars string) (int64, error) {
 	dollars = strings.TrimSpace(dollars)
 	if dollars == "" {
-		return 0, errors.New("empty dollar amount")
+		return 0, ErrInvalidAmount("", nil)
 	}
 
 	amount, err := strconv.ParseFloat(dollars, 64)
 	if err != nil {
-		return 0, fmt.Errorf("invalid dollar amount %q: %w", dollars, err)
+		return 0, ErrInvalidAmount(dollars, err)
 	}
 
 	// Convert to cents, rounding to nearest cent

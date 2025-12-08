@@ -2,21 +2,7 @@ package shipping
 
 import (
 	"context"
-	"errors"
 	"time"
-)
-
-var (
-	// ErrNotImplemented is returned when a method is not yet implemented.
-	ErrNotImplemented = errors.New("not implemented")
-	// ErrMultiPackageNotSupported is returned when multiple packages are provided.
-	ErrMultiPackageNotSupported = errors.New("multi-package shipments not yet supported")
-	// ErrNoPackages is returned when no packages are provided.
-	ErrNoPackages = errors.New("at least one package is required")
-	// ErrOriginRequired is returned when origin address is missing.
-	ErrOriginRequired = errors.New("origin address is required")
-	// ErrTenantRequired is returned when tenant ID is missing.
-	ErrTenantRequired = errors.New("tenant_id is required")
 )
 
 // Provider defines the interface for shipping operations.
