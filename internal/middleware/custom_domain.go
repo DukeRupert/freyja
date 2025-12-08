@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -44,14 +45,14 @@ func ResolveTenantByHost(queries *repository.Queries) func(http.Handler) http.Ha
 						slog.Debug("tenant resolution: custom domain not found",
 							"host", host,
 						)
-						http.Error(w, "Store not found", http.StatusNotFound)
+						respondNotFound(w, r)
 						return
 					}
 					slog.Error("tenant resolution: database error",
 						"host", host,
 						"error", lookupErr,
 					)
-					http.Error(w, "Internal server error", http.StatusInternalServerError)
+					respondInternalError(w, r, lookupErr)
 					return
 				}
 
@@ -71,7 +72,7 @@ func ResolveTenantByHost(queries *repository.Queries) func(http.Handler) http.Ha
 						"host", host,
 						"status", tenant.CustomDomainStatus,
 					)
-					http.Error(w, "Custom domain not active", http.StatusNotFound)
+					respondWithError(w, r, domain.Errorf(domain.ENOTFOUND, "", "Custom domain not active"))
 					return
 				}
 			} else {
@@ -90,14 +91,14 @@ func ResolveTenantByHost(queries *repository.Queries) func(http.Handler) http.Ha
 						slog.Debug("tenant resolution: subdomain not found",
 							"subdomain", subdomain,
 						)
-						http.Error(w, "Store not found", http.StatusNotFound)
+						respondNotFound(w, r)
 						return
 					}
 					slog.Error("tenant resolution: database error",
 						"subdomain", subdomain,
 						"error", lookupErr,
 					)
-					http.Error(w, "Internal server error", http.StatusInternalServerError)
+					respondInternalError(w, r, lookupErr)
 					return
 				}
 
