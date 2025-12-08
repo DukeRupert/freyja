@@ -313,5 +313,5 @@ func (h *WholesaleOrderingHandler) renderError(w http.ResponseWriter, r *http.Re
 		w.Write([]byte(fmt.Sprintf(`<div class="rounded-md bg-red-50 p-4"><p class="text-sm text-red-700">%s</p></div>`, message)))
 		return
 	}
-	handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", message))
+	handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "%s", message))
 }

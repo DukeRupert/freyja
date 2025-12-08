@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -51,7 +52,7 @@ func (h *TaxRateHandler) ListPage(w http.ResponseWriter, r *http.Request) {
 
 	taxRates, err := h.repo.ListTaxRates(ctx, h.tenantID)
 	if err != nil {
-		http.Error(w, "Failed to load tax rates", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -110,7 +111,7 @@ func (h *TaxRateHandler) Create(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
 	}
 
@@ -121,19 +122,19 @@ func (h *TaxRateHandler) Create(w http.ResponseWriter, r *http.Request) {
 	isActive := r.FormValue("is_active") == "on"
 
 	if state == "" {
-		http.Error(w, "State is required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "State is required"))
 		return
 	}
 
 	if rateStr == "" {
-		http.Error(w, "Rate is required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Rate is required"))
 		return
 	}
 
 	// Parse rate as percentage and convert to decimal (divide by 100)
 	ratePercent, err := strconv.ParseFloat(rateStr, 64)
 	if err != nil || ratePercent < 0 || ratePercent > 100 {
-		http.Error(w, "Invalid rate (must be between 0 and 100)", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid rate (must be between 0 and 100)"))
 		return
 	}
 
@@ -141,7 +142,7 @@ func (h *TaxRateHandler) Create(w http.ResponseWriter, r *http.Request) {
 	rateDecimal := decimal.NewFromFloat(ratePercent / 100)
 	var rateNumeric pgtype.Numeric
 	if err := rateNumeric.Scan(rateDecimal.String()); err != nil {
-		http.Error(w, "Failed to convert rate", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -154,7 +155,7 @@ func (h *TaxRateHandler) Create(w http.ResponseWriter, r *http.Request) {
 		IsActive:    isActive,
 	})
 	if err != nil {
-		http.Error(w, "Failed to create tax rate", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -167,18 +168,18 @@ func (h *TaxRateHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	taxRateID := r.PathValue("id")
 	if taxRateID == "" {
-		http.Error(w, "Tax Rate ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Tax Rate ID required"))
 		return
 	}
 
 	var taxRateUUID pgtype.UUID
 	if err := taxRateUUID.Scan(taxRateID); err != nil {
-		http.Error(w, "Invalid tax rate ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid tax rate ID"))
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
 	}
 
@@ -188,21 +189,21 @@ func (h *TaxRateHandler) Update(w http.ResponseWriter, r *http.Request) {
 	isActive := r.FormValue("is_active") == "on"
 
 	if rateStr == "" {
-		http.Error(w, "Rate is required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Rate is required"))
 		return
 	}
 
 	// Parse rate as percentage and convert to decimal
 	ratePercent, err := strconv.ParseFloat(rateStr, 64)
 	if err != nil || ratePercent < 0 || ratePercent > 100 {
-		http.Error(w, "Invalid rate (must be between 0 and 100)", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid rate (must be between 0 and 100)"))
 		return
 	}
 
 	rateDecimal := decimal.NewFromFloat(ratePercent / 100)
 	var rateNumeric pgtype.Numeric
 	if err := rateNumeric.Scan(rateDecimal.String()); err != nil {
-		http.Error(w, "Failed to convert rate", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -215,7 +216,7 @@ func (h *TaxRateHandler) Update(w http.ResponseWriter, r *http.Request) {
 		IsActive:    isActive,
 	})
 	if err != nil {
-		http.Error(w, "Failed to update tax rate", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -234,13 +235,13 @@ func (h *TaxRateHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	taxRateID := r.PathValue("id")
 	if taxRateID == "" {
-		http.Error(w, "Tax Rate ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Tax Rate ID required"))
 		return
 	}
 
 	var taxRateUUID pgtype.UUID
 	if err := taxRateUUID.Scan(taxRateID); err != nil {
-		http.Error(w, "Invalid tax rate ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid tax rate ID"))
 		return
 	}
 
@@ -249,7 +250,7 @@ func (h *TaxRateHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		ID:       taxRateUUID,
 	})
 	if err != nil {
-		http.Error(w, "Failed to delete tax rate", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 

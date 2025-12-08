@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -36,7 +37,7 @@ func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	stats, err := h.repo.GetSubscriptionStats(ctx, h.tenantID)
 	if err != nil {
-		http.Error(w, "Failed to load subscription stats", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -47,7 +48,7 @@ func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		http.Error(w, "Failed to load subscriptions", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -66,13 +67,13 @@ func (h *SubscriptionHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	subscriptionIDStr := r.PathValue("id")
 	if subscriptionIDStr == "" {
-		http.Error(w, "Subscription ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Subscription ID required"))
 		return
 	}
 
 	var subscriptionID pgtype.UUID
 	if err := subscriptionID.Scan(subscriptionIDStr); err != nil {
-		http.Error(w, "Invalid subscription ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid subscription ID"))
 		return
 	}
 
@@ -82,7 +83,7 @@ func (h *SubscriptionHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		http.Error(w, "Subscription not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
@@ -92,7 +93,7 @@ func (h *SubscriptionHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		http.Error(w, "Failed to load subscription items", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 

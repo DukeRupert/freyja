@@ -1,10 +1,10 @@
 package admin
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/service"
@@ -35,7 +35,7 @@ func (h *CustomDomainHandler) ShowDomainSettings(w http.ResponseWriter, r *http.
 
 	customDomain, err := h.service.GetDomainStatus(ctx, tenantID)
 	if err != nil {
-		http.Error(w, "Failed to load custom domain settings", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -70,23 +70,22 @@ func (h *CustomDomainHandler) InitiateDomain(w http.ResponseWriter, r *http.Requ
 	tenantID := middleware.GetTenantIDFromOperator(ctx)
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
 	}
 
-	domain := strings.TrimSpace(r.FormValue("domain"))
+	domainName := strings.TrimSpace(r.FormValue("domain"))
 
-	_, err := h.service.InitiateVerification(ctx, tenantID, domain)
+	_, err := h.service.InitiateVerification(ctx, tenantID, domainName)
 	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrInvalidDomain):
-			http.Error(w, "Please enter a valid domain name", http.StatusBadRequest)
-		case errors.Is(err, service.ErrApexDomainNotAllowed):
-			http.Error(w, "Apex domains not supported. Use a subdomain like shop.example.com", http.StatusBadRequest)
-		case errors.Is(err, service.ErrDomainAlreadyInUse):
-			http.Error(w, "This domain is already in use by another store", http.StatusConflict)
+		errCode := domain.ErrorCode(err)
+		switch errCode {
+		case domain.EINVALID:
+			handler.ErrorResponse(w, r, err)
+		case domain.ECONFLICT:
+			handler.ErrorResponse(w, r, err)
 		default:
-			http.Error(w, "Failed to set up custom domain", http.StatusInternalServerError)
+			handler.InternalErrorResponse(w, r, err)
 		}
 		return
 	}
@@ -114,12 +113,12 @@ func (h *CustomDomainHandler) VerifyDomain(w http.ResponseWriter, r *http.Reques
 
 	verification, err := h.service.CheckVerification(ctx, tenantID)
 	if err != nil {
-		http.Error(w, "Failed to verify domain", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
 	if !verification.Verified {
-		http.Error(w, verification.ErrorMessage+". DNS changes can take up to 48 hours to propagate.", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "%s. DNS changes can take up to 48 hours to propagate.", verification.ErrorMessage))
 		return
 	}
 
@@ -145,10 +144,11 @@ func (h *CustomDomainHandler) ActivateDomain(w http.ResponseWriter, r *http.Requ
 
 	err := h.service.ActivateDomain(ctx, tenantID)
 	if err != nil {
-		if errors.Is(err, service.ErrDomainNotVerified) {
-			http.Error(w, "Domain must be verified first", http.StatusBadRequest)
+		errCode := domain.ErrorCode(err)
+		if errCode == domain.EINVALID || errCode == domain.EFORBIDDEN {
+			handler.ErrorResponse(w, r, err)
 		} else {
-			http.Error(w, "Failed to activate domain", http.StatusInternalServerError)
+			handler.InternalErrorResponse(w, r, err)
 		}
 		return
 	}
@@ -175,7 +175,7 @@ func (h *CustomDomainHandler) RemoveDomain(w http.ResponseWriter, r *http.Reques
 
 	err := h.service.RemoveDomain(ctx, tenantID)
 	if err != nil {
-		http.Error(w, "Failed to remove custom domain", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 

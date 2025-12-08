@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/onboarding"
@@ -45,13 +46,13 @@ func (h *OnboardingHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 
 	tenantID, err := uuid.FromBytes(h.tenantID.Bytes[:])
 	if err != nil {
-		http.Error(w, "Invalid tenant ID", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
 	status, err := h.service.GetStatus(ctx, tenantID)
 	if err != nil {
-		http.Error(w, "Failed to load onboarding status", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -103,13 +104,13 @@ func (h *OnboardingHandler) SkipItem(w http.ResponseWriter, r *http.Request) {
 
 	itemID := r.PathValue("item_id")
 	if itemID == "" {
-		http.Error(w, "Item ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Item ID required"))
 		return
 	}
 
 	tenantID, err := uuid.FromBytes(h.tenantID.Bytes[:])
 	if err != nil {
-		http.Error(w, "Invalid tenant ID", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -122,11 +123,11 @@ func (h *OnboardingHandler) SkipItem(w http.ResponseWriter, r *http.Request) {
 	if err := h.service.SkipItem(ctx, tenantID, itemID, operatorID); err != nil {
 		switch err {
 		case onboarding.ErrCannotSkipRequiredItem:
-			http.Error(w, "Cannot skip required item", http.StatusBadRequest)
+			handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Cannot skip required item"))
 		case onboarding.ErrInvalidItemID:
-			http.Error(w, "Invalid item ID", http.StatusBadRequest)
+			handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid item ID"))
 		default:
-			http.Error(w, "Failed to skip item", http.StatusInternalServerError)
+			handler.InternalErrorResponse(w, r, err)
 		}
 		return
 	}
@@ -147,22 +148,22 @@ func (h *OnboardingHandler) UnskipItem(w http.ResponseWriter, r *http.Request) {
 
 	itemID := r.PathValue("item_id")
 	if itemID == "" {
-		http.Error(w, "Item ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Item ID required"))
 		return
 	}
 
 	tenantID, err := uuid.FromBytes(h.tenantID.Bytes[:])
 	if err != nil {
-		http.Error(w, "Invalid tenant ID", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
 	if err := h.service.UnskipItem(ctx, tenantID, itemID); err != nil {
 		switch err {
 		case onboarding.ErrInvalidItemID:
-			http.Error(w, "Invalid item ID", http.StatusBadRequest)
+			handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid item ID"))
 		default:
-			http.Error(w, "Failed to unskip item", http.StatusInternalServerError)
+			handler.InternalErrorResponse(w, r, err)
 		}
 		return
 	}
