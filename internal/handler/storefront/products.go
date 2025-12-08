@@ -19,7 +19,7 @@ import (
 // - Product detail view
 // - Subscription product selection (public)
 type ProductHandler struct {
-	productService service.ProductService
+	productService domain.ProductService
 	repo           repository.Querier
 	renderer       *handler.Renderer
 	tenantID       pgtype.UUID
@@ -27,7 +27,7 @@ type ProductHandler struct {
 
 // NewProductHandler creates a new consolidated product handler
 func NewProductHandler(
-	productService service.ProductService,
+	productService domain.ProductService,
 	repo repository.Querier,
 	renderer *handler.Renderer,
 	tenantID string,
@@ -176,7 +176,7 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 				RoastLevel:       p.RoastLevel,
 				TastingNotes:     p.TastingNotes,
 				SortOrder:        p.SortOrder,
-				ImageURL:         p.PrimaryImageUrl,
+				ImageURL:         p.PrimaryImageURL,
 				ImageAlt:         p.PrimaryImageAlt,
 			}
 		}
@@ -385,7 +385,7 @@ func (h *ProductHandler) SubscribeProducts(w http.ResponseWriter, r *http.Reques
 				ShortDescription: p.ShortDescription.String,
 				Origin:           p.Origin.String,
 				RoastLevel:       p.RoastLevel.String,
-				ImageURL:         p.PrimaryImageUrl.String,
+				ImageURL:         p.PrimaryImageURL.String,
 				SKUs:             subscriptionSKUs,
 			})
 		}

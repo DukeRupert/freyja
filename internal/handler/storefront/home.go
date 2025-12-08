@@ -4,19 +4,19 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
-	"github.com/dukerupert/freyja/internal/service"
 )
 
 // HomeHandler handles the storefront homepage
 type HomeHandler struct {
-	productService service.ProductService
+	productService domain.ProductService
 	renderer       *handler.Renderer
 }
 
 // NewHomeHandler creates a new home handler
-func NewHomeHandler(productService service.ProductService, renderer *handler.Renderer) *HomeHandler {
+func NewHomeHandler(productService domain.ProductService, renderer *handler.Renderer) *HomeHandler {
 	return &HomeHandler{
 		productService: productService,
 		renderer:       renderer,
@@ -61,8 +61,8 @@ func (h *HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if p.Origin.Valid {
 				fp.Origin = p.Origin.String
 			}
-			if p.PrimaryImageUrl.Valid {
-				fp.ImageURL = p.PrimaryImageUrl.String
+			if p.PrimaryImageURL.Valid {
+				fp.ImageURL = p.PrimaryImageURL.String
 			}
 			// Note: Price would require loading SKUs - skip for home page simplicity
 			featured = append(featured, fp)

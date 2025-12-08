@@ -26,6 +26,7 @@ import (
 	"github.com/dukerupert/freyja/internal/handler/webhook"
 	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/onboarding"
+	"github.com/dukerupert/freyja/internal/postgres"
 	"github.com/dukerupert/freyja/internal/provider"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/router"
@@ -108,7 +109,7 @@ func run() error {
 	repo := repository.New(pool)
 
 	// Initialize services
-	productService, err := service.NewProductService(repo, cfg.TenantID)
+	productService, err := postgres.NewProductService(repo, cfg.TenantID)
 	if err != nil {
 		return fmt.Errorf("failed to initialize product service: %w", err)
 	}

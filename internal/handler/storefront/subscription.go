@@ -20,7 +20,7 @@ import (
 // - Subscription creation
 type SubscriptionHandler struct {
 	subscriptionService service.SubscriptionService
-	productService      service.ProductService
+	productService      domain.ProductService
 	accountService      service.AccountService
 	renderer            *handler.Renderer
 	tenantID            pgtype.UUID
@@ -29,7 +29,7 @@ type SubscriptionHandler struct {
 // NewSubscriptionHandler creates a new consolidated subscription handler
 func NewSubscriptionHandler(
 	subscriptionService service.SubscriptionService,
-	productService service.ProductService,
+	productService domain.ProductService,
 	accountService service.AccountService,
 	renderer *handler.Renderer,
 	tenantID string,
