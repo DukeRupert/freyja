@@ -210,7 +210,7 @@ func (r *DefaultRegistry) loadTaxCalculator(ctx context.Context, tenantID pgtype
 	}
 
 	if config == nil {
-		return nil, fmt.Errorf("no tax provider configured for tenant")
+		return nil, ErrNoProviderConfigured("tax")
 	}
 
 	calculator, err := r.factory.CreateTaxCalculator(config)
@@ -229,7 +229,7 @@ func (r *DefaultRegistry) loadBillingProvider(ctx context.Context, tenantID pgty
 	}
 
 	if config == nil {
-		return nil, fmt.Errorf("no billing provider configured for tenant")
+		return nil, ErrNoProviderConfigured("billing")
 	}
 
 	provider, err := r.factory.CreateBillingProvider(config)
