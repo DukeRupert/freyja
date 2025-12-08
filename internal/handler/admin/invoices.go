@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/service"
@@ -40,7 +41,7 @@ func (h *InvoiceHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	invoices, err := h.invoiceService.ListInvoices(r.Context(), 100, 0)
 	if err != nil {
-		http.Error(w, "Failed to load invoices", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -94,31 +95,31 @@ func (h *InvoiceHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *InvoiceHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	invoiceID := r.PathValue("id")
 	if invoiceID == "" {
-		http.Error(w, "Invoice ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invoice ID required"))
 		return
 	}
 
 	invoice, err := h.invoiceService.GetInvoice(r.Context(), invoiceID)
 	if err != nil {
-		http.Error(w, "Invoice not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
 	var invoiceUUID pgtype.UUID
 	if err := invoiceUUID.Scan(invoiceID); err != nil {
-		http.Error(w, "Invalid invoice ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid invoice ID"))
 		return
 	}
 
 	items, err := h.repo.GetInvoiceItems(r.Context(), invoiceUUID)
 	if err != nil {
-		http.Error(w, "Failed to load invoice items", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
 	payments, err := h.repo.GetInvoicePayments(r.Context(), invoiceUUID)
 	if err != nil {
-		http.Error(w, "Failed to load payments", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -142,13 +143,13 @@ func (h *InvoiceHandler) Detail(w http.ResponseWriter, r *http.Request) {
 func (h *InvoiceHandler) Send(w http.ResponseWriter, r *http.Request) {
 	invoiceID := r.PathValue("id")
 	if invoiceID == "" {
-		http.Error(w, "Invoice ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invoice ID required"))
 		return
 	}
 
 	err := h.invoiceService.SendInvoice(r.Context(), invoiceID)
 	if err != nil {
-		http.Error(w, "Failed to send invoice: "+err.Error(), http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -159,13 +160,13 @@ func (h *InvoiceHandler) Send(w http.ResponseWriter, r *http.Request) {
 func (h *InvoiceHandler) Void(w http.ResponseWriter, r *http.Request) {
 	invoiceID := r.PathValue("id")
 	if invoiceID == "" {
-		http.Error(w, "Invoice ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invoice ID required"))
 		return
 	}
 
 	err := h.invoiceService.UpdateInvoiceStatus(r.Context(), invoiceID, "void")
 	if err != nil {
-		http.Error(w, "Failed to void invoice: "+err.Error(), http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -176,13 +177,13 @@ func (h *InvoiceHandler) Void(w http.ResponseWriter, r *http.Request) {
 func (h *InvoiceHandler) ShowPaymentForm(w http.ResponseWriter, r *http.Request) {
 	invoiceID := r.PathValue("id")
 	if invoiceID == "" {
-		http.Error(w, "Invoice ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invoice ID required"))
 		return
 	}
 
 	invoice, err := h.invoiceService.GetInvoice(r.Context(), invoiceID)
 	if err != nil {
-		http.Error(w, "Invoice not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
@@ -198,19 +199,19 @@ func (h *InvoiceHandler) ShowPaymentForm(w http.ResponseWriter, r *http.Request)
 func (h *InvoiceHandler) HandlePayment(w http.ResponseWriter, r *http.Request) {
 	invoiceID := r.PathValue("id")
 	if invoiceID == "" {
-		http.Error(w, "Invoice ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invoice ID required"))
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
 	}
 
 	amountStr := r.FormValue("amount")
 	amountDollars, err := strconv.ParseFloat(amountStr, 64)
 	if err != nil || amountDollars <= 0 {
-		http.Error(w, "Invalid amount", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid amount"))
 		return
 	}
 	amountCents := int32(amountDollars * 100)
@@ -231,7 +232,7 @@ func (h *InvoiceHandler) HandlePayment(w http.ResponseWriter, r *http.Request) {
 		Notes:            notes,
 	})
 	if err != nil {
-		http.Error(w, "Failed to record payment: "+err.Error(), http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -246,7 +247,7 @@ func (h *InvoiceHandler) ShowCreateForm(w http.ResponseWriter, r *http.Request) 
 		Offset:   0,
 	})
 	if err != nil {
-		http.Error(w, "Failed to load customers", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -261,19 +262,19 @@ func (h *InvoiceHandler) ShowCreateForm(w http.ResponseWriter, r *http.Request) 
 // HandleCreate handles POST /admin/invoices/new
 func (h *InvoiceHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
 	}
 
 	customerID := r.FormValue("customer_id")
 	if customerID == "" {
-		http.Error(w, "Customer required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Customer required"))
 		return
 	}
 
 	var customerUUID pgtype.UUID
 	if err := customerUUID.Scan(customerID); err != nil {
-		http.Error(w, "Invalid customer ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid customer ID"))
 		return
 	}
 
@@ -282,7 +283,7 @@ func (h *InvoiceHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		UserID:   customerUUID,
 	})
 	if err != nil {
-		http.Error(w, "Failed to load orders", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -302,7 +303,7 @@ func (h *InvoiceHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		OrderIDs: orderIDs,
 	})
 	if err != nil {
-		http.Error(w, "Failed to create invoice: "+err.Error(), http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 

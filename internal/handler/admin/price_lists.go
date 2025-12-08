@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -38,7 +39,7 @@ func (h *PriceListHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	priceLists, err := h.repo.ListAllPriceLists(ctx, h.tenantID)
 	if err != nil {
-		http.Error(w, "Failed to load price lists", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -81,13 +82,13 @@ func (h *PriceListHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	priceListID := r.PathValue("id")
 	if priceListID == "" {
-		http.Error(w, "Price List ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Price List ID required"))
 		return
 	}
 
 	var priceListUUID pgtype.UUID
 	if err := priceListUUID.Scan(priceListID); err != nil {
-		http.Error(w, "Invalid price list ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid price list ID"))
 		return
 	}
 
@@ -96,7 +97,7 @@ func (h *PriceListHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		ID:       priceListUUID,
 	})
 	if err != nil {
-		http.Error(w, "Price list not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
@@ -124,13 +125,13 @@ func (h *PriceListHandler) ShowForm(w http.ResponseWriter, r *http.Request) {
 	if priceListID != "" {
 		var priceListUUID pgtype.UUID
 		if err := priceListUUID.Scan(priceListID); err != nil {
-			http.Error(w, "Invalid price list ID", http.StatusBadRequest)
+			handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid price list ID"))
 			return
 		}
 
 		pl, err := h.repo.GetPriceListByID(ctx, priceListUUID)
 		if err != nil {
-			http.Error(w, "Price list not found", http.StatusNotFound)
+			handler.NotFoundResponse(w, r)
 			return
 		}
 		priceList = pl
@@ -150,7 +151,7 @@ func (h *PriceListHandler) HandleForm(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
 	}
 
@@ -160,7 +161,7 @@ func (h *PriceListHandler) HandleForm(w http.ResponseWriter, r *http.Request) {
 	isActive := r.FormValue("is_active") == "on"
 
 	if name == "" {
-		http.Error(w, "Name is required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Name is required"))
 		return
 	}
 
@@ -174,7 +175,7 @@ func (h *PriceListHandler) HandleForm(w http.ResponseWriter, r *http.Request) {
 		// Update existing
 		var priceListUUID pgtype.UUID
 		if err := priceListUUID.Scan(priceListID); err != nil {
-			http.Error(w, "Invalid price list ID", http.StatusBadRequest)
+			handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid price list ID"))
 			return
 		}
 
@@ -186,7 +187,7 @@ func (h *PriceListHandler) HandleForm(w http.ResponseWriter, r *http.Request) {
 			IsActive:    isActive,
 		})
 		if err != nil {
-			http.Error(w, "Failed to update price list", http.StatusInternalServerError)
+			handler.InternalErrorResponse(w, r, err)
 			return
 		}
 
@@ -201,7 +202,7 @@ func (h *PriceListHandler) HandleForm(w http.ResponseWriter, r *http.Request) {
 			IsActive:    isActive,
 		})
 		if err != nil {
-			http.Error(w, "Failed to create price list", http.StatusInternalServerError)
+			handler.InternalErrorResponse(w, r, err)
 			return
 		}
 
@@ -219,18 +220,18 @@ func (h *PriceListHandler) UpdateEntry(w http.ResponseWriter, r *http.Request) {
 
 	priceListID := r.PathValue("id")
 	if priceListID == "" {
-		http.Error(w, "Price List ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Price List ID required"))
 		return
 	}
 
 	var priceListUUID pgtype.UUID
 	if err := priceListUUID.Scan(priceListID); err != nil {
-		http.Error(w, "Invalid price list ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid price list ID"))
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
 	}
 
@@ -240,13 +241,13 @@ func (h *PriceListHandler) UpdateEntry(w http.ResponseWriter, r *http.Request) {
 
 	var skuUUID pgtype.UUID
 	if err := skuUUID.Scan(skuID); err != nil {
-		http.Error(w, "Invalid SKU ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid SKU ID"))
 		return
 	}
 
 	priceCents, err := strconv.Atoi(priceStr)
 	if err != nil {
-		http.Error(w, "Invalid price", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid price"))
 		return
 	}
 
@@ -259,7 +260,7 @@ func (h *PriceListHandler) UpdateEntry(w http.ResponseWriter, r *http.Request) {
 		IsAvailable:          isAvailable,
 	})
 	if err != nil {
-		http.Error(w, "Failed to update price entry", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -278,25 +279,25 @@ func (h *PriceListHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	priceListID := r.PathValue("id")
 	if priceListID == "" {
-		http.Error(w, "Price List ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Price List ID required"))
 		return
 	}
 
 	var priceListUUID pgtype.UUID
 	if err := priceListUUID.Scan(priceListID); err != nil {
-		http.Error(w, "Invalid price list ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid price list ID"))
 		return
 	}
 
 	// Check it's not the default
 	pl, err := h.repo.GetPriceListByID(ctx, priceListUUID)
 	if err != nil {
-		http.Error(w, "Price list not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
 	if pl.ListType == "default" {
-		http.Error(w, "Cannot delete the default price list", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EFORBIDDEN, "", "Cannot delete the default price list"))
 		return
 	}
 
@@ -305,7 +306,7 @@ func (h *PriceListHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		ID:       priceListUUID,
 	})
 	if err != nil {
-		http.Error(w, "Failed to delete price list", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 

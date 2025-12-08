@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/jobs"
 	"github.com/dukerupert/freyja/internal/middleware"
@@ -43,7 +44,7 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		http.Error(w, "Failed to load orders", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -59,13 +60,13 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	orderID := r.PathValue("id")
 	if orderID == "" {
-		http.Error(w, "Order ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Order ID required"))
 		return
 	}
 
 	var orderUUID pgtype.UUID
 	if err := orderUUID.Scan(orderID); err != nil {
-		http.Error(w, "Invalid order ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid order ID"))
 		return
 	}
 
@@ -74,19 +75,19 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		ID:       orderUUID,
 	})
 	if err != nil {
-		http.Error(w, "Order not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
 	items, err := h.repo.GetOrderItems(r.Context(), orderUUID)
 	if err != nil {
-		http.Error(w, "Failed to load order items", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
 	shipments, err := h.repo.GetShipmentsByOrderID(r.Context(), orderUUID)
 	if err != nil {
-		http.Error(w, "Failed to load shipments", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -104,24 +105,24 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	orderID := r.PathValue("id")
 	if orderID == "" {
-		http.Error(w, "Order ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Order ID required"))
 		return
 	}
 
 	var orderUUID pgtype.UUID
 	if err := orderUUID.Scan(orderID); err != nil {
-		http.Error(w, "Invalid order ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid order ID"))
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
 	}
 
 	status := r.FormValue("status")
 	if status == "" {
-		http.Error(w, "Status required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Status required"))
 		return
 	}
 
@@ -131,7 +132,7 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		Status:   status,
 	})
 	if err != nil {
-		http.Error(w, "Failed to update order status", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -145,18 +146,18 @@ func (h *OrderHandler) CreateShipment(w http.ResponseWriter, r *http.Request) {
 
 	orderID := r.PathValue("id")
 	if orderID == "" {
-		http.Error(w, "Order ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Order ID required"))
 		return
 	}
 
 	var orderUUID pgtype.UUID
 	if err := orderUUID.Scan(orderID); err != nil {
-		http.Error(w, "Invalid order ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid order ID"))
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
 	}
 
@@ -164,7 +165,7 @@ func (h *OrderHandler) CreateShipment(w http.ResponseWriter, r *http.Request) {
 	trackingNumber := r.FormValue("tracking_number")
 
 	if carrier == "" || trackingNumber == "" {
-		http.Error(w, "Carrier and tracking number required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Carrier and tracking number required"))
 		return
 	}
 
@@ -175,7 +176,7 @@ func (h *OrderHandler) CreateShipment(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		logger.Error("failed to get order details for shipment", "error", err, "order_id", orderID)
-		http.Error(w, "Order not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
@@ -195,7 +196,7 @@ func (h *OrderHandler) CreateShipment(w http.ResponseWriter, r *http.Request) {
 		ShippingMethodID: pgtype.UUID{Valid: false},
 	})
 	if err != nil {
-		http.Error(w, "Failed to create shipment: "+err.Error(), http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
