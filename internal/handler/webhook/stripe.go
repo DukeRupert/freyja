@@ -12,7 +12,6 @@ import (
 	"github.com/dukerupert/freyja/internal/billing"
 	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
-	"github.com/dukerupert/freyja/internal/service"
 	"github.com/dukerupert/freyja/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stripe/stripe-go/v83"
@@ -22,7 +21,7 @@ import (
 type StripeHandler struct {
 	provider            billing.Provider
 	orderService        domain.OrderService
-	subscriptionService service.SubscriptionService
+	subscriptionService domain.SubscriptionService
 	config              StripeWebhookConfig
 }
 
@@ -45,7 +44,7 @@ type StripeWebhookConfig struct {
 }
 
 // NewStripeHandler creates a new Stripe webhook handler
-func NewStripeHandler(provider billing.Provider, orderService domain.OrderService, subscriptionService service.SubscriptionService, config StripeWebhookConfig) *StripeHandler {
+func NewStripeHandler(provider billing.Provider, orderService domain.OrderService, subscriptionService domain.SubscriptionService, config StripeWebhookConfig) *StripeHandler {
 	return &StripeHandler{
 		provider:            provider,
 		orderService:        orderService,
@@ -228,7 +227,7 @@ func (h *StripeHandler) handlePaymentIntentSucceeded(event stripe.Event) {
 	order, err := h.orderService.CreateOrderFromPaymentIntent(ctx, paymentIntent.ID)
 	if err != nil {
 		// Check if this is an idempotency case (order already exists)
-		if errors.Is(err, service.ErrPaymentAlreadyProcessed) {
+		if errors.Is(err, domain.ErrPaymentAlreadyProcessed) {
 			log.Printf("Order already exists for payment intent %s (idempotent retry)", paymentIntent.ID)
 			return
 		}
@@ -398,7 +397,7 @@ func (h *StripeHandler) handleInvoicePaymentSucceeded(event stripe.Event) {
 	order, err := h.subscriptionService.CreateOrderFromSubscriptionInvoice(ctx, invoice.ID, tenantUUID)
 	if err != nil {
 		// Check if this is an idempotency case (order already exists)
-		if errors.Is(err, service.ErrInvoiceAlreadyProcessed) {
+		if errors.Is(err, domain.ErrInvoiceAlreadyProcessed) {
 			log.Printf("Order already exists for invoice %s (idempotent retry)", invoice.ID)
 			return
 		}
@@ -473,7 +472,7 @@ func (h *StripeHandler) handleInvoicePaymentFailed(event stripe.Event) {
 
 	// Sync subscription status from Stripe (will update to past_due)
 	ctx := context.Background()
-	err := h.subscriptionService.SyncSubscriptionFromWebhook(ctx, service.SyncSubscriptionParams{
+	err := h.subscriptionService.SyncSubscriptionFromWebhook(ctx, domain.SyncSubscriptionParams{
 		TenantID:               tenantUUID,
 		ProviderSubscriptionID: subscription.ID,
 		EventType:              string(event.Type),
@@ -529,7 +528,7 @@ func (h *StripeHandler) handleSubscriptionUpdated(event stripe.Event) {
 
 	// Sync subscription from Stripe
 	ctx := context.Background()
-	err := h.subscriptionService.SyncSubscriptionFromWebhook(ctx, service.SyncSubscriptionParams{
+	err := h.subscriptionService.SyncSubscriptionFromWebhook(ctx, domain.SyncSubscriptionParams{
 		TenantID:               tenantUUID,
 		ProviderSubscriptionID: subscription.ID,
 		EventType:              string(event.Type),
@@ -582,7 +581,7 @@ func (h *StripeHandler) handleSubscriptionDeleted(event stripe.Event) {
 
 	// Sync subscription from Stripe (will update to expired)
 	ctx := context.Background()
-	err := h.subscriptionService.SyncSubscriptionFromWebhook(ctx, service.SyncSubscriptionParams{
+	err := h.subscriptionService.SyncSubscriptionFromWebhook(ctx, domain.SyncSubscriptionParams{
 		TenantID:               tenantUUID,
 		ProviderSubscriptionID: subscription.ID,
 		EventType:              string(event.Type),

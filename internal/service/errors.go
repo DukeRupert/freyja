@@ -15,34 +15,34 @@ var (
 	ErrInvalidQuantity  = domain.ErrInvalidQuantity
 )
 
-// Order-related errors
+// Order-related errors - re-exported from domain
 var (
-	ErrOrderNotFound            = domain.Errorf(domain.ENOTFOUND, "", "Order not found")
-	ErrPaymentNotSucceeded      = domain.Errorf(domain.EPAYMENT, "", "Payment has not succeeded")
-	ErrTenantMismatch           = domain.ErrTenantMismatch
-	ErrCartAlreadyConverted     = domain.Errorf(domain.ECONFLICT, "", "Cart already converted to order")
-	ErrInsufficientStock        = domain.Errorf(domain.ECONFLICT, "", "Insufficient stock for one or more items")
-	ErrMissingCartID            = domain.Errorf(domain.EINVALID, "", "Cart ID missing from payment metadata")
-	ErrPaymentAlreadyProcessed  = domain.Errorf(domain.ECONFLICT, "", "Payment intent already processed")
-	ErrEmptyCart                = domain.Errorf(domain.EINVALID, "", "Cart is empty")
-	ErrMissingShippingAddress   = domain.Errorf(domain.EINVALID, "", "Shipping address missing from payment metadata")
-	ErrMissingBillingAddress    = domain.Errorf(domain.EINVALID, "", "Billing address missing from payment metadata")
-	ErrMissingCustomerEmail     = domain.Errorf(domain.EINVALID, "", "Customer email required for guest checkout")
-	ErrInvalidAddressJSON       = domain.Errorf(domain.EINVALID, "", "Address JSON is empty or invalid")
+	ErrOrderNotFound           = domain.ErrOrderNotFound
+	ErrPaymentNotSucceeded     = domain.ErrPaymentNotSucceeded
+	ErrTenantMismatch          = domain.ErrTenantMismatch
+	ErrCartAlreadyConverted    = domain.ErrCartAlreadyConverted
+	ErrInsufficientStock       = domain.ErrInsufficientStock
+	ErrMissingCartID           = domain.ErrMissingCartID
+	ErrPaymentAlreadyProcessed = domain.ErrPaymentAlreadyProcessed
+	ErrEmptyCart               = domain.ErrEmptyCart
+	ErrMissingShippingAddress  = domain.ErrMissingShippingAddress
+	ErrMissingBillingAddress   = domain.ErrMissingBillingAddress
+	ErrMissingCustomerEmail    = domain.ErrMissingCustomerEmail
+	ErrInvalidAddressJSON      = domain.ErrInvalidAddressJSON
 )
 
-// Subscription-related errors
+// Subscription-related errors - re-exported from domain
 var (
-	ErrSubscriptionNotFound       = domain.Errorf(domain.ENOTFOUND, "", "Subscription not found")
-	ErrNoPaymentMethod            = domain.Errorf(domain.EPAYMENT, "", "No payment method on file")
-	ErrInvalidBillingInterval     = domain.Errorf(domain.EINVALID, "", "Invalid billing interval")
-	ErrSubscriptionNotActive      = domain.Errorf(domain.EINVALID, "", "Subscription is not active")
-	ErrSubscriptionNotPaused      = domain.Errorf(domain.EINVALID, "", "Subscription is not paused")
-	ErrInvoiceNotFound            = domain.Errorf(domain.ENOTFOUND, "", "Invoice not found")
-	ErrInvoiceAlreadyProcessed    = domain.Errorf(domain.ECONFLICT, "", "Invoice already processed")
-	ErrPaymentMethodOwnership     = domain.Errorf(domain.EINVALID, "", "Payment method does not belong to user")
-	ErrInvoiceNotSubscription     = domain.Errorf(domain.EINVALID, "", "Invoice is not for a subscription")
-	ErrSubscriptionHasNoItems     = domain.Errorf(domain.EINVALID, "", "Subscription has no items")
+	ErrSubscriptionNotFound    = domain.ErrSubscriptionNotFound
+	ErrNoPaymentMethod         = domain.ErrNoPaymentMethod
+	ErrInvalidBillingInterval  = domain.ErrInvalidBillingInterval
+	ErrSubscriptionNotActive   = domain.ErrSubscriptionNotActive
+	ErrSubscriptionNotPaused   = domain.ErrSubscriptionNotPaused
+	ErrInvoiceNotFound         = domain.ErrInvoiceNotFound
+	ErrInvoiceAlreadyProcessed = domain.ErrInvoiceAlreadyProcessed
+	ErrPaymentMethodOwnership  = domain.ErrPaymentMethodOwnership
+	ErrInvoiceNotSubscription  = domain.ErrInvoiceNotSubscription
+	ErrSubscriptionHasNoItems  = domain.ErrSubscriptionHasNoItems
 )
 
 // Payment terms errors

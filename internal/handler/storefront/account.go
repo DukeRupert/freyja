@@ -27,7 +27,7 @@ import (
 // - Profile settings
 type AccountHandler struct {
 	accountService      service.AccountService
-	subscriptionService service.SubscriptionService
+	subscriptionService domain.SubscriptionService
 	repo                repository.Querier
 	renderer            *handler.Renderer
 	tenantID            pgtype.UUID
@@ -37,7 +37,7 @@ type AccountHandler struct {
 // NewAccountHandler creates a new consolidated account handler
 func NewAccountHandler(
 	accountService service.AccountService,
-	subscriptionService service.SubscriptionService,
+	subscriptionService domain.SubscriptionService,
 	repo repository.Querier,
 	renderer *handler.Renderer,
 	tenantID string,
@@ -80,7 +80,7 @@ func (h *AccountHandler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	// Get subscription counts
 	subscriptionCounts, err := h.subscriptionService.GetSubscriptionCountsForUser(ctx, h.tenantID, user.ID)
 	if err != nil {
-		subscriptionCounts = service.SubscriptionCounts{}
+		subscriptionCounts = domain.SubscriptionCounts{}
 	}
 
 	data := BaseTemplateData(r)
@@ -799,7 +799,7 @@ func (h *AccountHandler) PaymentMethodPortal(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Create portal session with return URL to payment methods page
-	portalURL, err := h.subscriptionService.CreateCustomerPortalSession(ctx, service.PortalSessionParams{
+	portalURL, err := h.subscriptionService.CreateCustomerPortalSession(ctx, domain.PortalSessionParams{
 		TenantID:  h.tenantID,
 		UserID:    user.ID,
 		ReturnURL: "/account/payment-methods",

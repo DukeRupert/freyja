@@ -6,6 +6,21 @@ import (
 	"github.com/dukerupert/freyja/internal/repository"
 )
 
+// Order-related domain errors.
+var (
+	ErrOrderNotFound           = &Error{Code: ENOTFOUND, Message: "Order not found"}
+	ErrPaymentNotSucceeded     = &Error{Code: EPAYMENT, Message: "Payment has not succeeded"}
+	ErrCartAlreadyConverted    = &Error{Code: ECONFLICT, Message: "Cart already converted to order"}
+	ErrInsufficientStock       = &Error{Code: ECONFLICT, Message: "Insufficient stock for one or more items"}
+	ErrMissingCartID           = &Error{Code: EINVALID, Message: "Cart ID missing from payment metadata"}
+	ErrPaymentAlreadyProcessed = &Error{Code: ECONFLICT, Message: "Payment intent already processed"}
+	ErrEmptyCart               = &Error{Code: EINVALID, Message: "Cart is empty"}
+	ErrMissingShippingAddress  = &Error{Code: EINVALID, Message: "Shipping address missing from payment metadata"}
+	ErrMissingBillingAddress   = &Error{Code: EINVALID, Message: "Billing address missing from payment metadata"}
+	ErrMissingCustomerEmail    = &Error{Code: EINVALID, Message: "Customer email required for guest checkout"}
+	ErrInvalidAddressJSON      = &Error{Code: EINVALID, Message: "Address JSON is empty or invalid"}
+)
+
 // OrderService provides business logic for order operations.
 // Implementations should be tenant-scoped.
 type OrderService interface {

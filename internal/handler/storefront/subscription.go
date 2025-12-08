@@ -19,7 +19,7 @@ import (
 // - Subscription checkout
 // - Subscription creation
 type SubscriptionHandler struct {
-	subscriptionService service.SubscriptionService
+	subscriptionService domain.SubscriptionService
 	productService      domain.ProductService
 	accountService      service.AccountService
 	renderer            *handler.Renderer
@@ -28,7 +28,7 @@ type SubscriptionHandler struct {
 
 // NewSubscriptionHandler creates a new consolidated subscription handler
 func NewSubscriptionHandler(
-	subscriptionService service.SubscriptionService,
+	subscriptionService domain.SubscriptionService,
 	productService domain.ProductService,
 	accountService service.AccountService,
 	renderer *handler.Renderer,
@@ -63,7 +63,7 @@ func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	subscriptions, err := h.subscriptionService.ListSubscriptionsForUser(ctx, service.ListSubscriptionsParams{
+	subscriptions, err := h.subscriptionService.ListSubscriptionsForUser(ctx, domain.ListSubscriptionsParams{
 		TenantID: h.tenantID,
 		UserID:   user.ID,
 		Limit:    50,
@@ -109,7 +109,7 @@ func (h *SubscriptionHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	subscription, err := h.subscriptionService.GetSubscription(ctx, service.GetSubscriptionParams{
+	subscription, err := h.subscriptionService.GetSubscription(ctx, domain.GetSubscriptionParams{
 		TenantID:               h.tenantID,
 		SubscriptionID:         subscriptionID,
 		UserID:                 user.ID, // Include user ID for ownership validation
@@ -148,7 +148,7 @@ func (h *SubscriptionHandler) Portal(w http.ResponseWriter, r *http.Request) {
 		returnURL = "/account/subscriptions"
 	}
 
-	portalURL, err := h.subscriptionService.CreateCustomerPortalSession(ctx, service.PortalSessionParams{
+	portalURL, err := h.subscriptionService.CreateCustomerPortalSession(ctx, domain.PortalSessionParams{
 		TenantID:  h.tenantID,
 		UserID:    user.ID,
 		ReturnURL: returnURL,
@@ -199,11 +199,11 @@ func (h *SubscriptionHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if billingInterval == "" {
-		billingInterval = service.BillingIntervalMonthly
+		billingInterval = domain.BillingIntervalMonthly
 	}
 
 	// Validate billing interval
-	if !service.IsValidBillingInterval(billingInterval) {
+	if !domain.IsValidBillingInterval(billingInterval) {
 		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid billing interval"))
 		return
 	}
@@ -236,7 +236,7 @@ func (h *SubscriptionHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 	data["SKU"] = skuDetail
 	data["Quantity"] = quantity
 	data["BillingInterval"] = billingInterval
-	data["BillingIntervals"] = service.ValidBillingIntervals
+	data["BillingIntervals"] = domain.ValidBillingIntervals
 	data["Addresses"] = addresses
 	data["PaymentMethods"] = paymentMethods
 	data["SubtotalCents"] = subtotalCents
@@ -307,13 +307,13 @@ func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate billing interval
-	if !service.IsValidBillingInterval(billingInterval) {
+	if !domain.IsValidBillingInterval(billingInterval) {
 		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid billing interval"))
 		return
 	}
 
 	// Create subscription
-	subscription, err := h.subscriptionService.CreateSubscription(ctx, service.CreateSubscriptionParams{
+	subscription, err := h.subscriptionService.CreateSubscription(ctx, domain.CreateSubscriptionParams{
 		TenantID:          h.tenantID,
 		UserID:            user.ID,
 		ProductSKUID:      productSKUID,
