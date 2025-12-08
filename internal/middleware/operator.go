@@ -111,7 +111,7 @@ func RequireActiveTenant(queries *repository.Queries) func(http.Handler) http.Ha
 			operator := GetOperatorFromContext(r.Context())
 			if operator == nil {
 				// Should not happen if RequireOperator was used first
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				respondUnauthorized(w, r)
 				return
 			}
 
@@ -122,7 +122,7 @@ func RequireActiveTenant(queries *repository.Queries) func(http.Handler) http.Ha
 					"tenant_id", operator.TenantID,
 					"error", err,
 				)
-				http.Error(w, "Failed to verify subscription", http.StatusInternalServerError)
+				respondInternalError(w, r, err)
 				return
 			}
 
@@ -174,7 +174,7 @@ func RequireOwner(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		operator := GetOperatorFromContext(r.Context())
 		if operator == nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			respondUnauthorized(w, r)
 			return
 		}
 
@@ -184,7 +184,7 @@ func RequireOwner(next http.Handler) http.Handler {
 				"role", operator.Role,
 				"path", r.URL.Path,
 			)
-			http.Error(w, "Forbidden", http.StatusForbidden)
+			respondForbidden(w, r)
 			return
 		}
 
