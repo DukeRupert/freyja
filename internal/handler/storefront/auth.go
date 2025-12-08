@@ -13,6 +13,9 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+// _ asserts that domain packages are imported for type references
+var _ = domain.ErrUserNotFound
+
 const (
 	sessionCookieName = "freyja_session"
 	sessionMaxAge     = 30 * 24 * 60 * 60 // 30 days in seconds
@@ -24,7 +27,7 @@ const (
 // - Password reset (forgot and reset)
 // - Email verification (verify and resend)
 type AuthHandler struct {
-	userService          service.UserService
+	userService          domain.UserService
 	verificationService  service.EmailVerificationService
 	passwordResetService service.PasswordResetService
 	repo                 repository.Querier
@@ -34,7 +37,7 @@ type AuthHandler struct {
 
 // NewAuthHandler creates a new consolidated auth handler
 func NewAuthHandler(
-	userService service.UserService,
+	userService domain.UserService,
 	verificationService service.EmailVerificationService,
 	passwordResetService service.PasswordResetService,
 	repo repository.Querier,

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/billing"
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/jobs"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/google/uuid"
@@ -157,7 +158,7 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, params CreateInvoice
 	// Get user
 	user, err := s.repo.GetUserByID(ctx, userID)
 	if err != nil {
-		return nil, ErrUserNotFound
+		return nil, domain.ErrUserNotFound
 	}
 
 	// Verify user is wholesale

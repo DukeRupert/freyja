@@ -2,13 +2,11 @@ package middleware
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
 
-	"github.com/dukerupert/freyja/internal/repository"
-	"github.com/dukerupert/freyja/internal/service"
+	"github.com/dukerupert/freyja/internal/domain"
 )
 
 type contextKey string
@@ -22,7 +20,7 @@ const (
 
 // WithUser extracts the user from the session cookie and adds it to the request context
 // This middleware is optional - it adds the user if present but doesn't require authentication
-func WithUser(userService service.UserService) func(http.Handler) http.Handler {
+func WithUser(userService domain.UserService) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Try to get session cookie
@@ -37,7 +35,7 @@ func WithUser(userService service.UserService) func(http.Handler) http.Handler {
 			user, err := userService.GetUserBySessionToken(r.Context(), cookie.Value)
 			if err != nil {
 				// Log auth errors for debugging (except expected ones like expired sessions)
-				if !errors.Is(err, service.ErrSessionExpired) && !errors.Is(err, service.ErrUserNotFound) {
+				if domain.ErrorCode(err) != domain.EUNAUTHORIZED && domain.ErrorCode(err) != domain.ENOTFOUND {
 					slog.Warn("auth: failed to get user from session",
 						"error", err,
 						"path", r.URL.Path,
@@ -83,7 +81,7 @@ func RequireAdmin(next http.Handler) http.Handler {
 			return
 		}
 
-		if user.AccountType != "admin" {
+		if user.AccountType != domain.UserAccountTypeAdmin {
 			// User is authenticated but not an admin - redirect to storefront
 			// This is friendlier than showing a 403 error
 			http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -96,8 +94,8 @@ func RequireAdmin(next http.Handler) http.Handler {
 
 // GetUserFromContext retrieves the user from the request context
 // Returns nil if no user is authenticated
-func GetUserFromContext(ctx context.Context) *repository.User {
-	user, ok := ctx.Value(UserContextKey).(*repository.User)
+func GetUserFromContext(ctx context.Context) *domain.Customer {
+	user, ok := ctx.Value(UserContextKey).(*domain.Customer)
 	if !ok {
 		return nil
 	}

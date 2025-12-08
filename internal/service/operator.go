@@ -139,12 +139,12 @@ func (s *operatorService) Authenticate(ctx context.Context, email, password stri
 
 	// Verify password
 	if !operator.PasswordHash.Valid {
-		return nil, ErrInvalidPassword
+		return nil, domain.ErrInvalidPassword
 	}
 
 	if err := auth.VerifyPassword(password, operator.PasswordHash.String); err != nil {
 		if errors.Is(err, auth.ErrPasswordMismatch) {
-			return nil, ErrInvalidPassword
+			return nil, domain.ErrInvalidPassword
 		}
 		return nil, fmt.Errorf("failed to verify password: %w", err)
 	}
@@ -198,14 +198,14 @@ func (s *operatorService) GetOperatorBySessionToken(ctx context.Context, rawToke
 	session, err := s.repo.GetOperatorSessionByTokenHash(ctx, tokenHash)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrSessionExpired
+			return nil, domain.ErrSessionExpired
 		}
 		return nil, fmt.Errorf("failed to get session: %w", err)
 	}
 
 	// Session expiry is checked in the query, but double-check
 	if session.ExpiresAt.Valid && session.ExpiresAt.Time.Before(time.Now()) {
-		return nil, ErrSessionExpired
+		return nil, domain.ErrSessionExpired
 	}
 
 	// Get operator

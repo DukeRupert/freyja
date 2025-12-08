@@ -8,7 +8,6 @@ import (
 	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
-	"github.com/dukerupert/freyja/internal/service"
 )
 
 const (
@@ -18,12 +17,12 @@ const (
 
 // LoginHandler handles the admin login page and form submission
 type LoginHandler struct {
-	userService service.UserService
+	userService domain.UserService
 	renderer    *handler.Renderer
 }
 
 // NewLoginHandler creates a new admin login handler
-func NewLoginHandler(userService service.UserService, renderer *handler.Renderer) *LoginHandler {
+func NewLoginHandler(userService domain.UserService, renderer *handler.Renderer) *LoginHandler {
 	return &LoginHandler{
 		userService: userService,
 		renderer:    renderer,
@@ -98,9 +97,9 @@ func (h *LoginHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 			errMsg = "Invalid email or password"
 		case domain.EFORBIDDEN:
 			// Could be suspended or email not verified
-			if domain.ErrorMessage(err) == service.ErrAccountSuspended.Error() {
+			if domain.ErrorMessage(err) == domain.ErrAccountSuspended.Error() {
 				errMsg = "Your account has been suspended"
-			} else if domain.ErrorMessage(err) == service.ErrEmailNotVerified.Error() {
+			} else if domain.ErrorMessage(err) == domain.ErrEmailNotVerified.Error() {
 				errMsg = "Please verify your email before logging in"
 			} else {
 				errMsg = domain.ErrorMessage(err)
@@ -115,7 +114,7 @@ func (h *LoginHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify user is an admin
-	if user.AccountType != "admin" {
+	if user.AccountType != domain.UserAccountTypeAdmin {
 		// Audit log: non-admin attempted admin login
 		slog.Warn("admin: non-admin login attempt",
 			"email", email,
@@ -169,11 +168,11 @@ func (h *LoginHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 
 // LogoutHandler handles admin logout
 type LogoutHandler struct {
-	userService service.UserService
+	userService domain.UserService
 }
 
 // NewLogoutHandler creates a new admin logout handler
-func NewLogoutHandler(userService service.UserService) *LogoutHandler {
+func NewLogoutHandler(userService domain.UserService) *LogoutHandler {
 	return &LogoutHandler{
 		userService: userService,
 	}

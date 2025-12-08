@@ -119,7 +119,7 @@ func run() error {
 		return fmt.Errorf("failed to initialize cart service: %w", err)
 	}
 
-	userService, err := service.NewUserService(repo, cfg.TenantID)
+	userService, err := postgres.NewUserService(repo, cfg.TenantID)
 	if err != nil {
 		return fmt.Errorf("failed to initialize user service: %w", err)
 	}
