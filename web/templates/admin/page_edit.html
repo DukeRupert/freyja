@@ -237,6 +237,7 @@
 
     <!-- Edit Form -->
     <form method="POST" action="/admin/settings/pages/{{.Slug}}" class="space-y-6">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
         <!-- Page Settings -->
         <div class="overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10 p-6">
             <h3 class="text-base font-semibold text-zinc-900 dark:text-white mb-4">Page Settings</h3>

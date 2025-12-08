@@ -23,6 +23,8 @@
             -moz-osx-font-smoothing: grayscale;
         }
     </style>
+
+    {{block "head" .}}{{end}}
 </head>
 <body class="bg-zinc-50 dark:bg-zinc-950">
     <!-- Admin Header -->
@@ -99,13 +101,25 @@
                         </a>
                         <a href="/admin/settings/integrations"
                            class="relative px-3 py-2 text-sm/6 font-medium transition
-                                  {{if hasPrefix .CurrentPath "/admin/settings"}}
+                                  {{if and (hasPrefix .CurrentPath "/admin/settings") (not (hasPrefix .CurrentPath "/admin/settings/pages"))}}
                                       text-zinc-950 dark:text-white
                                   {{else}}
                                       text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white
                                   {{end}}">
                             Settings
-                            {{if hasPrefix .CurrentPath "/admin/settings"}}
+                            {{if and (hasPrefix .CurrentPath "/admin/settings") (not (hasPrefix .CurrentPath "/admin/settings/pages"))}}
+                            <span class="absolute inset-x-0 -bottom-[17px] h-0.5 bg-zinc-950 dark:bg-white"></span>
+                            {{end}}
+                        </a>
+                        <a href="/admin/settings/pages"
+                           class="relative px-3 py-2 text-sm/6 font-medium transition
+                                  {{if hasPrefix .CurrentPath "/admin/settings/pages"}}
+                                      text-zinc-950 dark:text-white
+                                  {{else}}
+                                      text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white
+                                  {{end}}">
+                            Pages
+                            {{if hasPrefix .CurrentPath "/admin/settings/pages"}}
                             <span class="absolute inset-x-0 -bottom-[17px] h-0.5 bg-zinc-950 dark:bg-white"></span>
                             {{end}}
                         </a>
@@ -197,12 +211,21 @@
                 </a>
                 <a href="/admin/settings/integrations"
                    class="block rounded-lg px-3 py-2 text-base font-medium
-                          {{if hasPrefix .CurrentPath "/admin/settings"}}
+                          {{if and (hasPrefix .CurrentPath "/admin/settings") (not (hasPrefix .CurrentPath "/admin/settings/pages"))}}
                               bg-zinc-950/5 text-zinc-950 dark:bg-white/5 dark:text-white
                           {{else}}
                               text-zinc-500 hover:bg-zinc-950/5 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white
                           {{end}}">
                     Settings
+                </a>
+                <a href="/admin/settings/pages"
+                   class="block rounded-lg px-3 py-2 text-base font-medium
+                          {{if hasPrefix .CurrentPath "/admin/settings/pages"}}
+                              bg-zinc-950/5 text-zinc-950 dark:bg-white/5 dark:text-white
+                          {{else}}
+                              text-zinc-500 hover:bg-zinc-950/5 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white
+                          {{end}}">
+                    Pages
                 </a>
                 <div class="border-t border-zinc-950/10 my-2 dark:border-white/10"></div>
                 <a href="/"

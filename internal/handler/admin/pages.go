@@ -7,6 +7,7 @@ import (
 
 	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
+	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -141,6 +142,11 @@ func (h *PageHandler) EditPage(w http.ResponseWriter, r *http.Request) {
 			"IsPublished":      page.IsPublished,
 			"IsNew":            false,
 		}
+	}
+
+	// Add CSRF token
+	if csrfToken := middleware.GetCSRFToken(ctx); csrfToken != "" {
+		pageData["CSRFToken"] = csrfToken
 	}
 
 	h.renderer.RenderHTTP(w, "admin/page_edit", pageData)
