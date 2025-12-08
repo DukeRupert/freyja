@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/repository"
@@ -81,7 +82,7 @@ func (h *WholesaleApplicationHandler) Submit(w http.ResponseWriter, r *http.Requ
 
 	user := middleware.GetUserFromContext(ctx)
 	if user == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		handler.UnauthorizedResponse(w, r)
 		return
 	}
 
@@ -241,5 +242,5 @@ func (h *WholesaleApplicationHandler) renderError(w http.ResponseWriter, r *http
 		w.Write([]byte(fmt.Sprintf(`<p class="text-red-600 text-sm">%s</p>`, message)))
 		return
 	}
-	http.Error(w, message, http.StatusBadRequest)
+	handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", message))
 }

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/repository"
@@ -103,7 +104,7 @@ func (h *WholesaleOrderingHandler) Order(w http.ResponseWriter, r *http.Request)
 		// Fall back to default price list
 		priceList, err := h.repo.GetDefaultPriceList(ctx, h.tenantID)
 		if err != nil {
-			http.Error(w, "Failed to load pricing", http.StatusInternalServerError)
+			handler.InternalErrorResponse(w, r, err)
 			return
 		}
 		priceListID = priceList.ID
@@ -115,7 +116,7 @@ func (h *WholesaleOrderingHandler) Order(w http.ResponseWriter, r *http.Request)
 		PriceListID: priceListID,
 	})
 	if err != nil {
-		http.Error(w, "Failed to load products", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -147,12 +148,12 @@ func (h *WholesaleOrderingHandler) BatchAdd(w http.ResponseWriter, r *http.Reque
 
 	user := middleware.GetUserFromContext(ctx)
 	if user == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		handler.UnauthorizedResponse(w, r)
 		return
 	}
 
 	if user.AccountType != "wholesale" {
-		http.Error(w, "Wholesale account required", http.StatusForbidden)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EFORBIDDEN, "", "Wholesale account required"))
 		return
 	}
 
@@ -165,7 +166,7 @@ func (h *WholesaleOrderingHandler) BatchAdd(w http.ResponseWriter, r *http.Reque
 	sessionID := GetSessionIDFromCookie(r)
 	cart, newSessionID, err := h.cartService.GetOrCreateCart(ctx, sessionID)
 	if err != nil {
-		http.Error(w, "Cart error", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -312,5 +313,5 @@ func (h *WholesaleOrderingHandler) renderError(w http.ResponseWriter, r *http.Re
 		w.Write([]byte(fmt.Sprintf(`<div class="rounded-md bg-red-50 p-4"><p class="text-sm text-red-700">%s</p></div>`, message)))
 		return
 	}
-	http.Error(w, message, http.StatusBadRequest)
+	handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", message))
 }
