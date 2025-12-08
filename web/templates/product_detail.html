@@ -19,7 +19,7 @@
     <div>
       <div class="aspect-square bg-neutral-100 rounded-lg overflow-hidden flex items-center justify-center">
         {{if .Images}}
-        <img src="{{(index .Images 0).Url}}" alt="{{if (index .Images 0).AltText.Valid}}{{(index .Images 0).AltText.String}}{{else}}{{.Product.Name}}{{end}}" class="h-full w-full object-cover">
+        <img src="{{(index .Images 0).URL}}" alt="{{if (index .Images 0).AltText.Valid}}{{(index .Images 0).AltText.String}}{{else}}{{.Product.Name}}{{end}}" class="h-full w-full object-cover">
         {{else}}
         <svg class="w-32 h-32 text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
