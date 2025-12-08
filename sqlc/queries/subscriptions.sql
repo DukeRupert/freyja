@@ -289,7 +289,7 @@ SELECT
     s.created_at,
     s.updated_at,
     u.email as customer_email,
-    CONCAT(u.first_name, ' ', u.last_name) as customer_name
+    CONCAT(u.first_name, ' ', u.last_name)::TEXT as customer_name
 FROM subscriptions s
 LEFT JOIN users u ON u.id = s.user_id
 WHERE s.tenant_id = $1

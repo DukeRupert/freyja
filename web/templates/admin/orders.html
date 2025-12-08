@@ -54,10 +54,10 @@
                         </div>
                     </td>
                     <td class="px-6 py-4">
-                        {{if .CustomerName.Valid}}
+                        {{if .CustomerName}}
                         <div>
                             <div class="text-zinc-950 dark:text-white">
-                                {{.CustomerName.String}}
+                                {{.CustomerName}}
                             </div>
                             {{if .CustomerEmail.Valid}}
                             <div class="text-sm text-zinc-500 dark:text-zinc-400">

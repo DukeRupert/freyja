@@ -1268,7 +1268,7 @@ SELECT
     o.created_at,
     o.updated_at,
     u.email as customer_email,
-    CONCAT(u.first_name, ' ', u.last_name) as customer_name,
+    CONCAT(u.first_name, ' ', u.last_name)::TEXT as customer_name,
     sa.address_line1 as shipping_address_line1,
     sa.city as shipping_city,
     sa.state as shipping_state
@@ -1297,7 +1297,7 @@ type ListOrdersRow struct {
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
 	CustomerEmail        pgtype.Text        `json:"customer_email"`
-	CustomerName         interface{}        `json:"customer_name"`
+	CustomerName         string             `json:"customer_name"`
 	ShippingAddressLine1 pgtype.Text        `json:"shipping_address_line1"`
 	ShippingCity         pgtype.Text        `json:"shipping_city"`
 	ShippingState        pgtype.Text        `json:"shipping_state"`
@@ -1351,7 +1351,7 @@ SELECT
     o.currency,
     o.created_at,
     u.email as customer_email,
-    CONCAT(u.first_name, ' ', u.last_name) as customer_name
+    CONCAT(u.first_name, ' ', u.last_name)::TEXT as customer_name
 FROM orders o
 LEFT JOIN users u ON u.id = o.user_id
 WHERE o.tenant_id = $1
@@ -1374,7 +1374,7 @@ type ListOrdersByStatusRow struct {
 	Currency      string             `json:"currency"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	CustomerEmail pgtype.Text        `json:"customer_email"`
-	CustomerName  interface{}        `json:"customer_name"`
+	CustomerName  string             `json:"customer_name"`
 }
 
 // List orders filtered by status
@@ -1606,7 +1606,7 @@ SELECT
     o.created_at,
     u.email as customer_email,
     u.company_name,
-    CONCAT(u.first_name, ' ', u.last_name) as customer_name
+    CONCAT(u.first_name, ' ', u.last_name)::TEXT as customer_name
 FROM orders o
 JOIN users u ON u.id = o.user_id
 WHERE o.tenant_id = $1
@@ -1635,7 +1635,7 @@ type ListWholesaleOrdersRow struct {
 	CreatedAt             pgtype.Timestamptz `json:"created_at"`
 	CustomerEmail         string             `json:"customer_email"`
 	CompanyName           pgtype.Text        `json:"company_name"`
-	CustomerName          interface{}        `json:"customer_name"`
+	CustomerName          string             `json:"customer_name"`
 }
 
 // =============================================================================

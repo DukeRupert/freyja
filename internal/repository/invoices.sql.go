@@ -1042,7 +1042,7 @@ SELECT
     i.is_proforma,
     u.email as customer_email,
     u.company_name,
-    CONCAT(u.first_name, ' ', u.last_name) as customer_name
+    CONCAT(u.first_name, ' ', u.last_name)::TEXT as customer_name
 FROM invoices i
 JOIN users u ON u.id = i.user_id
 WHERE i.tenant_id = $1
@@ -1073,7 +1073,7 @@ type ListInvoicesRow struct {
 	IsProforma    bool               `json:"is_proforma"`
 	CustomerEmail string             `json:"customer_email"`
 	CompanyName   pgtype.Text        `json:"company_name"`
-	CustomerName  interface{}        `json:"customer_name"`
+	CustomerName  string             `json:"customer_name"`
 }
 
 // List all invoices for admin with customer details

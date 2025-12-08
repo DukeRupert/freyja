@@ -1035,7 +1035,7 @@ SELECT
     s.created_at,
     s.updated_at,
     u.email as customer_email,
-    CONCAT(u.first_name, ' ', u.last_name) as customer_name
+    CONCAT(u.first_name, ' ', u.last_name)::TEXT as customer_name
 FROM subscriptions s
 LEFT JOIN users u ON u.id = s.user_id
 WHERE s.tenant_id = $1
@@ -1061,7 +1061,7 @@ type ListSubscriptionsRow struct {
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 	CustomerEmail     pgtype.Text        `json:"customer_email"`
-	CustomerName      interface{}        `json:"customer_name"`
+	CustomerName      string             `json:"customer_name"`
 }
 
 // Admin queries

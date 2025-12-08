@@ -209,7 +209,7 @@ SELECT
     i.is_proforma,
     u.email as customer_email,
     u.company_name,
-    CONCAT(u.first_name, ' ', u.last_name) as customer_name
+    CONCAT(u.first_name, ' ', u.last_name)::TEXT as customer_name
 FROM invoices i
 JOIN users u ON u.id = i.user_id
 WHERE i.tenant_id = $1

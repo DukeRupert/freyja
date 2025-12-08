@@ -387,12 +387,6 @@ func (s *invoiceService) ListInvoices(ctx context.Context, limit, offset int32) 
 
 	summaries := make([]InvoiceSummary, len(rows))
 	for i, row := range rows {
-		// CustomerName is interface{} from CONCAT, convert to string
-		customerName := ""
-		if name, ok := row.CustomerName.(string); ok {
-			customerName = name
-		}
-
 		summaries[i] = InvoiceSummary{
 			ID:            row.ID,
 			InvoiceNumber: row.InvoiceNumber,
@@ -403,7 +397,7 @@ func (s *invoiceService) ListInvoices(ctx context.Context, limit, offset int32) 
 			DueDate:       row.DueDate,
 			CreatedAt:     row.CreatedAt,
 			CustomerEmail: row.CustomerEmail,
-			CustomerName:  customerName,
+			CustomerName:  row.CustomerName,
 			CompanyName:   row.CompanyName.String,
 			IsProforma:    row.IsProforma,
 		}

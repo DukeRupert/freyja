@@ -140,7 +140,7 @@ SELECT
     o.created_at,
     o.updated_at,
     u.email as customer_email,
-    CONCAT(u.first_name, ' ', u.last_name) as customer_name,
+    CONCAT(u.first_name, ' ', u.last_name)::TEXT as customer_name,
     sa.address_line1 as shipping_address_line1,
     sa.city as shipping_city,
     sa.state as shipping_state
@@ -212,7 +212,7 @@ SELECT
     o.currency,
     o.created_at,
     u.email as customer_email,
-    CONCAT(u.first_name, ' ', u.last_name) as customer_name
+    CONCAT(u.first_name, ' ', u.last_name)::TEXT as customer_name
 FROM orders o
 LEFT JOIN users u ON u.id = o.user_id
 WHERE o.tenant_id = $1
@@ -390,7 +390,7 @@ SELECT
     o.created_at,
     u.email as customer_email,
     u.company_name,
-    CONCAT(u.first_name, ' ', u.last_name) as customer_name
+    CONCAT(u.first_name, ' ', u.last_name)::TEXT as customer_name
 FROM orders o
 JOIN users u ON u.id = o.user_id
 WHERE o.tenant_id = $1

@@ -101,11 +101,6 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			createdAtFormatted = order.CreatedAt.Time.Format("Jan 2, 2006")
 		}
 
-		customerName := ""
-		if str, ok := order.CustomerName.(string); ok {
-			customerName = str
-		}
-
 		displayOrders[i] = DisplayOrder{
 			ID:                   order.ID,
 			OrderNumber:          order.OrderNumber,
@@ -117,7 +112,7 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			CreatedAt:            order.CreatedAt,
 			CreatedAtFormatted:   createdAtFormatted,
 			CustomerEmail:        order.CustomerEmail,
-			CustomerName:         customerName,
+			CustomerName:         order.CustomerName,
 			ShippingAddressLine1: order.ShippingAddressLine1,
 			ShippingCity:         order.ShippingCity,
 			ShippingState:        order.ShippingState,
