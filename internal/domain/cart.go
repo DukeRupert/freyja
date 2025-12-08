@@ -6,6 +6,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+// =============================================================================
+// CART DOMAIN ERRORS
+// =============================================================================
+
+var (
+	ErrCartNotFound     = &Error{Code: ENOTFOUND, Message: "Cart not found"}
+	ErrCartItemNotFound = &Error{Code: ENOTFOUND, Message: "Cart item not found"}
+	ErrSessionNotFound  = &Error{Code: ENOTFOUND, Message: "Session not found"}
+	ErrInvalidQuantity  = &Error{Code: EINVALID, Message: "Quantity must be greater than 0"}
+)
+
 // CartService provides business logic for shopping cart operations.
 // Implementations should be tenant-scoped.
 type CartService interface {

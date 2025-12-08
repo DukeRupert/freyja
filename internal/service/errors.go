@@ -4,19 +4,15 @@ import (
 	"github.com/dukerupert/freyja/internal/domain"
 )
 
-// Product/SKU errors - use domain.ENOTFOUND
+// Product/SKU/Cart errors - re-exported from domain
 var (
-	ErrProductNotFound  = domain.Errorf(domain.ENOTFOUND, "", "Product not found")
-	ErrSKUNotFound      = domain.Errorf(domain.ENOTFOUND, "", "SKU not found")
-	ErrPriceNotFound    = domain.Errorf(domain.ENOTFOUND, "", "Price not found for this product")
-	ErrCartNotFound     = domain.Errorf(domain.ENOTFOUND, "", "Cart not found")
-	ErrCartItemNotFound = domain.Errorf(domain.ENOTFOUND, "", "Cart item not found")
-	ErrSessionNotFound  = domain.Errorf(domain.ENOTFOUND, "", "Session not found")
-)
-
-// Validation errors - use domain.EINVALID
-var (
-	ErrInvalidQuantity = domain.Errorf(domain.EINVALID, "", "Quantity must be greater than 0")
+	ErrProductNotFound  = domain.ErrProductNotFound
+	ErrSKUNotFound      = domain.ErrSKUNotFound
+	ErrPriceNotFound    = domain.ErrPriceNotFound
+	ErrCartNotFound     = domain.ErrCartNotFound
+	ErrCartItemNotFound = domain.ErrCartItemNotFound
+	ErrSessionNotFound  = domain.ErrSessionNotFound
+	ErrInvalidQuantity  = domain.ErrInvalidQuantity
 )
 
 // Order-related errors

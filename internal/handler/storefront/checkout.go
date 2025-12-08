@@ -21,7 +21,7 @@ import (
 // CheckoutHandler handles all checkout-related storefront routes
 type CheckoutHandler struct {
 	renderer             *handler.Renderer
-	cartService          service.CartService
+	cartService          domain.CartService
 	checkoutService      service.CheckoutService
 	orderService         service.OrderService
 	repo                 repository.Querier
@@ -32,7 +32,7 @@ type CheckoutHandler struct {
 // NewCheckoutHandler creates a new checkout handler
 func NewCheckoutHandler(
 	renderer *handler.Renderer,
-	cartService service.CartService,
+	cartService domain.CartService,
 	checkoutService service.CheckoutService,
 	orderService service.OrderService,
 	repo repository.Querier,

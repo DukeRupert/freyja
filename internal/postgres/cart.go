@@ -1,4 +1,4 @@
-package service
+package postgres
 
 import (
 	"context"
@@ -8,77 +8,39 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// CartService provides business logic for shopping cart operations
-type CartService interface {
-	GetOrCreateCart(ctx context.Context, sessionID string) (*Cart, string, error)
-	GetCart(ctx context.Context, sessionID string) (*Cart, error)
-	AddItem(ctx context.Context, cartID string, skuID string, quantity int) (*CartSummary, error)
-	UpdateItemQuantity(ctx context.Context, cartID string, skuID string, quantity int) (*CartSummary, error)
-	RemoveItem(ctx context.Context, cartID string, skuID string) (*CartSummary, error)
-	GetCartSummary(ctx context.Context, cartID string) (*CartSummary, error)
-	ClearCart(ctx context.Context, cartID string) error
-}
-
-// Cart represents a lightweight cart view model
-type Cart struct {
-	ID        pgtype.UUID
-	TenantID  pgtype.UUID
-	SessionID pgtype.UUID
-	CreatedAt pgtype.Timestamptz
-	UpdatedAt pgtype.Timestamptz
-}
-
-// CartSummary aggregates cart information with items and calculated totals
-type CartSummary struct {
-	Cart      Cart
-	Items     []CartItem
-	Subtotal  int32
-	ItemCount int
-}
-
-// CartItem represents a cart line item with product details and calculated totals
-type CartItem struct {
-	ID             pgtype.UUID
-	SKUID          pgtype.UUID
-	ProductName    string
-	SKU            string
-	WeightValue    string
-	Grind          string
-	Quantity       int32
-	UnitPriceCents int32
-	LineSubtotal   int32
-	ImageURL       string
-}
-
-type cartService struct {
+// CartService implements domain.CartService using PostgreSQL.
+type CartService struct {
 	repo     repository.Querier
 	tenantID pgtype.UUID
 }
 
-// NewCartService creates a new CartService instance
-func NewCartService(repo repository.Querier, tenantID string) (CartService, error) {
+// Compile-time check that CartService implements domain.CartService.
+var _ domain.CartService = (*CartService)(nil)
+
+// NewCartService creates a new CartService instance.
+func NewCartService(repo repository.Querier, tenantID string) (*CartService, error) {
 	var tenantUUID pgtype.UUID
 	if err := tenantUUID.Scan(tenantID); err != nil {
 		return nil, fmt.Errorf("invalid tenant ID: %w", err)
 	}
 
-	return &cartService{
+	return &CartService{
 		repo:     repo,
 		tenantID: tenantUUID,
 	}, nil
 }
 
-// GetOrCreateCart retrieves an existing cart or creates a new session and cart
-// Returns the cart, session ID (new or existing), and any error
-func (s *cartService) GetOrCreateCart(ctx context.Context, sessionID string) (*Cart, string, error) {
+// GetOrCreateCart retrieves an existing cart or creates a new session and cart.
+func (s *CartService) GetOrCreateCart(ctx context.Context, sessionID string) (*domain.Cart, string, error) {
 	var sessionUUID pgtype.UUID
 
 	if sessionID == "" {
-		newSessionID, err := GenerateSessionID()
+		newSessionID, err := generateSessionID()
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to generate session ID: %w", err)
 		}
@@ -102,13 +64,7 @@ func (s *cartService) GetOrCreateCart(ctx context.Context, sessionID string) (*C
 		if err := sessionUUID.Scan(sessionID); err == nil {
 			cart, err := s.repo.GetCartBySessionID(ctx, sessionUUID)
 			if err == nil {
-				return &Cart{
-					ID:        cart.ID,
-					TenantID:  cart.TenantID,
-					SessionID: cart.SessionID,
-					CreatedAt: cart.CreatedAt,
-					UpdatedAt: cart.UpdatedAt,
-				}, sessionID, nil
+				return mapRepoCartToDomain(cart), sessionID, nil
 			}
 			if !errors.Is(err, sql.ErrNoRows) {
 				return nil, "", fmt.Errorf("failed to get cart by session ID: %w", err)
@@ -120,13 +76,7 @@ func (s *cartService) GetOrCreateCart(ctx context.Context, sessionID string) (*C
 
 				cart, err := s.repo.GetCartBySessionID(ctx, sessionUUID)
 				if err == nil {
-					return &Cart{
-						ID:        cart.ID,
-						TenantID:  cart.TenantID,
-						SessionID: cart.SessionID,
-						CreatedAt: cart.CreatedAt,
-						UpdatedAt: cart.UpdatedAt,
-					}, sessionID, nil
+					return mapRepoCartToDomain(cart), sessionID, nil
 				}
 				if !errors.Is(err, sql.ErrNoRows) {
 					return nil, "", fmt.Errorf("failed to get cart by session ID: %w", err)
@@ -160,41 +110,28 @@ func (s *cartService) GetOrCreateCart(ctx context.Context, sessionID string) (*C
 		return nil, "", fmt.Errorf("failed to create cart: %w", err)
 	}
 
-	return &Cart{
-		ID:        cart.ID,
-		TenantID:  cart.TenantID,
-		SessionID: cart.SessionID,
-		CreatedAt: cart.CreatedAt,
-		UpdatedAt: cart.UpdatedAt,
-	}, sessionID, nil
+	return mapRepoCartToDomain(cart), sessionID, nil
 }
 
-// GetCart retrieves an existing cart by session ID
-func (s *cartService) GetCart(ctx context.Context, sessionID string) (*Cart, error) {
+// GetCart retrieves an existing cart by session ID.
+func (s *CartService) GetCart(ctx context.Context, sessionID string) (*domain.Cart, error) {
 	var sessionUUID pgtype.UUID
 
 	if err := sessionUUID.Scan(sessionID); err == nil {
 		cart, err := s.repo.GetCartBySessionID(ctx, sessionUUID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				return nil, ErrCartNotFound
+				return nil, domain.ErrCartNotFound
 			}
 			return nil, fmt.Errorf("failed to get cart by session ID: %w", err)
 		}
-
-		return &Cart{
-			ID:        cart.ID,
-			TenantID:  cart.TenantID,
-			SessionID: cart.SessionID,
-			CreatedAt: cart.CreatedAt,
-			UpdatedAt: cart.UpdatedAt,
-		}, nil
+		return mapRepoCartToDomain(cart), nil
 	}
 
 	session, err := s.repo.GetSessionByToken(ctx, sessionID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrSessionNotFound
+			return nil, domain.ErrSessionNotFound
 		}
 		return nil, fmt.Errorf("failed to get session by token: %w", err)
 	}
@@ -202,24 +139,18 @@ func (s *cartService) GetCart(ctx context.Context, sessionID string) (*Cart, err
 	cart, err := s.repo.GetCartBySessionID(ctx, session.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrCartNotFound
+			return nil, domain.ErrCartNotFound
 		}
 		return nil, fmt.Errorf("failed to get cart by session ID: %w", err)
 	}
 
-	return &Cart{
-		ID:        cart.ID,
-		TenantID:  cart.TenantID,
-		SessionID: cart.SessionID,
-		CreatedAt: cart.CreatedAt,
-		UpdatedAt: cart.UpdatedAt,
-	}, nil
+	return mapRepoCartToDomain(cart), nil
 }
 
-// AddItem adds a product SKU to the cart or updates quantity if already present
-func (s *cartService) AddItem(ctx context.Context, cartID string, skuID string, quantity int) (*CartSummary, error) {
+// AddItem adds a product SKU to the cart or updates quantity if already present.
+func (s *CartService) AddItem(ctx context.Context, cartID string, skuID string, quantity int) (*domain.CartSummary, error) {
 	if quantity <= 0 {
-		return nil, ErrInvalidQuantity
+		return nil, domain.ErrInvalidQuantity
 	}
 
 	var cartUUID pgtype.UUID
@@ -235,7 +166,7 @@ func (s *cartService) AddItem(ctx context.Context, cartID string, skuID string, 
 	sku, err := s.repo.GetSKUByID(ctx, skuUUID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrSKUNotFound
+			return nil, domain.ErrSKUNotFound
 		}
 		return nil, fmt.Errorf("failed to get SKU: %w", err)
 	}
@@ -251,7 +182,7 @@ func (s *cartService) AddItem(ctx context.Context, cartID string, skuID string, 
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrPriceNotFound
+			return nil, domain.ErrPriceNotFound
 		}
 		return nil, fmt.Errorf("failed to get price for SKU: %w", err)
 	}
@@ -270,15 +201,14 @@ func (s *cartService) AddItem(ctx context.Context, cartID string, skuID string, 
 	return s.GetCartSummary(ctx, cartID)
 }
 
-// UpdateItemQuantity updates the quantity of a cart item
-// If quantity is 0, the item is removed
-func (s *cartService) UpdateItemQuantity(ctx context.Context, cartID string, skuID string, quantity int) (*CartSummary, error) {
+// UpdateItemQuantity updates the quantity of a cart item.
+func (s *CartService) UpdateItemQuantity(ctx context.Context, cartID string, skuID string, quantity int) (*domain.CartSummary, error) {
 	if quantity == 0 {
 		return s.RemoveItem(ctx, cartID, skuID)
 	}
 
 	if quantity < 0 {
-		return nil, ErrInvalidQuantity
+		return nil, domain.ErrInvalidQuantity
 	}
 
 	var cartUUID pgtype.UUID
@@ -303,8 +233,8 @@ func (s *cartService) UpdateItemQuantity(ctx context.Context, cartID string, sku
 	return s.GetCartSummary(ctx, cartID)
 }
 
-// RemoveItem removes a product SKU from the cart
-func (s *cartService) RemoveItem(ctx context.Context, cartID string, skuID string) (*CartSummary, error) {
+// RemoveItem removes a product SKU from the cart.
+func (s *CartService) RemoveItem(ctx context.Context, cartID string, skuID string) (*domain.CartSummary, error) {
 	var cartUUID pgtype.UUID
 	if err := cartUUID.Scan(cartID); err != nil {
 		return nil, fmt.Errorf("invalid cart ID: %w", err)
@@ -326,8 +256,8 @@ func (s *cartService) RemoveItem(ctx context.Context, cartID string, skuID strin
 	return s.GetCartSummary(ctx, cartID)
 }
 
-// GetCartSummary retrieves a cart with all items and calculated totals
-func (s *cartService) GetCartSummary(ctx context.Context, cartID string) (*CartSummary, error) {
+// GetCartSummary retrieves a cart with all items and calculated totals.
+func (s *CartService) GetCartSummary(ctx context.Context, cartID string) (*domain.CartSummary, error) {
 	var cartUUID pgtype.UUID
 	if err := cartUUID.Scan(cartID); err != nil {
 		return nil, fmt.Errorf("invalid cart ID: %w", err)
@@ -336,7 +266,7 @@ func (s *cartService) GetCartSummary(ctx context.Context, cartID string) (*CartS
 	cart, err := s.repo.GetCartByID(ctx, cartUUID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrCartNotFound
+			return nil, domain.ErrCartNotFound
 		}
 		return nil, fmt.Errorf("failed to get cart: %w", err)
 	}
@@ -346,7 +276,7 @@ func (s *cartService) GetCartSummary(ctx context.Context, cartID string) (*CartS
 		return nil, fmt.Errorf("failed to get cart items: %w", err)
 	}
 
-	cartItems := make([]CartItem, 0, len(items))
+	cartItems := make([]domain.CartItem, 0, len(items))
 	var subtotal int32
 	var itemCount int
 
@@ -359,7 +289,6 @@ func (s *cartService) GetCartSummary(ctx context.Context, cartID string) (*CartS
 		if item.WeightValue.Valid {
 			f, err := item.WeightValue.Float64Value()
 			if err == nil && f.Valid {
-				// Format without unnecessary decimal places (2 -> "2", 2.5 -> "2.5")
 				weightStr := strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.2f", f.Float64), "0"), ".")
 				weightValue = fmt.Sprintf("%s%s", weightStr, item.WeightUnit)
 			}
@@ -370,7 +299,7 @@ func (s *cartService) GetCartSummary(ctx context.Context, cartID string) (*CartS
 			imageURL = item.ImageUrl.String
 		}
 
-		cartItems = append(cartItems, CartItem{
+		cartItems = append(cartItems, domain.CartItem{
 			ID:             item.ID,
 			SKUID:          item.ProductSkuID,
 			ProductName:    item.ProductName,
@@ -384,22 +313,16 @@ func (s *cartService) GetCartSummary(ctx context.Context, cartID string) (*CartS
 		})
 	}
 
-	return &CartSummary{
-		Cart: Cart{
-			ID:        cart.ID,
-			TenantID:  cart.TenantID,
-			SessionID: cart.SessionID,
-			CreatedAt: cart.CreatedAt,
-			UpdatedAt: cart.UpdatedAt,
-		},
+	return &domain.CartSummary{
+		Cart:      *mapRepoCartToDomain(cart),
 		Items:     cartItems,
 		Subtotal:  subtotal,
 		ItemCount: itemCount,
 	}, nil
 }
 
-// ClearCart removes all items from a cart
-func (s *cartService) ClearCart(ctx context.Context, cartID string) error {
+// ClearCart removes all items from a cart.
+func (s *CartService) ClearCart(ctx context.Context, cartID string) error {
 	var cartUUID pgtype.UUID
 	if err := cartUUID.Scan(cartID); err != nil {
 		return fmt.Errorf("invalid cart ID: %w", err)
@@ -410,4 +333,15 @@ func (s *cartService) ClearCart(ctx context.Context, cartID string) error {
 	}
 
 	return nil
+}
+
+// mapRepoCartToDomain converts a repository.Cart to domain.Cart.
+func mapRepoCartToDomain(c repository.Cart) *domain.Cart {
+	return &domain.Cart{
+		ID:        c.ID,
+		TenantID:  c.TenantID,
+		SessionID: c.SessionID,
+		CreatedAt: c.CreatedAt,
+		UpdatedAt: c.UpdatedAt,
+	}
 }

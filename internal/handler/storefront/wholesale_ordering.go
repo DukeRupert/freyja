@@ -10,7 +10,6 @@ import (
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/repository"
-	"github.com/dukerupert/freyja/internal/service"
 	"github.com/dukerupert/freyja/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -18,7 +17,7 @@ import (
 // WholesaleOrderingHandler handles the wholesale ordering matrix view
 type WholesaleOrderingHandler struct {
 	repo        repository.Querier
-	cartService service.CartService
+	cartService domain.CartService
 	renderer    *handler.Renderer
 	tenantID    pgtype.UUID
 	secure      bool
@@ -27,7 +26,7 @@ type WholesaleOrderingHandler struct {
 // NewWholesaleOrderingHandler creates a new wholesale ordering handler
 func NewWholesaleOrderingHandler(
 	repo repository.Querier,
-	cartService service.CartService,
+	cartService domain.CartService,
 	renderer *handler.Renderer,
 	tenantID string,
 	secure bool,
@@ -125,7 +124,7 @@ func (h *WholesaleOrderingHandler) Order(w http.ResponseWriter, r *http.Request)
 
 	// Get current cart summary
 	sessionID := GetSessionIDFromCookie(r)
-	var cartSummary *service.CartSummary
+	var cartSummary *domain.CartSummary
 	if sessionID != "" {
 		cart, err := h.cartService.GetCart(ctx, sessionID)
 		if err == nil && cart != nil {

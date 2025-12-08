@@ -6,20 +6,19 @@ import (
 
 	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
-	"github.com/dukerupert/freyja/internal/service"
 	"github.com/dukerupert/freyja/internal/telemetry"
 )
 
 // CartHandler handles all cart-related storefront routes
 type CartHandler struct {
-	cartService service.CartService
+	cartService domain.CartService
 	renderer    *handler.Renderer
 	secure      bool
 	tenantID    string
 }
 
 // NewCartHandler creates a new cart handler
-func NewCartHandler(cartService service.CartService, renderer *handler.Renderer, secure bool, tenantID string) *CartHandler {
+func NewCartHandler(cartService domain.CartService, renderer *handler.Renderer, secure bool, tenantID string) *CartHandler {
 	return &CartHandler{
 		cartService: cartService,
 		renderer:    renderer,
@@ -33,7 +32,7 @@ func (h *CartHandler) View(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	sessionID := GetSessionIDFromCookie(r)
-	var summary *service.CartSummary
+	var summary *domain.CartSummary
 
 	if sessionID != "" {
 		cart, err := h.cartService.GetCart(ctx, sessionID)

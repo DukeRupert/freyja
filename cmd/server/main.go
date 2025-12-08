@@ -114,7 +114,7 @@ func run() error {
 		return fmt.Errorf("failed to initialize product service: %w", err)
 	}
 
-	cartService, err := service.NewCartService(repo, cfg.TenantID)
+	cartService, err := postgres.NewCartService(repo, cfg.TenantID)
 	if err != nil {
 		return fmt.Errorf("failed to initialize cart service: %w", err)
 	}

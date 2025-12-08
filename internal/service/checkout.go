@@ -110,7 +110,7 @@ type Order struct {
 // checkoutService implements CheckoutService.
 type checkoutService struct {
 	repo             repository.Querier
-	cartService      CartService
+	cartService      domain.CartService
 	billingProvider  billing.Provider
 	shippingProvider shipping.Provider
 	taxCalculator    tax.Calculator
@@ -121,7 +121,7 @@ type checkoutService struct {
 // NewCheckoutService creates a new CheckoutService instance.
 func NewCheckoutService(
 	repo repository.Querier,
-	cartService CartService,
+	cartService domain.CartService,
 	billingProvider billing.Provider,
 	shippingProvider shipping.Provider,
 	taxCalculator tax.Calculator,
@@ -309,7 +309,7 @@ func (s *checkoutService) CompleteCheckout(ctx context.Context, params CompleteC
 // Helper functions (package-private)
 
 // calculatePackage estimates package dimensions and weight from cart items.
-func calculatePackage(items []CartItem) shipping.Package {
+func calculatePackage(items []domain.CartItem) shipping.Package {
 	var totalBags int32
 	for _, item := range items {
 		totalBags += item.Quantity
