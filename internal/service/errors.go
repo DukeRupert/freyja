@@ -21,13 +21,18 @@ var (
 
 // Order-related errors
 var (
-	ErrOrderNotFound           = domain.Errorf(domain.ENOTFOUND, "", "Order not found")
-	ErrPaymentNotSucceeded     = domain.Errorf(domain.EPAYMENT, "", "Payment has not succeeded")
-	ErrTenantMismatch          = domain.ErrTenantMismatch
-	ErrCartAlreadyConverted    = domain.Errorf(domain.ECONFLICT, "", "Cart already converted to order")
-	ErrInsufficientStock       = domain.Errorf(domain.ECONFLICT, "", "Insufficient stock for one or more items")
-	ErrMissingCartID           = domain.Errorf(domain.EINVALID, "", "Cart ID missing from payment metadata")
-	ErrPaymentAlreadyProcessed = domain.Errorf(domain.ECONFLICT, "", "Payment intent already processed")
+	ErrOrderNotFound            = domain.Errorf(domain.ENOTFOUND, "", "Order not found")
+	ErrPaymentNotSucceeded      = domain.Errorf(domain.EPAYMENT, "", "Payment has not succeeded")
+	ErrTenantMismatch           = domain.ErrTenantMismatch
+	ErrCartAlreadyConverted     = domain.Errorf(domain.ECONFLICT, "", "Cart already converted to order")
+	ErrInsufficientStock        = domain.Errorf(domain.ECONFLICT, "", "Insufficient stock for one or more items")
+	ErrMissingCartID            = domain.Errorf(domain.EINVALID, "", "Cart ID missing from payment metadata")
+	ErrPaymentAlreadyProcessed  = domain.Errorf(domain.ECONFLICT, "", "Payment intent already processed")
+	ErrEmptyCart                = domain.Errorf(domain.EINVALID, "", "Cart is empty")
+	ErrMissingShippingAddress   = domain.Errorf(domain.EINVALID, "", "Shipping address missing from payment metadata")
+	ErrMissingBillingAddress    = domain.Errorf(domain.EINVALID, "", "Billing address missing from payment metadata")
+	ErrMissingCustomerEmail     = domain.Errorf(domain.EINVALID, "", "Customer email required for guest checkout")
+	ErrInvalidAddressJSON       = domain.Errorf(domain.EINVALID, "", "Address JSON is empty or invalid")
 )
 
 // Subscription-related errors

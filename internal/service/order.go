@@ -165,18 +165,18 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 		return nil, fmt.Errorf("failed to get cart items: %w", err)
 	}
 	if len(cartItems) == 0 {
-		return nil, fmt.Errorf("cart is empty")
+		return nil, ErrEmptyCart
 	}
 
 	// Step 7: Parse addresses from metadata
 	shippingJSON, ok := paymentIntent.Metadata["shipping_address"]
 	if !ok || shippingJSON == "" {
-		return nil, fmt.Errorf("shipping_address missing from payment metadata")
+		return nil, ErrMissingShippingAddress
 	}
 
 	billingJSON, ok := paymentIntent.Metadata["billing_address"]
 	if !ok || billingJSON == "" {
-		return nil, fmt.Errorf("billing_address missing from payment metadata")
+		return nil, ErrMissingBillingAddress
 	}
 
 	shippingAddr, err := parseAddress(shippingJSON)
@@ -241,7 +241,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 			customerEmail = paymentIntent.Metadata["customer_email"]
 		}
 		if customerEmail == "" {
-			return nil, fmt.Errorf("customer email required for guest checkout")
+			return nil, ErrMissingCustomerEmail
 		}
 
 		// Parse name from shipping address
@@ -526,7 +526,7 @@ type addressData struct {
 // parseAddress parses a JSON string into addressData
 func parseAddress(jsonStr string) (*addressData, error) {
 	if jsonStr == "" {
-		return nil, fmt.Errorf("address JSON is empty")
+		return nil, ErrInvalidAddressJSON
 	}
 
 	var addr addressData
