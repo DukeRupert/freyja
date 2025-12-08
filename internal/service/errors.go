@@ -37,13 +37,16 @@ var (
 
 // Subscription-related errors
 var (
-	ErrSubscriptionNotFound    = domain.Errorf(domain.ENOTFOUND, "", "Subscription not found")
-	ErrNoPaymentMethod         = domain.Errorf(domain.EPAYMENT, "", "No payment method on file")
-	ErrInvalidBillingInterval  = domain.Errorf(domain.EINVALID, "", "Invalid billing interval")
-	ErrSubscriptionNotActive   = domain.Errorf(domain.EINVALID, "", "Subscription is not active")
-	ErrSubscriptionNotPaused   = domain.Errorf(domain.EINVALID, "", "Subscription is not paused")
-	ErrInvoiceNotFound         = domain.Errorf(domain.ENOTFOUND, "", "Invoice not found")
-	ErrInvoiceAlreadyProcessed = domain.Errorf(domain.ECONFLICT, "", "Invoice already processed")
+	ErrSubscriptionNotFound       = domain.Errorf(domain.ENOTFOUND, "", "Subscription not found")
+	ErrNoPaymentMethod            = domain.Errorf(domain.EPAYMENT, "", "No payment method on file")
+	ErrInvalidBillingInterval     = domain.Errorf(domain.EINVALID, "", "Invalid billing interval")
+	ErrSubscriptionNotActive      = domain.Errorf(domain.EINVALID, "", "Subscription is not active")
+	ErrSubscriptionNotPaused      = domain.Errorf(domain.EINVALID, "", "Subscription is not paused")
+	ErrInvoiceNotFound            = domain.Errorf(domain.ENOTFOUND, "", "Invoice not found")
+	ErrInvoiceAlreadyProcessed    = domain.Errorf(domain.ECONFLICT, "", "Invoice already processed")
+	ErrPaymentMethodOwnership     = domain.Errorf(domain.EINVALID, "", "Payment method does not belong to user")
+	ErrInvoiceNotSubscription     = domain.Errorf(domain.EINVALID, "", "Invoice is not for a subscription")
+	ErrSubscriptionHasNoItems     = domain.Errorf(domain.EINVALID, "", "Subscription has no items")
 )
 
 // Payment terms errors

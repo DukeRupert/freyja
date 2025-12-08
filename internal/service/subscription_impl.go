@@ -111,7 +111,7 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 
 	// Validate payment method belongs to billing customer
 	if paymentMethod.BillingCustomerID.Bytes != billingCustomer.ID.Bytes {
-		return nil, fmt.Errorf("payment method does not belong to user")
+		return nil, ErrPaymentMethodOwnership
 	}
 
 	// Step 5: Calculate pricing
@@ -799,7 +799,7 @@ func (s *subscriptionService) CreateOrderFromSubscriptionInvoice(ctx context.Con
 
 	// Validate it's a subscription invoice
 	if invoice.SubscriptionID == "" {
-		return nil, fmt.Errorf("invoice is not for a subscription")
+		return nil, ErrInvoiceNotSubscription
 	}
 
 	// Step 2: Get local subscription by provider_subscription_id
@@ -835,7 +835,7 @@ func (s *subscriptionService) CreateOrderFromSubscriptionInvoice(ctx context.Con
 		return nil, fmt.Errorf("failed to get subscription items: %w", err)
 	}
 	if len(items) == 0 {
-		return nil, fmt.Errorf("subscription has no items")
+		return nil, ErrSubscriptionHasNoItems
 	}
 
 	// Step 5: Generate order number
