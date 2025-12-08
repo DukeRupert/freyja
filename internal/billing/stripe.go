@@ -89,7 +89,7 @@ func (s *StripeProvider) CreatePaymentIntent(ctx context.Context, params CreateP
 
 	// CRITICAL: Validate tenant_id is present for multi-tenant isolation
 	if params.Metadata == nil || params.Metadata["tenant_id"] == "" {
-		return nil, fmt.Errorf("tenant_id is required in metadata for multi-tenant isolation")
+		return nil, ErrMissingTenantID
 	}
 
 	piParams := &stripe.PaymentIntentParams{
@@ -127,13 +127,13 @@ func (s *StripeProvider) CreatePaymentIntent(ctx context.Context, params CreateP
 	// Validate shipping address when Stripe Tax is enabled
 	if params.EnableStripeTax {
 		if params.ShippingAddress == nil {
-			return nil, fmt.Errorf("shipping address is required when EnableStripeTax is true")
+			return nil, ErrMissingShippingAddress
 		}
 		if params.ShippingAddress.Country == "" {
-			return nil, fmt.Errorf("shipping address country is required for tax calculation")
+			return nil, ErrMissingCountry
 		}
 		if params.ShippingAddress.PostalCode == "" {
-			return nil, fmt.Errorf("shipping address postal code is required for tax calculation")
+			return nil, ErrMissingPostalCode
 		}
 
 		piParams.Shipping = &stripe.ShippingDetailsParams{
@@ -194,12 +194,12 @@ func (s *StripeProvider) CreatePaymentIntent(ctx context.Context, params CreateP
 //   - LastPaymentError: Details if payment failed
 func (s *StripeProvider) GetPaymentIntent(ctx context.Context, params GetPaymentIntentParams) (*PaymentIntent, error) {
 	if params.PaymentIntentID == "" {
-		return nil, fmt.Errorf("payment intent ID is required")
+		return nil, ErrMissingPaymentIntentID
 	}
 
 	// CRITICAL: Validate tenant_id is provided for multi-tenant isolation
 	if params.TenantID == "" {
-		return nil, fmt.Errorf("tenant_id is required for multi-tenant isolation")
+		return nil, ErrMissingTenantID
 	}
 
 	piParams := &stripe.PaymentIntentParams{}
@@ -245,12 +245,12 @@ func (s *StripeProvider) GetPaymentIntent(ctx context.Context, params GetPayment
 // Returns the updated PaymentIntent.
 func (s *StripeProvider) UpdatePaymentIntent(ctx context.Context, params UpdatePaymentIntentParams) (*PaymentIntent, error) {
 	if params.PaymentIntentID == "" {
-		return nil, fmt.Errorf("payment intent ID is required")
+		return nil, ErrMissingPaymentIntentID
 	}
 
 	// CRITICAL: Validate tenant_id is provided for multi-tenant isolation
 	if params.TenantID == "" {
-		return nil, fmt.Errorf("tenant_id is required for multi-tenant isolation")
+		return nil, ErrMissingTenantID
 	}
 
 	// First, verify the payment intent belongs to the requesting tenant
@@ -293,7 +293,7 @@ func (s *StripeProvider) UpdatePaymentIntent(ctx context.Context, params UpdateP
 
 	// Defensive: Ensure tenant_id still matches after update
 	if updated.Metadata["tenant_id"] != params.TenantID {
-		return nil, fmt.Errorf("tenant_id mismatch after update")
+		return nil, ErrTenantMismatch
 	}
 
 	return updated, nil
@@ -312,12 +312,12 @@ func (s *StripeProvider) UpdatePaymentIntent(ctx context.Context, params UpdateP
 // Returns error if payment intent is already succeeded or canceled.
 func (s *StripeProvider) CancelPaymentIntent(ctx context.Context, paymentIntentID string, tenantID string) error {
 	if paymentIntentID == "" {
-		return fmt.Errorf("payment intent ID is required")
+		return ErrMissingPaymentIntentID
 	}
 
 	// CRITICAL: Validate tenant_id is provided for multi-tenant isolation
 	if tenantID == "" {
-		return fmt.Errorf("tenant_id is required for multi-tenant isolation")
+		return ErrMissingTenantID
 	}
 
 	// Verify the payment intent belongs to the requesting tenant before canceling
@@ -412,7 +412,7 @@ func (s *StripeProvider) VerifyWebhookSignature(payload []byte, signature string
 // Returns Customer with Stripe ID for future reference.
 func (s *StripeProvider) CreateCustomer(ctx context.Context, params CreateCustomerParams) (*Customer, error) {
 	if params.Email == "" {
-		return nil, fmt.Errorf("email is required to create customer")
+		return nil, ErrMissingEmail
 	}
 
 	customerParams := &stripe.CustomerParams{
@@ -454,7 +454,7 @@ func (s *StripeProvider) CreateCustomer(ctx context.Context, params CreateCustom
 // Post-MVP feature for subscription management and payment method retrieval.
 func (s *StripeProvider) GetCustomer(ctx context.Context, customerID string) (*Customer, error) {
 	if customerID == "" {
-		return nil, fmt.Errorf("customer ID is required")
+		return nil, ErrMissingCustomerID
 	}
 
 	stripeCustomer, err := customer.Get(customerID, nil)
@@ -481,7 +481,7 @@ func (s *StripeProvider) GetCustomer(ctx context.Context, customerID string) (*C
 // If multiple customers exist with the same email, returns the most recent one.
 func (s *StripeProvider) GetCustomerByEmail(ctx context.Context, email string) (*Customer, error) {
 	if email == "" {
-		return nil, fmt.Errorf("email is required")
+		return nil, ErrMissingEmail
 	}
 
 	params := &stripe.CustomerListParams{
@@ -536,12 +536,12 @@ func (s *StripeProvider) UpdateCustomer(ctx context.Context, customerID string, 
 func (s *StripeProvider) CreateProduct(ctx context.Context, params CreateProductParams) (*Product, error) {
 	// Validate required params
 	if params.Name == "" {
-		return nil, fmt.Errorf("product name is required")
+		return nil, ErrMissingProductName
 	}
 
 	// CRITICAL: Validate tenant_id is present for multi-tenant isolation
 	if params.Metadata == nil || params.Metadata["tenant_id"] == "" {
-		return nil, fmt.Errorf("tenant_id is required in metadata for multi-tenant isolation")
+		return nil, ErrMissingTenantID
 	}
 
 	// Build Stripe product parameters
@@ -588,18 +588,18 @@ func (s *StripeProvider) CreateProduct(ctx context.Context, params CreateProduct
 func (s *StripeProvider) CreateSubscription(ctx context.Context, params CreateSubscriptionParams) (*Subscription, error) {
 	// Validate required params
 	if params.CustomerID == "" {
-		return nil, fmt.Errorf("customer ID is required")
+		return nil, ErrMissingCustomerID
 	}
 	if params.PriceID == "" {
-		return nil, fmt.Errorf("price ID is required")
+		return nil, ErrMissingPriceID
 	}
 	if params.Quantity <= 0 {
-		return nil, fmt.Errorf("quantity must be greater than 0")
+		return nil, ErrInvalidQuantity
 	}
 
 	// CRITICAL: Validate tenant_id is present for multi-tenant isolation
 	if params.TenantID == "" {
-		return nil, fmt.Errorf("tenant_id is required for multi-tenant isolation")
+		return nil, ErrMissingTenantID
 	}
 	if params.Metadata == nil {
 		params.Metadata = make(map[string]string)
@@ -653,21 +653,21 @@ func (s *StripeProvider) CreateSubscription(ctx context.Context, params CreateSu
 func (s *StripeProvider) CreateRecurringPrice(ctx context.Context, params CreateRecurringPriceParams) (*Price, error) {
 	// Validate required params
 	if params.Currency == "" {
-		return nil, fmt.Errorf("currency is required")
+		return nil, ErrMissingCurrency
 	}
 	if params.UnitAmountCents <= 0 {
-		return nil, fmt.Errorf("unit amount must be greater than 0")
+		return nil, ErrInvalidUnitAmount
 	}
 	if params.BillingInterval == "" {
-		return nil, fmt.Errorf("billing interval is required")
+		return nil, ErrMissingBillingInterval
 	}
 	if params.ProductID == "" {
-		return nil, fmt.Errorf("product ID is required")
+		return nil, ErrMissingProductID
 	}
 
 	// CRITICAL: Validate tenant_id is present for multi-tenant isolation
 	if params.Metadata == nil || params.Metadata["tenant_id"] == "" {
-		return nil, fmt.Errorf("tenant_id is required in metadata for multi-tenant isolation")
+		return nil, ErrMissingTenantID
 	}
 
 	// Build Stripe price parameters
@@ -705,10 +705,10 @@ func (s *StripeProvider) CreateRecurringPrice(ctx context.Context, params Create
 func (s *StripeProvider) GetSubscription(ctx context.Context, params GetSubscriptionParams) (*Subscription, error) {
 	// Validate required params
 	if params.SubscriptionID == "" {
-		return nil, fmt.Errorf("subscription ID is required")
+		return nil, ErrMissingSubscriptionID
 	}
 	if params.TenantID == "" {
-		return nil, fmt.Errorf("tenant_id is required for multi-tenant isolation")
+		return nil, ErrMissingTenantID
 	}
 
 	// Build Stripe subscription parameters
@@ -750,10 +750,10 @@ func (s *StripeProvider) GetSubscription(ctx context.Context, params GetSubscrip
 func (s *StripeProvider) PauseSubscription(ctx context.Context, params PauseSubscriptionParams) (*Subscription, error) {
 	// Validate required params
 	if params.SubscriptionID == "" {
-		return nil, fmt.Errorf("subscription ID is required")
+		return nil, ErrMissingSubscriptionID
 	}
 	if params.TenantID == "" {
-		return nil, fmt.Errorf("tenant_id is required for multi-tenant isolation")
+		return nil, ErrMissingTenantID
 	}
 
 	// Verify tenant ownership
@@ -796,10 +796,10 @@ func (s *StripeProvider) PauseSubscription(ctx context.Context, params PauseSubs
 func (s *StripeProvider) ResumeSubscription(ctx context.Context, params ResumeSubscriptionParams) (*Subscription, error) {
 	// Validate required params
 	if params.SubscriptionID == "" {
-		return nil, fmt.Errorf("subscription ID is required")
+		return nil, ErrMissingSubscriptionID
 	}
 	if params.TenantID == "" {
-		return nil, fmt.Errorf("tenant_id is required for multi-tenant isolation")
+		return nil, ErrMissingTenantID
 	}
 
 	// Verify tenant ownership
@@ -840,10 +840,10 @@ func (s *StripeProvider) ResumeSubscription(ctx context.Context, params ResumeSu
 func (s *StripeProvider) CancelSubscription(ctx context.Context, params CancelSubscriptionParams) error {
 	// Validate required params
 	if params.SubscriptionID == "" {
-		return fmt.Errorf("subscription ID is required")
+		return ErrMissingSubscriptionID
 	}
 	if params.TenantID == "" {
-		return fmt.Errorf("tenant_id is required for multi-tenant isolation")
+		return ErrMissingTenantID
 	}
 
 	// Verify tenant ownership
@@ -902,13 +902,13 @@ func (s *StripeProvider) CancelSubscription(ctx context.Context, params CancelSu
 func (s *StripeProvider) CreateCustomerPortalSession(ctx context.Context, params CreatePortalSessionParams) (*PortalSession, error) {
 	// Validate required params
 	if params.CustomerID == "" {
-		return nil, fmt.Errorf("customer ID is required")
+		return nil, ErrMissingCustomerID
 	}
 	if params.TenantID == "" {
-		return nil, fmt.Errorf("tenant_id is required for multi-tenant isolation")
+		return nil, ErrMissingTenantID
 	}
 	if params.ReturnURL == "" {
-		return nil, fmt.Errorf("return URL is required")
+		return nil, ErrMissingReturnURL
 	}
 
 	// Get customer and verify tenant ownership
@@ -916,14 +916,14 @@ func (s *StripeProvider) CreateCustomerPortalSession(ctx context.Context, params
 	if err != nil {
 		stripeErr, ok := err.(*stripe.Error)
 		if ok && stripeErr.Code == stripe.ErrorCodeResourceMissing {
-			return nil, fmt.Errorf("customer not found")
+			return nil, ErrCustomerNotFound
 		}
 		return nil, wrapStripeError(err)
 	}
 
 	// Verify customer belongs to tenant
 	if stripeCustomer.Metadata == nil || stripeCustomer.Metadata["tenant_id"] != params.TenantID {
-		return nil, fmt.Errorf("customer does not belong to tenant")
+		return nil, ErrTenantMismatch
 	}
 
 	// Build portal session parameters
@@ -959,10 +959,10 @@ func (s *StripeProvider) CreateCustomerPortalSession(ctx context.Context, params
 func (s *StripeProvider) GetInvoice(ctx context.Context, params GetInvoiceParams) (*Invoice, error) {
 	// Validate required params
 	if params.InvoiceID == "" {
-		return nil, fmt.Errorf("invoice ID is required")
+		return nil, ErrMissingInvoiceID
 	}
 	if params.TenantID == "" {
-		return nil, fmt.Errorf("tenant_id is required for multi-tenant isolation")
+		return nil, ErrMissingTenantID
 	}
 
 	// Build invoice params with expansions
@@ -975,7 +975,7 @@ func (s *StripeProvider) GetInvoice(ctx context.Context, params GetInvoiceParams
 	if err != nil {
 		stripeErr, ok := err.(*stripe.Error)
 		if ok && stripeErr.Code == stripe.ErrorCodeResourceMissing {
-			return nil, fmt.Errorf("invoice not found")
+			return nil, ErrInvoiceNotFound
 		}
 		return nil, wrapStripeError(err)
 	}
@@ -994,17 +994,17 @@ func (s *StripeProvider) GetInvoice(ctx context.Context, params GetInvoiceParams
 			// Validate tenant ownership via subscription metadata
 			if subDetails.Subscription.Metadata != nil {
 				if subDetails.Subscription.Metadata["tenant_id"] != params.TenantID {
-					return nil, fmt.Errorf("invoice does not belong to tenant")
+					return nil, ErrTenantMismatch
 				}
 			} else {
-				return nil, fmt.Errorf("subscription missing tenant_id metadata")
+				return nil, ErrMissingSubscriptionMetadata
 			}
 		}
 	} else {
 		// For non-subscription invoices, check invoice metadata
 		if stripeInvoice.Metadata != nil && stripeInvoice.Metadata["tenant_id"] != "" {
 			if stripeInvoice.Metadata["tenant_id"] != params.TenantID {
-				return nil, fmt.Errorf("invoice does not belong to tenant")
+				return nil, ErrTenantMismatch
 			}
 		}
 		// If no tenant_id in metadata, this might be a legacy invoice - allow for now
@@ -1167,14 +1167,13 @@ func wrapStripeError(err error) error {
 		return err
 	}
 
-	return &StripeError{
-		Message:       stripeErr.Msg,
-		Code:          string(stripeErr.Code),
-		DeclineCode:   string(stripeErr.DeclineCode),
-		StripeCode:    fmt.Sprintf("%d", stripeErr.HTTPStatusCode),
-		RequestID:     stripeErr.RequestID,
-		OriginalError: err,
-	}
+	return NewStripeError(
+		stripeErr.Msg,
+		string(stripeErr.Code),
+		string(stripeErr.DeclineCode),
+		stripeErr.RequestID,
+		err,
+	)
 }
 
 // buildPrice maps Stripe Price to our Price type.
@@ -1322,10 +1321,10 @@ func validateAmount(amountCents int32, currency string) error {
 func (s *StripeProvider) CreateInvoice(ctx context.Context, params CreateInvoiceParams) (*Invoice, error) {
 	// Validate tenant_id is present
 	if params.TenantID == "" {
-		return nil, fmt.Errorf("tenant_id is required for multi-tenant isolation")
+		return nil, ErrMissingTenantID
 	}
 	if params.CustomerID == "" {
-		return nil, fmt.Errorf("customer_id is required")
+		return nil, ErrMissingCustomerID
 	}
 
 	// Ensure tenant_id is in metadata
@@ -1373,7 +1372,7 @@ func (s *StripeProvider) CreateInvoice(ctx context.Context, params CreateInvoice
 	// Create the invoice
 	stripeInvoice, err := invoice.New(invoiceParams)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Stripe invoice: %w", err)
+		return nil, wrapStripeError(err)
 	}
 
 	return buildInvoice(stripeInvoice), nil
@@ -1385,10 +1384,10 @@ func (s *StripeProvider) CreateInvoice(ctx context.Context, params CreateInvoice
 // Once finalized, no more items can be added.
 func (s *StripeProvider) AddInvoiceItem(ctx context.Context, params AddInvoiceItemParams) error {
 	if params.CustomerID == "" {
-		return fmt.Errorf("customer_id is required")
+		return ErrMissingCustomerID
 	}
 	if params.InvoiceID == "" {
-		return fmt.Errorf("invoice_id is required")
+		return ErrMissingInvoiceID
 	}
 
 	// Calculate total amount (unit amount * quantity)
@@ -1414,7 +1413,7 @@ func (s *StripeProvider) AddInvoiceItem(ctx context.Context, params AddInvoiceIt
 
 	_, err := invoiceitem.New(itemParams)
 	if err != nil {
-		return fmt.Errorf("failed to add invoice item: %w", err)
+		return wrapStripeError(err)
 	}
 
 	return nil
@@ -1429,7 +1428,7 @@ func (s *StripeProvider) AddInvoiceItem(ctx context.Context, params AddInvoiceIt
 //   - If auto_advance was true, invoice is automatically sent
 func (s *StripeProvider) FinalizeInvoice(ctx context.Context, params FinalizeInvoiceParams) (*Invoice, error) {
 	if params.InvoiceID == "" {
-		return nil, fmt.Errorf("invoice_id is required")
+		return nil, ErrMissingInvoiceID
 	}
 
 	finalizeParams := &stripe.InvoiceFinalizeInvoiceParams{}
@@ -1441,7 +1440,7 @@ func (s *StripeProvider) FinalizeInvoice(ctx context.Context, params FinalizeInv
 
 	stripeInvoice, err := invoice.FinalizeInvoice(params.InvoiceID, finalizeParams)
 	if err != nil {
-		return nil, fmt.Errorf("failed to finalize invoice: %w", err)
+		return nil, wrapStripeError(err)
 	}
 
 	return buildInvoice(stripeInvoice), nil
@@ -1455,12 +1454,12 @@ func (s *StripeProvider) FinalizeInvoice(ctx context.Context, params FinalizeInv
 //   - PDF attachment of the invoice
 func (s *StripeProvider) SendInvoice(ctx context.Context, params SendInvoiceParams) error {
 	if params.InvoiceID == "" {
-		return fmt.Errorf("invoice_id is required")
+		return ErrMissingInvoiceID
 	}
 
 	_, err := invoice.SendInvoice(params.InvoiceID, nil)
 	if err != nil {
-		return fmt.Errorf("failed to send invoice: %w", err)
+		return wrapStripeError(err)
 	}
 
 	return nil
@@ -1477,12 +1476,12 @@ func (s *StripeProvider) SendInvoice(ctx context.Context, params SendInvoicePara
 // Paid invoices must be refunded instead.
 func (s *StripeProvider) VoidInvoice(ctx context.Context, params VoidInvoiceParams) error {
 	if params.InvoiceID == "" {
-		return fmt.Errorf("invoice_id is required")
+		return ErrMissingInvoiceID
 	}
 
 	_, err := invoice.VoidInvoice(params.InvoiceID, nil)
 	if err != nil {
-		return fmt.Errorf("failed to void invoice: %w", err)
+		return wrapStripeError(err)
 	}
 
 	return nil
@@ -1497,7 +1496,7 @@ func (s *StripeProvider) VoidInvoice(ctx context.Context, params VoidInvoicePara
 // If PaymentMethodID is not provided, uses customer's default payment method.
 func (s *StripeProvider) PayInvoice(ctx context.Context, params PayInvoiceParams) (*Invoice, error) {
 	if params.InvoiceID == "" {
-		return nil, fmt.Errorf("invoice_id is required")
+		return nil, ErrMissingInvoiceID
 	}
 
 	payParams := &stripe.InvoicePayParams{}
@@ -1508,7 +1507,7 @@ func (s *StripeProvider) PayInvoice(ctx context.Context, params PayInvoiceParams
 
 	stripeInvoice, err := invoice.Pay(params.InvoiceID, payParams)
 	if err != nil {
-		return nil, fmt.Errorf("failed to pay invoice: %w", err)
+		return nil, wrapStripeError(err)
 	}
 
 	return buildInvoice(stripeInvoice), nil

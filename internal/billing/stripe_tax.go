@@ -82,7 +82,7 @@ func (c *StripeTaxCalculator) CalculateTax(ctx context.Context, params tax.TaxPa
 
 	calc, err := calculation.New(calcParams)
 	if err != nil {
-		return nil, fmt.Errorf("failed to calculate tax via Stripe: %w", err)
+		return nil, wrapStripeError(err)
 	}
 
 	// Parse the response
