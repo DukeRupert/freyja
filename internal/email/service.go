@@ -553,7 +553,7 @@ func (s *Service) SendWholesaleRejected(ctx context.Context, data WholesaleRejec
 func (s *Service) renderTemplate(templateName string, data interface{}) (string, string, error) {
 	tmpl, ok := s.templateCache[templateName]
 	if !ok {
-		return "", "", fmt.Errorf("template %s not found", templateName)
+		return "", "", ErrTemplateNotFound(templateName)
 	}
 
 	var htmlBuf bytes.Buffer

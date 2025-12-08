@@ -180,5 +180,5 @@ func (p *PostmarkSender) SendTemplate(ctx context.Context, templateID string, to
 	// Note: Using Postmark templates is optional. We can render templates
 	// ourselves and use Send() instead.
 
-	return "", fmt.Errorf("not implemented")
+	return "", ErrNotImplemented
 }

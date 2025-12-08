@@ -127,7 +127,7 @@ func (s *SMTPSender) Send(ctx context.Context, email *Email) (string, error) {
 
 // SendTemplate is not supported by SMTP sender.
 func (s *SMTPSender) SendTemplate(ctx context.Context, templateID string, to []string, data map[string]interface{}) (string, error) {
-	return "", fmt.Errorf("template emails not supported by SMTP sender")
+	return "", ErrNotImplemented
 }
 
 // buildClientOptions returns go-mail client options based on configuration.
