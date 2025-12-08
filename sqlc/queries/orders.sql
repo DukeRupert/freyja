@@ -86,10 +86,30 @@ WHERE tenant_id = $1
 LIMIT 1;
 
 -- name: GetOrderItems :many
--- Retrieves all line items for a specific order
-SELECT * FROM order_items
-WHERE order_id = $1
-ORDER BY created_at ASC;
+-- Retrieves all line items for a specific order with product images
+SELECT
+    oi.id,
+    oi.tenant_id,
+    oi.order_id,
+    oi.product_sku_id,
+    oi.product_name,
+    oi.sku,
+    oi.variant_description,
+    oi.quantity,
+    oi.unit_price_cents,
+    oi.total_price_cents,
+    oi.fulfillment_status,
+    oi.metadata,
+    oi.created_at,
+    oi.updated_at,
+    oi.quantity_dispatched,
+    pi.url as image_url
+FROM order_items oi
+LEFT JOIN product_skus ps ON ps.id = oi.product_sku_id
+LEFT JOIN products p ON p.id = ps.product_id
+LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = TRUE
+WHERE oi.order_id = $1
+ORDER BY oi.created_at ASC;
 
 -- name: GetPaymentByID :one
 -- Retrieves a single payment by ID

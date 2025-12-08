@@ -504,21 +504,60 @@ func (q *Queries) GetOrderByPaymentIntentID(ctx context.Context, arg GetOrderByP
 }
 
 const getOrderItems = `-- name: GetOrderItems :many
-SELECT id, tenant_id, order_id, product_sku_id, product_name, sku, variant_description, quantity, unit_price_cents, total_price_cents, fulfillment_status, metadata, created_at, updated_at, quantity_dispatched FROM order_items
-WHERE order_id = $1
-ORDER BY created_at ASC
+SELECT
+    oi.id,
+    oi.tenant_id,
+    oi.order_id,
+    oi.product_sku_id,
+    oi.product_name,
+    oi.sku,
+    oi.variant_description,
+    oi.quantity,
+    oi.unit_price_cents,
+    oi.total_price_cents,
+    oi.fulfillment_status,
+    oi.metadata,
+    oi.created_at,
+    oi.updated_at,
+    oi.quantity_dispatched,
+    pi.url as image_url
+FROM order_items oi
+LEFT JOIN product_skus ps ON ps.id = oi.product_sku_id
+LEFT JOIN products p ON p.id = ps.product_id
+LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = TRUE
+WHERE oi.order_id = $1
+ORDER BY oi.created_at ASC
 `
 
-// Retrieves all line items for a specific order
-func (q *Queries) GetOrderItems(ctx context.Context, orderID pgtype.UUID) ([]OrderItem, error) {
+type GetOrderItemsRow struct {
+	ID                 pgtype.UUID        `json:"id"`
+	TenantID           pgtype.UUID        `json:"tenant_id"`
+	OrderID            pgtype.UUID        `json:"order_id"`
+	ProductSkuID       pgtype.UUID        `json:"product_sku_id"`
+	ProductName        string             `json:"product_name"`
+	Sku                string             `json:"sku"`
+	VariantDescription pgtype.Text        `json:"variant_description"`
+	Quantity           int32              `json:"quantity"`
+	UnitPriceCents     int32              `json:"unit_price_cents"`
+	TotalPriceCents    int32              `json:"total_price_cents"`
+	FulfillmentStatus  string             `json:"fulfillment_status"`
+	Metadata           []byte             `json:"metadata"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	QuantityDispatched int32              `json:"quantity_dispatched"`
+	ImageUrl           pgtype.Text        `json:"image_url"`
+}
+
+// Retrieves all line items for a specific order with product images
+func (q *Queries) GetOrderItems(ctx context.Context, orderID pgtype.UUID) ([]GetOrderItemsRow, error) {
 	rows, err := q.db.Query(ctx, getOrderItems, orderID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []OrderItem{}
+	items := []GetOrderItemsRow{}
 	for rows.Next() {
-		var i OrderItem
+		var i GetOrderItemsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.TenantID,
@@ -535,6 +574,7 @@ func (q *Queries) GetOrderItems(ctx context.Context, orderID pgtype.UUID) ([]Ord
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.QuantityDispatched,
+			&i.ImageUrl,
 		); err != nil {
 			return nil, err
 		}

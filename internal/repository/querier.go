@@ -420,8 +420,8 @@ type Querier interface {
 	// Idempotency check: Returns existing order if payment intent was already processed
 	// This prevents duplicate order creation from webhook retries
 	GetOrderByPaymentIntentID(ctx context.Context, arg GetOrderByPaymentIntentIDParams) (Order, error)
-	// Retrieves all line items for a specific order
-	GetOrderItems(ctx context.Context, orderID pgtype.UUID) ([]OrderItem, error)
+	// Retrieves all line items for a specific order with product images
+	GetOrderItems(ctx context.Context, orderID pgtype.UUID) ([]GetOrderItemsRow, error)
 	// Get order items with fulfillment status for partial shipment display
 	GetOrderItemsWithFulfillment(ctx context.Context, orderID pgtype.UUID) ([]GetOrderItemsWithFulfillmentRow, error)
 	// Get order statistics for dashboard

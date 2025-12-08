@@ -398,6 +398,7 @@ func (h *CheckoutHandler) OrderConfirmation(w http.ResponseWriter, r *http.Reque
 		Quantity       int32
 		UnitPriceCents int32
 		LineSubtotal   int32
+		ImageURL       string
 	}
 
 	type Address struct {
@@ -428,6 +429,7 @@ func (h *CheckoutHandler) OrderConfirmation(w http.ResponseWriter, r *http.Reque
 			Quantity:       item.Quantity,
 			UnitPriceCents: item.UnitPriceCents,
 			LineSubtotal:   item.Quantity * item.UnitPriceCents,
+			ImageURL:       item.ImageUrl.String,
 		})
 	}
 

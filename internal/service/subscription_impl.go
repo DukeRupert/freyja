@@ -866,7 +866,6 @@ func (s *subscriptionService) CreateOrderFromSubscriptionInvoice(ctx context.Con
 	}
 
 	// Step 7: Create order items from subscription items
-	orderItems := make([]repository.OrderItem, 0, len(items))
 	for _, item := range items {
 		// Build variant description
 		variantDesc := ""
@@ -880,7 +879,7 @@ func (s *subscriptionService) CreateOrderFromSubscriptionInvoice(ctx context.Con
 			variantDesc += item.Grind
 		}
 
-		orderItem, err := s.repo.CreateOrderItem(ctx, repository.CreateOrderItemParams{
+		_, err := s.repo.CreateOrderItem(ctx, repository.CreateOrderItemParams{
 			TenantID:           tenantID,
 			OrderID:            order.ID,
 			ProductSkuID:       item.ProductSkuID,
@@ -894,7 +893,12 @@ func (s *subscriptionService) CreateOrderFromSubscriptionInvoice(ctx context.Con
 		if err != nil {
 			return nil, fmt.Errorf("failed to create order item: %w", err)
 		}
-		orderItems = append(orderItems, orderItem)
+	}
+
+	// Fetch order items with image URLs
+	orderItems, err := s.repo.GetOrderItems(ctx, order.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get order items: %w", err)
 	}
 
 	// Step 8: Create payment record

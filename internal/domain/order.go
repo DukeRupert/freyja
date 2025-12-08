@@ -39,7 +39,7 @@ type OrderService interface {
 // OrderDetail aggregates order information with items and addresses.
 type OrderDetail struct {
 	Order           repository.Order
-	Items           []repository.OrderItem
+	Items           []repository.GetOrderItemsRow
 	ShippingAddress repository.Address
 	BillingAddress  repository.Address
 	Payment         repository.Payment

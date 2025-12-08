@@ -15,6 +15,7 @@ import (
 	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/shipping"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -218,7 +219,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 	var customerName string
 
 	if !userID.Valid {
-		// Guest checkout - create a guest user account
+		// Guest checkout - find existing user or create a guest user account
 		customerEmail = paymentIntent.ReceiptEmail
 		if customerEmail == "" {
 			// Fallback to metadata
@@ -232,17 +233,30 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 		firstName, lastName := splitFullName(shippingAddr.FullName)
 		customerName = shippingAddr.FullName
 
-		guestUser, err := s.repo.CreateUser(ctx, repository.CreateUserParams{
-			TenantID:     s.tenantID,
-			Email:        customerEmail,
-			PasswordHash: pgtype.Text{Valid: false}, // No password for guest accounts
-			FirstName:    makePgText(firstName),
-			LastName:     makePgText(lastName),
+		// First, check if a user with this email already exists
+		existingUser, err := s.repo.GetUserByEmail(ctx, repository.GetUserByEmailParams{
+			TenantID: s.tenantID,
+			Email:    customerEmail,
 		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create guest user: %w", err)
+		if err == nil {
+			// User already exists - use their ID
+			userID = existingUser.ID
+		} else if errors.Is(err, pgx.ErrNoRows) {
+			// No existing user - create a guest account
+			guestUser, err := s.repo.CreateUser(ctx, repository.CreateUserParams{
+				TenantID:     s.tenantID,
+				Email:        customerEmail,
+				PasswordHash: pgtype.Text{Valid: false}, // No password for guest accounts
+				FirstName:    makePgText(firstName),
+				LastName:     makePgText(lastName),
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to create guest user: %w", err)
+			}
+			userID = guestUser.ID
+		} else {
+			return nil, fmt.Errorf("failed to check for existing user: %w", err)
 		}
-		userID = guestUser.ID
 	} else {
 		// Logged-in user - get their email from user record
 		user, err := s.repo.GetUserByID(ctx, userID)
@@ -290,6 +304,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 		UserID:             userID,
 		Provider:           "stripe",
 		ProviderCustomerID: stripeCustomerID,
+		Metadata:           []byte("{}"),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create billing customer: %w", err)
@@ -355,11 +370,10 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 	}
 
 	// Step 15: Create order items
-	orderItems := make([]repository.OrderItem, 0, len(cartItems))
 	for _, item := range cartItems {
 		variantDesc := buildVariantDescription(item)
 
-		orderItem, err := s.repo.CreateOrderItem(ctx, repository.CreateOrderItemParams{
+		_, err := s.repo.CreateOrderItem(ctx, repository.CreateOrderItemParams{
 			TenantID:           s.tenantID,
 			OrderID:            order.ID,
 			ProductSkuID:       item.ProductSkuID,
@@ -373,7 +387,12 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 		if err != nil {
 			return nil, fmt.Errorf("failed to create order item: %w", err)
 		}
-		orderItems = append(orderItems, orderItem)
+	}
+
+	// Fetch order items with image URLs
+	orderItems, err := s.repo.GetOrderItems(ctx, order.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get order items: %w", err)
 	}
 
 	// Step 16: Decrement inventory
@@ -559,7 +578,7 @@ func calculateOrderTotals(items []repository.GetCartItemsRow) (subtotal, total i
 }
 
 // buildOrderDetail constructs an OrderDetail from components
-func buildOrderDetail(order repository.Order, items []repository.OrderItem, shippingAddr, billingAddr repository.Address, payment repository.Payment) *OrderDetail {
+func buildOrderDetail(order repository.Order, items []repository.GetOrderItemsRow, shippingAddr, billingAddr repository.Address, payment repository.Payment) *OrderDetail {
 	return &OrderDetail{
 		Order:           order,
 		Items:           items,
