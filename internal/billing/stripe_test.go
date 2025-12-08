@@ -940,23 +940,6 @@ func TestPostMVP_MethodsReturnNotImplemented(t *testing.T) {
 	mock := NewMockProvider()
 	ctx := context.Background()
 
-	t.Run("CreateCustomer returns not implemented", func(t *testing.T) {
-		customer, err := mock.CreateCustomer(ctx, CreateCustomerParams{
-			Email: "customer@example.com",
-			Name:  "John Doe",
-		})
-		assert.Error(t, err)
-		assert.True(t, errors.Is(err, ErrNotImplemented))
-		assert.Nil(t, customer)
-	})
-
-	t.Run("GetCustomer returns not implemented", func(t *testing.T) {
-		customer, err := mock.GetCustomer(ctx, "cus_test_123")
-		assert.Error(t, err)
-		assert.True(t, errors.Is(err, ErrNotImplemented))
-		assert.Nil(t, customer)
-	})
-
 	t.Run("UpdateCustomer returns not implemented", func(t *testing.T) {
 		customer, err := mock.UpdateCustomer(ctx, "cus_test_123", UpdateCustomerParams{
 			Email: "updated@example.com",
