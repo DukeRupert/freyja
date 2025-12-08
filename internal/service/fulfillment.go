@@ -449,15 +449,3 @@ func (s *fulfillmentService) UpdateShipmentStatus(ctx context.Context, shipmentI
 	return nil
 }
 
-// generateShipmentNumber creates a unique shipment number.
-func generateShipmentNumber() string {
-	// Simple format: SH-timestamp-random
-	// In production, you might want a more sophisticated approach
-	return fmt.Sprintf("SH-%d", randomInt(100000, 999999))
-}
-
-// randomInt generates a random integer between min and max (inclusive).
-func randomInt(min, max int) int {
-	// Simple implementation - in production use crypto/rand
-	return min + int(uint32(max-min+1))
-}

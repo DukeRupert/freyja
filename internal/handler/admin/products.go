@@ -680,12 +680,12 @@ func (h *ProductHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	width, height, metaErr := extractImageMetadata(file)
-	file.Seek(0, io.SeekStart)
+	_, _ = file.Seek(0, io.SeekStart)
 
 	buffer := make([]byte, 512)
 	n, _ := file.Read(buffer)
 	contentType := http.DetectContentType(buffer[:n])
-	file.Seek(0, io.SeekStart)
+	_, _ = file.Seek(0, io.SeekStart)
 
 	key := generateImageKey(h.tenantID, productUUID, fileHeader.Filename)
 
@@ -715,8 +715,8 @@ func (h *ProductHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
 		IsPrimary: isPrimary,
 	})
 	if err != nil {
-		// Clean up orphaned file
-		h.storage.Delete(r.Context(), key)
+		// Clean up orphaned file (best-effort, ignore error)
+		_ = h.storage.Delete(r.Context(), key)
 		h.renderImageError(w, "Failed to save image. Please try again.")
 		return
 	}
@@ -763,7 +763,7 @@ func (h *ProductHandler) DeleteImage(w http.ResponseWriter, r *http.Request) {
 
 	if imageURL != "" {
 		key := strings.TrimPrefix(imageURL, "/uploads/")
-		h.storage.Delete(r.Context(), key)
+		_ = h.storage.Delete(r.Context(), key)
 	}
 
 	h.renderImageGallery(w, r, productUUID)

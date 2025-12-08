@@ -100,8 +100,10 @@ func (s *SMTPSender) Send(ctx context.Context, email *Email) (string, error) {
 
 	// Add attachments
 	for _, att := range email.Attachments {
-		msg.AttachReader(att.Filename, &bytesReader{data: att.Content},
-			mail.WithFileContentType(mail.ContentType(att.ContentType)))
+		if err := msg.AttachReader(att.Filename, &bytesReader{data: att.Content},
+			mail.WithFileContentType(mail.ContentType(att.ContentType))); err != nil {
+			return "", fmt.Errorf("failed to attach file %s: %w", att.Filename, err)
+		}
 	}
 
 	// Create client with appropriate options

@@ -239,7 +239,7 @@ func (h *WholesaleApplicationHandler) renderError(w http.ResponseWriter, r *http
 		w.Header().Set("HX-Retarget", "#error-message")
 		w.Header().Set("HX-Reswap", "innerHTML")
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(fmt.Sprintf(`<p class="text-red-600 text-sm">%s</p>`, message)))
+		_, _ = w.Write([]byte(fmt.Sprintf(`<p class="text-red-600 text-sm">%s</p>`, message)))
 		return
 	}
 	handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "%s", message))

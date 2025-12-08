@@ -266,7 +266,7 @@ func (h *PriceListHandler) UpdateEntry(w http.ResponseWriter, r *http.Request) {
 
 	if r.Header.Get("HX-Request") == "true" {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Price updated"))
+		_, _ = w.Write([]byte("Price updated"))
 		return
 	}
 

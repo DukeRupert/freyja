@@ -179,18 +179,8 @@ func (h *PageHandler) UpdatePage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if page exists - if not, create it
-	_, err := h.pageService.GetPage(ctx, domain.GetPageParams{
-		TenantID: h.tenantID,
-		Slug:     slug,
-	})
-
-	if err == domain.ErrPageNotFound {
-		// Page doesn't exist, need to use EnsureDefaultPages or create directly
-		// For simplicity, we'll update which does upsert-like behavior
-		// Actually we need to handle creation - let me check the service
-	}
-
-	_, err = h.pageService.UpdatePage(ctx, domain.UpdatePageParams{
+	// UpdatePage handles upsert-like behavior, so we don't need to check if page exists first
+	_, err := h.pageService.UpdatePage(ctx, domain.UpdatePageParams{
 		TenantID:         h.tenantID,
 		Slug:             slug,
 		Title:            title,
@@ -213,7 +203,7 @@ func (h *PageHandler) UpdatePage(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Trigger", "page-saved")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Page saved successfully"))
+		_, _ = w.Write([]byte("Page saved successfully"))
 		return
 	}
 

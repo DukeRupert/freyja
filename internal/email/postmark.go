@@ -15,9 +15,8 @@ import (
 
 // PostmarkSender implements the Sender interface using Postmark API
 type PostmarkSender struct {
-	apiKey     string
-	serverName string // Optional: for multiple Postmark servers
-	logger     *slog.Logger
+	apiKey string
+	logger *slog.Logger
 }
 
 type postmarkEmail struct {

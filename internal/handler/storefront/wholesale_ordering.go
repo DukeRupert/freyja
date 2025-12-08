@@ -309,7 +309,7 @@ func (h *WholesaleOrderingHandler) renderError(w http.ResponseWriter, r *http.Re
 		w.Header().Set("HX-Retarget", "#error-message")
 		w.Header().Set("HX-Reswap", "innerHTML")
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(fmt.Sprintf(`<div class="rounded-md bg-red-50 p-4"><p class="text-sm text-red-700">%s</p></div>`, message)))
+		_, _ = w.Write([]byte(fmt.Sprintf(`<div class="rounded-md bg-red-50 p-4"><p class="text-sm text-red-700">%s</p></div>`, message)))
 		return
 	}
 	handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "%s", message))

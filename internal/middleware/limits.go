@@ -105,7 +105,7 @@ func timeoutWithDuration(timeout time.Duration) func(http.Handler) http.Handler 
 				if !alreadyWrote {
 					// Only send error if we haven't started responding
 					w.WriteHeader(http.StatusServiceUnavailable)
-					w.Write([]byte("Request timeout"))
+					_, _ = w.Write([]byte("Request timeout"))
 				}
 				// If we've already started writing, we can't do much
 				// The client will receive a truncated response

@@ -222,7 +222,7 @@ func (h *TaxRateHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	if r.Header.Get("HX-Request") == "true" {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Tax rate updated"))
+		_, _ = w.Write([]byte("Tax rate updated"))
 		return
 	}
 

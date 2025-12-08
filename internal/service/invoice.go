@@ -294,10 +294,8 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, params CreateInvoice
 
 	// If SendImmediately, sync with Stripe and send
 	if params.SendImmediately {
-		if err := s.SendInvoice(ctx, inv.ID.String()); err != nil {
-			// Log error but don't fail - invoice was created
-			// Could retry via background job
-		}
+		// Best-effort send - invoice was already created, could retry via background job
+		_ = s.SendInvoice(ctx, inv.ID.String())
 	}
 
 	return s.GetInvoice(ctx, inv.ID.String())
@@ -567,9 +565,8 @@ func (s *invoiceService) SendInvoice(ctx context.Context, invoiceID string) erro
 			ProviderCustomerID: stripeCustomerID,
 			Metadata:           []byte("{}"),
 		})
-		if err != nil {
-			// Log but continue
-		}
+		// Best-effort customer creation - continue with sync regardless
+		_ = err
 	} else {
 		stripeCustomerID = billingCustomer.ProviderCustomerID
 	}
@@ -641,9 +638,8 @@ func (s *invoiceService) SendInvoice(ctx context.Context, invoiceID string) erro
 		Provider:          pgtype.Text{String: "stripe", Valid: true},
 		ProviderInvoiceID: pgtype.Text{String: stripeInv.ID, Valid: true},
 	})
-	if err != nil {
-		// Log but don't fail
-	}
+	// Best-effort provider ID update - continue regardless
+	_ = err
 
 	err = s.repo.UpdateInvoiceStatus(ctx, repository.UpdateInvoiceStatusParams{
 		TenantID: s.tenantID,
@@ -795,9 +791,8 @@ func (s *invoiceService) SyncInvoiceFromStripe(ctx context.Context, stripeInvoic
 			PaymentDate:      paidAt,
 			Notes:            "Payment via Stripe",
 		})
-		if err != nil {
-			// Payment may already be recorded - don't fail
-		}
+		// Payment may already be recorded - don't fail
+		_ = err
 	}
 
 	return nil

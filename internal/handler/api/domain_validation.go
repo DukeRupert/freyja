@@ -67,11 +67,11 @@ func (h *DomainValidationHandler) ValidateDomain(w http.ResponseWriter, r *http.
 	if isValid {
 		h.logger.Info("domain validation succeeded", "domain", domainParam)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	} else {
 		h.logger.Debug("domain validation rejected", "domain", domainParam)
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("Not Found"))
+		_, _ = w.Write([]byte("Not Found"))
 	}
 }
 

@@ -641,7 +641,7 @@ func (h *AccountHandler) AddressGetJSON(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // toDisplayAddress converts a database address row to display format
@@ -701,7 +701,7 @@ func (h *AccountHandler) renderAddressError(w http.ResponseWriter, r *http.Reque
 		w.Header().Set("HX-Retarget", "#error-message")
 		w.Header().Set("HX-Reswap", "innerHTML")
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(fmt.Sprintf(`<p class="text-red-600 text-sm">%s</p>`, message)))
+		_, _ = w.Write([]byte(fmt.Sprintf(`<p class="text-red-600 text-sm">%s</p>`, message)))
 		return
 	}
 	handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "%s", message))

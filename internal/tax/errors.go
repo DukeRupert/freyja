@@ -1,17 +1,6 @@
 package tax
 
 // ============================================================================
-// TAX ERROR CODES
-// ============================================================================
-// These constants mirror domain error codes to avoid circular imports.
-// The handler layer maps these to HTTP status codes.
-
-const (
-	codeInternal = "internal"
-	codeInvalid  = "invalid"
-)
-
-// ============================================================================
 // TAX ERROR TYPE
 // ============================================================================
 
@@ -35,21 +24,3 @@ func (e *TaxError) ErrorCode() string {
 func (e *TaxError) ErrorMessage() string {
 	return e.Message
 }
-
-// newTaxError creates a new tax error.
-func newTaxError(code, message string) *TaxError {
-	return &TaxError{Code: code, Message: message}
-}
-
-// ============================================================================
-// TAX DOMAIN ERRORS
-// ============================================================================
-// Currently, tax calculation errors are infrastructure-level (database/conversion)
-// and are correctly wrapped with fmt.Errorf. Domain-level errors can be added
-// here as needed.
-
-// Example typed errors for future use:
-// var (
-// 	ErrInvalidTaxRate = newTaxError(codeInvalid, "Tax rate must be between 0 and 1")
-// 	ErrUnsupportedJurisdiction = newTaxError(codeInvalid, "Tax calculation not supported for this jurisdiction")
-// )

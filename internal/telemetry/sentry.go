@@ -137,10 +137,8 @@ func CaptureErrorWithTenant(err error, tenantID string, extras map[string]interf
 
 	sentry.WithScope(func(scope *sentry.Scope) {
 		scope.SetTag("tenant_id", tenantID)
-		if extras != nil {
-			for key, value := range extras {
-				scope.SetExtra(key, value)
-			}
+		for key, value := range extras {
+			scope.SetExtra(key, value)
 		}
 		sentry.CaptureException(err)
 	})
@@ -333,10 +331,8 @@ func CaptureErrorFromContext(ctx context.Context, err error, extras map[string]i
 	}
 
 	hub.WithScope(func(scope *sentry.Scope) {
-		if extras != nil {
-			for key, value := range extras {
-				scope.SetExtra(key, value)
-			}
+		for key, value := range extras {
+			scope.SetExtra(key, value)
 		}
 		hub.CaptureException(err)
 	})

@@ -1128,7 +1128,7 @@ func buildPaymentIntent(stripePI *stripe.PaymentIntent) *PaymentIntent {
 		if charge.Metadata != nil {
 			if taxStr, ok := charge.Metadata["tax_amount"]; ok {
 				var taxAmount int64
-				fmt.Sscanf(taxStr, "%d", &taxAmount)
+				_, _ = fmt.Sscanf(taxStr, "%d", &taxAmount)
 				pi.TaxCents = int32(taxAmount)
 			}
 		}
@@ -1138,7 +1138,7 @@ func buildPaymentIntent(stripePI *stripe.PaymentIntent) *PaymentIntent {
 	if stripePI.Metadata != nil {
 		if shippingStr, ok := stripePI.Metadata["shipping_amount"]; ok {
 			var shippingAmount int64
-			fmt.Sscanf(shippingStr, "%d", &shippingAmount)
+			_, _ = fmt.Sscanf(shippingStr, "%d", &shippingAmount)
 			pi.ShippingCents = int32(shippingAmount)
 		}
 	}

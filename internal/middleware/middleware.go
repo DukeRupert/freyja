@@ -53,7 +53,7 @@ func respondWithError(w http.ResponseWriter, r *http.Request, err error) {
 	if acceptsJSON(r) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"error": map[string]string{
 				"code":    code,
 				"message": message,
@@ -93,12 +93,6 @@ func respondInternalError(w http.ResponseWriter, r *http.Request, err error) {
 // respondTooManyRequests is a convenience wrapper for 429 errors.
 func respondTooManyRequests(w http.ResponseWriter, r *http.Request) {
 	err := domain.Errorf(domain.ERATELIMIT, "", "Too many requests")
-	respondWithError(w, r, err)
-}
-
-// respondBadRequest is a convenience wrapper for 400 errors.
-func respondBadRequest(w http.ResponseWriter, r *http.Request, message string) {
-	err := domain.Errorf(domain.EINVALID, "", "%s", message)
 	respondWithError(w, r, err)
 }
 

@@ -176,7 +176,7 @@ func (h *StripeHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	// Always return 200 to acknowledge receipt
 	// Stripe will retry if we return an error
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"received": true}`))
+	_, _ = w.Write([]byte(`{"received": true}`))
 }
 
 // handlePaymentIntentSucceeded processes successful payment events

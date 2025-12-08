@@ -510,9 +510,9 @@ func Test_PercentageCalculator_ContextHandling(t *testing.T) {
 		ShippingCents: 500,
 	}
 
-	t.Run("nil context", func(t *testing.T) {
-		// Should work even with nil context (context not used in calculation)
-		result, err := calc.CalculateTax(nil, params)
+	t.Run("context.TODO()", func(t *testing.T) {
+		// Use context.TODO() as per Go best practices (context not used in calculation)
+		result, err := calc.CalculateTax(context.TODO(), params)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)

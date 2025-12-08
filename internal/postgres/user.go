@@ -226,7 +226,7 @@ func (s *UserService) CreateSession(ctx context.Context, userID string) (string,
 
 	// Create session (expires in 30 days)
 	expiresAt := pgtype.Timestamptz{}
-	expiresAt.Scan(time.Now().Add(30 * 24 * time.Hour))
+	_ = expiresAt.Scan(time.Now().Add(30 * 24 * time.Hour))
 
 	_, err = s.repo.CreateSession(ctx, repository.CreateSessionParams{
 		Token:     token,

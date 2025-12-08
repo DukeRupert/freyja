@@ -333,7 +333,7 @@ func (h *IntegrationsHandler) ValidateConfig(w http.ResponseWriter, r *http.Requ
 	validationResult := h.validateConfig(tenantConfig)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"valid":  validationResult.Valid,
 		"errors": validationResult.Errors,
 	})
@@ -746,7 +746,7 @@ func writeTestConnectionResponse(w http.ResponseWriter, success bool, message st
 	if !success {
 		w.WriteHeader(http.StatusBadRequest)
 	}
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": success,
 		"message": message,
 	})

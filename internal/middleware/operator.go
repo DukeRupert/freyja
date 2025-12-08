@@ -21,6 +21,9 @@ const (
 	// TenantContextKey is the context key for storing the operator's tenant
 	TenantContextKey contextKey = "tenant"
 
+	// TenantIDContextKey is the context key for storing the tenant's UUID
+	TenantIDContextKey contextKey = "tenant_id"
+
 	// operatorCookieName matches the constant in handler/saas/auth.go
 	operatorCookieName = "freyja_operator"
 )
@@ -59,7 +62,7 @@ func WithOperator(operatorService service.OperatorService) func(http.Handler) ht
 
 			// Also add tenant_id to context for convenience
 			tenantID := convertPgUUIDToUUID(operator.TenantID)
-			ctx = context.WithValue(ctx, "tenant_id", tenantID)
+			ctx = context.WithValue(ctx, TenantIDContextKey, tenantID)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

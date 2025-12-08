@@ -237,35 +237,6 @@ func requireStringPrefixes(config map[string]interface{}, key string, prefixes [
 	return ""
 }
 
-// requireFloat64Range validates that a config field is a float64 within range [min, max].
-func requireFloat64Range(config map[string]interface{}, key string, min, max float64, result *ValidationResult) float64 {
-	value, exists := config[key]
-	if !exists {
-		result.AddError("missing required field: " + key)
-		return 0
-	}
-
-	var floatValue float64
-	switch v := value.(type) {
-	case float64:
-		floatValue = v
-	case int:
-		floatValue = float64(v)
-	case int64:
-		floatValue = float64(v)
-	default:
-		result.AddError("field " + key + " must be a number")
-		return 0
-	}
-
-	if floatValue < min || floatValue > max {
-		result.AddError("field " + key + " must be between " + formatFloat(min) + " and " + formatFloat(max))
-		return 0
-	}
-
-	return floatValue
-}
-
 // requireIntRange validates that a config field is an int within range [min, max].
 // Safely handles float64 to int conversion with overflow protection.
 func requireIntRange(config map[string]interface{}, key string, min, max int, result *ValidationResult) int {
@@ -304,53 +275,6 @@ func requireIntRange(config map[string]interface{}, key string, min, max int, re
 	}
 
 	return intValue
-}
-
-// isValidEmail performs basic email validation.
-func isValidEmail(email string) bool {
-	if email == "" {
-		return false
-	}
-
-	// Find @ symbol
-	atIndex := -1
-	for i, ch := range email {
-		if ch == '@' {
-			if atIndex != -1 {
-				return false // Multiple @ symbols
-			}
-			atIndex = i
-		}
-	}
-
-	if atIndex == -1 {
-		return false // No @ symbol
-	}
-
-	if atIndex == 0 {
-		return false // Nothing before @
-	}
-
-	if atIndex == len(email)-1 {
-		return false // Nothing after @
-	}
-
-	// Check for dot in domain part (after @)
-	domain := email[atIndex+1:]
-	hasDot := false
-	for _, ch := range domain {
-		if ch == '.' {
-			hasDot = true
-			break
-		}
-	}
-
-	return hasDot
-}
-
-// formatFloat formats a float64 for error messages.
-func formatFloat(f float64) string {
-	return fmt.Sprintf("%.2f", f)
 }
 
 // formatInt formats an int for error messages.

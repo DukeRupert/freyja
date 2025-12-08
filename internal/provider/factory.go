@@ -246,30 +246,6 @@ func extractString(config map[string]interface{}, key string) (string, error) {
 	return strValue, nil
 }
 
-// extractFloat64 safely extracts a float64 value from config map.
-func extractFloat64(config map[string]interface{}, key string) (float64, error) {
-	value, exists := config[key]
-	if !exists {
-		return 0, ErrConfigKeyNotFound(key)
-	}
-
-	// Try float64 first (JSON numbers are typically float64)
-	if floatValue, ok := value.(float64); ok {
-		return floatValue, nil
-	}
-
-	// Try int as fallback
-	if intValue, ok := value.(int); ok {
-		return float64(intValue), nil
-	}
-
-	// Try int64 as fallback
-	if int64Value, ok := value.(int64); ok {
-		return float64(int64Value), nil
-	}
-
-	return 0, ErrConfigKeyWrongType(key, "numeric", value)
-}
 
 // extractInt safely extracts an int value from config map.
 func extractInt(config map[string]interface{}, key string) (int, error) {

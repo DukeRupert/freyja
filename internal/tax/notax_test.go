@@ -186,8 +186,8 @@ func TestNoTaxCalculator_CalculateTax_NilContext(t *testing.T) {
 		ShippingCents: 500,
 	}
 
-	// Should handle nil context gracefully (doesn't use context)
-	result, err := calc.CalculateTax(nil, params)
+	// Use context.TODO() as per Go best practices (context is not used in calculation)
+	result, err := calc.CalculateTax(context.TODO(), params)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)

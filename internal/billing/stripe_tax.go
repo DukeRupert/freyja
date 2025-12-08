@@ -171,7 +171,7 @@ func buildTaxBreakdown(calc *stripe.TaxCalculation) []tax.TaxBreakdown {
 			// Parse percentage decimal (e.g., "8.5" -> 0.085)
 			var rate float64
 			if item.TaxRateDetails.PercentageDecimal != "" {
-				fmt.Sscanf(item.TaxRateDetails.PercentageDecimal, "%f", &rate)
+				_, _ = fmt.Sscanf(item.TaxRateDetails.PercentageDecimal, "%f", &rate)
 				rate = rate / 100.0 // Convert percentage to decimal
 			}
 

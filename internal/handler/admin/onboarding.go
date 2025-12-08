@@ -59,7 +59,7 @@ func (h *OnboardingHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	// Check Accept header to decide format
 	if r.Header.Get("Accept") == "application/json" {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(status)
+		_ = json.NewEncoder(w).Encode(status)
 		return
 	}
 
@@ -94,7 +94,7 @@ func (h *OnboardingHandler) GetStatusJSON(w http.ResponseWriter, r *http.Request
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(status)
+	_ = json.NewEncoder(w).Encode(status)
 }
 
 // SkipItem handles POST /admin/onboarding/{item_id}/skip
@@ -195,12 +195,12 @@ func (h *OnboardingHandler) IsLaunchReady(w http.ResponseWriter, r *http.Request
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]bool{"launch_ready": ready})
+	_ = json.NewEncoder(w).Encode(map[string]bool{"launch_ready": ready})
 }
 
 // writeJSONError writes a JSON error response
 func writeJSONError(w http.ResponseWriter, message string, status int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
 }
