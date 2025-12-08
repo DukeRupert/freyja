@@ -233,6 +233,8 @@ type Querier interface {
 	// Separate from users table (storefront customers)
 	// Create a new tenant operator (called after Stripe checkout)
 	CreateTenantOperator(ctx context.Context, arg CreateTenantOperatorParams) (TenantOperator, error)
+	// Create a new page
+	CreateTenantPage(ctx context.Context, arg CreateTenantPageParams) (TenantPage, error)
 	// Create a new user (retail account by default)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	// Record incoming webhook event for idempotency
@@ -299,6 +301,8 @@ type Querier interface {
 	DeleteTaxRate(ctx context.Context, arg DeleteTaxRateParams) error
 	// Delete an operator (for cleanup/testing)
 	DeleteTenantOperator(ctx context.Context, arg DeleteTenantOperatorParams) error
+	// Delete a page
+	DeleteTenantPage(ctx context.Context, arg DeleteTenantPageParams) error
 	// Insert a new job into the queue
 	EnqueueJob(ctx context.Context, arg EnqueueJobParams) (Job, error)
 	// Mark a job as failed or reschedule it for retry
@@ -469,6 +473,8 @@ type Querier interface {
 	// Retrieves a specific provider configuration by ID.
 	// Used to load configuration for a known provider config.
 	GetProviderConfig(ctx context.Context, arg GetProviderConfigParams) (TenantProviderConfig, error)
+	// Get a published page by tenant and slug (for storefront)
+	GetPublishedTenantPage(ctx context.Context, arg GetPublishedTenantPageParams) (TenantPage, error)
 	// Get a single SKU by ID
 	GetSKUByID(ctx context.Context, id pgtype.UUID) (ProductSku, error)
 	// Get a SKU with its product details (for checkout display)
@@ -547,6 +553,8 @@ type Querier interface {
 	GetTenantOperatorByResetToken(ctx context.Context, resetTokenHash pgtype.Text) (TenantOperator, error)
 	// Get operator by valid (non-expired) setup token
 	GetTenantOperatorBySetupToken(ctx context.Context, setupTokenHash pgtype.Text) (TenantOperator, error)
+	// Get a single page by tenant and slug
+	GetTenantPage(ctx context.Context, arg GetTenantPageParams) (TenantPage, error)
 	// Checkout queries
 	// Get the primary warehouse address for a tenant (for shipping origin calculations)
 	// Used by CheckoutService.GetShippingRates to determine shipping origin
@@ -662,6 +670,8 @@ type Querier interface {
 	ListTaxRates(ctx context.Context, tenantID pgtype.UUID) ([]TaxRate, error)
 	// List all operators for a tenant (for future multi-user support)
 	ListTenantOperators(ctx context.Context, tenantID pgtype.UUID) ([]TenantOperator, error)
+	// List all pages for a tenant (for admin)
+	ListTenantPages(ctx context.Context, tenantID pgtype.UUID) ([]TenantPage, error)
 	// Lists upcoming scheduled events for processing
 	// Used by background job to process subscription renewals
 	ListUpcomingScheduleEvents(ctx context.Context, arg ListUpcomingScheduleEventsParams) ([]ListUpcomingScheduleEventsRow, error)
@@ -735,6 +745,8 @@ type Querier interface {
 	SuspendOperator(ctx context.Context, arg SuspendOperatorParams) error
 	// Suspend a tenant (grace period expired or manual suspension)
 	SuspendTenant(ctx context.Context, id pgtype.UUID) error
+	// Check if a page exists
+	TenantPageExists(ctx context.Context, arg TenantPageExistsParams) (bool, error)
 	// Check if a slug is already taken
 	TenantSlugExists(ctx context.Context, slug string) (bool, error)
 	// Removes is_default flag from all providers of a given type for a tenant.
@@ -816,6 +828,8 @@ type Querier interface {
 	UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscriptionStatusParams) (Subscription, error)
 	// Update an existing tax rate
 	UpdateTaxRate(ctx context.Context, arg UpdateTaxRateParams) (TaxRate, error)
+	// Update an existing page
+	UpdateTenantPage(ctx context.Context, arg UpdateTenantPageParams) (TenantPage, error)
 	// Update tenant profile information
 	UpdateTenantProfile(ctx context.Context, arg UpdateTenantProfileParams) (Tenant, error)
 	// Set Stripe customer ID for a tenant
@@ -838,6 +852,8 @@ type Querier interface {
 	UpdateWholesaleCustomer(ctx context.Context, arg UpdateWholesaleCustomerParams) error
 	// Create or update a price list entry
 	UpsertPriceListEntry(ctx context.Context, arg UpsertPriceListEntryParams) error
+	// Create or update a page (useful for seeding defaults)
+	UpsertTenantPage(ctx context.Context, arg UpsertTenantPageParams) (TenantPage, error)
 	// ============================================================================
 	// CADDY VALIDATION
 	// ============================================================================

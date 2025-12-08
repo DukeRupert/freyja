@@ -1,0 +1,99 @@
+{{define "title"}}Store Pages{{end}}
+
+{{define "content"}}
+<div class="space-y-8">
+    <!-- Page Header -->
+    <div class="flex items-end justify-between gap-4">
+        {{template "page-header" (dict "Title" "Store Pages" "Description" "Manage your storefront content pages including legal policies and information pages")}}
+        <form method="POST" action="/admin/settings/pages/initialize">
+            <button type="submit"
+                    class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+                Initialize Default Pages
+            </button>
+        </form>
+    </div>
+
+    <!-- Pages List -->
+    <div class="overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+        <table class="min-w-full text-left text-sm/6 text-zinc-950 dark:text-white">
+            <thead class="border-b border-zinc-950/5 dark:border-white/5 text-zinc-500 dark:text-zinc-400">
+                <tr>
+                    <th class="px-6 py-3 font-medium">Page</th>
+                    <th class="px-6 py-3 font-medium">Description</th>
+                    <th class="px-6 py-3 font-medium">Status</th>
+                    <th class="px-6 py-3 font-medium">Last Updated</th>
+                    <th class="px-6 py-3 font-medium text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-950/5 dark:divide-white/5">
+                {{range .Pages}}
+                <tr class="hover:bg-zinc-950/[2.5%] dark:hover:bg-white/[2.5%]">
+                    <td class="px-6 py-4">
+                        <div class="flex flex-col">
+                            <span class="font-medium">{{.Title}}</span>
+                            <span class="text-xs text-zinc-500 dark:text-zinc-400">/{{.Slug}}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="text-zinc-600 dark:text-zinc-400">{{.Description}}</span>
+                    </td>
+                    <td class="px-6 py-4">
+                        {{if .Exists}}
+                            {{if .IsPublished}}
+                            <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                Published
+                            </span>
+                            {{else}}
+                            <span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                                Draft
+                            </span>
+                            {{end}}
+                        {{else}}
+                            <span class="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-700/50 dark:text-zinc-400">
+                                Not Created
+                            </span>
+                        {{end}}
+                    </td>
+                    <td class="px-6 py-4">
+                        {{if .Exists}}
+                            <span class="text-zinc-600 dark:text-zinc-400">{{.UpdatedAt}}</span>
+                        {{else}}
+                            <span class="text-zinc-400 dark:text-zinc-500">—</span>
+                        {{end}}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="/admin/settings/pages/{{.Slug}}"
+                           class="inline-flex items-center gap-1 rounded-lg bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">
+                            {{if .Exists}}
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Edit
+                            {{else}}
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                            </svg>
+                            Create
+                            {{end}}
+                        </a>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Help Text -->
+    <div class="rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 p-6">
+        <h3 class="text-sm font-medium text-zinc-900 dark:text-white mb-2">About Store Pages</h3>
+        <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+            These pages appear on your storefront and provide important information to your customers.
+            Legal pages (Privacy Policy, Terms of Service, Shipping & Returns) are linked in your store's footer.
+        </p>
+        <p class="text-sm text-zinc-600 dark:text-zinc-400">
+            <strong>Tip:</strong> Click "Initialize Default Pages" to create all pages with standard template content
+            that you can customize for your business.
+        </p>
+    </div>
+</div>
+{{end}}

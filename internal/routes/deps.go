@@ -40,6 +40,9 @@ type StorefrontDeps struct {
 	// Wholesale
 	WholesaleApplicationHandler *storefront.WholesaleApplicationHandler
 	WholesaleOrderingHandler    *storefront.WholesaleOrderingHandler
+
+	// Static pages (legal, about, contact, etc.)
+	PagesHandler *storefront.PagesHandler
 }
 
 // AdminDeps contains dependencies for admin routes
@@ -73,6 +76,7 @@ type AdminDeps struct {
 	TaxRateHandler      *admin.TaxRateHandler
 	IntegrationsHandler *admin.IntegrationsHandler
 	CustomDomainHandler *admin.CustomDomainHandler
+	PageHandler         *admin.PageHandler
 
 	// Onboarding
 	OnboardingHandler *admin.OnboardingHandler

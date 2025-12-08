@@ -1,0 +1,417 @@
+{{define "title"}}Edit {{.Title}}{{end}}
+
+{{define "head"}}
+<!-- Tiptap Editor Dependencies -->
+<script type="module">
+    import { Editor } from 'https://esm.sh/@tiptap/core@2.1.13'
+    import StarterKit from 'https://esm.sh/@tiptap/starter-kit@2.1.13'
+    import Link from 'https://esm.sh/@tiptap/extension-link@2.1.13'
+    import Table from 'https://esm.sh/@tiptap/extension-table@2.1.13'
+    import TableRow from 'https://esm.sh/@tiptap/extension-table-row@2.1.13'
+    import TableCell from 'https://esm.sh/@tiptap/extension-table-cell@2.1.13'
+    import TableHeader from 'https://esm.sh/@tiptap/extension-table-header@2.1.13'
+
+    window.initTiptap = function(elementId, hiddenInputId, initialContent) {
+        const element = document.getElementById(elementId)
+        const hiddenInput = document.getElementById(hiddenInputId)
+
+        const editor = new Editor({
+            element: element,
+            extensions: [
+                StarterKit.configure({
+                    heading: {
+                        levels: [2, 3, 4],
+                    },
+                }),
+                Link.configure({
+                    openOnClick: false,
+                    HTMLAttributes: {
+                        class: 'text-indigo-600 hover:text-indigo-800 underline',
+                    },
+                }),
+                Table.configure({
+                    resizable: true,
+                }),
+                TableRow,
+                TableHeader,
+                TableCell,
+            ],
+            content: initialContent,
+            editorProps: {
+                attributes: {
+                    class: 'prose prose-sm dark:prose-invert max-w-none min-h-[400px] focus:outline-none p-4',
+                },
+            },
+            onUpdate: ({ editor }) => {
+                hiddenInput.value = editor.getHTML()
+            },
+        })
+
+        // Store editor instance for toolbar access
+        window.tiptapEditor = editor
+
+        // Initialize hidden input with initial content
+        hiddenInput.value = editor.getHTML()
+
+        return editor
+    }
+
+    // Toolbar button handlers
+    window.tiptapToggle = function(command, options = {}) {
+        const editor = window.tiptapEditor
+        if (!editor) return
+
+        switch(command) {
+            case 'bold':
+                editor.chain().focus().toggleBold().run()
+                break
+            case 'italic':
+                editor.chain().focus().toggleItalic().run()
+                break
+            case 'strike':
+                editor.chain().focus().toggleStrike().run()
+                break
+            case 'heading':
+                editor.chain().focus().toggleHeading({ level: options.level }).run()
+                break
+            case 'bulletList':
+                editor.chain().focus().toggleBulletList().run()
+                break
+            case 'orderedList':
+                editor.chain().focus().toggleOrderedList().run()
+                break
+            case 'blockquote':
+                editor.chain().focus().toggleBlockquote().run()
+                break
+            case 'horizontalRule':
+                editor.chain().focus().setHorizontalRule().run()
+                break
+            case 'link':
+                const url = window.prompt('Enter URL:')
+                if (url) {
+                    editor.chain().focus().setLink({ href: url }).run()
+                }
+                break
+            case 'unlink':
+                editor.chain().focus().unsetLink().run()
+                break
+            case 'table':
+                editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+                break
+            case 'undo':
+                editor.chain().focus().undo().run()
+                break
+            case 'redo':
+                editor.chain().focus().redo().run()
+                break
+        }
+    }
+</script>
+<style>
+    /* Tiptap editor styling */
+    .tiptap-editor {
+        border: 1px solid rgb(212 212 216); /* zinc-300 */
+        border-radius: 0.5rem;
+        background: white;
+    }
+    .dark .tiptap-editor {
+        border-color: rgb(63 63 70); /* zinc-700 */
+        background: rgb(39 39 42); /* zinc-800 */
+    }
+    .tiptap-editor .ProseMirror {
+        min-height: 400px;
+        padding: 1rem;
+    }
+    .tiptap-editor .ProseMirror:focus {
+        outline: none;
+    }
+    .tiptap-editor .ProseMirror p {
+        margin: 0.5rem 0;
+    }
+    .tiptap-editor .ProseMirror h2 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 1.5rem 0 0.75rem;
+    }
+    .tiptap-editor .ProseMirror h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 1.25rem 0 0.5rem;
+    }
+    .tiptap-editor .ProseMirror h4 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 1rem 0 0.5rem;
+    }
+    .tiptap-editor .ProseMirror ul,
+    .tiptap-editor .ProseMirror ol {
+        padding-left: 1.5rem;
+        margin: 0.5rem 0;
+    }
+    .tiptap-editor .ProseMirror ul {
+        list-style-type: disc;
+    }
+    .tiptap-editor .ProseMirror ol {
+        list-style-type: decimal;
+    }
+    .tiptap-editor .ProseMirror blockquote {
+        border-left: 3px solid rgb(212 212 216);
+        padding-left: 1rem;
+        margin: 1rem 0;
+        color: rgb(113 113 122);
+    }
+    .tiptap-editor .ProseMirror table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 1rem 0;
+    }
+    .tiptap-editor .ProseMirror th,
+    .tiptap-editor .ProseMirror td {
+        border: 1px solid rgb(212 212 216);
+        padding: 0.5rem;
+        text-align: left;
+    }
+    .tiptap-editor .ProseMirror th {
+        background: rgb(244 244 245);
+        font-weight: 600;
+    }
+    .dark .tiptap-editor .ProseMirror th {
+        background: rgb(63 63 70);
+    }
+    .tiptap-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+        padding: 0.5rem;
+        border-bottom: 1px solid rgb(212 212 216);
+        background: rgb(250 250 250);
+        border-radius: 0.5rem 0.5rem 0 0;
+    }
+    .dark .tiptap-toolbar {
+        border-color: rgb(63 63 70);
+        background: rgb(39 39 42);
+    }
+    .tiptap-toolbar button {
+        padding: 0.375rem 0.5rem;
+        border-radius: 0.25rem;
+        color: rgb(63 63 70);
+        transition: background-color 0.15s;
+    }
+    .dark .tiptap-toolbar button {
+        color: rgb(212 212 216);
+    }
+    .tiptap-toolbar button:hover {
+        background: rgb(228 228 231);
+    }
+    .dark .tiptap-toolbar button:hover {
+        background: rgb(63 63 70);
+    }
+    .tiptap-toolbar .divider {
+        width: 1px;
+        background: rgb(212 212 216);
+        margin: 0 0.25rem;
+    }
+    .dark .tiptap-toolbar .divider {
+        background: rgb(63 63 70);
+    }
+</style>
+{{end}}
+
+{{define "content"}}
+<div class="space-y-6">
+    <!-- Page Header -->
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+            <a href="/admin/settings/pages" class="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+            </a>
+            <div>
+                <h1 class="text-xl font-semibold text-zinc-900 dark:text-white">{{if .IsNew}}Create{{else}}Edit{{end}} {{.Title}}</h1>
+                <p class="text-sm text-zinc-500 dark:text-zinc-400">/{{.Slug}}</p>
+            </div>
+        </div>
+        <div id="save-status" class="text-sm text-zinc-500"></div>
+    </div>
+
+    <!-- Edit Form -->
+    <form method="POST" action="/admin/settings/pages/{{.Slug}}" class="space-y-6">
+        <!-- Page Settings -->
+        <div class="overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10 p-6">
+            <h3 class="text-base font-semibold text-zinc-900 dark:text-white mb-4">Page Settings</h3>
+
+            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                <div>
+                    <label for="title" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                        Page Title
+                    </label>
+                    <input type="text" name="title" id="title" value="{{.Title}}" required
+                           class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+                </div>
+
+                <div>
+                    <label for="last_updated_label" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                        Last Updated Label
+                    </label>
+                    <input type="text" name="last_updated_label" id="last_updated_label" value="{{.LastUpdatedLabel}}"
+                           placeholder="December 2024"
+                           class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+                    <p class="mt-1 text-xs text-zinc-500">Displayed on legal pages (e.g., "Last updated: December 2024")</p>
+                </div>
+
+                <div class="sm:col-span-2">
+                    <label for="meta_description" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                        Meta Description
+                    </label>
+                    <input type="text" name="meta_description" id="meta_description" value="{{.MetaDescription}}"
+                           maxlength="160"
+                           class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+                    <p class="mt-1 text-xs text-zinc-500">Used for SEO. Keep under 160 characters.</p>
+                </div>
+
+                <div class="sm:col-span-2">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="is_published" id="is_published" {{if .IsPublished}}checked{{end}}
+                               class="rounded border-zinc-300 dark:border-zinc-700">
+                        <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300">Published</span>
+                    </label>
+                    <p class="mt-1 text-xs text-zinc-500 ml-6">Unpublished pages will show a 404 to visitors</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content Editor -->
+        <div class="overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10 p-6">
+            <h3 class="text-base font-semibold text-zinc-900 dark:text-white mb-4">Page Content</h3>
+
+            <div class="tiptap-editor">
+                <!-- Toolbar -->
+                <div class="tiptap-toolbar">
+                    <button type="button" onclick="tiptapToggle('bold')" title="Bold">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 12h8a4 4 0 100-8H6v8zm0 0h9a4 4 0 110 8H6v-8z" />
+                        </svg>
+                    </button>
+                    <button type="button" onclick="tiptapToggle('italic')" title="Italic">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l-4 4 4 4M6 16l4-4-4-4" />
+                        </svg>
+                    </button>
+                    <button type="button" onclick="tiptapToggle('strike')" title="Strikethrough">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l-1.5 2.5M12 5l1.5 2.5M12 19l-1.5-2.5M12 19l1.5-2.5" />
+                        </svg>
+                    </button>
+
+                    <div class="divider"></div>
+
+                    <button type="button" onclick="tiptapToggle('heading', {level: 2})" title="Heading 2">
+                        <span class="text-sm font-bold">H2</span>
+                    </button>
+                    <button type="button" onclick="tiptapToggle('heading', {level: 3})" title="Heading 3">
+                        <span class="text-sm font-bold">H3</span>
+                    </button>
+                    <button type="button" onclick="tiptapToggle('heading', {level: 4})" title="Heading 4">
+                        <span class="text-sm font-bold">H4</span>
+                    </button>
+
+                    <div class="divider"></div>
+
+                    <button type="button" onclick="tiptapToggle('bulletList')" title="Bullet List">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                        </svg>
+                    </button>
+                    <button type="button" onclick="tiptapToggle('orderedList')" title="Numbered List">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M7 20h14M7 10h14M7 4l-3 3m0 0l3 3m-3-3h3" />
+                        </svg>
+                    </button>
+                    <button type="button" onclick="tiptapToggle('blockquote')" title="Quote">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                        </svg>
+                    </button>
+
+                    <div class="divider"></div>
+
+                    <button type="button" onclick="tiptapToggle('link')" title="Add Link">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                    </button>
+                    <button type="button" onclick="tiptapToggle('unlink')" title="Remove Link">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                        </svg>
+                    </button>
+
+                    <div class="divider"></div>
+
+                    <button type="button" onclick="tiptapToggle('table')" title="Insert Table">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                    </button>
+                    <button type="button" onclick="tiptapToggle('horizontalRule')" title="Horizontal Line">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
+                        </svg>
+                    </button>
+
+                    <div class="divider"></div>
+
+                    <button type="button" onclick="tiptapToggle('undo')" title="Undo">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                        </svg>
+                    </button>
+                    <button type="button" onclick="tiptapToggle('redo')" title="Redo">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Editor Content Area -->
+                <div id="editor"></div>
+            </div>
+
+            <!-- Hidden input to store HTML content -->
+            <input type="hidden" name="content" id="content-input" value="">
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center justify-between">
+            <a href="/admin/settings/pages"
+               class="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">
+                Cancel
+            </a>
+            <div class="flex items-center gap-3">
+                <a href="/{{.Slug}}" target="_blank"
+                   class="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">
+                    Preview
+                </a>
+                <button type="submit"
+                        class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+                    Save Page
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+    // Initialize Tiptap when the page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        // Wait for Tiptap to load from CDN
+        const checkTiptap = setInterval(function() {
+            if (typeof window.initTiptap === 'function') {
+                clearInterval(checkTiptap)
+                window.initTiptap('editor', 'content-input', `{{.Content}}`)
+            }
+        }, 100)
+    })
+</script>
+{{end}}

@@ -26,6 +26,7 @@ import (
 	"github.com/dukerupert/freyja/internal/handler/webhook"
 	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/onboarding"
+	"github.com/dukerupert/freyja/internal/page"
 	"github.com/dukerupert/freyja/internal/postgres"
 	"github.com/dukerupert/freyja/internal/provider"
 	"github.com/dukerupert/freyja/internal/repository"
@@ -304,6 +305,9 @@ func run() error {
 		Handler: saasHandler,
 	}
 
+	// Initialize page service (needed by both storefront and admin)
+	pageService := page.NewService(repo)
+
 	// Storefront dependencies
 	storefrontDeps := routes.StorefrontDeps{
 		// Home
@@ -357,6 +361,9 @@ func run() error {
 		// Wholesale
 		WholesaleApplicationHandler: storefront.NewWholesaleApplicationHandler(repo, renderer, cfg.TenantID),
 		WholesaleOrderingHandler:    storefront.NewWholesaleOrderingHandler(repo, cartService, renderer, cfg.TenantID, cfg.Env != "development"),
+
+		// Static pages (legal, about, contact, etc.)
+		PagesHandler: storefront.NewPagesHandler(pageService, renderer, cfg.TenantID),
 	}
 
 	// ==========================================================================
@@ -406,6 +413,7 @@ func run() error {
 		TaxRateHandler:      admin.NewTaxRateHandler(repo, renderer, cfg.TenantID),
 		IntegrationsHandler: admin.NewIntegrationsHandler(repo, renderer, cfg.TenantID, encryptor, providerValidator, providerRegistry),
 		CustomDomainHandler: admin.NewCustomDomainHandler(customDomainService, renderer),
+		PageHandler:         admin.NewPageHandler(pageService, renderer, cfg.TenantID),
 		OnboardingHandler:   admin.NewOnboardingHandler(onboardingService, renderer, cfg.TenantID),
 	}
 

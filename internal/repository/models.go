@@ -884,6 +884,23 @@ type TenantOperator struct {
 	SetupCompletedAt pgtype.Timestamptz `json:"setup_completed_at"`
 }
 
+// Editable content pages per tenant (privacy, terms, shipping, etc.)
+type TenantPage struct {
+	ID       pgtype.UUID `json:"id"`
+	TenantID pgtype.UUID `json:"tenant_id"`
+	// URL slug for the page (privacy, terms, shipping, about, contact)
+	Slug  string `json:"slug"`
+	Title string `json:"title"`
+	// HTML content from Tiptap rich text editor
+	Content         string      `json:"content"`
+	MetaDescription pgtype.Text `json:"meta_description"`
+	// Human-readable date shown on legal pages (e.g., December 2024)
+	LastUpdatedLabel pgtype.Text        `json:"last_updated_label"`
+	IsPublished      bool               `json:"is_published"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
 // Tenant-specific provider configurations with encrypted credentials
 type TenantProviderConfig struct {
 	ID       pgtype.UUID `json:"id"`

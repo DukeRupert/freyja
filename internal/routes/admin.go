@@ -101,6 +101,12 @@ func RegisterAdminRoutes(r *router.Router, deps AdminDeps) {
 	admin.Post("/admin/settings/domain/activate", deps.CustomDomainHandler.ActivateDomain)
 	admin.Delete("/admin/settings/domain", deps.CustomDomainHandler.RemoveDomain)
 
+	// Settings: Store pages
+	admin.Get("/admin/settings/pages", deps.PageHandler.ListPage)
+	admin.Get("/admin/settings/pages/{slug}", deps.PageHandler.EditPage)
+	admin.Post("/admin/settings/pages/{slug}", deps.PageHandler.UpdatePage)
+	admin.Post("/admin/settings/pages/initialize", deps.PageHandler.InitializePages)
+
 	// Onboarding checklist
 	admin.Get("/admin/onboarding", deps.OnboardingHandler.GetStatus)
 	admin.Get("/admin/api/onboarding", deps.OnboardingHandler.GetStatusJSON)

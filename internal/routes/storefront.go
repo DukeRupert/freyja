@@ -14,6 +14,11 @@ func RegisterStorefrontRoutes(r *router.Router, deps StorefrontDeps) {
 	// Home page
 	r.Get("/", deps.HomeHandler.ServeHTTP)
 
+	// Legal/static pages
+	r.Get("/privacy", deps.PagesHandler.Privacy)
+	r.Get("/terms", deps.PagesHandler.Terms)
+	r.Get("/shipping", deps.PagesHandler.Shipping)
+
 	// Product browsing
 	r.Get("/products", deps.ProductHandler.List)
 	r.Get("/products/{slug}", deps.ProductHandler.Detail)
