@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/crypto"
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/email"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/handler/storefront"
@@ -109,7 +110,7 @@ func (h *IntegrationsHandler) ConfigPage(w http.ResponseWriter, r *http.Request)
 
 	providerTypeStr := r.PathValue("type")
 	if providerTypeStr == "" {
-		http.Error(w, "Provider type required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Provider type required"))
 		return
 	}
 
@@ -178,12 +179,12 @@ func (h *IntegrationsHandler) SaveConfig(w http.ResponseWriter, r *http.Request)
 
 	providerTypeStr := r.PathValue("type")
 	if providerTypeStr == "" {
-		http.Error(w, "Provider type required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Provider type required"))
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
 	}
 
@@ -193,7 +194,7 @@ func (h *IntegrationsHandler) SaveConfig(w http.ResponseWriter, r *http.Request)
 	// Validate that provider name is appropriate for the provider type
 	// This prevents mismatched configurations (e.g., setting stripe_tax as billing provider)
 	if !provider.IsValidProviderNameForType(providerName, providerType) {
-		http.Error(w, fmt.Sprintf("Invalid provider %q for type %q", providerName, providerType), http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid provider %q for type %q", providerName, providerType))
 		return
 	}
 
@@ -202,7 +203,7 @@ func (h *IntegrationsHandler) SaveConfig(w http.ResponseWriter, r *http.Request)
 	// Validate that required credentials are present (not empty)
 	// This prevents credential rotation bypass via empty form submissions
 	if missingCreds := getMissingCredentials(providerName, configMap); len(missingCreds) > 0 {
-		http.Error(w, fmt.Sprintf("Missing required credentials: %s", strings.Join(missingCreds, ", ")), http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Missing required credentials: %s", strings.Join(missingCreds, ", ")))
 		return
 	}
 
@@ -219,19 +220,19 @@ func (h *IntegrationsHandler) SaveConfig(w http.ResponseWriter, r *http.Request)
 	validationResult := h.validateConfig(tenantConfig)
 	if !validationResult.Valid {
 		errorMsg := strings.Join(validationResult.Errors, ", ")
-		http.Error(w, errorMsg, http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "%s", errorMsg))
 		return
 	}
 
 	configJSON, err := json.Marshal(configMap)
 	if err != nil {
-		http.Error(w, "Failed to encode configuration", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
 	encryptedConfig, err := h.encryptor.Encrypt(configJSON)
 	if err != nil {
-		http.Error(w, "Failed to encrypt configuration", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -247,7 +248,7 @@ func (h *IntegrationsHandler) SaveConfig(w http.ResponseWriter, r *http.Request)
 	if err == nil && existingConfig.ID.Valid {
 		// Verify tenant ownership before updating
 		if existingConfig.TenantID != h.tenantID {
-			http.Error(w, "Unauthorized", http.StatusForbidden)
+			handler.ErrorResponse(w, r, domain.Errorf(domain.EFORBIDDEN, "", "Unauthorized"))
 			return
 		}
 
@@ -276,7 +277,7 @@ func (h *IntegrationsHandler) SaveConfig(w http.ResponseWriter, r *http.Request)
 			},
 		})
 		if err != nil {
-			http.Error(w, "Failed to update configuration", http.StatusInternalServerError)
+			handler.InternalErrorResponse(w, r, err)
 			return
 		}
 	} else {
@@ -290,7 +291,7 @@ func (h *IntegrationsHandler) SaveConfig(w http.ResponseWriter, r *http.Request)
 			ConfigEncrypted: string(encryptedConfig),
 		})
 		if err != nil {
-			http.Error(w, "Failed to create configuration", http.StatusInternalServerError)
+			handler.InternalErrorResponse(w, r, err)
 			return
 		}
 	}
@@ -308,12 +309,12 @@ func (h *IntegrationsHandler) SaveConfig(w http.ResponseWriter, r *http.Request)
 func (h *IntegrationsHandler) ValidateConfig(w http.ResponseWriter, r *http.Request) {
 	providerTypeStr := r.PathValue("type")
 	if providerTypeStr == "" {
-		http.Error(w, "Provider type required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Provider type required"))
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
 	}
 

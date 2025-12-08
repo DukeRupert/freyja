@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/repository"
@@ -50,7 +51,7 @@ func NewProductHandler(repo repository.Querier, renderer *handler.Renderer, stor
 func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	products, err := h.repo.ListAllProducts(r.Context(), h.tenantID)
 	if err != nil {
-		http.Error(w, "Failed to load products", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -66,13 +67,13 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	productID := r.PathValue("id")
 	if productID == "" {
-		http.Error(w, "Product ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Product ID required"))
 		return
 	}
 
 	var productUUID pgtype.UUID
 	if err := productUUID.Scan(productID); err != nil {
-		http.Error(w, "Invalid product ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid product ID"))
 		return
 	}
 
@@ -81,13 +82,13 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		ID:       productUUID,
 	})
 	if err != nil {
-		http.Error(w, "Product not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
 	skus, err := h.repo.GetProductSKUs(r.Context(), productUUID)
 	if err != nil {
-		http.Error(w, "Failed to load SKUs", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -162,7 +163,7 @@ func (h *ProductHandler) ShowForm(w http.ResponseWriter, r *http.Request) {
 	if productID != "" {
 		var productUUID pgtype.UUID
 		if err := productUUID.Scan(productID); err != nil {
-			http.Error(w, "Invalid product ID", http.StatusBadRequest)
+			handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid product ID"))
 			return
 		}
 
@@ -171,7 +172,7 @@ func (h *ProductHandler) ShowForm(w http.ResponseWriter, r *http.Request) {
 			ID:       productUUID,
 		})
 		if err != nil {
-			http.Error(w, "Product not found", http.StatusNotFound)
+			handler.NotFoundResponse(w, r)
 			return
 		}
 		product = p
@@ -196,7 +197,7 @@ func (h *ProductHandler) ShowForm(w http.ResponseWriter, r *http.Request) {
 // HandleForm handles POST /admin/products/new and POST /admin/products/{id}/edit
 func (h *ProductHandler) HandleForm(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
 	}
 
@@ -218,7 +219,7 @@ func (h *ProductHandler) HandleForm(w http.ResponseWriter, r *http.Request) {
 	if isEdit {
 		var productUUID pgtype.UUID
 		if err := productUUID.Scan(productID); err != nil {
-			http.Error(w, "Invalid product ID", http.StatusBadRequest)
+			handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid product ID"))
 			return
 		}
 
@@ -265,7 +266,7 @@ func (h *ProductHandler) HandleForm(w http.ResponseWriter, r *http.Request) {
 			SortOrder:        sortOrder,
 		})
 		if err != nil {
-			http.Error(w, "Failed to update product: "+err.Error(), http.StatusInternalServerError)
+			handler.InternalErrorResponse(w, r, err)
 			return
 		}
 
@@ -320,7 +321,7 @@ func (h *ProductHandler) HandleForm(w http.ResponseWriter, r *http.Request) {
 			SortOrder:            sortOrder,
 		})
 		if err != nil {
-			http.Error(w, "Failed to create product: "+err.Error(), http.StatusInternalServerError)
+			handler.InternalErrorResponse(w, r, err)
 			return
 		}
 
@@ -332,13 +333,13 @@ func (h *ProductHandler) HandleForm(w http.ResponseWriter, r *http.Request) {
 func (h *ProductHandler) ShowSKUForm(w http.ResponseWriter, r *http.Request) {
 	productID := r.PathValue("product_id")
 	if productID == "" {
-		http.Error(w, "Product ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Product ID required"))
 		return
 	}
 
 	var productUUID pgtype.UUID
 	if err := productUUID.Scan(productID); err != nil {
-		http.Error(w, "Invalid product ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid product ID"))
 		return
 	}
 
@@ -347,7 +348,7 @@ func (h *ProductHandler) ShowSKUForm(w http.ResponseWriter, r *http.Request) {
 		ID:       productUUID,
 	})
 	if err != nil {
-		http.Error(w, "Product not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
@@ -358,13 +359,13 @@ func (h *ProductHandler) ShowSKUForm(w http.ResponseWriter, r *http.Request) {
 	if skuID != "" {
 		var skuUUID pgtype.UUID
 		if err := skuUUID.Scan(skuID); err != nil {
-			http.Error(w, "Invalid SKU ID", http.StatusBadRequest)
+			handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid SKU ID"))
 			return
 		}
 
 		sku, err = h.repo.GetSKUByID(r.Context(), skuUUID)
 		if err != nil {
-			http.Error(w, "SKU not found", http.StatusNotFound)
+			handler.NotFoundResponse(w, r)
 			return
 		}
 
@@ -390,14 +391,14 @@ func (h *ProductHandler) ShowSKUForm(w http.ResponseWriter, r *http.Request) {
 // HandleSKUForm handles POST /admin/products/{product_id}/skus/new and POST /admin/products/{product_id}/skus/{sku_id}/edit
 func (h *ProductHandler) HandleSKUForm(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
 	}
 
 	productID := r.PathValue("product_id")
 	var productUUID pgtype.UUID
 	if err := productUUID.Scan(productID); err != nil {
-		http.Error(w, "Invalid product ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid product ID"))
 		return
 	}
 
@@ -406,7 +407,7 @@ func (h *ProductHandler) HandleSKUForm(w http.ResponseWriter, r *http.Request) {
 		ID:       productUUID,
 	})
 	if err != nil {
-		http.Error(w, "Product not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
@@ -421,7 +422,7 @@ func (h *ProductHandler) HandleSKUForm(w http.ResponseWriter, r *http.Request) {
 
 	basePriceDollars, err := strconv.ParseFloat(basePriceStr, 64)
 	if err != nil {
-		http.Error(w, "Invalid price", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid price"))
 		return
 	}
 	basePriceCents := int32(math.Round(basePriceDollars * 100))
@@ -443,7 +444,7 @@ func (h *ProductHandler) HandleSKUForm(w http.ResponseWriter, r *http.Request) {
 
 	var weightNumeric pgtype.Numeric
 	if err := weightNumeric.Scan(weightValue); err != nil {
-		http.Error(w, "Invalid weight value", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid weight value"))
 		return
 	}
 
@@ -451,7 +452,7 @@ func (h *ProductHandler) HandleSKUForm(w http.ResponseWriter, r *http.Request) {
 	if skuID != "" {
 		var skuUUID pgtype.UUID
 		if err := skuUUID.Scan(skuID); err != nil {
-			http.Error(w, "Invalid SKU ID", http.StatusBadRequest)
+			handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid SKU ID"))
 			return
 		}
 
@@ -471,7 +472,7 @@ func (h *ProductHandler) HandleSKUForm(w http.ResponseWriter, r *http.Request) {
 			RequiresShipping:  true,
 		})
 		if err != nil {
-			http.Error(w, "Failed to update SKU: "+err.Error(), http.StatusInternalServerError)
+			handler.InternalErrorResponse(w, r, err)
 			return
 		}
 
@@ -493,7 +494,7 @@ func (h *ProductHandler) HandleSKUForm(w http.ResponseWriter, r *http.Request) {
 			RequiresShipping:  true,
 		})
 		if err != nil {
-			http.Error(w, "Failed to create SKU: "+err.Error(), http.StatusInternalServerError)
+			handler.InternalErrorResponse(w, r, err)
 			return
 		}
 
@@ -634,13 +635,13 @@ func generateImageKey(tenantID, productID pgtype.UUID, filename string) string {
 func (h *ProductHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	productID := r.PathValue("id")
 	if productID == "" {
-		http.Error(w, "Product ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Product ID required"))
 		return
 	}
 
 	var productUUID pgtype.UUID
 	if err := productUUID.Scan(productID); err != nil {
-		http.Error(w, "Invalid product ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid product ID"))
 		return
 	}
 
@@ -649,18 +650,18 @@ func (h *ProductHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
 		ID:       productUUID,
 	})
 	if err != nil {
-		http.Error(w, "Product not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
 	}
 
 	file, fileHeader, err := r.FormFile("image")
 	if err != nil {
-		http.Error(w, "No image file provided", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "No image file provided"))
 		return
 	}
 	defer file.Close()
@@ -730,17 +731,17 @@ func (h *ProductHandler) DeleteImage(w http.ResponseWriter, r *http.Request) {
 
 	var productUUID, imageUUID pgtype.UUID
 	if err := productUUID.Scan(productID); err != nil {
-		http.Error(w, "Invalid product ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid product ID"))
 		return
 	}
 	if err := imageUUID.Scan(imageID); err != nil {
-		http.Error(w, "Invalid image ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid image ID"))
 		return
 	}
 
 	images, err := h.repo.GetProductImages(r.Context(), productUUID)
 	if err != nil {
-		http.Error(w, "Failed to load images", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -756,7 +757,7 @@ func (h *ProductHandler) DeleteImage(w http.ResponseWriter, r *http.Request) {
 		TenantID: h.tenantID,
 		ID:       imageUUID,
 	}); err != nil {
-		http.Error(w, "Failed to delete image", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -775,11 +776,11 @@ func (h *ProductHandler) SetPrimary(w http.ResponseWriter, r *http.Request) {
 
 	var productUUID, imageUUID pgtype.UUID
 	if err := productUUID.Scan(productID); err != nil {
-		http.Error(w, "Invalid product ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid product ID"))
 		return
 	}
 	if err := imageUUID.Scan(imageID); err != nil {
-		http.Error(w, "Invalid image ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid image ID"))
 		return
 	}
 
@@ -787,7 +788,7 @@ func (h *ProductHandler) SetPrimary(w http.ResponseWriter, r *http.Request) {
 		TenantID: h.tenantID,
 		ID:       imageUUID,
 	}); err != nil {
-		http.Error(w, "Failed to set primary image", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -802,16 +803,16 @@ func (h *ProductHandler) UpdateImageMetadata(w http.ResponseWriter, r *http.Requ
 
 	var productUUID, imageUUID pgtype.UUID
 	if err := productUUID.Scan(productID); err != nil {
-		http.Error(w, "Invalid product ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid product ID"))
 		return
 	}
 	if err := imageUUID.Scan(imageID); err != nil {
-		http.Error(w, "Invalid image ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid image ID"))
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
 	}
 
@@ -821,7 +822,7 @@ func (h *ProductHandler) UpdateImageMetadata(w http.ResponseWriter, r *http.Requ
 
 	images, err := h.repo.GetProductImages(r.Context(), productUUID)
 	if err != nil {
-		http.Error(w, "Failed to load images", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -860,7 +861,7 @@ func (h *ProductHandler) UpdateImageMetadata(w http.ResponseWriter, r *http.Requ
 		IsPrimary: currentImage.IsPrimary,
 	})
 	if err != nil {
-		http.Error(w, "Failed to update image metadata", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -871,7 +872,7 @@ func (h *ProductHandler) UpdateImageMetadata(w http.ResponseWriter, r *http.Requ
 func (h *ProductHandler) renderImageGallery(w http.ResponseWriter, r *http.Request, productUUID pgtype.UUID) {
 	images, err := h.repo.GetProductImages(r.Context(), productUUID)
 	if err != nil {
-		http.Error(w, "Failed to load images", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 

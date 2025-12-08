@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/service"
@@ -54,7 +55,7 @@ func (h *CustomerHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		http.Error(w, "Failed to load customers", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -118,24 +119,24 @@ func (h *CustomerHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *CustomerHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	customerID := r.PathValue("id")
 	if customerID == "" {
-		http.Error(w, "Customer ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Customer ID required"))
 		return
 	}
 
 	var customerUUID pgtype.UUID
 	if err := customerUUID.Scan(customerID); err != nil {
-		http.Error(w, "Invalid customer ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid customer ID"))
 		return
 	}
 
 	customer, err := h.repo.GetUserByID(r.Context(), customerUUID)
 	if err != nil {
-		http.Error(w, "Customer not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
 	if customer.TenantID != h.tenantID {
-		http.Error(w, "Customer not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
@@ -191,24 +192,24 @@ func (h *CustomerHandler) Detail(w http.ResponseWriter, r *http.Request) {
 func (h *CustomerHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	customerID := r.PathValue("id")
 	if customerID == "" {
-		http.Error(w, "Customer ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Customer ID required"))
 		return
 	}
 
 	var customerUUID pgtype.UUID
 	if err := customerUUID.Scan(customerID); err != nil {
-		http.Error(w, "Invalid customer ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid customer ID"))
 		return
 	}
 
 	customer, err := h.repo.GetUserByID(r.Context(), customerUUID)
 	if err != nil {
-		http.Error(w, "Customer not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
 	if customer.TenantID != h.tenantID {
-		http.Error(w, "Customer not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
@@ -240,29 +241,29 @@ func (h *CustomerHandler) Edit(w http.ResponseWriter, r *http.Request) {
 func (h *CustomerHandler) Update(w http.ResponseWriter, r *http.Request) {
 	customerID := r.PathValue("id")
 	if customerID == "" {
-		http.Error(w, "Customer ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Customer ID required"))
 		return
 	}
 
 	var customerUUID pgtype.UUID
 	if err := customerUUID.Scan(customerID); err != nil {
-		http.Error(w, "Invalid customer ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid customer ID"))
 		return
 	}
 
 	customer, err := h.repo.GetUserByID(r.Context(), customerUUID)
 	if err != nil {
-		http.Error(w, "Customer not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
 	if customer.TenantID != h.tenantID {
-		http.Error(w, "Customer not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
 	}
 
@@ -300,7 +301,7 @@ func (h *CustomerHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	err = h.repo.AdminUpdateCustomer(r.Context(), params)
 	if err != nil {
-		http.Error(w, "Failed to update customer", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -312,35 +313,35 @@ func (h *CustomerHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *CustomerHandler) WholesaleApproval(w http.ResponseWriter, r *http.Request) {
 	customerID := r.PathValue("id")
 	if customerID == "" {
-		http.Error(w, "Customer ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Customer ID required"))
 		return
 	}
 
 	action := r.PathValue("action")
 	if action != "approve" && action != "reject" {
-		http.Error(w, "Invalid action", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid action"))
 		return
 	}
 
 	var customerUUID pgtype.UUID
 	if err := customerUUID.Scan(customerID); err != nil {
-		http.Error(w, "Invalid customer ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid customer ID"))
 		return
 	}
 
 	customer, err := h.repo.GetUserByID(r.Context(), customerUUID)
 	if err != nil {
-		http.Error(w, "Customer not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
 	if customer.TenantID != h.tenantID {
-		http.Error(w, "Customer not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
 	if !customer.WholesaleApplicationStatus.Valid || customer.WholesaleApplicationStatus.String != "pending" {
-		http.Error(w, "No pending wholesale application", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "No pending wholesale application"))
 		return
 	}
 
@@ -359,7 +360,7 @@ func (h *CustomerHandler) WholesaleApproval(w http.ResponseWriter, r *http.Reque
 		PaymentTerms:               pgtype.Text{String: "net_30", Valid: true},
 	})
 	if err != nil {
-		http.Error(w, "Failed to update wholesale status", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
