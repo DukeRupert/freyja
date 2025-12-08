@@ -21,7 +21,7 @@ import (
 // StripeHandler handles Stripe webhook events
 type StripeHandler struct {
 	provider            billing.Provider
-	orderService        service.OrderService
+	orderService        domain.OrderService
 	subscriptionService service.SubscriptionService
 	config              StripeWebhookConfig
 }
@@ -45,7 +45,7 @@ type StripeWebhookConfig struct {
 }
 
 // NewStripeHandler creates a new Stripe webhook handler
-func NewStripeHandler(provider billing.Provider, orderService service.OrderService, subscriptionService service.SubscriptionService, config StripeWebhookConfig) *StripeHandler {
+func NewStripeHandler(provider billing.Provider, orderService domain.OrderService, subscriptionService service.SubscriptionService, config StripeWebhookConfig) *StripeHandler {
 	return &StripeHandler{
 		provider:            provider,
 		orderService:        orderService,

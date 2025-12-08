@@ -23,7 +23,7 @@ type CheckoutHandler struct {
 	renderer             *handler.Renderer
 	cartService          domain.CartService
 	checkoutService      service.CheckoutService
-	orderService         service.OrderService
+	orderService         domain.OrderService
 	repo                 repository.Querier
 	stripePublishableKey string
 	tenantID             pgtype.UUID
@@ -34,7 +34,7 @@ func NewCheckoutHandler(
 	renderer *handler.Renderer,
 	cartService domain.CartService,
 	checkoutService service.CheckoutService,
-	orderService service.OrderService,
+	orderService domain.OrderService,
 	repo repository.Querier,
 	stripePublishableKey string,
 	tenantID string,

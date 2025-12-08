@@ -12,33 +12,17 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/billing"
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/shipping"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// OrderService provides business logic for order operations
-type OrderService interface {
-	// CreateOrderFromPaymentIntent creates an order from a successful payment
-	// This is the primary order creation flow for retail purchases
-	// Implements idempotency via payment_intent_id to prevent duplicate orders
-	CreateOrderFromPaymentIntent(ctx context.Context, paymentIntentID string) (*OrderDetail, error)
+// OrderService is re-exported from domain for backwards compatibility.
+type OrderService = domain.OrderService
 
-	// GetOrder retrieves a single order by ID with tenant scoping
-	GetOrder(ctx context.Context, orderID string) (*OrderDetail, error)
-
-	// GetOrderByNumber retrieves a single order by order number with tenant scoping
-	GetOrderByNumber(ctx context.Context, orderNumber string) (*OrderDetail, error)
-}
-
-// OrderDetail aggregates order information with items and addresses
-type OrderDetail struct {
-	Order           repository.Order
-	Items           []repository.OrderItem
-	ShippingAddress repository.Address
-	BillingAddress  repository.Address
-	Payment         repository.Payment
-}
+// OrderDetail is re-exported from domain for backwards compatibility.
+type OrderDetail = domain.OrderDetail
 
 type orderService struct {
 	repo             repository.Querier
