@@ -5,10 +5,10 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"time"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/jobs"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/google/uuid"
@@ -36,13 +36,13 @@ const (
 
 var (
 	// ErrVerificationTokenInvalid indicates the verification token is invalid, expired, or already used
-	ErrVerificationTokenInvalid = errors.New("invalid or expired verification token")
+	ErrVerificationTokenInvalid = domain.Errorf(domain.EINVALID, "", "Invalid or expired verification token")
 
 	// ErrVerificationRateLimitExceeded indicates too many verification requests
-	ErrVerificationRateLimitExceeded = errors.New("too many verification requests, please try again later")
+	ErrVerificationRateLimitExceeded = domain.Errorf(domain.ERATELIMIT, "", "Too many verification requests, please try again later")
 
 	// ErrEmailAlreadyVerified indicates the email is already verified
-	ErrEmailAlreadyVerified = errors.New("email is already verified")
+	ErrEmailAlreadyVerified = domain.Errorf(domain.ECONFLICT, "", "Email is already verified")
 )
 
 // EmailVerificationService handles email verification operations

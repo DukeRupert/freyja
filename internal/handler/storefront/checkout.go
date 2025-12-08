@@ -4,11 +4,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/dukerupert/freyja/internal/address"
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/repository"
@@ -71,7 +71,7 @@ func (h *CheckoutHandler) Page(w http.ResponseWriter, r *http.Request) {
 
 	cartSummary, err := h.cartService.GetCartSummary(r.Context(), cart.ID.String())
 	if err != nil {
-		http.Error(w, "Failed to load cart details", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -145,7 +145,7 @@ func (h *CheckoutHandler) ValidateAddress(w http.ResponseWriter, r *http.Request
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Error("Failed to decode validate address request", "error", err)
-		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid request body"))
 		return
 	}
 
@@ -154,14 +154,14 @@ func (h *CheckoutHandler) ValidateAddress(w http.ResponseWriter, r *http.Request
 	shippingResult, err := h.checkoutService.ValidateAndNormalizeAddress(r.Context(), req.ShippingAddress)
 	if err != nil {
 		logger.Error("Shipping address validation failed", "error", err, "address", req.ShippingAddress)
-		http.Error(w, fmt.Sprintf("Address validation failed: %v", err), http.StatusInternalServerError)
+		handler.ErrorResponse(w, r, err)
 		return
 	}
 
 	billingResult, err := h.checkoutService.ValidateAndNormalizeAddress(r.Context(), req.BillingAddress)
 	if err != nil {
 		logger.Error("Billing address validation failed", "error", err, "address", req.BillingAddress)
-		http.Error(w, fmt.Sprintf("Address validation failed: %v", err), http.StatusInternalServerError)
+		handler.ErrorResponse(w, r, err)
 		return
 	}
 
@@ -189,7 +189,7 @@ func (h *CheckoutHandler) GetShippingRates(w http.ResponseWriter, r *http.Reques
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Error("Failed to decode shipping rates request", "error", err)
-		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid request body"))
 		return
 	}
 
@@ -198,7 +198,7 @@ func (h *CheckoutHandler) GetShippingRates(w http.ResponseWriter, r *http.Reques
 	rates, err := h.checkoutService.GetShippingRates(r.Context(), req.CartID, req.ShippingAddress)
 	if err != nil {
 		logger.Error("Failed to get shipping rates", "error", err, "cart_id", req.CartID)
-		http.Error(w, fmt.Sprintf("Failed to get shipping rates: %v", err), http.StatusInternalServerError)
+		handler.ErrorResponse(w, r, err)
 		return
 	}
 
@@ -228,7 +228,7 @@ func (h *CheckoutHandler) CalculateTotal(w http.ResponseWriter, r *http.Request)
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Error("Failed to decode calculate total request", "error", err)
-		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid request body"))
 		return
 	}
 
@@ -244,7 +244,7 @@ func (h *CheckoutHandler) CalculateTotal(w http.ResponseWriter, r *http.Request)
 	total, err := h.checkoutService.CalculateOrderTotal(r.Context(), params)
 	if err != nil {
 		logger.Error("Failed to calculate order total", "error", err, "cart_id", req.CartID)
-		http.Error(w, fmt.Sprintf("Failed to calculate total: %v", err), http.StatusInternalServerError)
+		handler.ErrorResponse(w, r, err)
 		return
 	}
 
@@ -276,7 +276,7 @@ func (h *CheckoutHandler) CreatePaymentIntent(w http.ResponseWriter, r *http.Req
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Error("Failed to decode payment intent request", "error", err)
-		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid request body"))
 		return
 	}
 
@@ -303,7 +303,7 @@ func (h *CheckoutHandler) CreatePaymentIntent(w http.ResponseWriter, r *http.Req
 			"cart_id": req.CartID,
 			"email":   req.CustomerEmail,
 		})
-		http.Error(w, fmt.Sprintf("Failed to create payment intent: %v", err), http.StatusInternalServerError)
+		handler.ErrorResponse(w, r, err)
 		return
 	}
 
@@ -359,7 +359,7 @@ func (h *CheckoutHandler) OrderConfirmation(w http.ResponseWriter, r *http.Reque
 			return
 		}
 		logger.Error("Failed to get order", "error", err, "payment_intent", paymentIntentID)
-		http.Error(w, "Failed to load order", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -369,14 +369,14 @@ func (h *CheckoutHandler) OrderConfirmation(w http.ResponseWriter, r *http.Reque
 	})
 	if err != nil {
 		logger.Error("Failed to get order details", "error", err, "order_id", order.ID)
-		http.Error(w, "Failed to load order details", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
 	orderItems, err := h.repo.GetOrderItems(r.Context(), order.ID)
 	if err != nil {
 		logger.Error("Failed to get order items", "error", err, "order_id", order.ID)
-		http.Error(w, "Failed to load order details", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 

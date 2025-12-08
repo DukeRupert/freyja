@@ -10,6 +10,7 @@ import (
 
 	"github.com/dukerupert/freyja/internal/address"
 	"github.com/dukerupert/freyja/internal/billing"
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/shipping"
 	"github.com/dukerupert/freyja/internal/tax"
@@ -18,10 +19,10 @@ import (
 
 // Checkout-specific errors (ErrCartNotFound and ErrCartAlreadyConverted defined in errors.go)
 var (
-	ErrCartEmpty              = errors.New("cart is empty")
-	ErrNoShippingRates        = errors.New("no shipping rates available for destination")
-	ErrInvalidShippingAddress = errors.New("shipping address not serviceable")
-	ErrInvalidTenantID        = errors.New("invalid tenant ID format")
+	ErrCartEmpty              = domain.Errorf(domain.EINVALID, "", "Cart is empty")
+	ErrNoShippingRates        = domain.Errorf(domain.EINVALID, "", "No shipping rates available for destination")
+	ErrInvalidShippingAddress = domain.Errorf(domain.EINVALID, "", "Shipping address not serviceable")
+	ErrInvalidTenantID        = domain.Errorf(domain.EINVALID, "", "Invalid tenant ID format")
 )
 
 // CheckoutService provides business logic for checkout operations.

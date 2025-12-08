@@ -1,12 +1,12 @@
 package storefront
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/dukerupert/freyja/internal/service"
@@ -135,7 +135,7 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			slog.Error("failed to list filtered products", "error", err, "roast", roastLevel, "origin", origin, "note", tastingNote)
-			http.Error(w, "Failed to load products", http.StatusInternalServerError)
+			handler.InternalErrorResponse(w, r, err)
 			return
 		}
 
@@ -160,7 +160,7 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 		// No filters - use original query
 		allProducts, err := h.productService.ListProducts(ctx)
 		if err != nil {
-			http.Error(w, "Failed to load products", http.StatusInternalServerError)
+			handler.InternalErrorResponse(w, r, err)
 			return
 		}
 
@@ -219,17 +219,18 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	tenantID := h.tenantID.String()
 
 	if slug == "" {
-		http.NotFound(w, r)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
 	detail, err := h.productService.GetProductDetail(ctx, slug)
 	if err != nil {
-		if errors.Is(err, service.ErrProductNotFound) {
-			http.NotFound(w, r)
+		// Service now returns domain errors - ErrProductNotFound maps to 404
+		if domain.ErrorCode(err) == domain.ENOTFOUND {
+			handler.ErrorResponse(w, r, err)
 			return
 		}
-		http.Error(w, "Failed to load product", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -316,14 +317,14 @@ func (h *ProductHandler) SubscribeProducts(w http.ResponseWriter, r *http.Reques
 	// Get all active products
 	products, err := h.productService.ListProducts(ctx)
 	if err != nil {
-		http.Error(w, "Failed to load products", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
 	// Get default price list
 	priceList, err := h.repo.GetDefaultPriceList(ctx, h.tenantID)
 	if err != nil {
-		http.Error(w, "Failed to load pricing", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 

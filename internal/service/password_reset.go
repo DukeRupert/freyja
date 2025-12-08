@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/auth"
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/jobs"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/google/uuid"
@@ -35,10 +36,10 @@ const (
 
 var (
 	// ErrInvalidToken indicates the reset token is invalid, expired, or already used
-	ErrInvalidToken = errors.New("invalid or expired reset token")
+	ErrInvalidToken = domain.Errorf(domain.EINVALID, "", "Invalid or expired reset token")
 
 	// ErrRateLimitExceeded indicates too many reset requests
-	ErrRateLimitExceeded = errors.New("too many password reset requests, please try again later")
+	ErrRateLimitExceeded = domain.Errorf(domain.ERATELIMIT, "", "Too many password reset requests, please try again later")
 )
 
 // PasswordResetService handles password reset operations

@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -20,16 +19,16 @@ import (
 
 // Custom domain service errors
 var (
-	ErrInvalidDomain         = errors.New("invalid domain format")
-	ErrApexDomainNotAllowed  = errors.New("apex domains not supported, use a subdomain (e.g., www.example.com or shop.example.com)")
-	ErrDomainAlreadyInUse    = errors.New("this domain is already in use by another store")
-	ErrDomainNotConfigured   = errors.New("no custom domain configured")
-	ErrDomainNotVerified     = errors.New("domain has not been verified yet")
-	ErrDomainAlreadyActive   = errors.New("domain is already active")
-	ErrCNAMENotConfigured    = errors.New("CNAME record not found or does not point to custom.freyja.app")
-	ErrTXTNotConfigured      = errors.New("TXT verification record not found")
-	ErrVerificationFailed    = errors.New("domain verification failed")
-	ErrDomainHealthCheckFail = errors.New("domain health check failed")
+	ErrInvalidDomain         = domain.Errorf(domain.EINVALID, "", "Invalid domain format")
+	ErrApexDomainNotAllowed  = domain.Errorf(domain.EINVALID, "", "Apex domains not supported, use a subdomain (e.g., www.example.com or shop.example.com)")
+	ErrDomainAlreadyInUse    = domain.Errorf(domain.ECONFLICT, "", "This domain is already in use by another store")
+	ErrDomainNotConfigured   = domain.Errorf(domain.ENOTFOUND, "", "No custom domain configured")
+	ErrDomainNotVerified     = domain.Errorf(domain.EINVALID, "", "Domain has not been verified yet")
+	ErrDomainAlreadyActive   = domain.Errorf(domain.ECONFLICT, "", "Domain is already active")
+	ErrCNAMENotConfigured    = domain.Errorf(domain.EINVALID, "", "CNAME record not found or does not point to custom.freyja.app")
+	ErrTXTNotConfigured      = domain.Errorf(domain.EINVALID, "", "TXT verification record not found")
+	ErrVerificationFailed    = domain.Errorf(domain.EINVALID, "", "Domain verification failed")
+	ErrDomainHealthCheckFail = domain.Errorf(domain.EINVALID, "", "Domain health check failed")
 )
 
 // CustomDomainService provides business logic for custom domain management

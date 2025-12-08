@@ -11,6 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dukerupert/freyja/internal/domain"
+	"github.com/dukerupert/freyja/internal/jobs"
+	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stripe/stripe-go/v83"
@@ -18,17 +21,14 @@ import (
 	portalsession "github.com/stripe/stripe-go/v83/billingportal/session"
 	stripeinvoice "github.com/stripe/stripe-go/v83/invoice"
 	stripesubscription "github.com/stripe/stripe-go/v83/subscription"
-
-	"github.com/dukerupert/freyja/internal/jobs"
-	"github.com/dukerupert/freyja/internal/repository"
 )
 
 // Onboarding-specific errors
 var (
-	ErrCheckoutFailed         = errors.New("failed to create checkout session")
-	ErrTenantNotFound         = errors.New("tenant not found")
-	ErrTenantAlreadyExists    = errors.New("tenant with this email already exists")
-	ErrInvalidCheckoutSession = errors.New("invalid checkout session")
+	ErrCheckoutFailed         = domain.Errorf(domain.EINTERNAL, "", "Failed to create checkout session")
+	ErrTenantNotFound         = domain.Errorf(domain.ENOTFOUND, "", "Tenant not found")
+	ErrTenantAlreadyExists    = domain.Errorf(domain.ECONFLICT, "", "Tenant with this email already exists")
+	ErrInvalidCheckoutSession = domain.Errorf(domain.EINVALID, "", "Invalid checkout session")
 )
 
 // OnboardingService handles SaaS customer onboarding flows

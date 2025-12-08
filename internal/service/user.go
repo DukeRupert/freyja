@@ -9,19 +9,20 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/auth"
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/repository"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 var (
-	ErrUserExists       = errors.New("user with this email already exists")
-	ErrInvalidEmail     = errors.New("invalid email address")
-	ErrUserNotFound     = errors.New("user not found")
-	ErrInvalidPassword  = errors.New("invalid password")
-	ErrSessionExpired   = errors.New("session has expired")
-	ErrAccountSuspended = errors.New("account is suspended")
-	ErrAccountPending   = errors.New("account is pending approval")
-	ErrEmailNotVerified = errors.New("email has not been verified")
+	ErrUserExists       = domain.Errorf(domain.ECONFLICT, "", "User with this email already exists")
+	ErrInvalidEmail     = domain.Errorf(domain.EINVALID, "", "Invalid email address")
+	ErrUserNotFound     = domain.Errorf(domain.ENOTFOUND, "", "User not found")
+	ErrInvalidPassword  = domain.Errorf(domain.EUNAUTHORIZED, "", "Invalid email or password")
+	ErrSessionExpired   = domain.Errorf(domain.EUNAUTHORIZED, "", "Session has expired")
+	ErrAccountSuspended = domain.Errorf(domain.EFORBIDDEN, "", "Account is suspended")
+	ErrAccountPending   = domain.Errorf(domain.EFORBIDDEN, "", "Account is pending approval")
+	ErrEmailNotVerified = domain.Errorf(domain.EFORBIDDEN, "", "Email has not been verified")
 )
 
 // SessionData represents the data stored in a session

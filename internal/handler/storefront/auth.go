@@ -1,10 +1,10 @@
 package storefront
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/repository"
@@ -96,7 +96,7 @@ func (h *AuthHandler) HandleSignup(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logger.Error("signup: registration failed", "email", email, "error", err)
 		var errMsg string
-		if errors.Is(err, service.ErrUserExists) {
+		if domain.ErrorCode(err) == domain.ECONFLICT {
 			errMsg = "An account with this email already exists"
 		} else {
 			errMsg = "Failed to create account. Please try again."
@@ -110,7 +110,7 @@ func (h *AuthHandler) HandleSignup(w http.ResponseWriter, r *http.Request) {
 	userID, err := uuid.FromBytes(user.ID.Bytes[:])
 	if err != nil {
 		logger.Error("signup: failed to convert user ID", "error", err)
-		http.Error(w, "Failed to create account", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -180,18 +180,22 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.userService.Authenticate(ctx, email, password)
 	if err != nil {
-		if errors.Is(err, service.ErrEmailNotVerified) {
+		errCode := domain.ErrorCode(err)
+		// Handle email not verified - redirect to resend verification
+		if errCode == domain.EFORBIDDEN && domain.ErrorMessage(err) == "Email has not been verified" {
 			http.Redirect(w, r, "/resend-verification?email="+email, http.StatusSeeOther)
 			return
 		}
 		var errMsg string
-		if errors.Is(err, service.ErrInvalidPassword) || errors.Is(err, service.ErrUserNotFound) {
+		switch errCode {
+		case domain.EUNAUTHORIZED:
 			errMsg = "Invalid email or password"
-		} else if errors.Is(err, service.ErrAccountSuspended) {
-			errMsg = "Your account has been suspended"
-		} else if errors.Is(err, service.ErrAccountPending) {
-			errMsg = "Your account is pending approval"
-		} else {
+		case domain.ENOTFOUND:
+			errMsg = "Invalid email or password"
+		case domain.EFORBIDDEN:
+			// Could be suspended or pending
+			errMsg = domain.ErrorMessage(err)
+		default:
 			errMsg = "Login failed. Please try again."
 		}
 		h.showLoginFormWithError(w, r, &errMsg, email)
@@ -203,7 +207,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		user.ID.Bytes[8:10], user.ID.Bytes[10:16])
 	token, err := h.userService.CreateSession(ctx, userIDStr)
 	if err != nil {
-		http.Error(w, "Failed to create session", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -357,7 +361,7 @@ func (h *AuthHandler) HandleResetPassword(w http.ResponseWriter, r *http.Request
 	err := h.passwordResetService.ResetPassword(ctx, h.tenantID, token, newPassword)
 	if err != nil {
 		var errMsg string
-		if errors.Is(err, service.ErrInvalidToken) {
+		if domain.ErrorCode(err) == domain.EINVALID {
 			errMsg = "This password reset link is invalid or has expired"
 		} else {
 			errMsg = "Failed to reset password. Please try again."
@@ -392,11 +396,13 @@ func (h *AuthHandler) HandleVerifyEmail(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		logger.Warn("verify email: verification failed", "error", err)
 		data := BaseTemplateData(r)
-		if errors.Is(err, service.ErrVerificationTokenInvalid) {
+		errCode := domain.ErrorCode(err)
+		switch errCode {
+		case domain.EINVALID:
 			data["Error"] = "This verification link is invalid or has expired. Please request a new verification email."
-		} else if errors.Is(err, service.ErrEmailAlreadyVerified) {
+		case domain.ECONFLICT:
 			data["Success"] = "Your email has already been verified. You can now log in."
-		} else {
+		default:
 			data["Error"] = "An error occurred while verifying your email. Please try again."
 		}
 		h.renderer.RenderHTTP(w, "verify_email", data)
@@ -482,7 +488,7 @@ func (h *AuthHandler) HandleResendVerification(w http.ResponseWriter, r *http.Re
 
 	err = h.verificationService.SendVerificationEmail(ctx, h.tenantID, userID, email, user.FirstName.String, ipAddress, userAgent)
 	if err != nil {
-		if errors.Is(err, service.ErrVerificationRateLimitExceeded) {
+		if domain.ErrorCode(err) == domain.ERATELIMIT {
 			logger.Warn("resend verification: rate limit exceeded", "email", email)
 			data := BaseTemplateData(r)
 			data["Error"] = "Too many verification requests. Please try again in an hour."

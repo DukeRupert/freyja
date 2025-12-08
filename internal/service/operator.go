@@ -36,13 +36,13 @@ const (
 
 // Operator service errors
 var (
-	ErrOperatorNotFound        = errors.New("operator not found")
-	ErrOperatorSuspended       = errors.New("operator account is suspended")
-	ErrOperatorPending         = errors.New("operator account setup not complete")
-	ErrOperatorExists          = errors.New("operator with this email already exists")
-	ErrOperatorInvalidToken    = errors.New("invalid or expired token")
-	ErrOperatorInvalidPassword = errors.New("invalid password")
-	ErrWeakPassword            = errors.New("password must be at least 8 characters")
+	ErrOperatorNotFound        = domain.Errorf(domain.ENOTFOUND, "", "Operator not found")
+	ErrOperatorSuspended       = domain.Errorf(domain.EFORBIDDEN, "", "Operator account is suspended")
+	ErrOperatorPending         = domain.Errorf(domain.EFORBIDDEN, "", "Operator account setup not complete")
+	ErrOperatorExists          = domain.Errorf(domain.ECONFLICT, "", "Operator with this email already exists")
+	ErrOperatorInvalidToken    = domain.Errorf(domain.EINVALID, "", "Invalid or expired token")
+	ErrOperatorInvalidPassword = domain.Errorf(domain.EUNAUTHORIZED, "", "Invalid email or password")
+	ErrWeakPassword            = domain.Errorf(domain.EINVALID, "", "Password must be at least 8 characters")
 )
 
 // OperatorService provides business logic for tenant operator operations

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dukerupert/freyja/internal/auth"
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/repository"
@@ -145,7 +146,7 @@ func (h *AccountHandler) OrderList(w http.ResponseWriter, r *http.Request) {
 		Offset:   offset,
 	})
 	if err != nil {
-		http.Error(w, "Failed to load orders", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -289,7 +290,7 @@ func (h *AccountHandler) AddressList(w http.ResponseWriter, r *http.Request) {
 		UserID:   user.ID,
 	})
 	if err != nil {
-		http.Error(w, "Failed to load addresses", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -310,7 +311,7 @@ func (h *AccountHandler) AddressCreate(w http.ResponseWriter, r *http.Request) {
 
 	user := middleware.GetUserFromContext(ctx)
 	if user == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		handler.UnauthorizedResponse(w, r)
 		return
 	}
 
@@ -411,19 +412,19 @@ func (h *AccountHandler) AddressUpdate(w http.ResponseWriter, r *http.Request) {
 
 	user := middleware.GetUserFromContext(ctx)
 	if user == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		handler.UnauthorizedResponse(w, r)
 		return
 	}
 
 	addressID := r.PathValue("id")
 	if addressID == "" {
-		http.Error(w, "Address ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Address ID required"))
 		return
 	}
 
 	var addressUUID pgtype.UUID
 	if err := addressUUID.Scan(addressID); err != nil {
-		http.Error(w, "Invalid address ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid address ID"))
 		return
 	}
 
@@ -434,7 +435,7 @@ func (h *AccountHandler) AddressUpdate(w http.ResponseWriter, r *http.Request) {
 		UserID:   user.ID,
 	})
 	if err != nil {
-		http.Error(w, "Address not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
@@ -504,19 +505,19 @@ func (h *AccountHandler) AddressDelete(w http.ResponseWriter, r *http.Request) {
 
 	user := middleware.GetUserFromContext(ctx)
 	if user == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		handler.UnauthorizedResponse(w, r)
 		return
 	}
 
 	addressID := r.PathValue("id")
 	if addressID == "" {
-		http.Error(w, "Address ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Address ID required"))
 		return
 	}
 
 	var addressUUID pgtype.UUID
 	if err := addressUUID.Scan(addressID); err != nil {
-		http.Error(w, "Invalid address ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid address ID"))
 		return
 	}
 
@@ -546,19 +547,19 @@ func (h *AccountHandler) AddressSetDefault(w http.ResponseWriter, r *http.Reques
 
 	user := middleware.GetUserFromContext(ctx)
 	if user == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		handler.UnauthorizedResponse(w, r)
 		return
 	}
 
 	addressID := r.PathValue("id")
 	if addressID == "" {
-		http.Error(w, "Address ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Address ID required"))
 		return
 	}
 
 	var addressUUID pgtype.UUID
 	if err := addressUUID.Scan(addressID); err != nil {
-		http.Error(w, "Invalid address ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid address ID"))
 		return
 	}
 
@@ -569,7 +570,7 @@ func (h *AccountHandler) AddressSetDefault(w http.ResponseWriter, r *http.Reques
 		UserID:   user.ID,
 	})
 	if err != nil {
-		http.Error(w, "Address not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
@@ -599,19 +600,19 @@ func (h *AccountHandler) AddressGetJSON(w http.ResponseWriter, r *http.Request) 
 
 	user := middleware.GetUserFromContext(ctx)
 	if user == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		handler.UnauthorizedResponse(w, r)
 		return
 	}
 
 	addressID := r.PathValue("id")
 	if addressID == "" {
-		http.Error(w, "Address ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Address ID required"))
 		return
 	}
 
 	var addressUUID pgtype.UUID
 	if err := addressUUID.Scan(addressID); err != nil {
-		http.Error(w, "Invalid address ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid address ID"))
 		return
 	}
 
@@ -621,7 +622,7 @@ func (h *AccountHandler) AddressGetJSON(w http.ResponseWriter, r *http.Request) 
 		UserID:   user.ID,
 	})
 	if err != nil {
-		http.Error(w, "Address not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
@@ -723,7 +724,7 @@ func (h *AccountHandler) PaymentMethodList(w http.ResponseWriter, r *http.Reques
 	// Get payment methods
 	paymentMethods, err := h.accountService.ListPaymentMethods(ctx, h.tenantID, user.ID)
 	if err != nil {
-		http.Error(w, "Failed to load payment methods", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -739,20 +740,20 @@ func (h *AccountHandler) PaymentMethodSetDefault(w http.ResponseWriter, r *http.
 
 	user := middleware.GetUserFromContext(ctx)
 	if user == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		handler.UnauthorizedResponse(w, r)
 		return
 	}
 
 	// Get payment method ID from path
 	paymentMethodIDStr := r.PathValue("id")
 	if paymentMethodIDStr == "" {
-		http.Error(w, "Payment method ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Payment method ID required"))
 		return
 	}
 
 	var paymentMethodID pgtype.UUID
 	if err := paymentMethodID.Scan(paymentMethodIDStr); err != nil {
-		http.Error(w, "Invalid payment method ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid payment method ID"))
 		return
 	}
 
@@ -763,7 +764,7 @@ func (h *AccountHandler) PaymentMethodSetDefault(w http.ResponseWriter, r *http.
 		UserID:   user.ID,
 	})
 	if err != nil {
-		http.Error(w, "Payment method not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
@@ -773,7 +774,7 @@ func (h *AccountHandler) PaymentMethodSetDefault(w http.ResponseWriter, r *http.
 		ID:                paymentMethodID,
 	})
 	if err != nil {
-		http.Error(w, "Failed to set default payment method", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -840,7 +841,7 @@ func (h *AccountHandler) ProfileUpdate(w http.ResponseWriter, r *http.Request) {
 
 	user := middleware.GetUserFromContext(ctx)
 	if user == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		handler.UnauthorizedResponse(w, r)
 		return
 	}
 
@@ -900,7 +901,7 @@ func (h *AccountHandler) PasswordChange(w http.ResponseWriter, r *http.Request) 
 
 	user := middleware.GetUserFromContext(ctx)
 	if user == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		handler.UnauthorizedResponse(w, r)
 		return
 	}
 
