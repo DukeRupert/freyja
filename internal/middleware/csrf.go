@@ -117,7 +117,7 @@ func CSRF(config ...CSRFConfig) func(http.Handler) http.Handler {
 				if err != nil {
 					// SECURITY: Fail closed if we can't generate secure token
 					slog.Error("csrf: failed to generate secure token", "error", err)
-					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					respondInternalError(w, r, err)
 					return
 				}
 				setCSRFCookie(w, token, cfg)
@@ -139,7 +139,7 @@ func CSRF(config ...CSRFConfig) func(http.Handler) http.Handler {
 				if cfg.ErrorHandler != nil {
 					cfg.ErrorHandler(w, r)
 				} else {
-					http.Error(w, "CSRF token mismatch", http.StatusForbidden)
+					respondForbidden(w, r)
 				}
 				return
 			}
