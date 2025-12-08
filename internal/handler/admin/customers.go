@@ -7,20 +7,19 @@ import (
 	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/repository"
-	"github.com/dukerupert/freyja/internal/service"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // CustomerHandler handles all customer-related admin routes
 type CustomerHandler struct {
 	repo           repository.Querier
-	invoiceService service.InvoiceService
+	invoiceService domain.InvoiceService
 	renderer       *handler.Renderer
 	tenantID       pgtype.UUID
 }
 
 // NewCustomerHandler creates a new customer handler
-func NewCustomerHandler(repo repository.Querier, invoiceService service.InvoiceService, renderer *handler.Renderer, tenantID string) *CustomerHandler {
+func NewCustomerHandler(repo repository.Querier, invoiceService domain.InvoiceService, renderer *handler.Renderer, tenantID string) *CustomerHandler {
 	var tenantUUID pgtype.UUID
 	if err := tenantUUID.Scan(tenantID); err != nil {
 		panic(fmt.Sprintf("invalid tenant ID: %v", err))

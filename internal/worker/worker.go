@@ -10,10 +10,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/email"
 	"github.com/dukerupert/freyja/internal/jobs"
 	"github.com/dukerupert/freyja/internal/repository"
-	"github.com/dukerupert/freyja/internal/service"
 )
 
 // Config holds worker configuration
@@ -39,7 +39,7 @@ type Worker struct {
 	config         Config
 	queries        *repository.Queries
 	emailService   *email.Service
-	invoiceService service.InvoiceService
+	invoiceService domain.InvoiceService
 	logger         *slog.Logger
 }
 
@@ -47,7 +47,7 @@ type Worker struct {
 func NewWorker(
 	queries *repository.Queries,
 	emailService *email.Service,
-	invoiceService service.InvoiceService,
+	invoiceService domain.InvoiceService,
 	config Config,
 	logger *slog.Logger,
 ) *Worker {
@@ -215,7 +215,7 @@ func (w *Worker) processInvoiceJob(ctx context.Context, job *repository.Job) err
 			return fmt.Errorf("failed to unmarshal consolidated invoice payload: %w", err)
 		}
 
-		_, err := w.invoiceService.GenerateConsolidatedInvoice(ctx, service.ConsolidatedInvoiceParams{
+		_, err := w.invoiceService.GenerateConsolidatedInvoice(ctx, domain.ConsolidatedInvoiceParams{
 			UserID:             payload.UserID.String(),
 			BillingPeriodStart: payload.BillingPeriodStart,
 			BillingPeriodEnd:   payload.BillingPeriodEnd,

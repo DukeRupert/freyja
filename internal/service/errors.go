@@ -45,36 +45,36 @@ var (
 	ErrSubscriptionHasNoItems  = domain.ErrSubscriptionHasNoItems
 )
 
-// Payment terms errors
+// Payment terms errors - re-exported from domain
 var (
-	ErrPaymentTermsNotFound      = domain.Errorf(domain.ENOTFOUND, "", "Payment terms not found")
-	ErrPaymentTermsInUse         = domain.Errorf(domain.ECONFLICT, "", "Payment terms in use by customers or invoices")
-	ErrDuplicatePaymentTermsCode = domain.Errorf(domain.ECONFLICT, "", "Payment terms code already exists")
+	ErrPaymentTermsNotFound      = domain.ErrPaymentTermsNotFound
+	ErrPaymentTermsInUse         = domain.ErrPaymentTermsInUse
+	ErrDuplicatePaymentTermsCode = domain.ErrDuplicatePaymentTermsCode
 )
 
-// Wholesale invoice errors
+// Wholesale invoice errors - re-exported from domain
 var (
-	ErrInvoiceAlreadyFinalized  = domain.Errorf(domain.ECONFLICT, "", "Invoice already finalized")
-	ErrInvoiceNotDraft          = domain.Errorf(domain.EINVALID, "", "Invoice must be in draft status")
-	ErrInvoiceAlreadyPaid       = domain.Errorf(domain.ECONFLICT, "", "Invoice already paid in full")
-	ErrPaymentExceedsBalance    = domain.Errorf(domain.EINVALID, "", "Payment amount exceeds invoice balance")
-	ErrNoOrdersToInvoice        = domain.Errorf(domain.ENOTFOUND, "", "No uninvoiced orders found for period")
-	ErrOrderNotWholesale        = domain.Errorf(domain.EINVALID, "", "Order is not a wholesale order")
-	ErrOrderAlreadyInvoiced     = domain.Errorf(domain.ECONFLICT, "", "Order already invoiced")
-	ErrInvoiceNumberGeneration  = domain.Errorf(domain.EINTERNAL, "", "Failed to generate invoice number")
-	ErrNoPaymentTermsAvailable  = domain.Errorf(domain.ENOTFOUND, "", "No payment terms available")
+	ErrInvoiceAlreadyFinalized = domain.ErrInvoiceAlreadyFinalized
+	ErrInvoiceNotDraft         = domain.ErrInvoiceNotDraft
+	ErrInvoiceAlreadyPaid      = domain.ErrInvoiceAlreadyPaid
+	ErrPaymentExceedsBalance   = domain.ErrPaymentExceedsBalance
+	ErrNoOrdersToInvoice       = domain.ErrNoOrdersToInvoice
+	ErrOrderNotWholesale       = domain.ErrOrderNotWholesale
+	ErrOrderAlreadyInvoiced    = domain.ErrOrderAlreadyInvoiced
+	ErrInvoiceNumberGeneration = domain.ErrInvoiceNumberGeneration
+	ErrNoPaymentTermsAvailable = domain.ErrNoPaymentTermsAvailable
 )
 
-// Fulfillment errors
+// Fulfillment errors - re-exported from domain
 var (
-	ErrShipmentNotFound       = domain.Errorf(domain.ENOTFOUND, "", "Shipment not found")
-	ErrExceedsOrderedQuantity = domain.Errorf(domain.EINVALID, "", "Shipment quantity exceeds ordered quantity")
-	ErrItemAlreadyFulfilled   = domain.Errorf(domain.ECONFLICT, "", "Order item already fully fulfilled")
-	ErrNoItemsToShip          = domain.Errorf(domain.EINVALID, "", "No items to ship")
+	ErrShipmentNotFound       = domain.ErrShipmentNotFound
+	ErrExceedsOrderedQuantity = domain.ErrExceedsOrderedQuantity
+	ErrItemAlreadyFulfilled   = domain.ErrItemAlreadyFulfilled
+	ErrNoItemsToShip          = domain.ErrNoItemsToShip
 )
 
-// User/customer errors
+// User/customer errors - re-exported from domain
 var (
-	ErrNotWholesaleUser   = domain.Errorf(domain.EFORBIDDEN, "", "User is not a wholesale customer")
-	ErrMinimumSpendNotMet = domain.Errorf(domain.EINVALID, "", "Order does not meet minimum spend requirement")
+	ErrNotWholesaleUser   = domain.ErrNotWholesaleUser
+	ErrMinimumSpendNotMet = domain.ErrMinimumSpendNotMet
 )

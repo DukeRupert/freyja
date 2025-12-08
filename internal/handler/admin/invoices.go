@@ -14,14 +14,14 @@ import (
 
 // InvoiceHandler handles all invoice-related admin routes
 type InvoiceHandler struct {
-	invoiceService service.InvoiceService
+	invoiceService domain.InvoiceService
 	repo           repository.Querier
 	renderer       *handler.Renderer
 	tenantID       pgtype.UUID
 }
 
 // NewInvoiceHandler creates a new invoice handler
-func NewInvoiceHandler(invoiceService service.InvoiceService, repo repository.Querier, renderer *handler.Renderer, tenantID string) *InvoiceHandler {
+func NewInvoiceHandler(invoiceService domain.InvoiceService, repo repository.Querier, renderer *handler.Renderer, tenantID string) *InvoiceHandler {
 	var tenantUUID pgtype.UUID
 	if err := tenantUUID.Scan(tenantID); err != nil {
 		panic(fmt.Sprintf("invalid tenant ID: %v", err))
@@ -45,7 +45,7 @@ func (h *InvoiceHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var filteredInvoices []service.InvoiceSummary
+	var filteredInvoices []domain.InvoiceSummary
 	if statusFilter != "" {
 		for _, inv := range invoices {
 			if inv.Status == statusFilter {
