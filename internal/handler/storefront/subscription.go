@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/dukerupert/freyja/internal/domain"
 	"github.com/dukerupert/freyja/internal/handler"
 	"github.com/dukerupert/freyja/internal/middleware"
 	"github.com/dukerupert/freyja/internal/service"
@@ -70,7 +71,7 @@ func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		http.Error(w, "Failed to load subscriptions", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -98,13 +99,13 @@ func (h *SubscriptionHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	// Get subscription ID from path
 	subscriptionIDStr := r.PathValue("id")
 	if subscriptionIDStr == "" {
-		http.Error(w, "Subscription ID required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Subscription ID required"))
 		return
 	}
 
 	var subscriptionID pgtype.UUID
 	if err := subscriptionID.Scan(subscriptionIDStr); err != nil {
-		http.Error(w, "Invalid subscription ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid subscription ID"))
 		return
 	}
 
@@ -116,7 +117,7 @@ func (h *SubscriptionHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		http.Error(w, "Subscription not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
@@ -154,7 +155,7 @@ func (h *SubscriptionHandler) Portal(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		http.Error(w, "Failed to create portal session", http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
@@ -184,7 +185,7 @@ func (h *SubscriptionHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 	billingInterval := r.URL.Query().Get("billing_interval")
 
 	if skuID == "" {
-		http.Error(w, "Product SKU is required", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Product SKU is required"))
 		return
 	}
 
@@ -203,14 +204,14 @@ func (h *SubscriptionHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 
 	// Validate billing interval
 	if !service.IsValidBillingInterval(billingInterval) {
-		http.Error(w, "Invalid billing interval", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid billing interval"))
 		return
 	}
 
 	// Get SKU details with product info
 	skuDetail, err := h.productService.GetSKUForCheckout(ctx, skuID)
 	if err != nil {
-		http.Error(w, "Product not found", http.StatusNotFound)
+		handler.NotFoundResponse(w, r)
 		return
 	}
 
@@ -262,7 +263,7 @@ func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Parse form data
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
 	}
 
@@ -275,7 +276,7 @@ func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Validate required fields
 	if productSKUIDStr == "" || billingInterval == "" || shippingAddressIDStr == "" || paymentMethodIDStr == "" {
-		http.Error(w, "Missing required fields", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Missing required fields"))
 		return
 	}
 
@@ -284,7 +285,7 @@ func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if quantityStr != "" {
 		q, err := strconv.Atoi(quantityStr)
 		if err != nil || q < 1 {
-			http.Error(w, "Invalid quantity", http.StatusBadRequest)
+			handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid quantity"))
 			return
 		}
 		quantity = int32(q)
@@ -293,21 +294,21 @@ func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Parse UUIDs
 	var productSKUID, shippingAddressID, paymentMethodID pgtype.UUID
 	if err := productSKUID.Scan(productSKUIDStr); err != nil {
-		http.Error(w, "Invalid product SKU ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid product SKU ID"))
 		return
 	}
 	if err := shippingAddressID.Scan(shippingAddressIDStr); err != nil {
-		http.Error(w, "Invalid shipping address ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid shipping address ID"))
 		return
 	}
 	if err := paymentMethodID.Scan(paymentMethodIDStr); err != nil {
-		http.Error(w, "Invalid payment method ID", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid payment method ID"))
 		return
 	}
 
 	// Validate billing interval
 	if !service.IsValidBillingInterval(billingInterval) {
-		http.Error(w, "Invalid billing interval", http.StatusBadRequest)
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid billing interval"))
 		return
 	}
 
@@ -323,7 +324,7 @@ func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to create subscription: %v", err), http.StatusInternalServerError)
+		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
