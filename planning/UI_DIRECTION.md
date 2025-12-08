@@ -1,8 +1,8 @@
-# Freyja UI Direction
+# Hiri UI Direction
 
 ## Design Philosophy
 
-Freyja's interface is **pragmatic craft**—a reliable tool that respects both the user's time and their trade. The UI stays out of the way, communicates clearly, and carries subtle warmth that acknowledges the human scale of small-batch roasting.
+Hiri's interface is **pragmatic craft**—a reliable tool that respects both the user's time and their trade. The UI stays out of the way, communicates clearly, and carries subtle warmth that acknowledges the human scale of small-batch roasting.
 
 This is software for busy people who care about quality. It should feel capable without being corporate, warm without being cute.
 
@@ -407,22 +407,27 @@ Products you create will appear here. Start by adding your first coffee.
 
 ---
 
-## Norse Influence
+## Brand Heritage
 
-The Freyja name carries the Norse connection. The UI doesn't need to be overtly themed.
+The Hiri name comes from the traditional trade voyages of the Motu people of Papua New Guinea. The UI doesn't need to be overtly themed around this heritage.
+
+**What the name brings:**
+- A sense of purposeful exchange—commerce as connection
+- Warmth and humanity (trade between communities, not corporations)
+- Groundedness in craft and tradition
 
 **Subtle nods (use sparingly):**
-- Logo: Can incorporate rune-inspired geometry
-- Accent palette: Cool tones (teal, slate) echo Nordic palette
-- Empty states: Could reference "abundance" (Freyja's domain) without being literal
+- Logo: Could incorporate sail or wave geometry (the lakatoi trading canoes had distinctive crab-claw sails)
+- Accent palette: Warm, earthy tones complement the coffee context and echo the coastal/trade heritage
+- Language: The word "hiri" itself is the primary brand expression
 
 **Avoid:**
-- Viking imagery, longships, axes
-- Runic alphabets in UI text
-- Heavy-handed mythology references
-- Anything that feels like a costume
+- Literal Pacific imagery (canoes, waves, tribal patterns) in the UI
+- Tiki or "island" aesthetic
+- Anything that feels like cultural costume or tourism
+- Overexplaining the name's origin in the interface
 
-The brand is named Freyja; the UI is not a Viking experience.
+The brand is named Hiri; the UI is a professional tool for coffee businesses. The heritage gives the name meaning and warmth without dictating the visual design.
 
 ---
 
@@ -441,7 +446,7 @@ These products demonstrate elements of the desired direction:
 
 ## Summary
 
-Freyja's UI should feel like a well-made tool: reliable, clear, and quietly confident. It respects the user's expertise and time. Warmth comes through clarity and helpfulness, not decoration or personality performance.
+Hiri's UI should feel like a well-made tool: reliable, clear, and quietly confident. It respects the user's expertise and time. Warmth comes through clarity and helpfulness, not decoration or personality performance.
 
 When making UI decisions, ask:
 - Does this help the user complete their task?
