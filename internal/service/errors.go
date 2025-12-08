@@ -55,13 +55,15 @@ var (
 
 // Wholesale invoice errors
 var (
-	ErrInvoiceAlreadyFinalized = domain.Errorf(domain.ECONFLICT, "", "Invoice already finalized")
-	ErrInvoiceNotDraft         = domain.Errorf(domain.EINVALID, "", "Invoice must be in draft status")
-	ErrInvoiceAlreadyPaid      = domain.Errorf(domain.ECONFLICT, "", "Invoice already paid in full")
-	ErrPaymentExceedsBalance   = domain.Errorf(domain.EINVALID, "", "Payment amount exceeds invoice balance")
-	ErrNoOrdersToInvoice       = domain.Errorf(domain.ENOTFOUND, "", "No uninvoiced orders found for period")
-	ErrOrderNotWholesale       = domain.Errorf(domain.EINVALID, "", "Order is not a wholesale order")
-	ErrOrderAlreadyInvoiced    = domain.Errorf(domain.ECONFLICT, "", "Order already invoiced")
+	ErrInvoiceAlreadyFinalized  = domain.Errorf(domain.ECONFLICT, "", "Invoice already finalized")
+	ErrInvoiceNotDraft          = domain.Errorf(domain.EINVALID, "", "Invoice must be in draft status")
+	ErrInvoiceAlreadyPaid       = domain.Errorf(domain.ECONFLICT, "", "Invoice already paid in full")
+	ErrPaymentExceedsBalance    = domain.Errorf(domain.EINVALID, "", "Payment amount exceeds invoice balance")
+	ErrNoOrdersToInvoice        = domain.Errorf(domain.ENOTFOUND, "", "No uninvoiced orders found for period")
+	ErrOrderNotWholesale        = domain.Errorf(domain.EINVALID, "", "Order is not a wholesale order")
+	ErrOrderAlreadyInvoiced     = domain.Errorf(domain.ECONFLICT, "", "Order already invoiced")
+	ErrInvoiceNumberGeneration  = domain.Errorf(domain.EINTERNAL, "", "Failed to generate invoice number")
+	ErrNoPaymentTermsAvailable  = domain.Errorf(domain.ENOTFOUND, "", "No payment terms available")
 )
 
 // Fulfillment errors

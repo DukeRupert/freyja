@@ -184,7 +184,7 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, params CreateInvoice
 	if paymentTerms == nil {
 		pt, err := s.paymentTermsService.GetDefaultPaymentTerms(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("no payment terms available: %w", err)
+			return nil, ErrNoPaymentTermsAvailable
 		}
 		paymentTerms = pt
 	}
@@ -246,7 +246,7 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, params CreateInvoice
 	}
 	invoiceNumber, ok := invoiceNumberRow.(string)
 	if !ok {
-		return nil, fmt.Errorf("failed to parse invoice number")
+		return nil, ErrInvoiceNumberGeneration
 	}
 
 	// Calculate due date
