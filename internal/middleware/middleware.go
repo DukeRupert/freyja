@@ -98,13 +98,13 @@ func respondTooManyRequests(w http.ResponseWriter, r *http.Request) {
 
 // respondBadRequest is a convenience wrapper for 400 errors.
 func respondBadRequest(w http.ResponseWriter, r *http.Request, message string) {
-	err := domain.Errorf(domain.EINVALID, "", message)
+	err := domain.Errorf(domain.EINVALID, "", "%s", message)
 	respondWithError(w, r, err)
 }
 
 // respondTooLarge is a convenience wrapper for 413 errors.
 func respondTooLarge(w http.ResponseWriter, r *http.Request, message string) {
-	err := domain.Errorf(domain.ETOOLARGE, "", message)
+	err := domain.Errorf(domain.ETOOLARGE, "", "%s", message)
 	respondWithError(w, r, err)
 }
 
