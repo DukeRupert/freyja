@@ -84,25 +84,33 @@ func Errorf(code string, format string, args ...interface{}) *Error {
 
 ## 2. Service Interfaces in Domain Package
 
-**Status:** [ ] Not Started
+**Status:** [x] Complete (Phase 1 - Interface Definitions)
 
 **Goal:** Define service contracts in the domain package, keeping implementations separate for clean dependency flow.
 
 ### Tasks
 
-- [ ] Audit existing service interfaces and their locations
-- [ ] Move/create service interfaces in `internal/domain/`
-- [ ] Add compile-time interface checks to implementations
-- [ ] Update import paths throughout codebase
-- [ ] Document interface contracts with comments
+- [x] Audit existing service interfaces and their locations
+- [x] Create service interfaces in `internal/domain/`
+- [ ] Add compile-time interface checks to implementations (deferred - requires type alignment)
+- [ ] Update import paths throughout codebase (incremental migration)
+- [x] Document interface contracts with comments
 
-### Files to Create/Modify
+### Files Created
 
-- `internal/domain/product.go` - ProductService interface
-- `internal/domain/customer.go` - CustomerService interface
-- `internal/domain/order.go` - OrderService interface
-- `internal/domain/billing.go` - BillingService interface (Stripe abstraction)
-- `internal/domain/subscription.go` - SubscriptionService interface
+- `internal/domain/product.go` - ProductService interface + types
+- `internal/domain/user.go` - UserService interface + SessionData type
+- `internal/domain/cart.go` - CartService interface + Cart/CartSummary/CartItem types
+- `internal/domain/order.go` - OrderService interface + OrderDetail type
+- `internal/domain/checkout.go` - CheckoutService interface + supporting types
+
+### Migration Notes
+
+The domain interfaces are now the canonical definitions. The service package still has its own
+type definitions that match these interfaces. Future work:
+- Migrate handlers to use `domain.ProductService` instead of `service.ProductService`
+- Add compile-time checks once service implementations use domain types
+- This is an incremental migration - both patterns coexist during transition
 
 ### Implementation Reference
 
