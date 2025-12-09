@@ -1,13 +1,13 @@
 #!/bin/bash
 set -e
 
-# Initialize Freyja project on VPS
+# Initialize Hiri/Freyja project on VPS
 # Creates folders and uploads config files
 
 # Configuration
 VPS_HOST="${VPS_HOST:-your-vps-hostname-or-ip}"
-VPS_USER="${VPS_USER:-dukerupert}"
-VPS_PATH="${VPS_PATH:-/home/dukerupert/freyja}"
+VPS_USER="${VPS_USER:-deploy}"
+VPS_PATH="${VPS_PATH:-/opt/freyja}"
 
 # Colors
 GREEN='\033[0;32m'
@@ -22,22 +22,31 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 # Check config
 if [ "$VPS_HOST" = "your-vps-hostname-or-ip" ]; then
     log_error "VPS_HOST not set"
-    echo "Usage: VPS_HOST=your-server VPS_USER=deploy ./deploy/init-vps.sh"
+    echo "Usage: VPS_HOST=your-server ./deploy/init-vps.sh"
     exit 1
 fi
 
-log_info "Initializing Freyja on ${VPS_USER}@${VPS_HOST}:${VPS_PATH}"
+log_info "Initializing Hiri on ${VPS_USER}@${VPS_HOST}:${VPS_PATH}"
 
-# Create remote directory
-log_info "Creating remote directory..."
-ssh "${VPS_USER}@${VPS_HOST}" "mkdir -p ${VPS_PATH}"
+# Create remote directories
+log_info "Creating remote directories..."
+ssh "${VPS_USER}@${VPS_HOST}" "mkdir -p ${VPS_PATH}/deploy/caddy"
 
 # Upload deployment files
 log_info "Uploading deployment files..."
 rsync -avz --progress \
-    docker-compose.production.yml \
     deploy/.env.production.example \
-    "${VPS_USER}@${VPS_HOST}:${VPS_PATH}/"
+    deploy/caddy/Dockerfile \
+    deploy/caddy/Caddyfile \
+    "${VPS_USER}@${VPS_HOST}:${VPS_PATH}/deploy/caddy/" 2>/dev/null || true
+
+# Upload and rename docker-compose file
+rsync -avz --progress \
+    docker-compose.production.yml \
+    "${VPS_USER}@${VPS_HOST}:${VPS_PATH}/docker-compose.yml"
+
+# Move .env.production.example to correct location
+ssh "${VPS_USER}@${VPS_HOST}" "mv ${VPS_PATH}/deploy/caddy/.env.production.example ${VPS_PATH}/ 2>/dev/null || true"
 
 # Create .env from example if it doesn't exist
 log_info "Setting up .env file..."
@@ -58,7 +67,8 @@ echo "Next steps:"
 echo "  1. Edit the .env file on VPS:"
 echo "     ssh ${VPS_USER}@${VPS_HOST} 'nano ${VPS_PATH}/.env'"
 echo ""
-echo "  2. Add Caddy config for freyja.angmar.dev"
+echo "  2. Start the services:"
+echo "     ssh ${VPS_USER}@${VPS_HOST} 'cd ${VPS_PATH} && docker compose up -d'"
 echo ""
-echo "  3. Deploy the app:"
-echo "     VPS_HOST=${VPS_HOST} VPS_USER=${VPS_USER} ./deploy.sh full"
+echo "  3. Or trigger a deploy via git tag:"
+echo "     git tag v1.0.0 && git push origin v1.0.0"

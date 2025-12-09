@@ -3,8 +3,8 @@ set -e
 
 # Configuration - update these for your setup
 VPS_HOST="${VPS_HOST:-your-vps-hostname-or-ip}"
-VPS_USER="${VPS_USER:-dukerupert}"
-VPS_PATH="${VPS_PATH:-/home/dukerupert/freyja}"
+VPS_USER="${VPS_USER:-deploy}"
+VPS_PATH="${VPS_PATH:-/opt/freyja}"
 IMAGE_NAME="freyja"
 
 # Use VERSION file if exists, otherwise default to latest
@@ -76,17 +76,17 @@ deploy() {
         docker load < ${IMAGE_NAME}.tar.gz
 
         echo "Stopping existing containers..."
-        docker compose -f docker-compose.production.yml down || true
+        docker compose down || true
 
         echo "Starting services..."
-        docker compose -f docker-compose.production.yml up -d
+        docker compose up -d
 
         echo "Cleaning up..."
         rm -f ${IMAGE_NAME}.tar.gz
         docker image prune -f
 
         echo "Checking service status..."
-        docker compose -f docker-compose.production.yml ps
+        docker compose ps
 EOF
 
     log_info "Deployment complete!"
@@ -107,25 +107,25 @@ full() {
 # Show logs from VPS
 logs() {
     check_config
-    ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_PATH} && docker compose -f docker-compose.production.yml logs -f"
+    ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_PATH} && docker compose logs -f"
 }
 
 # Show status on VPS
 status() {
     check_config
-    ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_PATH} && docker compose -f docker-compose.production.yml ps"
+    ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_PATH} && docker compose ps"
 }
 
 # Restart services on VPS
 restart() {
     check_config
-    ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_PATH} && docker compose -f docker-compose.production.yml restart"
+    ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_PATH} && docker compose restart"
 }
 
 # Stop services on VPS
 stop() {
     check_config
-    ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_PATH} && docker compose -f docker-compose.production.yml down"
+    ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_PATH} && docker compose down"
 }
 
 # Show current version

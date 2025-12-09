@@ -6,8 +6,8 @@ set -e
 
 # Configuration - update these for your setup
 VPS_HOST="${VPS_HOST:-your-vps-hostname-or-ip}"
-VPS_USER="${VPS_USER:-dukerupert}"
-VPS_PATH="${VPS_PATH:-/home/dukerupert/freyja}"
+VPS_USER="${VPS_USER:-deploy}"
+VPS_PATH="${VPS_PATH:-/opt/freyja}"
 
 # Registry configuration
 REGISTRY="${REGISTRY:-ghcr.io}"
@@ -81,19 +81,19 @@ deploy() {
 
         echo "Updating docker-compose with new image..."
         # Export for docker compose to use
-        export FREYJA_IMAGE=${FULL_IMAGE}
+        export HIRI_IMAGE=${FULL_IMAGE}
 
         echo "Stopping existing containers..."
-        docker compose -f docker-compose.production.yml down || true
+        docker compose down || true
 
         echo "Starting services with new image..."
-        docker compose -f docker-compose.production.yml up -d
+        docker compose up -d
 
         echo "Cleaning up old images..."
         docker image prune -f
 
         echo "Checking service status..."
-        docker compose -f docker-compose.production.yml ps
+        docker compose ps
 EOF
 
     log_info "Deployment complete!"
@@ -102,25 +102,25 @@ EOF
 # Show logs from VPS
 logs() {
     check_config
-    ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_PATH} && docker compose -f docker-compose.production.yml logs -f"
+    ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_PATH} && docker compose logs -f"
 }
 
 # Show status on VPS
 status() {
     check_config
-    ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_PATH} && docker compose -f docker-compose.production.yml ps"
+    ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_PATH} && docker compose ps"
 }
 
 # Restart services on VPS
 restart() {
     check_config
-    ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_PATH} && docker compose -f docker-compose.production.yml restart"
+    ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_PATH} && docker compose restart"
 }
 
 # Stop services on VPS
 stop() {
     check_config
-    ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_PATH} && docker compose -f docker-compose.production.yml down"
+    ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_PATH} && docker compose down"
 }
 
 # Rollback to previous image
@@ -143,7 +143,7 @@ version() {
     check_config
     log_info "Checking deployed version..."
     ssh "${VPS_USER}@${VPS_HOST}" bash << 'EOF'
-        docker inspect freyja-app --format '{{.Config.Image}}' 2>/dev/null || echo "Container not running"
+        docker inspect hiri-app --format '{{.Config.Image}}' 2>/dev/null || echo "Container not running"
 EOF
 }
 
@@ -175,8 +175,8 @@ help() {
     echo ""
     echo "Environment variables:"
     echo "  VPS_HOST      VPS hostname or IP (required)"
-    echo "  VPS_USER      SSH user (default: dukerupert)"
-    echo "  VPS_PATH      Remote path (default: /home/dukerupert/freyja)"
+    echo "  VPS_USER      SSH user (default: deploy)"
+    echo "  VPS_PATH      Remote path (default: /opt/freyja)"
     echo "  IMAGE_TAG     Image tag to deploy (default: from VERSION file or 'latest')"
     echo "  GITHUB_TOKEN  GitHub PAT for registry login (required for login command)"
     echo "  GITHUB_USER   GitHub username (default: dukerupert)"

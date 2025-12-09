@@ -1,7 +1,7 @@
 services:
   caddy:
     build: ./deploy/caddy
-    container_name: freyja-caddy
+    container_name: hiri-caddy
     restart: unless-stopped
     ports:
       - "80:80"
@@ -14,11 +14,11 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     networks:
-      - freyja-network
+      - hiri-network
 
   app:
-    image: ${FREYJA_IMAGE:-ghcr.io/dukerupert/freyja:latest}
-    container_name: freyja-app
+    image: ${HIRI_IMAGE:-ghcr.io/dukerupert/freyja:latest}
+    container_name: hiri-app
     restart: unless-stopped
     expose:
       - "3000"
@@ -26,7 +26,7 @@ services:
       - ENV=prod
       - PORT=3000
       - BASE_URL=https://hiri.coffee
-      - DATABASE_URL=postgres://freyja:${POSTGRES_PASSWORD}@postgres:5432/freyja?sslmode=disable
+      - DATABASE_URL=postgres://hiri:${POSTGRES_PASSWORD}@postgres:5432/hiri?sslmode=disable
       - SESSION_SECRET=${SESSION_SECRET}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
@@ -42,25 +42,25 @@ services:
     volumes:
       - uploads:/app/uploads
     networks:
-      - freyja-network
+      - hiri-network
 
   postgres:
     image: postgres:16-alpine
-    container_name: freyja-postgres
+    container_name: hiri-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: freyja
-      POSTGRES_USER: freyja
+      POSTGRES_DB: hiri
+      POSTGRES_USER: hiri
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U freyja"]
+      test: ["CMD-SHELL", "pg_isready -U hiri"]
       interval: 5s
       timeout: 5s
       retries: 5
     networks:
-      - freyja-network
+      - hiri-network
 
 volumes:
   postgres_data:
@@ -69,5 +69,5 @@ volumes:
   caddy_config:
 
 networks:
-  freyja-network:
+  hiri-network:
     driver: bridge
