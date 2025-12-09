@@ -30,6 +30,14 @@
 - **DNS Provider:** Hetzner DNS
 - **Wildcard Support:** `*.hiri.coffee` for multi-tenant subdomains
 
+### Domain Structure
+
+| Domain | Purpose |
+|--------|---------|
+| `hiri.coffee` | Marketing site (landing, pricing, about) |
+| `app.hiri.coffee` | Application (admin, storefront) |
+| `*.hiri.coffee` | Future: per-tenant custom subdomains |
+
 ### Required DNS Records
 
 | Type | Name | Value |
@@ -127,12 +135,18 @@ services:
     environment:
       - ENV=prod
       - PORT=3000
-      - BASE_URL=https://hiri.coffee
+      - BASE_URL=https://app.hiri.coffee
       - DATABASE_URL=postgres://hiri:${POSTGRES_PASSWORD}@postgres:5432/hiri?sslmode=disable
       - SESSION_SECRET=${SESSION_SECRET}
+      # Host-based routing (marketing at root, app at subdomain)
+      - HOST_ROUTING_ENABLED=${HOST_ROUTING_ENABLED:-true}
+      - MARKETING_DOMAIN=${MARKETING_DOMAIN:-hiri.coffee}
+      - APP_DOMAIN=${APP_DOMAIN:-app.hiri.coffee}
+      # Stripe
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      # Email
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_PORT=${SMTP_PORT}
       - SMTP_USERNAME=${SMTP_USERNAME}
@@ -214,9 +228,18 @@ hiri.coffee, *.hiri.coffee {
 POSTGRES_PASSWORD=<strong-random-password>
 SESSION_SECRET=<strong-random-string>
 HETZNER_DNS_API_TOKEN=<read-write-token>
+
+# Host-based routing
+HOST_ROUTING_ENABLED=true
+MARKETING_DOMAIN=hiri.coffee
+APP_DOMAIN=app.hiri.coffee
+
+# Stripe
 STRIPE_SECRET_KEY=sk_live_xxx
 STRIPE_PUBLISHABLE_KEY=pk_live_xxx
 STRIPE_WEBHOOK_SECRET=whsec_xxx
+
+# Email
 SMTP_HOST=smtp.example.com
 SMTP_PORT=587
 SMTP_USERNAME=<user>
@@ -316,9 +339,36 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-## Multi-Tenant Routing
+## Host-Based Routing
 
-Tenant routing is handled by the Go application, not Caddy. The app reads the `Host` header to determine which tenant is being accessed:
+The Go application handles host-based routing internally. Caddy forwards all requests to the app, which routes based on the `Host` header:
+
+```
+Request: https://hiri.coffee/pricing
+         ↓
+Caddy: Terminates TLS, forwards to app:3000
+         ↓
+App: Host = "hiri.coffee" → serves marketing site
+
+Request: https://app.hiri.coffee/admin
+         ↓
+Caddy: Terminates TLS, forwards to app:3000
+         ↓
+App: Host = "app.hiri.coffee" → serves application
+```
+
+### Domain Routing Summary
+
+| Host | Routes To |
+|------|-----------|
+| `hiri.coffee` | Marketing site (/, /pricing, /about, etc.) |
+| `www.hiri.coffee` | Redirects to `hiri.coffee` |
+| `app.hiri.coffee` | Application (admin, storefront, APIs) |
+| Other subdomains | Application (for future custom domains) |
+
+## Multi-Tenant Routing (Future)
+
+Tenant routing for custom subdomains will be handled by the Go application:
 
 ```
 Request: https://bluemountain.hiri.coffee

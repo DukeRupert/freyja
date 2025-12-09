@@ -25,12 +25,18 @@ services:
     environment:
       - ENV=prod
       - PORT=3000
-      - BASE_URL=https://hiri.coffee
+      - BASE_URL=https://app.hiri.coffee
       - DATABASE_URL=postgres://hiri:${POSTGRES_PASSWORD}@postgres:5432/hiri?sslmode=disable
       - SESSION_SECRET=${SESSION_SECRET}
+      # Host-based routing (marketing at root, app at subdomain)
+      - HOST_ROUTING_ENABLED=${HOST_ROUTING_ENABLED:-true}
+      - MARKETING_DOMAIN=${MARKETING_DOMAIN:-hiri.coffee}
+      - APP_DOMAIN=${APP_DOMAIN:-app.hiri.coffee}
+      # Stripe
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      # Email
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_PORT=${SMTP_PORT}
       - SMTP_USERNAME=${SMTP_USERNAME}
