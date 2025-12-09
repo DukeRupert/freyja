@@ -301,8 +301,20 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize saas handler: %w", err)
 	}
+
+	// Determine checkout URL based on configuration
+	// In host-routing mode, point to app domain; otherwise use same origin
+	var checkoutURL string
+	if cfg.Domain.HostRouting && cfg.Domain.AppDomain != "" {
+		checkoutURL = "https://" + cfg.Domain.AppDomain + "/api/saas/checkout"
+	} else {
+		// Development mode - checkout is on same origin at port 3000
+		checkoutURL = cfg.BaseURL + "/api/saas/checkout"
+	}
+
 	saasDeps := routes.SaaSDeps{
-		Handler: saasHandler,
+		Handler:     saasHandler,
+		CheckoutURL: checkoutURL,
 	}
 
 	// Initialize page service (needed by both storefront and admin)
@@ -552,40 +564,112 @@ func run() error {
 		}
 	}()
 
-	// For MVP: serve both on same port, SaaS on separate port
-	// In production: SaaS would be on freyja.app, tenant on {tenant}.shop.freyja.app
-
-	// Start SaaS server on port 3001
-	saasAddr := ":3001"
-	saasServer := &http.Server{
-		Addr:    saasAddr,
-		Handler: saasRouter,
-	}
-	go func() {
-		logger.Info("Starting SaaS marketing server", "address", saasAddr)
-		if err := saasServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("SaaS server failed", "error", err)
-		}
-	}()
-
-	// Start main tenant server on configured port
-	addr := fmt.Sprintf(":%d", cfg.Port)
-	mainServer := &http.Server{
-		Addr:    addr,
-		Handler: r,
-	}
-
 	// Channel to listen for interrupt signals
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	// Start main server in goroutine
-	go func() {
-		logger.Info("Starting tenant server", "address", addr)
-		if err := mainServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("Main server failed", "error", err)
+	addr := fmt.Sprintf(":%d", cfg.Port)
+
+	// Determine server mode based on configuration
+	var mainServer *http.Server
+	var saasServer *http.Server
+
+	if cfg.Domain.HostRouting && cfg.Domain.MarketingDomain != "" && cfg.Domain.AppDomain != "" {
+		// ==========================================================================
+		// Host-based routing mode (production)
+		// Single server that routes based on Host header
+		// Marketing site on hiri.coffee, app on app.hiri.coffee
+		// ==========================================================================
+		logger.Info("Starting server with host-based routing",
+			"marketing_domain", cfg.Domain.MarketingDomain,
+			"app_domain", cfg.Domain.AppDomain,
+		)
+
+		hostRouter := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			host := req.Host
+			// Strip port if present (for local testing)
+			if colonIdx := len(host) - 1; colonIdx > 0 {
+				for i := len(host) - 1; i >= 0; i-- {
+					if host[i] == ':' {
+						host = host[:i]
+						break
+					}
+					if host[i] == ']' {
+						// IPv6, no port
+						break
+					}
+				}
+			}
+
+			switch host {
+			case cfg.Domain.MarketingDomain, "www." + cfg.Domain.MarketingDomain:
+				// Redirect www to root domain
+				if host == "www."+cfg.Domain.MarketingDomain {
+					target := "https://" + cfg.Domain.MarketingDomain + req.URL.Path
+					if req.URL.RawQuery != "" {
+						target += "?" + req.URL.RawQuery
+					}
+					http.Redirect(w, req, target, http.StatusMovedPermanently)
+					return
+				}
+				saasRouter.ServeHTTP(w, req)
+
+			case cfg.Domain.AppDomain:
+				r.ServeHTTP(w, req)
+
+			default:
+				// Unknown host - serve app by default (for custom domains in future)
+				r.ServeHTTP(w, req)
+			}
+		})
+
+		mainServer = &http.Server{
+			Addr:    addr,
+			Handler: hostRouter,
 		}
-	}()
+
+		// Start server in goroutine
+		go func() {
+			logger.Info("Starting server with host-based routing", "address", addr)
+			if err := mainServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				logger.Error("Server failed", "error", err)
+			}
+		}()
+
+	} else {
+		// ==========================================================================
+		// Dual-port mode (development)
+		// SaaS on port 3001, app on configured port
+		// ==========================================================================
+		logger.Info("Starting server in dual-port mode (development)")
+
+		// Start SaaS server on port 3001
+		saasAddr := ":3001"
+		saasServer = &http.Server{
+			Addr:    saasAddr,
+			Handler: saasRouter,
+		}
+		go func() {
+			logger.Info("Starting SaaS marketing server", "address", saasAddr)
+			if err := saasServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				logger.Error("SaaS server failed", "error", err)
+			}
+		}()
+
+		// Start main tenant server on configured port
+		mainServer = &http.Server{
+			Addr:    addr,
+			Handler: r,
+		}
+
+		// Start main server in goroutine
+		go func() {
+			logger.Info("Starting tenant server", "address", addr)
+			if err := mainServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				logger.Error("Main server failed", "error", err)
+			}
+		}()
+	}
 
 	// Wait for interrupt signal
 	<-sigChan
@@ -603,8 +687,10 @@ func run() error {
 	if err := mainServer.Shutdown(shutdownTimeoutCtx); err != nil {
 		logger.Error("Main server shutdown error", "error", err)
 	}
-	if err := saasServer.Shutdown(shutdownTimeoutCtx); err != nil {
-		logger.Error("SaaS server shutdown error", "error", err)
+	if saasServer != nil {
+		if err := saasServer.Shutdown(shutdownTimeoutCtx); err != nil {
+			logger.Error("SaaS server shutdown error", "error", err)
+		}
 	}
 
 	logger.Info("Graceful shutdown complete")

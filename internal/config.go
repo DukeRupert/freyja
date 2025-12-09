@@ -23,6 +23,16 @@ type Config struct {
 	Admin         AdminConfig
 	Storage       StorageConfig
 	Sentry        SentryConfig
+	Domain        DomainConfig
+}
+
+// DomainConfig holds domain configuration for host-based routing.
+// When HostRouting is enabled, the server routes requests based on Host header.
+// Marketing site is served on MarketingDomain, app on AppDomain.
+type DomainConfig struct {
+	HostRouting     bool   // Enable host-based routing (hiri.coffee vs app.hiri.coffee)
+	MarketingDomain string // e.g., "hiri.coffee"
+	AppDomain       string // e.g., "app.hiri.coffee"
 }
 
 // SentryConfig holds configuration for Sentry error tracking
@@ -138,6 +148,11 @@ func NewConfig() (*Config, error) {
 			SampleRate:       getEnvFloat("SENTRY_SAMPLE_RATE", 1.0),
 			TracesSampleRate: getEnvFloat("SENTRY_TRACES_SAMPLE_RATE", 0.0), // Disabled by default
 			Debug:            getEnvBool("SENTRY_DEBUG", false),
+		},
+		Domain: DomainConfig{
+			HostRouting:     getEnvBool("HOST_ROUTING_ENABLED", false),
+			MarketingDomain: getEnv("MARKETING_DOMAIN", ""),
+			AppDomain:       getEnv("APP_DOMAIN", ""),
 		},
 	}
 

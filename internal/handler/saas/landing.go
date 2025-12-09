@@ -17,7 +17,8 @@ type PageHandler struct {
 
 // PageData holds common data for SaaS page templates
 type PageData struct {
-	Year int
+	Year        int
+	CheckoutURL string // URL for checkout API (used on pricing page)
 }
 
 // NewPageHandler creates a new SaaS page handler
@@ -30,6 +31,7 @@ func NewPageHandler(templatesDir string) (*PageHandler, error) {
 	// Page files to load
 	pages := []string{
 		"landing",
+		"pricing",
 		"about",
 		"contact",
 		"privacy",
@@ -94,4 +96,25 @@ func (h *PageHandler) Privacy() http.HandlerFunc {
 // Terms returns a handler for the terms of service page
 func (h *PageHandler) Terms() http.HandlerFunc {
 	return h.ServePage("terms")
+}
+
+// Pricing returns a handler for the pricing page with checkout URL
+func (h *PageHandler) Pricing(checkoutURL string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tmpl, ok := h.templates["pricing"]
+		if !ok {
+			handler.NotFoundResponse(w, r)
+			return
+		}
+
+		data := PageData{
+			Year:        time.Now().Year(),
+			CheckoutURL: checkoutURL,
+		}
+
+		if err := tmpl.ExecuteTemplate(w, "saas-base", data); err != nil {
+			handler.ErrorResponse(w, r, domain.Errorf(domain.EINTERNAL, "", "Failed to render page"))
+			return
+		}
+	}
 }
