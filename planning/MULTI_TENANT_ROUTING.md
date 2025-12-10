@@ -8,7 +8,7 @@ Convert Freyja from single-tenant (hardcoded `TENANT_ID` at startup) to multi-te
 
 | Domain | Purpose |
 |--------|---------|
-| `hiri.coffee` | Marketing site |
+| `hiri.coffee` | Marketing site (served at apex/BaseDomain) |
 | `app.hiri.coffee` | SaaS app (admin dashboard, signup, billing) |
 | `{slug}.hiri.coffee` | Tenant storefronts (e.g., `acme.hiri.coffee`) |
 | `shop.example.com` | Custom domains (upsell feature) |
@@ -76,7 +76,7 @@ app.hiri.coffee/admin/products
 ```
 
 **Rationale:**
-- Already how operator middleware works
+- Already how operator middleware works (`TenantOperator` has `TenantID` field)
 - Better security (no URL manipulation risk)
 - Clean URLs
 - Supports future multi-tenant operators with tenant picker
@@ -101,6 +101,8 @@ app.hiri.coffee/admin/products
 - Better error recovery (tenant exists, just not active)
 - Enables future trial periods if needed
 
+**Note:** Signup flow is deferred to a separate milestone (see Implementation Plan).
+
 ### Decision 5: Development Workflow
 
 **Choice: lvh.me Domain**
@@ -122,6 +124,152 @@ BASE_DOMAIN=lvh.me:3000
 - Works immediately for most developers
 - Fallback: `/etc/hosts` entries for offline development
 
+### Decision 6: Domain Configuration
+
+**Choice: BaseDomain as Primary Config**
+
+Rename `MarketingDomain` to `BaseDomain`. The marketing site is implicitly served at the apex domain.
+
+```go
+type DomainConfig struct {
+    HostRouting bool   // Enable host-based routing
+    BaseDomain  string // e.g., "hiri.coffee" - apex domain, also serves marketing site
+    AppDomain   string // e.g., "app.hiri.coffee" - SaaS admin/signup
+}
+```
+
+**Rationale:**
+- `BaseDomain` describes what the value *is* (base for subdomain routing)
+- Marketing site is always at apex domain, no need for separate field
+- Clearer naming
+
+### Decision 7: Special Subdomain Handling
+
+**Choice: Config-Based AppDomain Check + Hardcoded www Redirect**
+
+Before tenant resolution, check if host matches `AppDomain` config. Also handle `www` with a redirect.
+
+```go
+// In middleware
+if host == cfg.AppDomain {
+    // SaaS app routes, skip tenant resolution
+    next.ServeHTTP(w, r)
+    return
+}
+
+if subdomain == "www" {
+    // Redirect www.hiri.coffee → hiri.coffee
+    http.Redirect(w, r, "https://"+cfg.BaseDomain+r.URL.Path, http.StatusMovedPermanently)
+    return
+}
+```
+
+**Rationale:**
+- Prevents DB lookup for `app.hiri.coffee` on every request
+- DNS CNAME should handle `www`, but redirect is cheap fallback
+- Reserved slugs list still provides defense-in-depth
+
+### Decision 8: Tenant Status Enforcement
+
+**Choice: Block Inactive Tenants in Middleware**
+
+Check tenant status immediately after resolution. Return appropriate HTTP responses for non-active statuses.
+
+```go
+// In ResolveTenantByHost, after successful tenant lookup
+switch tenant.Status {
+case "active":
+    // Continue normally
+case "pending":
+    // Storefront doesn't exist yet
+    respondNotFound(w, r)
+    return
+case "suspended":
+    // Temporarily unavailable
+    respondServiceUnavailable(w, r, "This store is temporarily unavailable")
+    return
+case "cancelled":
+    // Storefront no longer exists
+    respondNotFound(w, r)
+    return
+}
+```
+
+**Rationale:**
+- Single enforcement point prevents accidental data leakage
+- Different statuses get appropriate HTTP responses
+- Downstream code never sees inactive tenants
+
+### Decision 9: Cookie Domain Scoping
+
+**Choice: Centralized Cookie Package**
+
+Create `internal/cookie/` package with domain-aware helpers. All session/auth cookies go through this package.
+
+```go
+// internal/cookie/cookie.go
+package cookie
+
+type Config struct {
+    BaseDomain string // e.g., "hiri.coffee" or "lvh.me"
+    Secure     bool   // true in production
+}
+
+func (c *Config) SetSession(w http.ResponseWriter, name, value string, maxAge int) {
+    http.SetCookie(w, &http.Cookie{
+        Name:     name,
+        Value:    value,
+        Domain:   "." + c.BaseDomain, // Scoped to all subdomains
+        Path:     "/",
+        MaxAge:   maxAge,
+        HttpOnly: true,
+        Secure:   c.Secure,
+        SameSite: http.SameSiteLaxMode,
+    })
+}
+
+func (c *Config) ClearSession(w http.ResponseWriter, name string) {
+    http.SetCookie(w, &http.Cookie{
+        Name:     name,
+        Value:    "",
+        Domain:   "." + c.BaseDomain,
+        Path:     "/",
+        MaxAge:   -1,
+        HttpOnly: true,
+    })
+}
+```
+
+**Rationale:**
+- Centralized cookie creation ensures consistent domain scoping
+- Domain configurable for dev (`lvh.me`) vs prod (`hiri.coffee`)
+- Handlers don't need to know about subdomain routing
+
+### Decision 10: Background Job Tenant Context
+
+**Choice: Worker Injects Tenant into Context**
+
+Background jobs already store `tenant_id` in the job record. Worker creates tenant context before calling services.
+
+```go
+// In worker, before calling service
+func (w *Worker) processInvoiceJob(ctx context.Context, job *repository.Job) error {
+    // Create context with tenant from job record
+    tenantCtx := tenant.NewContext(ctx, &tenant.Tenant{
+        ID: job.TenantID,
+    })
+
+    // Services extract tenant from context as normal
+    _, err := w.invoiceService.GenerateConsolidatedInvoice(tenantCtx, params)
+    return err
+}
+```
+
+**Rationale:**
+- Job system already has `tenant_id` on every job
+- Services use same pattern regardless of HTTP vs background context
+- No special cases needed in service code
+
 ## Configuration Decisions
 
 | Setting | Value | Rationale |
@@ -137,7 +285,8 @@ The following slugs are blocked from tenant registration:
 ```
 www, app, api, admin, mail, smtp, ftp, static, assets, cdn,
 status, help, support, docs, blog, news, shop, store, my,
-account, login, signup, register, auth, oauth, callback
+account, login, signup, register, auth, oauth, callback,
+test, demo, staging
 ```
 
 ## Interface Definitions
@@ -181,18 +330,37 @@ type Resolver interface {
 }
 ```
 
+### Cookie Package
+
+```go
+// /internal/cookie/cookie.go
+
+package cookie
+
+type Config struct {
+    BaseDomain string
+    Secure     bool
+}
+
+func (c *Config) SetSession(w http.ResponseWriter, name, value string, maxAge int)
+func (c *Config) ClearSession(w http.ResponseWriter, name string)
+```
+
 ### Middleware
 
 ```go
 // /internal/middleware/tenant.go
 
 type TenantConfig struct {
-    BaseDomain   string          // e.g., "hiri.coffee"
-    AppSubdomain string          // e.g., "app"
-    Resolver     tenant.Resolver
+    BaseDomain string          // e.g., "hiri.coffee"
+    AppDomain  string          // e.g., "app.hiri.coffee"
+    Resolver   tenant.Resolver
 }
 
 // ResolveTenant resolves tenant from request host
+// - Skips resolution for AppDomain
+// - Redirects www to BaseDomain
+// - Blocks inactive tenants with appropriate HTTP responses
 func ResolveTenant(cfg TenantConfig) func(http.Handler) http.Handler
 
 // RequireTenant returns 404 if no tenant in context
@@ -201,23 +369,30 @@ func RequireTenant(next http.Handler) http.Handler
 
 ## Implementation Plan
 
-### Phase 1: Foundation
+### Milestone 1: Multi-Tenant Routing (This PR)
+
+#### Phase 1: Foundation
 
 **Create tenant package** (`/internal/tenant/`)
 - `context.go` - Context helpers (NewContext, FromContext, MustFromContext)
 - `resolver.go` - Resolver interface and DBResolver implementation
 - `errors.go` - Domain errors (ErrTenantNotFound, ErrTenantInactive)
 
+**Create cookie package** (`/internal/cookie/`)
+- `cookie.go` - Domain-aware cookie helpers (SetSession, ClearSession)
+
+**Update config** (`/internal/config.go`)
+- Rename `MarketingDomain` to `BaseDomain` in `DomainConfig`
+- Deprecate root-level `TenantID` (keep for backwards compatibility)
+
 **Update middleware** (`/internal/middleware/`)
 - Rename/update `custom_domain.go` to `tenant.go`
 - Update `ResolveTenantByHost` to use new tenant package
+- Add AppDomain check and www redirect
+- Add tenant status enforcement
 - Add `RequireTenant` middleware
 
-**Update config** (`/internal/config.go`)
-- Add `BaseDomain` to `DomainConfig`
-- Deprecate root-level `TenantID` (keep for backwards compatibility)
-
-### Phase 2: Service Refactoring
+#### Phase 2: Service Refactoring
 
 **Refactor services to extract tenant from context:**
 - `/internal/postgres/product.go`
@@ -235,10 +410,19 @@ func RequireTenant(next http.Handler) http.Handler
 3. Add `tenant.IDFromContext(ctx)` call at start of each method
 4. Return `domain.ErrNoTenant` if tenant missing
 
-### Phase 3: Route Wiring
+**Update cookie usage:**
+- `/internal/handler/storefront/auth.go`
+- `/internal/handler/storefront/cookies.go`
+- `/internal/handler/saas/auth.go`
+- `/internal/handler/admin/auth.go`
+- `/internal/middleware/csrf.go`
+- `/internal/middleware/operator.go`
+
+#### Phase 3: Route Wiring
 
 **Update main.go** (`/cmd/server/main.go`)
 - Create tenant resolver with database queries
+- Create cookie config with BaseDomain
 - Update host router to handle `{slug}.hiri.coffee` pattern
 - Apply `ResolveTenant` middleware to storefront routes
 - Remove service initialization with `cfg.TenantID`
@@ -248,7 +432,18 @@ func RequireTenant(next http.Handler) http.Handler
 - `admin.go` - Keep operator-based tenant (already works)
 - `webhook.go` - Extract tenant from Stripe metadata
 
-### Phase 4: Signup Flow
+**Update worker** (`/internal/worker/worker.go`)
+- Inject tenant context from job record before calling services
+
+#### Phase 4: Testing and Cleanup
+
+- Update all service tests to include tenant in context
+- Add integration tests for subdomain routing
+- Add integration tests for custom domain routing
+- Remove deprecated `cfg.TenantID` usage
+- Update CLAUDE.md with multi-tenant patterns
+
+### Milestone 2: Self-Serve Signup (Future PR)
 
 **Create signup handler** (`/internal/handler/saas/signup.go`)
 - `GET /signup` - Render signup form
@@ -265,22 +460,13 @@ func RequireTenant(next http.Handler) http.Handler
 - `GET /welcome?token=...` - Password setup form
 - `POST /welcome` - Set password, redirect to admin
 
-### Phase 5: Testing and Cleanup
-
-- Update all service tests to include tenant in context
-- Add integration tests for subdomain routing
-- Add integration tests for custom domain routing
-- Remove deprecated `cfg.TenantID` usage
-- Update CLAUDE.md with multi-tenant patterns
-
 ## Files Affected
 
 ### New Files
 - `/internal/tenant/context.go`
 - `/internal/tenant/resolver.go`
 - `/internal/tenant/errors.go`
-- `/internal/handler/saas/signup.go`
-- `/internal/handler/saas/welcome.go`
+- `/internal/cookie/cookie.go`
 
 ### Modified Files
 - `/internal/config.go`
@@ -293,6 +479,13 @@ func RequireTenant(next http.Handler) http.Handler
 - `/internal/service/subscription.go`
 - `/internal/service/invoice.go`
 - `/internal/service/payment_terms.go`
+- `/internal/handler/storefront/auth.go`
+- `/internal/handler/storefront/cookies.go`
+- `/internal/handler/saas/auth.go`
+- `/internal/handler/admin/auth.go`
+- `/internal/middleware/csrf.go`
+- `/internal/middleware/operator.go`
+- `/internal/worker/worker.go`
 - `/internal/routes/storefront.go`
 - `/internal/handler/webhook/stripe.go`
 - `/cmd/server/main.go`
@@ -301,11 +494,11 @@ func RequireTenant(next http.Handler) http.Handler
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| Tenant data leak (wrong tenant shown) | Medium | Critical | Fail-fast if tenant missing; integration tests; audit logging |
+| Tenant data leak (wrong tenant shown) | Medium | Critical | Fail-fast if tenant missing; status check in middleware; integration tests; audit logging |
 | Performance regression (per-request DB lookup) | Low | Medium | Benchmark; add caching if needed |
 | Breaking existing single-tenant deployment | Medium | High | Feature flag (`HOST_ROUTING_ENABLED`); gradual rollout |
 | Slug collisions during signup | Low | Low | Database unique constraint; validation before checkout |
-| Cookie scope issues with subdomains | Medium | Medium | Use `.hiri.coffee` domain for session cookies |
+| Cookie scope issues with subdomains | Medium | Medium | Centralized cookie package with domain scoping |
 
 ## Migration Strategy
 
@@ -331,10 +524,14 @@ if cfg.Domain.HostRouting {
 To support subdomain routing, session cookies must be scoped to the base domain:
 
 ```go
-// Session cookie configuration
-cookie.Domain = ".hiri.coffee"  // Note leading dot
-cookie.SameSite = http.SameSiteLaxMode
-cookie.Secure = true  // Production only
+// Using the cookie package
+cookieCfg := &cookie.Config{
+    BaseDomain: cfg.Domain.BaseDomain, // "hiri.coffee" or "lvh.me"
+    Secure:     cfg.Env == "prod",
+}
+
+// Sets cookie with Domain=".hiri.coffee"
+cookieCfg.SetSession(w, "freyja_session", token, 30*24*60*60)
 ```
 
 This allows:
