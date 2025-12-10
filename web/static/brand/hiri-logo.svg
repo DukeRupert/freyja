@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 44" fill="none">
+  <!-- Hiri Full Logo Lockup -->
+  
+  <!-- Back sail -->
+  <path d="M 6 4 C 14 14, 10 26, -2 36 C 10 42, 26 44, 38 38 C 34 14, 6 4, 6 4 Z" fill="#2D7A7A" opacity="0.35"/>
+  <!-- Front sail -->
+  <path d="M 20 4 C 28 14, 24 26, 12 36 C 24 42, 42 44, 56 38 C 52 14, 20 4, 20 4 Z" fill="#2D7A7A"/>
+  
+  <!-- Wordmark: "hiri" in Outfit Semibold -->
+  <text x="72" y="34" font-family="Outfit, sans-serif" font-size="36" font-weight="600" letter-spacing="-0.01em" fill="#1C1917">hiri</text>
+</svg>
