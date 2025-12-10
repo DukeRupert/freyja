@@ -4,7 +4,7 @@ FROM golang:1.24-alpine AS builder
 WORKDIR /app
 
 # Install build dependencies
-RUN apk add --no-cache git ca-certificates tzdata wget
+RUN apk add --no-cache git ca-certificates tzdata wget libstdc++ libgcc
 
 # Copy go mod files first for better caching
 COPY go.mod go.sum ./
@@ -16,8 +16,8 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Download Tailwind CSS standalone binary and build CSS
-RUN wget -qO tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64 && \
+# Download Tailwind CSS standalone binary (musl version for Alpine) and build CSS
+RUN wget -qO tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64-musl && \
     chmod +x tailwindcss && \
     ./tailwindcss -i ./web/static/css/input.css -o ./web/static/css/output.css --minify
 
