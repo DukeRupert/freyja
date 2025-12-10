@@ -16,6 +16,11 @@ RUN go mod download
 # Copy source code
 COPY . .
 
+# Download Tailwind CSS standalone binary and build CSS
+RUN wget -qO tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64 && \
+    chmod +x tailwindcss && \
+    ./tailwindcss -i ./web/static/css/input.css -o ./web/static/css/output.css --minify
+
 # Build the binary
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s" \
