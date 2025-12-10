@@ -1,4 +1,8 @@
-# Freyja
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="web/static/brand/hiri-logo.svg">
+  <source media="(prefers-color-scheme: light)" srcset="web/static/brand/hiri-logo.svg">
+  <img alt="Hiri" src="web/static/brand/hiri-logo.svg" height="44">
+</picture>
 
 E-commerce platform built exclusively for coffee roasters.
 
@@ -83,7 +87,7 @@ make clean             # Clean build artifacts
 ### Project Structure
 
 ```
-freyja/
+hiri/
 ├── cmd/server/              # Application entry point
 ├── internal/
 │   ├── config/              # Configuration
@@ -116,8 +120,8 @@ freyja/
 
 - **Application**: http://localhost:3000
 - **PostgreSQL**: localhost:5432
-  - Database: `freyja`
-  - User: `freyja`
+  - Database: `hiri`
+  - User: `hiri`
   - Password: `password`
 - **Mailhog Web UI**: http://localhost:8025
 - **Mailhog SMTP**: localhost:1025
