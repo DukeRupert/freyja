@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/dukerupert/freyja/internal/tax"
+	"github.com/dukerupert/hiri/internal/tax"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 )

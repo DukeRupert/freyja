@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dukerupert/freyja/internal/repository"
+	"github.com/dukerupert/hiri/internal/repository"
 )
 
 func TestCalculateDueDateFromTerms(t *testing.T) {

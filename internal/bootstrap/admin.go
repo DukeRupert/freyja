@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/dukerupert/freyja/internal/auth"
-	"github.com/dukerupert/freyja/internal/repository"
+	"github.com/dukerupert/hiri/internal/auth"
+	"github.com/dukerupert/hiri/internal/repository"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )

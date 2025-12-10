@@ -1,7 +1,7 @@
 package service
 
 import (
-	"github.com/dukerupert/freyja/internal/domain"
+	"github.com/dukerupert/hiri/internal/domain"
 )
 
 // SubscriptionService is re-exported from domain for backwards compatibility.

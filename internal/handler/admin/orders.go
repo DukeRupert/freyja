@@ -5,11 +5,11 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/dukerupert/freyja/internal/domain"
-	"github.com/dukerupert/freyja/internal/handler"
-	"github.com/dukerupert/freyja/internal/jobs"
-	"github.com/dukerupert/freyja/internal/middleware"
-	"github.com/dukerupert/freyja/internal/repository"
+	"github.com/dukerupert/hiri/internal/domain"
+	"github.com/dukerupert/hiri/internal/handler"
+	"github.com/dukerupert/hiri/internal/jobs"
+	"github.com/dukerupert/hiri/internal/middleware"
+	"github.com/dukerupert/hiri/internal/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )

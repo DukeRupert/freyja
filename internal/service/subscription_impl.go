@@ -9,8 +9,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/dukerupert/freyja/internal/billing"
-	"github.com/dukerupert/freyja/internal/repository"
+	"github.com/dukerupert/hiri/internal/billing"
+	"github.com/dukerupert/hiri/internal/repository"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 

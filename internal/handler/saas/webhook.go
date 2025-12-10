@@ -10,10 +10,10 @@ import (
 	"github.com/stripe/stripe-go/v83"
 	"github.com/stripe/stripe-go/v83/webhook"
 
-	"github.com/dukerupert/freyja/internal/billing"
-	"github.com/dukerupert/freyja/internal/domain"
-	"github.com/dukerupert/freyja/internal/handler"
-	"github.com/dukerupert/freyja/internal/service"
+	"github.com/dukerupert/hiri/internal/billing"
+	"github.com/dukerupert/hiri/internal/domain"
+	"github.com/dukerupert/hiri/internal/handler"
+	"github.com/dukerupert/hiri/internal/service"
 )
 
 // WebhookHandler handles Stripe webhooks for SaaS subscriptions

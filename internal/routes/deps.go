@@ -3,10 +3,10 @@ package routes
 import (
 	"net/http"
 
-	"github.com/dukerupert/freyja/internal/handler/admin"
-	"github.com/dukerupert/freyja/internal/handler/api"
-	"github.com/dukerupert/freyja/internal/handler/saas"
-	"github.com/dukerupert/freyja/internal/handler/storefront"
+	"github.com/dukerupert/hiri/internal/handler/admin"
+	"github.com/dukerupert/hiri/internal/handler/api"
+	"github.com/dukerupert/hiri/internal/handler/saas"
+	"github.com/dukerupert/hiri/internal/handler/storefront"
 )
 
 // SaaSDeps contains dependencies for SaaS marketing routes

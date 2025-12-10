@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dukerupert/freyja/internal/auth"
-	"github.com/dukerupert/freyja/internal/domain"
-	"github.com/dukerupert/freyja/internal/handler"
-	"github.com/dukerupert/freyja/internal/middleware"
-	"github.com/dukerupert/freyja/internal/repository"
-	"github.com/dukerupert/freyja/internal/service"
+	"github.com/dukerupert/hiri/internal/auth"
+	"github.com/dukerupert/hiri/internal/domain"
+	"github.com/dukerupert/hiri/internal/handler"
+	"github.com/dukerupert/hiri/internal/middleware"
+	"github.com/dukerupert/hiri/internal/repository"
+	"github.com/dukerupert/hiri/internal/service"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 

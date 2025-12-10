@@ -632,8 +632,8 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "github.com/dukerupert/freyja/internal/domain"
-    "github.com/dukerupert/freyja/internal/repository"
+    "github.com/dukerupert/hiri/internal/domain"
+    "github.com/dukerupert/hiri/internal/repository"
 )
 
 // OperatorService provides business logic for tenant operator operations
@@ -728,7 +728,7 @@ package service
 import (
     "context"
     "github.com/google/uuid"
-    "github.com/dukerupert/freyja/internal/domain"
+    "github.com/dukerupert/hiri/internal/domain"
 )
 
 // OnboardingService handles SaaS customer onboarding flows
@@ -805,8 +805,8 @@ package saas
 
 import (
     "net/http"
-    "github.com/dukerupert/freyja/internal/service"
-    "github.com/dukerupert/freyja/internal/handler"
+    "github.com/dukerupert/hiri/internal/service"
+    "github.com/dukerupert/hiri/internal/handler"
 )
 
 // CheckoutHandler handles SaaS checkout flow
@@ -833,8 +833,8 @@ package saas
 
 import (
     "net/http"
-    "github.com/dukerupert/freyja/internal/service"
-    "github.com/dukerupert/freyja/internal/handler"
+    "github.com/dukerupert/hiri/internal/service"
+    "github.com/dukerupert/hiri/internal/handler"
 )
 
 // SetupHandler handles account setup after checkout
@@ -875,8 +875,8 @@ package saas
 
 import (
     "net/http"
-    "github.com/dukerupert/freyja/internal/service"
-    "github.com/dukerupert/freyja/internal/handler"
+    "github.com/dukerupert/hiri/internal/service"
+    "github.com/dukerupert/hiri/internal/handler"
 )
 
 const (
@@ -938,7 +938,7 @@ package saas
 
 import (
     "net/http"
-    "github.com/dukerupert/freyja/internal/service"
+    "github.com/dukerupert/hiri/internal/service"
 )
 
 // BillingHandler handles billing portal access
@@ -964,8 +964,8 @@ package saas
 
 import (
     "net/http"
-    "github.com/dukerupert/freyja/internal/service"
-    "github.com/dukerupert/freyja/internal/billing"
+    "github.com/dukerupert/hiri/internal/service"
+    "github.com/dukerupert/hiri/internal/billing"
 )
 
 // WebhookHandler handles Stripe webhooks for SaaS subscriptions
@@ -1002,8 +1002,8 @@ import (
     "context"
     "net/http"
     "github.com/google/uuid"
-    "github.com/dukerupert/freyja/internal/service"
-    "github.com/dukerupert/freyja/internal/domain"
+    "github.com/dukerupert/hiri/internal/service"
+    "github.com/dukerupert/hiri/internal/domain"
 )
 
 // OperatorContextKey is the context key for storing operator data
@@ -1453,7 +1453,7 @@ import (
     "strings"
     "unicode"
     "golang.org/x/text/unicode/norm"
-    "github.com/dukerupert/freyja/internal/repository"
+    "github.com/dukerupert/hiri/internal/repository"
 )
 
 var (

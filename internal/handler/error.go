@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dukerupert/freyja/internal/domain"
-	"github.com/dukerupert/freyja/internal/middleware"
+	"github.com/dukerupert/hiri/internal/domain"
+	"github.com/dukerupert/hiri/internal/middleware"
 )
 
 // ErrorResponse writes an error response to the client.

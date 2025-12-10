@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dukerupert/freyja/internal/auth"
-	"github.com/dukerupert/freyja/internal/domain"
-	"github.com/dukerupert/freyja/internal/jobs"
-	"github.com/dukerupert/freyja/internal/repository"
+	"github.com/dukerupert/hiri/internal/auth"
+	"github.com/dukerupert/hiri/internal/domain"
+	"github.com/dukerupert/hiri/internal/jobs"
+	"github.com/dukerupert/hiri/internal/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )

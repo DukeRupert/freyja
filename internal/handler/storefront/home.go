@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dukerupert/freyja/internal/domain"
-	"github.com/dukerupert/freyja/internal/handler"
-	"github.com/dukerupert/freyja/internal/middleware"
+	"github.com/dukerupert/hiri/internal/domain"
+	"github.com/dukerupert/hiri/internal/handler"
+	"github.com/dukerupert/hiri/internal/middleware"
 )
 
 // HomeHandler handles the storefront homepage

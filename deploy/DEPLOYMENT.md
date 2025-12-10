@@ -127,7 +127,7 @@ services:
       - hiri-network
 
   app:
-    image: ${HIRI_IMAGE:-ghcr.io/dukerupert/freyja:latest}
+    image: ${HIRI_IMAGE:-ghcr.io/dukerupert/hiri:latest}
     container_name: hiri-app
     restart: unless-stopped
     expose:
@@ -257,7 +257,7 @@ openssl rand -base64 32
 ```
 1. Push tag: git tag v1.0.0 && git push origin v1.0.0
 2. GitHub Actions builds image
-3. Image pushed to ghcr.io/dukerupert/freyja:v1.0.0
+3. Image pushed to ghcr.io/dukerupert/hiri:v1.0.0
 4. Actions SSHs to VPS as deploy user
 5. Runs: docker compose pull app
 6. Runs: docker compose up -d --no-deps app
@@ -275,14 +275,14 @@ Migrations are embedded in the Go binary and run automatically on application st
 ```bash
 ssh deploy@hiri.coffee
 cd /opt/freyja
-HIRI_IMAGE=ghcr.io/dukerupert/freyja:v0.9.0 docker compose up -d --no-deps app
+HIRI_IMAGE=ghcr.io/dukerupert/hiri:v0.9.0 docker compose up -d --no-deps app
 ```
 
 ### View Available Tags
 
 ```bash
 # List recent images
-docker images ghcr.io/dukerupert/freyja
+docker images ghcr.io/dukerupert/hiri
 ```
 
 ### Database Rollback (if needed)

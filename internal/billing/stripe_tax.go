@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/dukerupert/freyja/internal/tax"
+	"github.com/dukerupert/hiri/internal/tax"
 	"github.com/stripe/stripe-go/v83"
 	"github.com/stripe/stripe-go/v83/tax/calculation"
 )

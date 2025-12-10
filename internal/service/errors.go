@@ -1,7 +1,7 @@
 package service
 
 import (
-	"github.com/dukerupert/freyja/internal/domain"
+	"github.com/dukerupert/hiri/internal/domain"
 )
 
 // Product/SKU/Cart errors - re-exported from domain

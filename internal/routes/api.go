@@ -1,7 +1,7 @@
 package routes
 
 import (
-	"github.com/dukerupert/freyja/internal/router"
+	"github.com/dukerupert/hiri/internal/router"
 )
 
 // RegisterAPIRoutes registers API routes for external services (e.g., Caddy)

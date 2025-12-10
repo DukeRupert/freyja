@@ -578,7 +578,7 @@ EASYPOST_API_KEY=your_api_key_here
 
 **Initialize the provider:**
 ```go
-import "github.com/dukerupert/freyja/internal/shipping"
+import "github.com/dukerupert/hiri/internal/shipping"
 
 provider, err := shipping.NewEasyPostProvider(shipping.EasyPostConfig{
     APIKey: os.Getenv("EASYPOST_API_KEY"),

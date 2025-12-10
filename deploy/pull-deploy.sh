@@ -11,7 +11,7 @@ VPS_PATH="${VPS_PATH:-/opt/freyja}"
 
 # Registry configuration
 REGISTRY="${REGISTRY:-ghcr.io}"
-IMAGE_NAME="${IMAGE_NAME:-dukerupert/freyja}"
+IMAGE_NAME="${IMAGE_NAME:-dukerupert/hiri}"
 
 # Use VERSION file if exists, otherwise default to latest
 if [ -f "VERSION" ]; then

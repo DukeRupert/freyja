@@ -1,4 +1,4 @@
-module github.com/dukerupert/freyja
+module github.com/dukerupert/hiri
 
 go 1.25.4
 

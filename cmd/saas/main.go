@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/dukerupert/freyja/internal"
-	"github.com/dukerupert/freyja/internal/handler/saas"
-	"github.com/dukerupert/freyja/internal/router"
-	"github.com/dukerupert/freyja/internal/routes"
+	"github.com/dukerupert/hiri/internal"
+	"github.com/dukerupert/hiri/internal/handler/saas"
+	"github.com/dukerupert/hiri/internal/router"
+	"github.com/dukerupert/hiri/internal/routes"
 )
 
 func run() error {

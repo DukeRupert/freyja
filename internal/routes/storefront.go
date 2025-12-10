@@ -1,8 +1,8 @@
 package routes
 
 import (
-	"github.com/dukerupert/freyja/internal/middleware"
-	"github.com/dukerupert/freyja/internal/router"
+	"github.com/dukerupert/hiri/internal/middleware"
+	"github.com/dukerupert/hiri/internal/router"
 )
 
 // RegisterStorefrontRoutes registers all customer-facing storefront routes.

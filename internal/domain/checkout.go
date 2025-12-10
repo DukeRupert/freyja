@@ -3,10 +3,10 @@ package domain
 import (
 	"context"
 
-	"github.com/dukerupert/freyja/internal/address"
-	"github.com/dukerupert/freyja/internal/billing"
-	"github.com/dukerupert/freyja/internal/shipping"
-	"github.com/dukerupert/freyja/internal/tax"
+	"github.com/dukerupert/hiri/internal/address"
+	"github.com/dukerupert/hiri/internal/billing"
+	"github.com/dukerupert/hiri/internal/shipping"
+	"github.com/dukerupert/hiri/internal/tax"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 

@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dukerupert/freyja/internal/billing"
-	"github.com/dukerupert/freyja/internal/crypto"
-	"github.com/dukerupert/freyja/internal/repository"
-	"github.com/dukerupert/freyja/internal/tax"
+	"github.com/dukerupert/hiri/internal/billing"
+	"github.com/dukerupert/hiri/internal/crypto"
+	"github.com/dukerupert/hiri/internal/repository"
+	"github.com/dukerupert/hiri/internal/tax"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/sync/singleflight"
 )

@@ -10,8 +10,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/dukerupert/freyja/internal/repository"
-	"github.com/dukerupert/freyja/internal/service"
+	"github.com/dukerupert/hiri/internal/repository"
+	"github.com/dukerupert/hiri/internal/service"
 )
 
 const (

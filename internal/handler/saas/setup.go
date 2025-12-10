@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/dukerupert/freyja/internal/handler"
-	"github.com/dukerupert/freyja/internal/middleware"
-	"github.com/dukerupert/freyja/internal/service"
+	"github.com/dukerupert/hiri/internal/handler"
+	"github.com/dukerupert/hiri/internal/middleware"
+	"github.com/dukerupert/hiri/internal/service"
 )
 
 // SetupHandler handles account setup after checkout

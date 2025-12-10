@@ -440,8 +440,8 @@ import (
     "errors"
     "fmt"
 
-    "github.com/dukerupert/freyja"
-    "github.com/dukerupert/freyja/internal/repository"
+    "github.com/dukerupert/hiri"
+    "github.com/dukerupert/hiri/internal/repository"
     "github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -687,8 +687,8 @@ package http
 import (
     "net/http"
 
-    "github.com/dukerupert/freyja"
-    "github.com/dukerupert/freyja/internal/handler"
+    "github.com/dukerupert/hiri"
+    "github.com/dukerupert/hiri/internal/handler"
     "github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -1011,7 +1011,7 @@ Migrate domains in this order to minimize disruption and dependencies:
 // freyja/product.go
 package freyja
 
-import "github.com/dukerupert/freyja/postgres" // CYCLE!
+import "github.com/dukerupert/hiri/postgres" // CYCLE!
 
 func DefaultProductService() ProductService {
     return postgres.NewProductService(...)
@@ -1024,8 +1024,8 @@ func DefaultProductService() ProductService {
 package main
 
 import (
-    "github.com/dukerupert/freyja"
-    "github.com/dukerupert/freyja/postgres"
+    "github.com/dukerupert/hiri"
+    "github.com/dukerupert/hiri/postgres"
 )
 
 func main() {
@@ -1172,8 +1172,8 @@ package postgres_test
 
 import (
     "testing"
-    "github.com/dukerupert/freyja"
-    "github.com/dukerupert/freyja/postgres"
+    "github.com/dukerupert/hiri"
+    "github.com/dukerupert/hiri/postgres"
 )
 
 func TestProductService_CreateProduct(t *testing.T) {

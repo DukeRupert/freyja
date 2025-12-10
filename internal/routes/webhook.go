@@ -1,7 +1,7 @@
 package routes
 
 import (
-	"github.com/dukerupert/freyja/internal/router"
+	"github.com/dukerupert/hiri/internal/router"
 )
 
 // RegisterWebhookRoutes registers all webhook routes.

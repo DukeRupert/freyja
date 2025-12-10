@@ -3,7 +3,7 @@ package domain
 import (
 	"context"
 
-	"github.com/dukerupert/freyja/internal/repository"
+	"github.com/dukerupert/hiri/internal/repository"
 )
 
 // Order-related domain errors.

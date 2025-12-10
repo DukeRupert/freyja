@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dukerupert/freyja/internal/shipping"
+	"github.com/dukerupert/hiri/internal/shipping"
 	"github.com/stretchr/testify/assert"
 )
 

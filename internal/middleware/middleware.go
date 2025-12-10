@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dukerupert/freyja/internal/domain"
+	"github.com/dukerupert/hiri/internal/domain"
 )
 
 // ============================================================================

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/dukerupert/freyja/internal/domain"
+	"github.com/dukerupert/hiri/internal/domain"
 )
 
 type contextKey string

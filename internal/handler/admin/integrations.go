@@ -9,13 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dukerupert/freyja/internal/crypto"
-	"github.com/dukerupert/freyja/internal/domain"
-	"github.com/dukerupert/freyja/internal/email"
-	"github.com/dukerupert/freyja/internal/handler"
-	"github.com/dukerupert/freyja/internal/handler/storefront"
-	"github.com/dukerupert/freyja/internal/provider"
-	"github.com/dukerupert/freyja/internal/repository"
+	"github.com/dukerupert/hiri/internal/crypto"
+	"github.com/dukerupert/hiri/internal/domain"
+	"github.com/dukerupert/hiri/internal/email"
+	"github.com/dukerupert/hiri/internal/handler"
+	"github.com/dukerupert/hiri/internal/handler/storefront"
+	"github.com/dukerupert/hiri/internal/provider"
+	"github.com/dukerupert/hiri/internal/repository"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 

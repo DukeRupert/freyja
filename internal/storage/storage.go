@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/dukerupert/freyja/internal"
+	"github.com/dukerupert/hiri/internal"
 )
 
 // Storage defines the interface for file storage operations.

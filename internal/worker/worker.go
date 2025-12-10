@@ -10,10 +10,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/dukerupert/freyja/internal/domain"
-	"github.com/dukerupert/freyja/internal/email"
-	"github.com/dukerupert/freyja/internal/jobs"
-	"github.com/dukerupert/freyja/internal/repository"
+	"github.com/dukerupert/hiri/internal/domain"
+	"github.com/dukerupert/hiri/internal/email"
+	"github.com/dukerupert/hiri/internal/jobs"
+	"github.com/dukerupert/hiri/internal/repository"
 )
 
 // Config holds worker configuration

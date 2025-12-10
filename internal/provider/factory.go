@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/dukerupert/freyja/internal/billing"
-	"github.com/dukerupert/freyja/internal/email"
-	"github.com/dukerupert/freyja/internal/repository"
-	"github.com/dukerupert/freyja/internal/shipping"
-	"github.com/dukerupert/freyja/internal/tax"
+	"github.com/dukerupert/hiri/internal/billing"
+	"github.com/dukerupert/hiri/internal/email"
+	"github.com/dukerupert/hiri/internal/repository"
+	"github.com/dukerupert/hiri/internal/shipping"
+	"github.com/dukerupert/hiri/internal/tax"
 )
 
 // ProviderFactory creates provider instances from configuration.

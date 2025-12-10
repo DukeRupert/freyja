@@ -288,7 +288,7 @@ Add factory function to create storage from config:
 ```go
 // Add to storage.go
 
-import "github.com/dukerupert/freyja/internal"
+import "github.com/dukerupert/hiri/internal"
 
 // NewStorage creates a Storage implementation based on configuration.
 // Returns LocalStorage for "local" provider, R2Storage for "r2" provider.

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dukerupert/freyja/internal/repository"
+	"github.com/dukerupert/hiri/internal/repository"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 

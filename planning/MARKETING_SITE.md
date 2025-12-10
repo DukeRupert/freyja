@@ -188,7 +188,7 @@ import (
     "log/slog"
     "net/http"
 
-    "github.com/dukerupert/freyja/internal"
+    "github.com/dukerupert/hiri/internal"
 )
 
 type Handler struct {
@@ -315,7 +315,7 @@ package routes
 import (
     "net/http"
 
-    "github.com/dukerupert/freyja/internal/handler/marketing"
+    "github.com/dukerupert/hiri/internal/handler/marketing"
 )
 
 func RegisterMarketingRoutes(mux *http.ServeMux, h *marketing.Handler, domain string) {

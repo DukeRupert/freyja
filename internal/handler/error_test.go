@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dukerupert/freyja/internal/domain"
+	"github.com/dukerupert/hiri/internal/domain"
 )
 
 func TestErrorCodeToHTTPStatus(t *testing.T) {

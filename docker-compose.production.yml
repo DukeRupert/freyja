@@ -17,7 +17,7 @@ services:
       - hiri-network
 
   app:
-    image: ${HIRI_IMAGE:-ghcr.io/dukerupert/freyja:latest}
+    image: ${HIRI_IMAGE:-ghcr.io/dukerupert/hiri:latest}
     container_name: hiri-app
     restart: unless-stopped
     expose:

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dukerupert/freyja/internal/middleware"
+	"github.com/dukerupert/hiri/internal/middleware"
 )
 
 // BaseTemplateData returns common data for all templates

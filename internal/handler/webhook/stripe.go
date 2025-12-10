@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dukerupert/freyja/internal/billing"
-	"github.com/dukerupert/freyja/internal/domain"
-	"github.com/dukerupert/freyja/internal/handler"
-	"github.com/dukerupert/freyja/internal/telemetry"
+	"github.com/dukerupert/hiri/internal/billing"
+	"github.com/dukerupert/hiri/internal/domain"
+	"github.com/dukerupert/hiri/internal/handler"
+	"github.com/dukerupert/hiri/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stripe/stripe-go/v83"
 )

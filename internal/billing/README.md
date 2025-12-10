@@ -36,7 +36,7 @@ This package provides a complete Stripe payment implementation with:
 ### 1. Configuration
 
 ```go
-import "github.com/dukerupert/freyja/internal/billing"
+import "github.com/dukerupert/hiri/internal/billing"
 
 config := billing.StripeConfig{
     APIKey:          os.Getenv("STRIPE_SECRET_KEY"),
@@ -191,7 +191,7 @@ See [INTEGRATION_TESTING.md](INTEGRATION_TESTING.md) for detailed guide.
 
 ```go
 // main.go
-import "github.com/dukerupert/freyja/internal/handler/webhook"
+import "github.com/dukerupert/hiri/internal/handler/webhook"
 
 webhookHandler := webhook.NewStripeHandler(billingProvider, webhook.StripeWebhookConfig{
     WebhookSecret: os.Getenv("STRIPE_WEBHOOK_SECRET"),
@@ -227,7 +227,7 @@ The webhook handler processes these events:
 ### Standard Errors
 
 ```go
-import "github.com/dukerupert/freyja/internal/billing"
+import "github.com/dukerupert/hiri/internal/billing"
 
 // Check for specific errors
 if errors.Is(err, billing.ErrPaymentIntentNotFound) {
