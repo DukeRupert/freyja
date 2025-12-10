@@ -95,8 +95,53 @@ func (r *Router) Static(prefix, dir string) {
 	cleanPrefix := strings.TrimSuffix(prefix, "/")
 
 	// Strip the prefix before serving
-	handler := http.StripPrefix(cleanPrefix, fileServer)
+	stripped := http.StripPrefix(cleanPrefix, fileServer)
+
+	// Wrap with MIME type handler to ensure correct Content-Type headers
+	// (some deployment environments lack proper MIME type databases)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if ct := mimeTypeByExtension(req.URL.Path); ct != "" {
+			w.Header().Set("Content-Type", ct)
+		}
+		stripped.ServeHTTP(w, req)
+	})
 
 	// Register with GET method and wildcard pattern
 	r.mux.Handle("GET "+cleanPrefix+"/{file...}", r.wrap(handler, nil))
+}
+
+// mimeTypeByExtension returns the MIME type for common static file extensions.
+func mimeTypeByExtension(path string) string {
+	switch {
+	case strings.HasSuffix(path, ".css"):
+		return "text/css; charset=utf-8"
+	case strings.HasSuffix(path, ".js"):
+		return "text/javascript; charset=utf-8"
+	case strings.HasSuffix(path, ".json"):
+		return "application/json; charset=utf-8"
+	case strings.HasSuffix(path, ".html"):
+		return "text/html; charset=utf-8"
+	case strings.HasSuffix(path, ".svg"):
+		return "image/svg+xml"
+	case strings.HasSuffix(path, ".png"):
+		return "image/png"
+	case strings.HasSuffix(path, ".jpg"), strings.HasSuffix(path, ".jpeg"):
+		return "image/jpeg"
+	case strings.HasSuffix(path, ".gif"):
+		return "image/gif"
+	case strings.HasSuffix(path, ".webp"):
+		return "image/webp"
+	case strings.HasSuffix(path, ".ico"):
+		return "image/x-icon"
+	case strings.HasSuffix(path, ".woff"):
+		return "font/woff"
+	case strings.HasSuffix(path, ".woff2"):
+		return "font/woff2"
+	case strings.HasSuffix(path, ".ttf"):
+		return "font/ttf"
+	case strings.HasSuffix(path, ".webmanifest"):
+		return "application/manifest+json"
+	default:
+		return ""
+	}
 }
