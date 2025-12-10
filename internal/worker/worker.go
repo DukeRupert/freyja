@@ -182,16 +182,22 @@ func (w *Worker) processJob(ctx context.Context, job *repository.Job) error {
 	jobCtx, cancel := context.WithTimeout(ctx, time.Duration(job.TimeoutSeconds)*time.Second)
 	defer cancel()
 
+	// Inject tenant context before calling services
+	tenantCtx, err := withTenantContext(jobCtx, job)
+	if err != nil {
+		return fmt.Errorf("failed to create tenant context: %w", err)
+	}
+
 	if isEmailJob(job.JobType) {
-		return jobs.ProcessEmailJob(jobCtx, job, w.emailService, w.queries)
+		return jobs.ProcessEmailJob(tenantCtx, job, w.emailService, w.queries)
 	}
 
 	if isInvoiceJob(job.JobType) {
-		return w.processInvoiceJob(jobCtx, job)
+		return w.processInvoiceJob(tenantCtx, job)
 	}
 
 	if jobs.IsCleanupJob(job.JobType) {
-		result, err := jobs.ProcessCleanupJob(jobCtx, job, w.queries)
+		result, err := jobs.ProcessCleanupJob(tenantCtx, job, w.queries)
 		if err != nil {
 			return err
 		}

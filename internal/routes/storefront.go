@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"net/http"
+
 	"github.com/dukerupert/hiri/internal/middleware"
 	"github.com/dukerupert/hiri/internal/router"
 )
@@ -10,55 +12,71 @@ import (
 //
 // When multi-tenancy is enabled, these routes will be served per-tenant
 // based on subdomain or custom domain.
-func RegisterStorefrontRoutes(r *router.Router, deps StorefrontDeps) {
+//
+// If tenantMiddleware is provided and not nil, it will be applied to wrap
+// all storefront routes with tenant resolution. This should be the
+// middleware.ResolveTenant middleware configured with TenantConfig.
+func RegisterStorefrontRoutes(r *router.Router, deps StorefrontDeps, tenantMiddleware func(http.Handler) http.Handler) {
+	// If tenant middleware is provided, wrap all storefront routes
+	var storefrontRouter *router.Router
+	if tenantMiddleware != nil {
+		storefrontRouter = r.Group(
+			tenantMiddleware,
+			middleware.RequireTenant,
+		)
+	} else {
+		// No tenant middleware - use router directly (single-tenant mode)
+		storefrontRouter = r
+	}
+
 	// Home page
-	r.Get("/", deps.HomeHandler.ServeHTTP)
+	storefrontRouter.Get("/", deps.HomeHandler.ServeHTTP)
 
 	// Legal/static pages
-	r.Get("/privacy", deps.PagesHandler.Privacy)
-	r.Get("/terms", deps.PagesHandler.Terms)
-	r.Get("/shipping", deps.PagesHandler.Shipping)
+	storefrontRouter.Get("/privacy", deps.PagesHandler.Privacy)
+	storefrontRouter.Get("/terms", deps.PagesHandler.Terms)
+	storefrontRouter.Get("/shipping", deps.PagesHandler.Shipping)
 
 	// Product browsing
-	r.Get("/products", deps.ProductHandler.List)
-	r.Get("/products/{slug}", deps.ProductHandler.Detail)
+	storefrontRouter.Get("/products", deps.ProductHandler.List)
+	storefrontRouter.Get("/products/{slug}", deps.ProductHandler.Detail)
 
 	// Shopping cart
-	r.Get("/cart", deps.CartHandler.View)
-	r.Post("/cart/add", deps.CartHandler.Add)
-	r.Post("/cart/update", deps.CartHandler.Update)
-	r.Post("/cart/remove", deps.CartHandler.Remove)
+	storefrontRouter.Get("/cart", deps.CartHandler.View)
+	storefrontRouter.Post("/cart/add", deps.CartHandler.Add)
+	storefrontRouter.Post("/cart/update", deps.CartHandler.Update)
+	storefrontRouter.Post("/cart/remove", deps.CartHandler.Remove)
 
 	// Authentication (GET routes only - POST routes registered separately with rate limiting)
-	r.Get("/signup", deps.AuthHandler.ShowSignupForm)
-	r.Get("/signup-success", deps.AuthHandler.ShowSignupSuccess)
-	r.Get("/login", deps.AuthHandler.ShowLoginForm)
-	r.Post("/logout", deps.AuthHandler.HandleLogout)
+	storefrontRouter.Get("/signup", deps.AuthHandler.ShowSignupForm)
+	storefrontRouter.Get("/signup-success", deps.AuthHandler.ShowSignupSuccess)
+	storefrontRouter.Get("/login", deps.AuthHandler.ShowLoginForm)
+	storefrontRouter.Post("/logout", deps.AuthHandler.HandleLogout)
 
 	// Password Reset
-	r.Get("/forgot-password", deps.AuthHandler.ShowForgotPasswordForm)
-	r.Post("/forgot-password", deps.AuthHandler.HandleForgotPassword)
-	r.Get("/reset-password", deps.AuthHandler.ShowResetPasswordForm)
-	r.Post("/reset-password", deps.AuthHandler.HandleResetPassword)
+	storefrontRouter.Get("/forgot-password", deps.AuthHandler.ShowForgotPasswordForm)
+	storefrontRouter.Post("/forgot-password", deps.AuthHandler.HandleForgotPassword)
+	storefrontRouter.Get("/reset-password", deps.AuthHandler.ShowResetPasswordForm)
+	storefrontRouter.Post("/reset-password", deps.AuthHandler.HandleResetPassword)
 
 	// Email Verification
-	r.Get("/verify-email", deps.AuthHandler.HandleVerifyEmail)
-	r.Get("/resend-verification", deps.AuthHandler.ShowResendVerificationForm)
-	r.Post("/resend-verification", deps.AuthHandler.HandleResendVerification)
+	storefrontRouter.Get("/verify-email", deps.AuthHandler.HandleVerifyEmail)
+	storefrontRouter.Get("/resend-verification", deps.AuthHandler.ShowResendVerificationForm)
+	storefrontRouter.Post("/resend-verification", deps.AuthHandler.HandleResendVerification)
 
 	// Checkout flow
-	r.Get("/checkout", deps.CheckoutHandler.Page)
-	r.Post("/checkout/validate-address", deps.CheckoutHandler.ValidateAddress)
-	r.Post("/checkout/shipping-rates", deps.CheckoutHandler.GetShippingRates)
-	r.Post("/checkout/calculate-total", deps.CheckoutHandler.CalculateTotal)
-	r.Post("/checkout/create-payment-intent", deps.CheckoutHandler.CreatePaymentIntent)
-	r.Get("/order-confirmation", deps.CheckoutHandler.OrderConfirmation)
+	storefrontRouter.Get("/checkout", deps.CheckoutHandler.Page)
+	storefrontRouter.Post("/checkout/validate-address", deps.CheckoutHandler.ValidateAddress)
+	storefrontRouter.Post("/checkout/shipping-rates", deps.CheckoutHandler.GetShippingRates)
+	storefrontRouter.Post("/checkout/calculate-total", deps.CheckoutHandler.CalculateTotal)
+	storefrontRouter.Post("/checkout/create-payment-intent", deps.CheckoutHandler.CreatePaymentIntent)
+	storefrontRouter.Get("/order-confirmation", deps.CheckoutHandler.OrderConfirmation)
 
 	// Subscription product selection (public)
-	r.Get("/subscribe", deps.ProductHandler.SubscribeProducts)
+	storefrontRouter.Get("/subscribe", deps.ProductHandler.SubscribeProducts)
 
 	// Account routes (require authentication)
-	account := r.Group(middleware.RequireAuth)
+	account := storefrontRouter.Group(middleware.RequireAuth)
 	account.Get("/account", deps.AccountHandler.Dashboard)
 	account.Get("/account/orders", deps.AccountHandler.OrderList)
 	account.Get("/account/addresses", deps.AccountHandler.AddressList)

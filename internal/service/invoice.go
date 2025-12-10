@@ -29,8 +29,6 @@ type invoiceService struct {
 	repo                repository.Querier
 	paymentTermsService PaymentTermsService
 	billingProvider     billing.Provider
-	tenantID            pgtype.UUID
-	tenantIDStr         string
 }
 
 // NewInvoiceService creates a new InvoiceService instance.
@@ -38,24 +36,21 @@ func NewInvoiceService(
 	repo repository.Querier,
 	paymentTermsService PaymentTermsService,
 	billingProvider billing.Provider,
-	tenantID string,
-) (InvoiceService, error) {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		return nil, fmt.Errorf("invalid tenant ID: %w", err)
-	}
-
+) InvoiceService {
 	return &invoiceService{
 		repo:                repo,
 		paymentTermsService: paymentTermsService,
 		billingProvider:     billingProvider,
-		tenantID:            tenantUUID,
-		tenantIDStr:         tenantID,
-	}, nil
+	}
 }
 
 // CreateInvoice creates an invoice for one or more orders.
 func (s *invoiceService) CreateInvoice(ctx context.Context, params CreateInvoiceParams) (*InvoiceDetail, error) {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	if len(params.OrderIDs) == 0 {
 		return nil, ErrNoOrdersToInvoice
 	}
@@ -111,7 +106,7 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, params CreateInvoice
 		}
 
 		order, err := s.repo.GetOrder(ctx, repository.GetOrderParams{
-			TenantID: s.tenantID,
+			TenantID: tenantID,
 			ID:       orderID,
 		})
 		if err != nil {
@@ -145,14 +140,14 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, params CreateInvoice
 	} else {
 		// Use address from first order
 		firstOrder, _ := s.repo.GetOrder(ctx, repository.GetOrderParams{
-			TenantID: s.tenantID,
+			TenantID: tenantID,
 			ID:       orderUUIDs[0],
 		})
 		billingAddressID = firstOrder.BillingAddressID
 	}
 
 	// Generate invoice number
-	invoiceNumberRow, err := s.repo.GenerateInvoiceNumber(ctx, s.tenantID)
+	invoiceNumberRow, err := s.repo.GenerateInvoiceNumber(ctx, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate invoice number: %w", err)
 	}
@@ -192,7 +187,7 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, params CreateInvoice
 
 	// Create invoice
 	inv, err := s.repo.CreateInvoice(ctx, repository.CreateInvoiceParams{
-		TenantID:           s.tenantID,
+		TenantID:           tenantID,
 		UserID:             userID,
 		InvoiceNumber:      invoiceNumber,
 		Status:             "draft",
@@ -222,13 +217,13 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, params CreateInvoice
 	// Link orders to invoice and create invoice items
 	for _, orderID := range orderUUIDs {
 		order, _ := s.repo.GetOrder(ctx, repository.GetOrderParams{
-			TenantID: s.tenantID,
+			TenantID: tenantID,
 			ID:       orderID,
 		})
 
 		// Create invoice order link
 		_, err := s.repo.CreateInvoiceOrder(ctx, repository.CreateInvoiceOrderParams{
-			TenantID:        s.tenantID,
+			TenantID:        tenantID,
 			InvoiceID:       inv.ID,
 			OrderID:         orderID,
 			OrderNumber:     order.OrderNumber,
@@ -255,7 +250,7 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, params CreateInvoice
 			_ = quantity.Scan(fmt.Sprintf("%d", item.Quantity))
 
 			_, err := s.repo.CreateInvoiceItem(ctx, repository.CreateInvoiceItemParams{
-				TenantID:        s.tenantID,
+				TenantID:        tenantID,
 				InvoiceID:       inv.ID,
 				ItemType:        "product",
 				ProductSkuID:    item.ProductSkuID,
@@ -276,7 +271,7 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, params CreateInvoice
 			_ = shippingQty.Scan("1")
 
 			_, err := s.repo.CreateInvoiceItem(ctx, repository.CreateInvoiceItemParams{
-				TenantID:        s.tenantID,
+				TenantID:        tenantID,
 				InvoiceID:       inv.ID,
 				ItemType:        "shipping",
 				ProductSkuID:    pgtype.UUID{},
@@ -303,6 +298,11 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, params CreateInvoice
 
 // GetInvoice retrieves an invoice by ID with full details.
 func (s *invoiceService) GetInvoice(ctx context.Context, invoiceID string) (*InvoiceDetail, error) {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var invID pgtype.UUID
 	if err := invID.Scan(invoiceID); err != nil {
 		return nil, fmt.Errorf("invalid invoice ID: %w", err)
@@ -310,7 +310,7 @@ func (s *invoiceService) GetInvoice(ctx context.Context, invoiceID string) (*Inv
 
 	inv, err := s.repo.GetInvoiceByID(ctx, repository.GetInvoiceByIDParams{
 		ID:       invID,
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 	})
 	if err != nil {
 		return nil, ErrInvoiceNotFound
@@ -361,8 +361,13 @@ func (s *invoiceService) GetInvoice(ctx context.Context, invoiceID string) (*Inv
 
 // GetInvoiceByNumber retrieves an invoice by invoice number.
 func (s *invoiceService) GetInvoiceByNumber(ctx context.Context, invoiceNumber string) (*InvoiceDetail, error) {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	inv, err := s.repo.GetInvoiceByNumber(ctx, repository.GetInvoiceByNumberParams{
-		TenantID:      s.tenantID,
+		TenantID:      tenantID,
 		InvoiceNumber: invoiceNumber,
 	})
 	if err != nil {
@@ -374,8 +379,13 @@ func (s *invoiceService) GetInvoiceByNumber(ctx context.Context, invoiceNumber s
 
 // ListInvoices lists invoices for admin with pagination.
 func (s *invoiceService) ListInvoices(ctx context.Context, limit, offset int32) ([]InvoiceSummary, error) {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	rows, err := s.repo.ListInvoices(ctx, repository.ListInvoicesParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		Limit:    limit,
 		Offset:   offset,
 	})
@@ -406,13 +416,18 @@ func (s *invoiceService) ListInvoices(ctx context.Context, limit, offset int32) 
 
 // ListInvoicesForUser lists invoices for a specific customer.
 func (s *invoiceService) ListInvoicesForUser(ctx context.Context, userID string, limit, offset int32) ([]repository.Invoice, error) {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var uID pgtype.UUID
 	if err := uID.Scan(userID); err != nil {
 		return nil, fmt.Errorf("invalid user ID: %w", err)
 	}
 
 	invoices, err := s.repo.ListInvoicesForUser(ctx, repository.ListInvoicesForUserParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		UserID:   uID,
 		Limit:    limit,
 		Offset:   offset,
@@ -426,13 +441,18 @@ func (s *invoiceService) ListInvoicesForUser(ctx context.Context, userID string,
 
 // UpdateInvoiceStatus updates invoice status.
 func (s *invoiceService) UpdateInvoiceStatus(ctx context.Context, invoiceID string, status string) error {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
 	var invID pgtype.UUID
 	if err := invID.Scan(invoiceID); err != nil {
 		return fmt.Errorf("invalid invoice ID: %w", err)
 	}
 
 	return s.repo.UpdateInvoiceStatus(ctx, repository.UpdateInvoiceStatusParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		ID:       invID,
 		Status:   status,
 	})
@@ -440,6 +460,11 @@ func (s *invoiceService) UpdateInvoiceStatus(ctx context.Context, invoiceID stri
 
 // RecordPayment records a payment against an invoice.
 func (s *invoiceService) RecordPayment(ctx context.Context, params RecordPaymentParams) error {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
 	var invID pgtype.UUID
 	if err := invID.Scan(params.InvoiceID); err != nil {
 		return fmt.Errorf("invalid invoice ID: %w", err)
@@ -448,7 +473,7 @@ func (s *invoiceService) RecordPayment(ctx context.Context, params RecordPayment
 	// Get invoice to check balance
 	inv, err := s.repo.GetInvoiceByID(ctx, repository.GetInvoiceByIDParams{
 		ID:       invID,
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 	})
 	if err != nil {
 		return ErrInvoiceNotFound
@@ -482,7 +507,7 @@ func (s *invoiceService) RecordPayment(ctx context.Context, params RecordPayment
 
 	// Record payment (triggers update invoice balance)
 	_, err = s.repo.CreateInvoicePayment(ctx, repository.CreateInvoicePaymentParams{
-		TenantID:         s.tenantID,
+		TenantID:         tenantID,
 		InvoiceID:        invID,
 		PaymentID:        paymentID,
 		AmountCents:      params.AmountCents,
@@ -500,6 +525,16 @@ func (s *invoiceService) RecordPayment(ctx context.Context, params RecordPayment
 
 // SendInvoice finalizes and sends an invoice via email.
 func (s *invoiceService) SendInvoice(ctx context.Context, invoiceID string) error {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
+	tenantIDStr, err := ExtractTenantIDStr(ctx)
+	if err != nil {
+		return err
+	}
+
 	var invID pgtype.UUID
 	if err := invID.Scan(invoiceID); err != nil {
 		return fmt.Errorf("invalid invoice ID: %w", err)
@@ -507,7 +542,7 @@ func (s *invoiceService) SendInvoice(ctx context.Context, invoiceID string) erro
 
 	inv, err := s.repo.GetInvoiceByID(ctx, repository.GetInvoiceByIDParams{
 		ID:       invID,
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 	})
 	if err != nil {
 		return ErrInvoiceNotFound
@@ -520,7 +555,7 @@ func (s *invoiceService) SendInvoice(ctx context.Context, invoiceID string) erro
 
 	// Get customer's Stripe customer ID
 	billingCustomer, err := s.repo.GetBillingCustomerByUserID(ctx, repository.GetBillingCustomerByUserIDParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		UserID:   inv.UserID,
 		Provider: "stripe",
 	})
@@ -548,7 +583,7 @@ func (s *invoiceService) SendInvoice(ctx context.Context, invoiceID string) erro
 			Email: user.Email,
 			Name:  name,
 			Metadata: map[string]string{
-				"tenant_id": s.tenantIDStr,
+				"tenant_id": tenantIDStr,
 				"user_id":   inv.UserID.String(),
 			},
 		})
@@ -559,7 +594,7 @@ func (s *invoiceService) SendInvoice(ctx context.Context, invoiceID string) erro
 
 		// Save billing customer
 		_, err = s.repo.CreateBillingCustomer(ctx, repository.CreateBillingCustomerParams{
-			TenantID:           s.tenantID,
+			TenantID:           tenantID,
 			UserID:             inv.UserID,
 			Provider:           "stripe",
 			ProviderCustomerID: stripeCustomerID,
@@ -574,14 +609,14 @@ func (s *invoiceService) SendInvoice(ctx context.Context, invoiceID string) erro
 	// Create Stripe invoice
 	stripeInv, err := s.billingProvider.CreateInvoice(ctx, billing.CreateInvoiceParams{
 		CustomerID:       stripeCustomerID,
-		TenantID:         s.tenantIDStr,
+		TenantID:         tenantIDStr,
 		Currency:         inv.Currency,
 		Description:      fmt.Sprintf("Invoice %s", inv.InvoiceNumber),
 		DueDate:          inv.DueDate.Time,
 		CollectionMethod: "send_invoice",
 		AutoAdvance:      false,
 		Metadata: map[string]string{
-			"tenant_id":  s.tenantIDStr,
+			"tenant_id":  tenantIDStr,
 			"invoice_id": inv.ID.String(),
 		},
 		IdempotencyKey: fmt.Sprintf("inv_%s", inv.ID.String()),
@@ -602,7 +637,7 @@ func (s *invoiceService) SendInvoice(ctx context.Context, invoiceID string) erro
 		err := s.billingProvider.AddInvoiceItem(ctx, billing.AddInvoiceItemParams{
 			CustomerID:  stripeCustomerID,
 			InvoiceID:   stripeInv.ID,
-			TenantID:    s.tenantIDStr,
+			TenantID:    tenantIDStr,
 			Description: item.Description,
 			Quantity:    qty,
 			UnitAmount:  item.UnitPriceCents,
@@ -616,7 +651,7 @@ func (s *invoiceService) SendInvoice(ctx context.Context, invoiceID string) erro
 	// Finalize Stripe invoice
 	_, err = s.billingProvider.FinalizeInvoice(ctx, billing.FinalizeInvoiceParams{
 		InvoiceID: stripeInv.ID,
-		TenantID:  s.tenantIDStr,
+		TenantID:  tenantIDStr,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to finalize Stripe invoice: %w", err)
@@ -625,7 +660,7 @@ func (s *invoiceService) SendInvoice(ctx context.Context, invoiceID string) erro
 	// Send Stripe invoice
 	err = s.billingProvider.SendInvoice(ctx, billing.SendInvoiceParams{
 		InvoiceID: stripeInv.ID,
-		TenantID:  s.tenantIDStr,
+		TenantID:  tenantIDStr,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to send Stripe invoice: %w", err)
@@ -633,7 +668,7 @@ func (s *invoiceService) SendInvoice(ctx context.Context, invoiceID string) erro
 
 	// Update local invoice with Stripe ID and status
 	err = s.repo.UpdateInvoiceProviderID(ctx, repository.UpdateInvoiceProviderIDParams{
-		TenantID:          s.tenantID,
+		TenantID:          tenantID,
 		ID:                invID,
 		Provider:          pgtype.Text{String: "stripe", Valid: true},
 		ProviderInvoiceID: pgtype.Text{String: stripeInv.ID, Valid: true},
@@ -642,7 +677,7 @@ func (s *invoiceService) SendInvoice(ctx context.Context, invoiceID string) erro
 	_ = err
 
 	err = s.repo.UpdateInvoiceStatus(ctx, repository.UpdateInvoiceStatusParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		ID:       invID,
 		Status:   "sent",
 	})
@@ -658,6 +693,11 @@ func (s *invoiceService) SendInvoice(ctx context.Context, invoiceID string) erro
 
 // enqueueInvoiceSentEmail enqueues an email notification for a sent invoice
 func (s *invoiceService) enqueueInvoiceSentEmail(ctx context.Context, inv repository.Invoice, items []repository.InvoiceItem) {
+	tenantIDStr, err := ExtractTenantIDStr(ctx)
+	if err != nil {
+		return
+	}
+
 	// Get user info for email
 	user, err := s.repo.GetUserByID(ctx, inv.UserID)
 	if err != nil {
@@ -703,7 +743,7 @@ func (s *invoiceService) enqueueInvoiceSentEmail(ctx context.Context, inv reposi
 	}
 
 	// Convert tenant ID
-	tenantUUID, err := uuid.Parse(s.tenantIDStr)
+	tenantUUID, err := uuid.Parse(tenantIDStr)
 	if err != nil {
 		return
 	}
@@ -731,10 +771,20 @@ func (s *invoiceService) enqueueInvoiceSentEmail(ctx context.Context, inv reposi
 
 // SyncInvoiceFromStripe handles Stripe webhook events for invoice updates.
 func (s *invoiceService) SyncInvoiceFromStripe(ctx context.Context, stripeInvoiceID string) error {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
+	tenantIDStr, err := ExtractTenantIDStr(ctx)
+	if err != nil {
+		return err
+	}
+
 	// Get Stripe invoice
 	stripeInv, err := s.billingProvider.GetInvoice(ctx, billing.GetInvoiceParams{
 		InvoiceID: stripeInvoiceID,
-		TenantID:  s.tenantIDStr,
+		TenantID:  tenantIDStr,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to get Stripe invoice: %w", err)
@@ -742,7 +792,7 @@ func (s *invoiceService) SyncInvoiceFromStripe(ctx context.Context, stripeInvoic
 
 	// Find local invoice by Stripe ID
 	inv, err := s.repo.GetInvoiceByProviderID(ctx, repository.GetInvoiceByProviderIDParams{
-		TenantID:          s.tenantID,
+		TenantID:          tenantID,
 		Provider:          pgtype.Text{String: "stripe", Valid: true},
 		ProviderInvoiceID: pgtype.Text{String: stripeInvoiceID, Valid: true},
 	})
@@ -767,7 +817,7 @@ func (s *invoiceService) SyncInvoiceFromStripe(ctx context.Context, stripeInvoic
 
 	if newStatus != inv.Status {
 		err = s.repo.UpdateInvoiceStatus(ctx, repository.UpdateInvoiceStatusParams{
-			TenantID: s.tenantID,
+			TenantID: tenantID,
 			ID:       inv.ID,
 			Status:   newStatus,
 		})
@@ -801,6 +851,11 @@ func (s *invoiceService) SyncInvoiceFromStripe(ctx context.Context, stripeInvoic
 // GenerateConsolidatedInvoice creates an invoice for all uninvoiced orders
 // within a customer's billing period.
 func (s *invoiceService) GenerateConsolidatedInvoice(ctx context.Context, params ConsolidatedInvoiceParams) (*InvoiceDetail, error) {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var userID pgtype.UUID
 	if err := userID.Scan(params.UserID); err != nil {
 		return nil, fmt.Errorf("invalid user ID: %w", err)
@@ -808,7 +863,7 @@ func (s *invoiceService) GenerateConsolidatedInvoice(ctx context.Context, params
 
 	// Get uninvoiced orders in period
 	orders, err := s.repo.GetUninvoicedOrdersInPeriod(ctx, repository.GetUninvoicedOrdersInPeriodParams{
-		TenantID:    s.tenantID,
+		TenantID:    tenantID,
 		UserID:      userID,
 		CreatedAt:   pgtype.Timestamptz{Time: params.BillingPeriodStart, Valid: true},
 		CreatedAt_2: pgtype.Timestamptz{Time: params.BillingPeriodEnd, Valid: true},
@@ -839,22 +894,37 @@ func (s *invoiceService) GenerateConsolidatedInvoice(ctx context.Context, params
 
 // GetOverdueInvoices returns all overdue invoices for the tenant.
 func (s *invoiceService) GetOverdueInvoices(ctx context.Context) ([]repository.ListOverdueInvoicesRow, error) {
-	return s.repo.ListOverdueInvoices(ctx, s.tenantID)
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.repo.ListOverdueInvoices(ctx, tenantID)
 }
 
 // MarkInvoicesOverdue updates status for invoices past due date and sends notifications.
 func (s *invoiceService) MarkInvoicesOverdue(ctx context.Context) (int, error) {
-	invoices, err := s.repo.ListOverdueInvoices(ctx, s.tenantID)
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	tenantIDStr, err := ExtractTenantIDStr(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	invoices, err := s.repo.ListOverdueInvoices(ctx, tenantID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to list overdue invoices: %w", err)
 	}
 
-	tenantUUID, _ := uuid.Parse(s.tenantIDStr)
+	tenantUUID, _ := uuid.Parse(tenantIDStr)
 	count := 0
 	for _, inv := range invoices {
 		if inv.Status == "sent" || inv.Status == "viewed" {
 			err := s.repo.UpdateInvoiceStatus(ctx, repository.UpdateInvoiceStatusParams{
-				TenantID: s.tenantID,
+				TenantID: tenantID,
 				ID:       inv.ID,
 				Status:   "overdue",
 			})

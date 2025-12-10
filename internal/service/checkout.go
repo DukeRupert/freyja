@@ -115,7 +115,6 @@ type checkoutService struct {
 	shippingProvider shipping.Provider
 	taxCalculator    tax.Calculator
 	addrValidator    address.Validator
-	tenantID         pgtype.UUID
 }
 
 // NewCheckoutService creates a new CheckoutService instance.
@@ -126,13 +125,7 @@ func NewCheckoutService(
 	shippingProvider shipping.Provider,
 	taxCalculator tax.Calculator,
 	addrValidator address.Validator,
-	tenantID string,
-) (CheckoutService, error) {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidTenantID, err)
-	}
-
+) CheckoutService {
 	return &checkoutService{
 		repo:             repo,
 		cartService:      cartService,
@@ -140,8 +133,7 @@ func NewCheckoutService(
 		shippingProvider: shippingProvider,
 		taxCalculator:    taxCalculator,
 		addrValidator:    addrValidator,
-		tenantID:         tenantUUID,
-	}, nil
+	}
 }
 
 // ValidateAndNormalizeAddress validates a shipping or billing address.
@@ -151,6 +143,11 @@ func (s *checkoutService) ValidateAndNormalizeAddress(ctx context.Context, addr 
 
 // GetShippingRates calculates available shipping options for the cart.
 func (s *checkoutService) GetShippingRates(ctx context.Context, cartID string, shippingAddr address.Address) ([]shipping.Rate, error) {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	cartSummary, err := s.cartService.GetCartSummary(ctx, cartID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load cart: %w", err)
@@ -162,7 +159,7 @@ func (s *checkoutService) GetShippingRates(ctx context.Context, cartID string, s
 
 	pkg := calculatePackage(cartSummary.Items)
 
-	warehouseAddr, err := s.repo.GetTenantWarehouseAddress(ctx, s.tenantID)
+	warehouseAddr, err := s.repo.GetTenantWarehouseAddress(ctx, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get warehouse address: %w", err)
 	}
@@ -181,10 +178,9 @@ func (s *checkoutService) GetShippingRates(ctx context.Context, cartID string, s
 	destination := convertAddressToShipping(shippingAddr)
 
 	// Convert tenant ID to string for shipping provider
-	tenantIDStr := ""
-	if s.tenantID.Valid {
-		b := s.tenantID.Bytes
-		tenantIDStr = fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+	tenantIDStr, err := ExtractTenantIDStr(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	rates, err := s.shippingProvider.GetRates(ctx, shipping.RateParams{
@@ -257,6 +253,11 @@ func (s *checkoutService) CalculateOrderTotal(ctx context.Context, params OrderT
 
 // CreatePaymentIntent initiates a Stripe Payment Intent.
 func (s *checkoutService) CreatePaymentIntent(ctx context.Context, params PaymentIntentParams) (*billing.PaymentIntent, error) {
+	tenantIDStr, err := ExtractTenantIDStr(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	if params.OrderTotal == nil {
 		return nil, errors.New("order total is required")
 	}
@@ -272,7 +273,7 @@ func (s *checkoutService) CreatePaymentIntent(ctx context.Context, params Paymen
 	}
 
 	metadata := map[string]string{
-		"tenant_id":          uuidToString(s.tenantID),
+		"tenant_id":          tenantIDStr,
 		"cart_id":            params.CartID,
 		"customer_email":     params.CustomerEmail,
 		"shipping_address":   string(shippingAddrJSON),

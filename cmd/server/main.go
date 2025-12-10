@@ -16,6 +16,7 @@ import (
 	"github.com/dukerupert/hiri/internal/address"
 	"github.com/dukerupert/hiri/internal/billing"
 	"github.com/dukerupert/hiri/internal/bootstrap"
+	"github.com/dukerupert/hiri/internal/cookie"
 	"github.com/dukerupert/hiri/internal/crypto"
 	"github.com/dukerupert/hiri/internal/email"
 	"github.com/dukerupert/hiri/internal/handler"
@@ -37,6 +38,7 @@ import (
 	"github.com/dukerupert/hiri/internal/storage"
 	"github.com/dukerupert/hiri/internal/tax"
 	"github.com/dukerupert/hiri/internal/telemetry"
+	"github.com/dukerupert/hiri/internal/tenant"
 	"github.com/dukerupert/hiri/internal/worker"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -55,6 +57,9 @@ func run() error {
 
 	// Configure logger
 	logger := internal.NewLogger(os.Stdout, cfg.Env, cfg.LogLevel)
+
+	// Initialize cookie configuration for domain-scoped cookies
+	cookieConfig := cookie.NewConfig(cfg.Domain.BaseDomain, cfg.Env != "development")
 
 	// Initialize telemetry
 	logger.Info("Initializing telemetry...")
@@ -109,21 +114,13 @@ func run() error {
 	// Initialize repository
 	repo := repository.New(pool)
 
+	// Initialize tenant resolver for multi-tenant subdomain routing
+	tenantResolver := tenant.NewDBResolver(repo)
+
 	// Initialize services
-	productService, err := postgres.NewProductService(repo, cfg.TenantID)
-	if err != nil {
-		return fmt.Errorf("failed to initialize product service: %w", err)
-	}
-
-	cartService, err := postgres.NewCartService(repo, cfg.TenantID)
-	if err != nil {
-		return fmt.Errorf("failed to initialize cart service: %w", err)
-	}
-
-	userService, err := postgres.NewUserService(repo, cfg.TenantID)
-	if err != nil {
-		return fmt.Errorf("failed to initialize user service: %w", err)
-	}
+	productService := postgres.NewProductService(repo)
+	cartService := postgres.NewCartService(repo)
+	userService := postgres.NewUserService(repo)
 
 	// Parse tenant ID as UUID for password reset service
 	tenantUUID, err := uuid.Parse(cfg.TenantID)
@@ -219,18 +216,12 @@ func run() error {
 
 	// Initialize order service
 	logger.Info("Initializing order service...")
-	orderService, err := service.NewOrderService(repo, cfg.TenantID, billingProvider, shippingProvider)
-	if err != nil {
-		return fmt.Errorf("failed to initialize order service: %w", err)
-	}
+	orderService := service.NewOrderService(repo, billingProvider, shippingProvider)
 	logger.Info("Order service initialized")
 
 	// Initialize subscription service
 	logger.Info("Initializing subscription service...")
-	subscriptionService, err := service.NewSubscriptionService(repo, cfg.TenantID, billingProvider)
-	if err != nil {
-		return fmt.Errorf("failed to initialize subscription service: %w", err)
-	}
+	subscriptionService := service.NewSubscriptionService(repo, billingProvider)
 	logger.Info("Subscription service initialized")
 
 	// Initialize account service
@@ -250,34 +241,24 @@ func run() error {
 
 	// Initialize checkout service
 	logger.Info("Initializing checkout service...")
-	checkoutService, err := service.NewCheckoutService(
+	checkoutService := service.NewCheckoutService(
 		repo,
 		cartService,
 		billingProvider,
 		shippingProvider,
 		taxCalculator,
 		addressValidator,
-		cfg.TenantID,
 	)
-	if err != nil {
-		return fmt.Errorf("failed to initialize checkout service: %w", err)
-	}
 	logger.Info("Checkout service initialized")
 
 	// Initialize payment terms service
 	logger.Info("Initializing payment terms service...")
-	paymentTermsService, err := service.NewPaymentTermsService(repo, cfg.TenantID)
-	if err != nil {
-		return fmt.Errorf("failed to initialize payment terms service: %w", err)
-	}
+	paymentTermsService := service.NewPaymentTermsService(repo)
 	logger.Info("Payment terms service initialized")
 
 	// Initialize invoice service
 	logger.Info("Initializing invoice service...")
-	invoiceService, err := service.NewInvoiceService(repo, paymentTermsService, billingProvider, cfg.TenantID)
-	if err != nil {
-		return fmt.Errorf("failed to initialize invoice service: %w", err)
-	}
+	invoiceService := service.NewInvoiceService(repo, paymentTermsService, billingProvider)
 	logger.Info("Invoice service initialized")
 
 	// Initialize background worker
@@ -329,7 +310,7 @@ func run() error {
 		ProductHandler: storefront.NewProductHandler(productService, repo, renderer, cfg.TenantID),
 
 		// Cart (consolidated handler)
-		CartHandler: storefront.NewCartHandler(cartService, renderer, cfg.Env != "development", cfg.TenantID),
+		CartHandler: storefront.NewCartHandler(cartService, renderer, cookieConfig, cfg.TenantID),
 
 		// Auth (consolidated: signup, login, logout, password reset, email verification)
 		AuthHandler: storefront.NewAuthHandler(
@@ -339,6 +320,7 @@ func run() error {
 			repo,
 			renderer,
 			tenantUUID,
+			cookieConfig,
 		),
 
 		// Checkout (consolidated handler)
@@ -372,7 +354,7 @@ func run() error {
 
 		// Wholesale
 		WholesaleApplicationHandler: storefront.NewWholesaleApplicationHandler(repo, renderer, cfg.TenantID),
-		WholesaleOrderingHandler:    storefront.NewWholesaleOrderingHandler(repo, cartService, renderer, cfg.TenantID, cfg.Env != "development"),
+		WholesaleOrderingHandler:    storefront.NewWholesaleOrderingHandler(repo, cartService, renderer, cfg.TenantID, cookieConfig),
 
 		// Static pages (legal, about, contact, etc.)
 		PagesHandler: storefront.NewPagesHandler(pageService, renderer, cfg.TenantID),
@@ -413,8 +395,8 @@ func run() error {
 
 	// Admin dependencies (consolidated handlers)
 	adminDeps := routes.AdminDeps{
-		LoginHandler:        admin.NewLoginHandler(userService, renderer),
-		LogoutHandler:       admin.NewLogoutHandler(userService),
+		LoginHandler:        admin.NewLoginHandler(userService, renderer, cookieConfig),
+		LogoutHandler:       admin.NewLogoutHandler(userService, cookieConfig),
 		DashboardHandler:    admin.NewDashboardHandler(repo, renderer, cfg.TenantID, onboardingService),
 		ProductHandler:      admin.NewProductHandler(repo, renderer, fileStorage, cfg.TenantID),
 		OrderHandler:        admin.NewOrderHandler(repo, renderer, cfg.TenantID),
@@ -465,11 +447,15 @@ func run() error {
 		}
 	}
 
-	// CSRF config (insecure cookies allowed in development)
-	csrfConfig := middleware.CSRFConfig{
-		CookieSecure: !isDev,
-		// Skip CSRF validation for webhook endpoints (they use signature verification)
-		SkipPaths: []string{"/webhooks/"},
+	// CSRF config (uses cookie.Config for domain scoping)
+	csrfConfig := middleware.DefaultCSRFConfig(cookieConfig)
+
+	// Tenant middleware config (for multi-tenant subdomain routing)
+	tenantCfg := middleware.TenantConfig{
+		BaseDomain: cfg.Domain.BaseDomain,
+		AppDomain:  cfg.Domain.AppDomain,
+		Resolver:   tenantResolver,
+		Logger:     logger,
 	}
 
 	// ==========================================================================
@@ -525,8 +511,14 @@ func run() error {
 		DomainValidationHandler: api.NewDomainValidationHandler(customDomainService, logger),
 	}
 
+	// Determine tenant middleware for storefront routes
+	var tenantMiddleware func(http.Handler) http.Handler
+	if cfg.Domain.HostRouting {
+		tenantMiddleware = middleware.ResolveTenant(tenantCfg)
+	}
+
 	// Register route groups
-	routes.RegisterStorefrontRoutes(r, storefrontDeps)
+	routes.RegisterStorefrontRoutes(r, storefrontDeps, tenantMiddleware)
 	routes.RegisterAdminRoutes(r, adminDeps)
 	routes.RegisterAPIRoutes(r, apiDeps)
 	routes.RegisterWebhookRoutes(r, webhookDeps)

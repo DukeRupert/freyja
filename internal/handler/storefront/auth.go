@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/dukerupert/hiri/internal/cookie"
 	"github.com/dukerupert/hiri/internal/domain"
 	"github.com/dukerupert/hiri/internal/handler"
 	"github.com/dukerupert/hiri/internal/middleware"
@@ -33,6 +34,7 @@ type AuthHandler struct {
 	repo                 repository.Querier
 	renderer             *handler.Renderer
 	tenantID             uuid.UUID
+	cookieConfig         *cookie.Config
 }
 
 // NewAuthHandler creates a new consolidated auth handler
@@ -43,6 +45,7 @@ func NewAuthHandler(
 	repo repository.Querier,
 	renderer *handler.Renderer,
 	tenantID uuid.UUID,
+	cookieConfig *cookie.Config,
 ) *AuthHandler {
 	return &AuthHandler{
 		userService:          userService,
@@ -51,6 +54,7 @@ func NewAuthHandler(
 		repo:                 repo,
 		renderer:             renderer,
 		tenantID:             tenantID,
+		cookieConfig:         cookieConfig,
 	}
 }
 
@@ -214,15 +218,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookieName,
-		Value:    token,
-		Path:     "/",
-		MaxAge:   sessionMaxAge,
-		HttpOnly: true,
-		Secure:   r.TLS != nil,
-		SameSite: http.SameSiteLaxMode,
-	})
+	h.cookieConfig.SetSession(w, sessionCookieName, token, sessionMaxAge)
 
 	returnTo := r.URL.Query().Get("return_to")
 	if returnTo == "" {
@@ -244,15 +240,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		_ = h.userService.DeleteSession(ctx, cookie.Value)
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookieName,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   r.TLS != nil,
-		SameSite: http.SameSiteLaxMode,
-	})
+	h.cookieConfig.ClearSession(w, sessionCookieName)
 
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }

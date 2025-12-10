@@ -27,25 +27,18 @@ type OrderDetail = domain.OrderDetail
 
 type orderService struct {
 	repo             repository.Querier
-	tenantID         pgtype.UUID
 	billingProvider  billing.Provider
 	shippingProvider shipping.Provider
 }
 
 // NewOrderService creates a new OrderService instance
 // Requires billing and shipping providers for order creation flow
-func NewOrderService(repo repository.Querier, tenantID string, billingProvider billing.Provider, shippingProvider shipping.Provider) (OrderService, error) {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		return nil, fmt.Errorf("invalid tenant ID: %w", err)
-	}
-
+func NewOrderService(repo repository.Querier, billingProvider billing.Provider, shippingProvider shipping.Provider) OrderService {
 	return &orderService{
 		repo:             repo,
-		tenantID:         tenantUUID,
 		billingProvider:  billingProvider,
 		shippingProvider: shippingProvider,
-	}, nil
+	}
 }
 
 // CreateOrderFromPaymentIntent creates an order from a successful Stripe payment intent
@@ -89,9 +82,14 @@ func NewOrderService(repo repository.Querier, tenantID string, billingProvider b
 // - Returns ErrInsufficientStock if any SKU lacks inventory
 // - All database errors wrapped with context
 func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, paymentIntentID string) (*OrderDetail, error) {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Step 1: Idempotency check
 	existingOrder, err := s.repo.GetOrderByPaymentIntentID(ctx, repository.GetOrderByPaymentIntentIDParams{
-		TenantID:          s.tenantID,
+		TenantID:          tenantID,
 		ProviderPaymentID: paymentIntentID,
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -105,7 +103,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 	// Step 2: Retrieve payment intent from Stripe
 	paymentIntent, err := s.billingProvider.GetPaymentIntent(ctx, billing.GetPaymentIntentParams{
 		PaymentIntentID: paymentIntentID,
-		TenantID:        uuidToString(s.tenantID),
+		TenantID:        uuidToString(tenantID),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get payment intent: %w", err)
@@ -136,7 +134,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 		return nil, fmt.Errorf("failed to get cart: %w", err)
 	}
 
-	if !bytes.Equal(cart.TenantID.Bytes[:], s.tenantID.Bytes[:]) {
+	if !bytes.Equal(cart.TenantID.Bytes[:], tenantID.Bytes[:]) {
 		return nil, ErrTenantMismatch
 	}
 
@@ -180,7 +178,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 
 	// Step 9: Create address records
 	shippingAddress, err := s.repo.CreateAddress(ctx, repository.CreateAddressParams{
-		TenantID:     s.tenantID,
+		TenantID:     tenantID,
 		AddressType:  "shipping",
 		FullName:     makePgText(shippingAddr.FullName),
 		Company:      makePgText(shippingAddr.Company),
@@ -197,7 +195,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 	}
 
 	billingAddress, err := s.repo.CreateAddress(ctx, repository.CreateAddressParams{
-		TenantID:     s.tenantID,
+		TenantID:     tenantID,
 		AddressType:  "billing",
 		FullName:     makePgText(billingAddr.FullName),
 		Company:      makePgText(billingAddr.Company),
@@ -235,7 +233,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 
 		// First, check if a user with this email already exists
 		existingUser, err := s.repo.GetUserByEmail(ctx, repository.GetUserByEmailParams{
-			TenantID: s.tenantID,
+			TenantID: tenantID,
 			Email:    customerEmail,
 		})
 		if err == nil {
@@ -244,7 +242,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 		} else if errors.Is(err, pgx.ErrNoRows) {
 			// No existing user - create a guest account
 			guestUser, err := s.repo.CreateUser(ctx, repository.CreateUserParams{
-				TenantID:     s.tenantID,
+				TenantID:     tenantID,
 				Email:        customerEmail,
 				PasswordHash: pgtype.Text{Valid: false}, // No password for guest accounts
 				FirstName:    makePgText(firstName),
@@ -288,7 +286,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 			Email: customerEmail,
 			Name:  customerName,
 			Metadata: map[string]string{
-				"tenant_id": uuidToString(s.tenantID),
+				"tenant_id": uuidToString(tenantID),
 				"user_id":   uuidToString(userID),
 			},
 		})
@@ -301,7 +299,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 	// Step 12: Get or create billing customer record (links user to Stripe customer)
 	var billingCustomer repository.BillingCustomer
 	existingBillingCustomer, err := s.repo.GetBillingCustomerByUserID(ctx, repository.GetBillingCustomerByUserIDParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		UserID:   userID,
 		Provider: "stripe",
 	})
@@ -312,7 +310,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 	if err == pgx.ErrNoRows {
 		// No existing billing customer - create new one
 		billingCustomer, err = s.repo.CreateBillingCustomer(ctx, repository.CreateBillingCustomerParams{
-			TenantID:           s.tenantID,
+			TenantID:           tenantID,
 			UserID:             userID,
 			Provider:           "stripe",
 			ProviderCustomerID: stripeCustomerID,
@@ -338,7 +336,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 	}
 
 	payment, err := s.repo.CreatePayment(ctx, repository.CreatePaymentParams{
-		TenantID:          s.tenantID,
+		TenantID:          tenantID,
 		BillingCustomerID: billingCustomer.ID,
 		Provider:          "stripe",
 		ProviderPaymentID: paymentIntentID,
@@ -365,7 +363,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 	customerNotes := paymentIntent.Metadata["customer_notes"]
 
 	order, err := s.repo.CreateOrder(ctx, repository.CreateOrderParams{
-		TenantID:          s.tenantID,
+		TenantID:          tenantID,
 		CartID:            cart.ID,
 		UserID:            userID,
 		OrderNumber:       orderNumber,
@@ -390,7 +388,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 		variantDesc := buildVariantDescription(item)
 
 		_, err := s.repo.CreateOrderItem(ctx, repository.CreateOrderItemParams{
-			TenantID:           s.tenantID,
+			TenantID:           tenantID,
 			OrderID:            order.ID,
 			ProductSkuID:       item.ProductSkuID,
 			ProductName:        item.ProductName,
@@ -414,7 +412,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 	// Step 16: Decrement inventory
 	for _, item := range cartItems {
 		err := s.repo.DecrementSKUStock(ctx, repository.DecrementSKUStockParams{
-			TenantID:          s.tenantID,
+			TenantID:          tenantID,
 			ID:                item.ProductSkuID,
 			InventoryQuantity: item.Quantity,
 		})
@@ -425,7 +423,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 
 	// Step 17: Mark cart as converted
 	err = s.repo.UpdateCartStatus(ctx, repository.UpdateCartStatusParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		ID:       cart.ID,
 		Status:   "converted",
 	})
@@ -435,7 +433,7 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 
 	// Step 18: Link payment to order
 	err = s.repo.UpdateOrderPaymentID(ctx, repository.UpdateOrderPaymentIDParams{
-		TenantID:  s.tenantID,
+		TenantID:  tenantID,
 		ID:        order.ID,
 		PaymentID: payment.ID,
 	})
@@ -452,13 +450,18 @@ func (s *orderService) CreateOrderFromPaymentIntent(ctx context.Context, payment
 
 // GetOrder retrieves a single order by ID with all related data
 func (s *orderService) GetOrder(ctx context.Context, orderID string) (*OrderDetail, error) {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var orderUUID pgtype.UUID
 	if err := orderUUID.Scan(orderID); err != nil {
 		return nil, fmt.Errorf("invalid order ID: %w", err)
 	}
 
 	order, err := s.repo.GetOrder(ctx, repository.GetOrderParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		ID:       orderUUID,
 	})
 	if err != nil {
@@ -493,8 +496,13 @@ func (s *orderService) GetOrder(ctx context.Context, orderID string) (*OrderDeta
 
 // GetOrderByNumber retrieves a single order by order number with all related data
 func (s *orderService) GetOrderByNumber(ctx context.Context, orderNumber string) (*OrderDetail, error) {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	order, err := s.repo.GetOrderByNumber(ctx, repository.GetOrderByNumberParams{
-		TenantID:    s.tenantID,
+		TenantID:    tenantID,
 		OrderNumber: orderNumber,
 	})
 	if err != nil {

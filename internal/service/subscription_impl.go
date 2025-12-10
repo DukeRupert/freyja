@@ -17,22 +17,15 @@ import (
 // subscriptionService implements SubscriptionService interface
 type subscriptionService struct {
 	repo            repository.Querier
-	tenantID        pgtype.UUID
 	billingProvider billing.Provider
 }
 
 // NewSubscriptionService creates a new SubscriptionService instance
-func NewSubscriptionService(repo repository.Querier, tenantID string, billingProvider billing.Provider) (SubscriptionService, error) {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		return nil, fmt.Errorf("invalid tenant ID: %w", err)
-	}
-
+func NewSubscriptionService(repo repository.Querier, billingProvider billing.Provider) SubscriptionService {
 	return &subscriptionService{
 		repo:            repo,
-		tenantID:        tenantUUID,
 		billingProvider: billingProvider,
-	}, nil
+	}
 }
 
 // CreateSubscription creates a new subscription for a customer.
@@ -52,6 +45,11 @@ func NewSubscriptionService(repo repository.Querier, tenantID string, billingPro
 // 11. Create schedule event for tracking
 // 12. Return subscription details
 func (s *subscriptionService) CreateSubscription(ctx context.Context, params CreateSubscriptionParams) (*SubscriptionDetail, error) {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Step 1: Validate billing interval
 	if !IsValidBillingInterval(params.BillingInterval) {
 		return nil, ErrInvalidBillingInterval
@@ -67,7 +65,7 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 	}
 
 	// Get default price list for tenant
-	defaultPriceList, err := s.repo.GetDefaultPriceList(ctx, s.tenantID)
+	defaultPriceList, err := s.repo.GetDefaultPriceList(ctx, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get default price list: %w", err)
 	}
@@ -87,7 +85,7 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 	// Step 3: Get billing customer for user
 	billingCustomer, err := s.repo.GetBillingCustomerForUser(ctx, repository.GetBillingCustomerForUserParams{
 		UserID:   params.UserID,
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		Provider: "stripe",
 	})
 	if err != nil {
@@ -100,7 +98,7 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 	// Step 4: Get payment method
 	paymentMethod, err := s.repo.GetPaymentMethodByID(ctx, repository.GetPaymentMethodByIDParams{
 		ID:       params.PaymentMethodID,
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -133,7 +131,7 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 	})
 
 	subscription, err := s.repo.CreateSubscription(ctx, repository.CreateSubscriptionParams{
-		TenantID:               s.tenantID,
+		TenantID:               tenantID,
 		UserID:                 params.UserID,
 		SubscriptionPlanID:     pgtype.UUID{}, // NULL for custom subscriptions
 		BillingInterval:        params.BillingInterval,
@@ -161,7 +159,7 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 	// Step 7: Get product name for Stripe Product creation
 	product, err := s.repo.GetProductByID(ctx, repository.GetProductByIDParams{
 		ID:       sku.ProductID,
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get product: %w", err)
@@ -189,7 +187,7 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 		Description: product.Description.String,
 		Active:      true,
 		Metadata: map[string]string{
-			"tenant_id":      uuidToString(s.tenantID),
+			"tenant_id":      uuidToString(tenantID),
 			"product_id":     uuidToString(product.ID),
 			"product_sku_id": uuidToString(params.ProductSKUID),
 		},
@@ -207,7 +205,7 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 		IntervalCount:   intervalCount,
 		ProductID:       stripeProduct.ID,
 		Metadata: map[string]string{
-			"tenant_id":        uuidToString(s.tenantID),
+			"tenant_id":        uuidToString(tenantID),
 			"subscription_id":  uuidToString(subscription.ID),
 			"product_sku_id":   uuidToString(params.ProductSKUID),
 			"billing_interval": params.BillingInterval,
@@ -220,14 +218,14 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 
 	// Step 9: Create Stripe subscription
 	stripeSubscription, err := s.billingProvider.CreateSubscription(ctx, billing.CreateSubscriptionParams{
-		TenantID:               uuidToString(s.tenantID),
+		TenantID:               uuidToString(tenantID),
 		CustomerID:             billingCustomer.ProviderCustomerID,
 		PriceID:                stripePrice.ID,
 		Quantity:               params.Quantity,
 		DefaultPaymentMethodID: paymentMethod.ProviderPaymentMethodID,
 		CollectionMethod:       "charge_automatically",
 		Metadata: map[string]string{
-			"tenant_id":        uuidToString(s.tenantID),
+			"tenant_id":        uuidToString(tenantID),
 			"subscription_id":  uuidToString(subscription.ID),
 			"user_id":          uuidToString(params.UserID),
 			"product_sku_id":   uuidToString(params.ProductSKUID),
@@ -242,7 +240,7 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 	// Step 10: Update local subscription with Stripe subscription ID and dates
 	subscription, err = s.repo.UpdateSubscriptionProviderID(ctx, repository.UpdateSubscriptionProviderIDParams{
 		ID:                     subscription.ID,
-		TenantID:               s.tenantID,
+		TenantID:               tenantID,
 		ProviderSubscriptionID: pgtype.Text{String: stripeSubscription.ID, Valid: true},
 		Status:                 stripeSubscription.Status,
 	})
@@ -253,7 +251,7 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 	// Update subscription dates from Stripe
 	subscription, err = s.repo.UpdateSubscriptionStatus(ctx, repository.UpdateSubscriptionStatusParams{
 		ID:                 subscription.ID,
-		TenantID:           s.tenantID,
+		TenantID:           tenantID,
 		Status:             stripeSubscription.Status,
 		CurrentPeriodStart: pgtype.Timestamptz{Time: stripeSubscription.CurrentPeriodStart, Valid: true},
 		CurrentPeriodEnd:   pgtype.Timestamptz{Time: stripeSubscription.CurrentPeriodEnd, Valid: true},
@@ -272,7 +270,7 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 	})
 
 	_, err = s.repo.CreateSubscriptionItem(ctx, repository.CreateSubscriptionItemParams{
-		TenantID:       s.tenantID,
+		TenantID:       tenantID,
 		SubscriptionID: subscription.ID,
 		ProductSkuID:   params.ProductSKUID,
 		Quantity:       params.Quantity,
@@ -290,7 +288,7 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 	})
 
 	_, err = s.repo.CreateSubscriptionScheduleEvent(ctx, repository.CreateSubscriptionScheduleEventParams{
-		TenantID:       s.tenantID,
+		TenantID:       tenantID,
 		SubscriptionID: subscription.ID,
 		EventType:      "billing",
 		Status:         "completed",
@@ -305,7 +303,7 @@ func (s *subscriptionService) CreateSubscription(ctx context.Context, params Cre
 
 	// Step 13: Return subscription details
 	return s.GetSubscription(ctx, GetSubscriptionParams{
-		TenantID:               s.tenantID,
+		TenantID:               tenantID,
 		SubscriptionID:         subscription.ID,
 		IncludeUpcomingInvoice: false,
 	})
@@ -788,10 +786,15 @@ func (s *subscriptionService) SyncSubscriptionFromWebhook(ctx context.Context, p
 // 7. Decrement inventory
 // 8. Create subscription_schedule event for audit trail
 func (s *subscriptionService) CreateOrderFromSubscriptionInvoice(ctx context.Context, invoiceID string, tenantID pgtype.UUID) (*OrderDetail, error) {
+	contextTenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Step 1: Get invoice details from Stripe
 	invoice, err := s.billingProvider.GetInvoice(ctx, billing.GetInvoiceParams{
 		InvoiceID: invoiceID,
-		TenantID:  uuidToString(tenantID),
+		TenantID:  uuidToString(contextTenantID),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get invoice from billing provider: %w", err)
@@ -804,7 +807,7 @@ func (s *subscriptionService) CreateOrderFromSubscriptionInvoice(ctx context.Con
 
 	// Step 2: Get local subscription by provider_subscription_id
 	subscription, err := s.repo.GetSubscriptionByProviderID(ctx, repository.GetSubscriptionByProviderIDParams{
-		TenantID:               tenantID,
+		TenantID:               contextTenantID,
 		Provider:               "stripe",
 		ProviderSubscriptionID: pgtype.Text{String: invoice.SubscriptionID, Valid: true},
 	})
@@ -816,7 +819,7 @@ func (s *subscriptionService) CreateOrderFromSubscriptionInvoice(ctx context.Con
 	// Query uses: tenant_id, subscription_id, and metadata->>'invoice_id' = $3
 	// The Metadata field is used as a string comparison against the JSON field
 	existingEvent, err := s.repo.GetSubscriptionScheduleEventByInvoiceID(ctx, repository.GetSubscriptionScheduleEventByInvoiceIDParams{
-		TenantID:       tenantID,
+		TenantID:       contextTenantID,
 		SubscriptionID: subscription.ID,
 		Metadata:       []byte(invoiceID), // Passed as string to compare against metadata->>'invoice_id'
 	})
@@ -828,7 +831,7 @@ func (s *subscriptionService) CreateOrderFromSubscriptionInvoice(ctx context.Con
 
 	// Step 4: Get subscription items
 	items, err := s.repo.ListSubscriptionItemsForSubscription(ctx, repository.ListSubscriptionItemsForSubscriptionParams{
-		TenantID:       tenantID,
+		TenantID:       contextTenantID,
 		SubscriptionID: subscription.ID,
 	})
 	if err != nil {
@@ -847,7 +850,7 @@ func (s *subscriptionService) CreateOrderFromSubscriptionInvoice(ctx context.Con
 	// Step 6: Create order record
 	// Use shipping address from subscription, billing address same as shipping for subscriptions
 	order, err := s.repo.CreateOrder(ctx, repository.CreateOrderParams{
-		TenantID:          tenantID,
+		TenantID:          contextTenantID,
 		UserID:            subscription.UserID,
 		OrderNumber:       orderNumber,
 		OrderType:         "subscription",
@@ -880,7 +883,7 @@ func (s *subscriptionService) CreateOrderFromSubscriptionInvoice(ctx context.Con
 		}
 
 		_, err := s.repo.CreateOrderItem(ctx, repository.CreateOrderItemParams{
-			TenantID:           tenantID,
+			TenantID:           contextTenantID,
 			OrderID:            order.ID,
 			ProductSkuID:       item.ProductSkuID,
 			ProductName:        item.ProductName,
@@ -903,7 +906,7 @@ func (s *subscriptionService) CreateOrderFromSubscriptionInvoice(ctx context.Con
 
 	// Step 8: Create payment record
 	payment, err := s.repo.CreatePayment(ctx, repository.CreatePaymentParams{
-		TenantID:          tenantID,
+		TenantID:          contextTenantID,
 		BillingCustomerID: subscription.BillingCustomerID,
 		Provider:          "stripe",
 		ProviderPaymentID: invoice.PaymentIntentID,
@@ -919,7 +922,7 @@ func (s *subscriptionService) CreateOrderFromSubscriptionInvoice(ctx context.Con
 	// Step 9: Decrement inventory for each item
 	for _, item := range items {
 		err := s.repo.DecrementSKUStock(ctx, repository.DecrementSKUStockParams{
-			TenantID:          tenantID,
+			TenantID:          contextTenantID,
 			ID:                item.ProductSkuID,
 			InventoryQuantity: item.Quantity,
 		})
@@ -938,7 +941,7 @@ func (s *subscriptionService) CreateOrderFromSubscriptionInvoice(ctx context.Con
 		"order_id":   uuidToString(order.ID),
 	})
 	_, err = s.repo.CreateSubscriptionScheduleEvent(ctx, repository.CreateSubscriptionScheduleEventParams{
-		TenantID:       tenantID,
+		TenantID:       contextTenantID,
 		SubscriptionID: subscription.ID,
 		EventType:      "billing",
 		Status:         "completed",
@@ -986,9 +989,14 @@ func formatTimePtr(t *time.Time) string {
 
 // GetSubscriptionCountsForUser returns subscription counts by status for the account dashboard.
 func (s *subscriptionService) GetSubscriptionCountsForUser(ctx context.Context, tenantID, userID pgtype.UUID) (SubscriptionCounts, error) {
+	contextTenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return SubscriptionCounts{}, err
+	}
+
 	counts, err := s.repo.GetSubscriptionCountsForUser(ctx, repository.GetSubscriptionCountsForUserParams{
 		UserID:   userID,
-		TenantID: tenantID,
+		TenantID: contextTenantID,
 	})
 	if err != nil {
 		return SubscriptionCounts{}, fmt.Errorf("failed to get subscription counts: %w", err)

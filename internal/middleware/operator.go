@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/dukerupert/hiri/internal/cookie"
 	"github.com/dukerupert/hiri/internal/repository"
 	"github.com/dukerupert/hiri/internal/service"
 )
@@ -71,39 +72,35 @@ func WithOperator(operatorService service.OperatorService) func(http.Handler) ht
 
 // RequireOperator ensures the operator is authenticated, redirecting to login if not.
 // Must be used after WithOperator middleware.
-func RequireOperator(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		operator := GetOperatorFromContext(r.Context())
-		if operator == nil {
-			// Not authenticated, redirect to login with return URL
-			returnTo := r.URL.Path
-			if r.URL.RawQuery != "" {
-				returnTo += "?" + r.URL.RawQuery
+func RequireOperator(cookieConfig *cookie.Config) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			operator := GetOperatorFromContext(r.Context())
+			if operator == nil {
+				// Not authenticated, redirect to login with return URL
+				returnTo := r.URL.Path
+				if r.URL.RawQuery != "" {
+					returnTo += "?" + r.URL.RawQuery
+				}
+				http.Redirect(w, r, "/login?return_to="+url.QueryEscape(returnTo), http.StatusSeeOther)
+				return
 			}
-			http.Redirect(w, r, "/login?return_to="+url.QueryEscape(returnTo), http.StatusSeeOther)
-			return
-		}
 
-		// Check if operator is active
-		if operator.Status != "active" {
-			slog.Warn("operator auth: operator not active",
-				"operator_id", operator.ID,
-				"status", operator.Status,
-			)
-			// Clear cookie and redirect to login
-			http.SetCookie(w, &http.Cookie{
-				Name:     operatorCookieName,
-				Value:    "",
-				Path:     "/admin",
-				MaxAge:   -1,
-				HttpOnly: true,
-			})
-			http.Redirect(w, r, "/login?error=account_inactive", http.StatusSeeOther)
-			return
-		}
+			// Check if operator is active
+			if operator.Status != "active" {
+				slog.Warn("operator auth: operator not active",
+					"operator_id", operator.ID,
+					"status", operator.Status,
+				)
+				// Clear cookie and redirect to login
+				cookieConfig.ClearSession(w, operatorCookieName)
+				http.Redirect(w, r, "/login?error=account_inactive", http.StatusSeeOther)
+				return
+			}
 
-		next.ServeHTTP(w, r)
-	})
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // RequireActiveTenant ensures the operator's tenant subscription is active.
