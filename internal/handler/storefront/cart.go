@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/dukerupert/hiri/internal/cookie"
 	"github.com/dukerupert/hiri/internal/domain"
 	"github.com/dukerupert/hiri/internal/handler"
 	"github.com/dukerupert/hiri/internal/telemetry"
@@ -11,19 +12,19 @@ import (
 
 // CartHandler handles all cart-related storefront routes
 type CartHandler struct {
-	cartService domain.CartService
-	renderer    *handler.Renderer
-	secure      bool
-	tenantID    string
+	cartService  domain.CartService
+	renderer     *handler.Renderer
+	cookieConfig *cookie.Config
+	tenantID     string
 }
 
 // NewCartHandler creates a new cart handler
-func NewCartHandler(cartService domain.CartService, renderer *handler.Renderer, secure bool, tenantID string) *CartHandler {
+func NewCartHandler(cartService domain.CartService, renderer *handler.Renderer, cookieConfig *cookie.Config, tenantID string) *CartHandler {
 	return &CartHandler{
-		cartService: cartService,
-		renderer:    renderer,
-		secure:      secure,
-		tenantID:    tenantID,
+		cartService:  cartService,
+		renderer:     renderer,
+		cookieConfig: cookieConfig,
+		tenantID:     tenantID,
 	}
 }
 
@@ -89,7 +90,7 @@ func (h *CartHandler) Add(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if newSessionID != sessionID {
-		SetSessionCookie(w, newSessionID, h.secure)
+		SetSessionCookie(w, newSessionID, h.cookieConfig)
 	}
 
 	_, err = h.cartService.AddItem(ctx, cart.ID.String(), skuID, quantity)

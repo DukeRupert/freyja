@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/dukerupert/hiri/internal/cookie"
 )
 
 const (
@@ -29,29 +31,16 @@ const (
 
 // CSRFConfig configures CSRF protection
 type CSRFConfig struct {
+	// CookieConfig is the cookie configuration for domain-scoped cookies
+	CookieConfig *cookie.Config
+
 	// CookieName is the name of the CSRF cookie
 	// Default: "csrf_token"
 	CookieName string
 
-	// CookiePath is the path for the CSRF cookie
-	// Default: "/"
-	CookiePath string
-
 	// CookieMaxAge is the max age of the CSRF cookie in seconds
 	// Default: 86400 (24 hours)
 	CookieMaxAge int
-
-	// CookieSecure sets the Secure flag on the cookie
-	// Should be true in production (HTTPS)
-	CookieSecure bool
-
-	// CookieHTTPOnly sets the HttpOnly flag on the cookie
-	// Default: false (JavaScript needs to read it for AJAX requests)
-	CookieHTTPOnly bool
-
-	// CookieSameSite sets the SameSite attribute
-	// Default: http.SameSiteLaxMode
-	CookieSameSite http.SameSite
 
 	// SkipPaths are paths that should skip CSRF validation
 	// Useful for webhooks that have their own authentication
@@ -62,39 +51,32 @@ type CSRFConfig struct {
 	ErrorHandler func(w http.ResponseWriter, r *http.Request)
 }
 
-// DefaultCSRFConfig returns sensible defaults
-func DefaultCSRFConfig() CSRFConfig {
+// DefaultCSRFConfig returns sensible defaults.
+// Requires a cookie.Config to be provided for domain scoping.
+func DefaultCSRFConfig(cookieConfig *cookie.Config) CSRFConfig {
 	return CSRFConfig{
-		CookieName:     CSRFCookieName,
-		CookiePath:     "/",
-		CookieMaxAge:   86400, // 24 hours
-		CookieSecure:   true,
-		CookieHTTPOnly: false, // JS needs to read for htmx
-		CookieSameSite: http.SameSiteLaxMode,
-		SkipPaths:      []string{"/webhooks/"},
-		ErrorHandler:   nil,
+		CookieConfig: cookieConfig,
+		CookieName:   CSRFCookieName,
+		CookieMaxAge: 86400, // 24 hours
+		SkipPaths:    []string{"/webhooks/"},
+		ErrorHandler: nil,
 	}
 }
 
 // CSRF provides CSRF protection middleware.
-// If no config is provided, sensible defaults are used.
-func CSRF(config ...CSRFConfig) func(http.Handler) http.Handler {
-	var cfg CSRFConfig
-	if len(config) > 0 {
-		cfg = config[0]
-	} else {
-		cfg = DefaultCSRFConfig()
+// Requires CSRFConfig with a valid cookie.Config.
+func CSRF(cfg CSRFConfig) func(http.Handler) http.Handler {
+	// Validate required config
+	if cfg.CookieConfig == nil {
+		panic("csrf: CookieConfig is required")
 	}
 
 	// Fill in missing values with defaults
 	if cfg.CookieName == "" {
 		cfg.CookieName = CSRFCookieName
 	}
-	if cfg.CookiePath == "" {
-		cfg.CookiePath = "/"
-	}
-	if cfg.CookieSameSite == 0 {
-		cfg.CookieSameSite = http.SameSiteLaxMode
+	if cfg.CookieMaxAge == 0 {
+		cfg.CookieMaxAge = 86400 // 24 hours
 	}
 
 	return func(next http.Handler) http.Handler {
@@ -179,16 +161,19 @@ func getCSRFTokenFromCookie(r *http.Request, cookieName string) string {
 	return cookie.Value
 }
 
-// setCSRFCookie sets the CSRF token cookie
+// setCSRFCookie sets the CSRF token cookie using the cookie config.
+// Note: CSRF tokens need to be readable by JavaScript for htmx, so we use a custom cookie
+// instead of the cookie.Config.SetSession which sets HttpOnly=true.
 func setCSRFCookie(w http.ResponseWriter, token string, config CSRFConfig) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     config.CookieName,
 		Value:    token,
-		Path:     config.CookiePath,
+		Domain:   "." + config.CookieConfig.BaseDomain,
+		Path:     "/",
 		MaxAge:   config.CookieMaxAge,
-		Secure:   config.CookieSecure,
-		HttpOnly: config.CookieHTTPOnly,
-		SameSite: config.CookieSameSite,
+		Secure:   config.CookieConfig.Secure,
+		HttpOnly: false, // JS needs to read for htmx
+		SameSite: http.SameSiteLaxMode,
 	})
 }
 

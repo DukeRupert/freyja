@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/dukerupert/hiri/internal/cookie"
 	"github.com/dukerupert/hiri/internal/domain"
 	"github.com/dukerupert/hiri/internal/handler"
 	"github.com/dukerupert/hiri/internal/middleware"
@@ -29,6 +30,7 @@ type AuthHandler struct {
 	operatorService service.OperatorService
 	renderer        *handler.Renderer
 	baseURL         string
+	cookieConfig    *cookie.Config
 }
 
 // NewAuthHandler creates a new auth handler
@@ -36,11 +38,13 @@ func NewAuthHandler(
 	operatorService service.OperatorService,
 	renderer *handler.Renderer,
 	baseURL string,
+	cookieConfig *cookie.Config,
 ) *AuthHandler {
 	return &AuthHandler{
 		operatorService: operatorService,
 		renderer:        renderer,
 		baseURL:         baseURL,
+		cookieConfig:    cookieConfig,
 	}
 }
 
@@ -140,16 +144,8 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		"tenant_slug", tenantSlug,
 	)
 
-	// Set session cookie (scoped to /admin path)
-	http.SetCookie(w, &http.Cookie{
-		Name:     OperatorCookieName,
-		Value:    token,
-		Path:     OperatorCookiePath,
-		MaxAge:   OperatorSessionMaxAge,
-		HttpOnly: true,
-		Secure:   r.TLS != nil,
-		SameSite: http.SameSiteLaxMode,
-	})
+	// Set session cookie (note: cookie config handles domain scoping, path is not scoped)
+	h.cookieConfig.SetSession(w, OperatorCookieName, token, OperatorSessionMaxAge)
 
 	// Redirect to admin dashboard
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
@@ -171,13 +167,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Clear cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     OperatorCookieName,
-		Value:    "",
-		Path:     OperatorCookiePath,
-		MaxAge:   -1,
-		HttpOnly: true,
-	})
+	h.cookieConfig.ClearSession(w, OperatorCookieName)
 
 	// Redirect to login
 	http.Redirect(w, r, "/login", http.StatusSeeOther)

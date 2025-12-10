@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dukerupert/hiri/internal/cookie"
 	"github.com/dukerupert/hiri/internal/domain"
 	"github.com/dukerupert/hiri/internal/handler"
 	"github.com/dukerupert/hiri/internal/middleware"
@@ -16,11 +17,11 @@ import (
 
 // WholesaleOrderingHandler handles the wholesale ordering matrix view
 type WholesaleOrderingHandler struct {
-	repo        repository.Querier
-	cartService domain.CartService
-	renderer    *handler.Renderer
-	tenantID    pgtype.UUID
-	secure      bool
+	repo         repository.Querier
+	cartService  domain.CartService
+	renderer     *handler.Renderer
+	tenantID     pgtype.UUID
+	cookieConfig *cookie.Config
 }
 
 // NewWholesaleOrderingHandler creates a new wholesale ordering handler
@@ -29,7 +30,7 @@ func NewWholesaleOrderingHandler(
 	cartService domain.CartService,
 	renderer *handler.Renderer,
 	tenantID string,
-	secure bool,
+	cookieConfig *cookie.Config,
 ) *WholesaleOrderingHandler {
 	var tenantUUID pgtype.UUID
 	if err := tenantUUID.Scan(tenantID); err != nil {
@@ -37,11 +38,11 @@ func NewWholesaleOrderingHandler(
 	}
 
 	return &WholesaleOrderingHandler{
-		repo:        repo,
-		cartService: cartService,
-		renderer:    renderer,
-		tenantID:    tenantUUID,
-		secure:      secure,
+		repo:         repo,
+		cartService:  cartService,
+		renderer:     renderer,
+		tenantID:     tenantUUID,
+		cookieConfig: cookieConfig,
 	}
 }
 
@@ -170,7 +171,7 @@ func (h *WholesaleOrderingHandler) BatchAdd(w http.ResponseWriter, r *http.Reque
 	}
 
 	if newSessionID != sessionID {
-		SetSessionCookie(w, newSessionID, h.secure)
+		SetSessionCookie(w, newSessionID, h.cookieConfig)
 	}
 
 	// Process all quantity inputs

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/dukerupert/hiri/internal/cookie"
 	"github.com/dukerupert/hiri/internal/domain"
 	"github.com/dukerupert/hiri/internal/handler"
 	"github.com/dukerupert/hiri/internal/middleware"
@@ -17,15 +18,17 @@ const (
 
 // LoginHandler handles the admin login page and form submission
 type LoginHandler struct {
-	userService domain.UserService
-	renderer    *handler.Renderer
+	userService  domain.UserService
+	renderer     *handler.Renderer
+	cookieConfig *cookie.Config
 }
 
 // NewLoginHandler creates a new admin login handler
-func NewLoginHandler(userService domain.UserService, renderer *handler.Renderer) *LoginHandler {
+func NewLoginHandler(userService domain.UserService, renderer *handler.Renderer, cookieConfig *cookie.Config) *LoginHandler {
 	return &LoginHandler{
-		userService: userService,
-		renderer:    renderer,
+		userService:  userService,
+		renderer:     renderer,
+		cookieConfig: cookieConfig,
 	}
 }
 
@@ -152,15 +155,7 @@ func (h *LoginHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Set session cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookieName,
-		Value:    token,
-		Path:     "/",
-		MaxAge:   sessionMaxAge,
-		HttpOnly: true,
-		Secure:   r.TLS != nil,
-		SameSite: http.SameSiteLaxMode,
-	})
+	h.cookieConfig.SetSession(w, sessionCookieName, token, sessionMaxAge)
 
 	// Redirect to admin dashboard
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
@@ -168,13 +163,15 @@ func (h *LoginHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 
 // LogoutHandler handles admin logout
 type LogoutHandler struct {
-	userService domain.UserService
+	userService  domain.UserService
+	cookieConfig *cookie.Config
 }
 
 // NewLogoutHandler creates a new admin logout handler
-func NewLogoutHandler(userService domain.UserService) *LogoutHandler {
+func NewLogoutHandler(userService domain.UserService, cookieConfig *cookie.Config) *LogoutHandler {
 	return &LogoutHandler{
-		userService: userService,
+		userService:  userService,
+		cookieConfig: cookieConfig,
 	}
 }
 
@@ -190,15 +187,7 @@ func (h *LogoutHandler) HandleSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Clear session cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookieName,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   r.TLS != nil,
-		SameSite: http.SameSiteLaxMode,
-	})
+	h.cookieConfig.ClearSession(w, sessionCookieName)
 
 	// Redirect to admin login page
 	http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
