@@ -69,28 +69,26 @@ type UpdatePaymentTermsParams struct {
 }
 
 type paymentTermsService struct {
-	repo     repository.Querier
-	tenantID pgtype.UUID
+	repo repository.Querier
 }
 
 // NewPaymentTermsService creates a new PaymentTermsService instance.
-func NewPaymentTermsService(repo repository.Querier, tenantID string) (PaymentTermsService, error) {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		return nil, fmt.Errorf("invalid tenant ID: %w", err)
-	}
-
+func NewPaymentTermsService(repo repository.Querier) PaymentTermsService {
 	return &paymentTermsService{
-		repo:     repo,
-		tenantID: tenantUUID,
-	}, nil
+		repo: repo,
+	}
 }
 
 // CreatePaymentTerms creates a new payment terms record.
 func (s *paymentTermsService) CreatePaymentTerms(ctx context.Context, params CreatePaymentTermsParams) (*repository.PaymentTerm, error) {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Check for duplicate code
 	existing, err := s.repo.GetPaymentTermsByCode(ctx, repository.GetPaymentTermsByCodeParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		Code:     params.Code,
 	})
 	if err == nil && existing.ID.Valid {
@@ -104,7 +102,7 @@ func (s *paymentTermsService) CreatePaymentTerms(ctx context.Context, params Cre
 	}
 
 	pt, err := s.repo.CreatePaymentTerms(ctx, repository.CreatePaymentTermsParams{
-		TenantID:    s.tenantID,
+		TenantID:    tenantID,
 		Name:        params.Name,
 		Code:        params.Code,
 		Days:        params.Days,
@@ -122,6 +120,11 @@ func (s *paymentTermsService) CreatePaymentTerms(ctx context.Context, params Cre
 
 // GetPaymentTerms retrieves payment terms by ID.
 func (s *paymentTermsService) GetPaymentTerms(ctx context.Context, paymentTermsID string) (*repository.PaymentTerm, error) {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var ptID pgtype.UUID
 	if err := ptID.Scan(paymentTermsID); err != nil {
 		return nil, fmt.Errorf("invalid payment terms ID: %w", err)
@@ -129,7 +132,7 @@ func (s *paymentTermsService) GetPaymentTerms(ctx context.Context, paymentTermsI
 
 	pt, err := s.repo.GetPaymentTermsByID(ctx, repository.GetPaymentTermsByIDParams{
 		ID:       ptID,
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 	})
 	if err != nil {
 		return nil, ErrPaymentTermsNotFound
@@ -140,8 +143,13 @@ func (s *paymentTermsService) GetPaymentTerms(ctx context.Context, paymentTermsI
 
 // GetPaymentTermsByCode retrieves payment terms by code.
 func (s *paymentTermsService) GetPaymentTermsByCode(ctx context.Context, code string) (*repository.PaymentTerm, error) {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	pt, err := s.repo.GetPaymentTermsByCode(ctx, repository.GetPaymentTermsByCodeParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		Code:     code,
 	})
 	if err != nil {
@@ -153,7 +161,12 @@ func (s *paymentTermsService) GetPaymentTermsByCode(ctx context.Context, code st
 
 // GetDefaultPaymentTerms retrieves the default payment terms for the tenant.
 func (s *paymentTermsService) GetDefaultPaymentTerms(ctx context.Context) (*repository.PaymentTerm, error) {
-	pt, err := s.repo.GetDefaultPaymentTerms(ctx, s.tenantID)
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	pt, err := s.repo.GetDefaultPaymentTerms(ctx, tenantID)
 	if err != nil {
 		return nil, ErrPaymentTermsNotFound
 	}
@@ -163,7 +176,12 @@ func (s *paymentTermsService) GetDefaultPaymentTerms(ctx context.Context) (*repo
 
 // ListPaymentTerms lists all active payment terms for the tenant.
 func (s *paymentTermsService) ListPaymentTerms(ctx context.Context) ([]repository.PaymentTerm, error) {
-	terms, err := s.repo.ListPaymentTerms(ctx, s.tenantID)
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	terms, err := s.repo.ListPaymentTerms(ctx, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list payment terms: %w", err)
 	}
@@ -173,15 +191,20 @@ func (s *paymentTermsService) ListPaymentTerms(ctx context.Context) ([]repositor
 
 // UpdatePaymentTerms updates an existing payment terms record.
 func (s *paymentTermsService) UpdatePaymentTerms(ctx context.Context, params UpdatePaymentTermsParams) error {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
 	var ptID pgtype.UUID
 	if err := ptID.Scan(params.PaymentTermsID); err != nil {
 		return fmt.Errorf("invalid payment terms ID: %w", err)
 	}
 
 	// Check if payment terms exists
-	_, err := s.repo.GetPaymentTermsByID(ctx, repository.GetPaymentTermsByIDParams{
+	_, err = s.repo.GetPaymentTermsByID(ctx, repository.GetPaymentTermsByIDParams{
 		ID:       ptID,
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 	})
 	if err != nil {
 		return ErrPaymentTermsNotFound
@@ -194,7 +217,7 @@ func (s *paymentTermsService) UpdatePaymentTerms(ctx context.Context, params Upd
 	}
 
 	err = s.repo.UpdatePaymentTerms(ctx, repository.UpdatePaymentTermsParams{
-		TenantID:    s.tenantID,
+		TenantID:    tenantID,
 		ID:          ptID,
 		Name:        params.Name,
 		Code:        params.Code,
@@ -213,22 +236,27 @@ func (s *paymentTermsService) UpdatePaymentTerms(ctx context.Context, params Upd
 
 // SetDefaultPaymentTerms sets a payment terms record as the tenant default.
 func (s *paymentTermsService) SetDefaultPaymentTerms(ctx context.Context, paymentTermsID string) error {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
 	var ptID pgtype.UUID
 	if err := ptID.Scan(paymentTermsID); err != nil {
 		return fmt.Errorf("invalid payment terms ID: %w", err)
 	}
 
 	// Verify it exists
-	_, err := s.repo.GetPaymentTermsByID(ctx, repository.GetPaymentTermsByIDParams{
+	_, err = s.repo.GetPaymentTermsByID(ctx, repository.GetPaymentTermsByIDParams{
 		ID:       ptID,
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 	})
 	if err != nil {
 		return ErrPaymentTermsNotFound
 	}
 
 	err = s.repo.SetDefaultPaymentTerms(ctx, repository.SetDefaultPaymentTermsParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		ID:       ptID,
 	})
 	if err != nil {
@@ -240,6 +268,11 @@ func (s *paymentTermsService) SetDefaultPaymentTerms(ctx context.Context, paymen
 
 // DeletePaymentTerms soft-deletes payment terms by deactivating.
 func (s *paymentTermsService) DeletePaymentTerms(ctx context.Context, paymentTermsID string) error {
+	tenantID, err := ExtractTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
 	var ptID pgtype.UUID
 	if err := ptID.Scan(paymentTermsID); err != nil {
 		return fmt.Errorf("invalid payment terms ID: %w", err)
@@ -256,7 +289,7 @@ func (s *paymentTermsService) DeletePaymentTerms(ctx context.Context, paymentTer
 	}
 
 	err = s.repo.DeletePaymentTerms(ctx, repository.DeletePaymentTermsParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		ID:       ptID,
 	})
 	if err != nil {
