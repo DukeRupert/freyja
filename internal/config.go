@@ -27,12 +27,31 @@ type Config struct {
 }
 
 // DomainConfig holds domain configuration for host-based routing.
-// When HostRouting is enabled, the server routes requests based on Host header.
-// Marketing site is served on MarketingDomain, app on AppDomain.
+// When HostRouting is enabled, the server routes requests based on Host header:
+//   - BaseDomain (apex): Marketing site (e.g., "hiri.coffee")
+//   - AppDomain: SaaS app, admin dashboard, signup (e.g., "app.hiri.coffee")
+//   - {slug}.BaseDomain: Tenant storefronts (e.g., "acme.hiri.coffee")
+//   - Custom domains: Tenant storefronts on custom domains (e.g., "shop.example.com")
 type DomainConfig struct {
-	HostRouting     bool   // Enable host-based routing (hiri.coffee vs app.hiri.coffee)
-	MarketingDomain string // e.g., "hiri.coffee"
-	AppDomain       string // e.g., "app.hiri.coffee"
+	// HostRouting enables multi-tenant subdomain routing.
+	// When false, the application runs in single-tenant mode using TenantID from config.
+	HostRouting bool
+
+	// BaseDomain is the root domain for subdomain routing (e.g., "hiri.coffee" or "lvh.me:3000").
+	// The marketing site is served at this domain (apex).
+	// Tenant storefronts are served at {slug}.BaseDomain.
+	// This value is also used for cookie domain scoping.
+	BaseDomain string
+
+	// AppDomain is the subdomain for the SaaS application (e.g., "app.hiri.coffee").
+	// Serves: admin dashboard, operator auth, signup flow, billing management.
+	// Requests to this domain skip tenant resolution.
+	AppDomain string
+
+	// MarketingDomain is DEPRECATED - use BaseDomain instead.
+	// Kept for backwards compatibility during migration.
+	// TODO: Remove after multi-tenant migration is complete.
+	MarketingDomain string
 }
 
 // SentryConfig holds configuration for Sentry error tracking
@@ -151,8 +170,9 @@ func NewConfig() (*Config, error) {
 		},
 		Domain: DomainConfig{
 			HostRouting:     getEnvBool("HOST_ROUTING_ENABLED", false),
-			MarketingDomain: getEnv("MARKETING_DOMAIN", ""),
+			BaseDomain:      getEnv("BASE_DOMAIN", ""),
 			AppDomain:       getEnv("APP_DOMAIN", ""),
+			MarketingDomain: getEnv("MARKETING_DOMAIN", ""), // DEPRECATED: use BASE_DOMAIN
 		},
 	}
 
