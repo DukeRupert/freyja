@@ -38,6 +38,7 @@ import (
 	"github.com/dukerupert/hiri/internal/storage"
 	"github.com/dukerupert/hiri/internal/tax"
 	"github.com/dukerupert/hiri/internal/telemetry"
+	"github.com/dukerupert/hiri/internal/tenant"
 	"github.com/dukerupert/hiri/internal/worker"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -112,6 +113,9 @@ func run() error {
 
 	// Initialize repository
 	repo := repository.New(pool)
+
+	// Initialize tenant resolver for multi-tenant subdomain routing
+	tenantResolver := tenant.NewDBResolver(repo)
 
 	// Initialize services
 	productService := postgres.NewProductService(repo)
@@ -446,6 +450,14 @@ func run() error {
 	// CSRF config (uses cookie.Config for domain scoping)
 	csrfConfig := middleware.DefaultCSRFConfig(cookieConfig)
 
+	// Tenant middleware config (for multi-tenant subdomain routing)
+	tenantCfg := middleware.TenantConfig{
+		BaseDomain: cfg.Domain.BaseDomain,
+		AppDomain:  cfg.Domain.AppDomain,
+		Resolver:   tenantResolver,
+		Logger:     logger,
+	}
+
 	// ==========================================================================
 	// Create routers and register routes
 	// ==========================================================================
@@ -499,8 +511,14 @@ func run() error {
 		DomainValidationHandler: api.NewDomainValidationHandler(customDomainService, logger),
 	}
 
+	// Determine tenant middleware for storefront routes
+	var tenantMiddleware func(http.Handler) http.Handler
+	if cfg.Domain.HostRouting {
+		tenantMiddleware = middleware.ResolveTenant(tenantCfg)
+	}
+
 	// Register route groups
-	routes.RegisterStorefrontRoutes(r, storefrontDeps)
+	routes.RegisterStorefrontRoutes(r, storefrontDeps, tenantMiddleware)
 	routes.RegisterAdminRoutes(r, adminDeps)
 	routes.RegisterAPIRoutes(r, apiDeps)
 	routes.RegisterWebhookRoutes(r, webhookDeps)
