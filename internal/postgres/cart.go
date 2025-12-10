@@ -10,29 +10,23 @@ import (
 
 	"github.com/dukerupert/hiri/internal/domain"
 	"github.com/dukerupert/hiri/internal/repository"
+	"github.com/dukerupert/hiri/internal/service"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // CartService implements domain.CartService using PostgreSQL.
 type CartService struct {
-	repo     repository.Querier
-	tenantID pgtype.UUID
+	repo repository.Querier
 }
 
 // Compile-time check that CartService implements domain.CartService.
 var _ domain.CartService = (*CartService)(nil)
 
 // NewCartService creates a new CartService instance.
-func NewCartService(repo repository.Querier, tenantID string) (*CartService, error) {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		return nil, fmt.Errorf("invalid tenant ID: %w", err)
-	}
-
+func NewCartService(repo repository.Querier) *CartService {
 	return &CartService{
-		repo:     repo,
-		tenantID: tenantUUID,
-	}, nil
+		repo: repo,
+	}
 }
 
 // GetOrCreateCart retrieves an existing cart or creates a new session and cart.
@@ -102,8 +96,13 @@ func (s *CartService) GetOrCreateCart(ctx context.Context, sessionID string) (*d
 		}
 	}
 
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, "", err
+	}
+
 	cart, err := s.repo.CreateCart(ctx, repository.CreateCartParams{
-		TenantID:  s.tenantID,
+		TenantID:  tenantID,
 		SessionID: sessionUUID,
 	})
 	if err != nil {
@@ -149,6 +148,11 @@ func (s *CartService) GetCart(ctx context.Context, sessionID string) (*domain.Ca
 
 // AddItem adds a product SKU to the cart or updates quantity if already present.
 func (s *CartService) AddItem(ctx context.Context, cartID string, skuID string, quantity int) (*domain.CartSummary, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	if quantity <= 0 {
 		return nil, domain.ErrInvalidQuantity
 	}
@@ -171,7 +175,7 @@ func (s *CartService) AddItem(ctx context.Context, cartID string, skuID string, 
 		return nil, fmt.Errorf("failed to get SKU: %w", err)
 	}
 
-	priceList, err := s.repo.GetDefaultPriceList(ctx, s.tenantID)
+	priceList, err := s.repo.GetDefaultPriceList(ctx, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get default price list: %w", err)
 	}
@@ -188,7 +192,7 @@ func (s *CartService) AddItem(ctx context.Context, cartID string, skuID string, 
 	}
 
 	_, err = s.repo.AddCartItem(ctx, repository.AddCartItemParams{
-		TenantID:       s.tenantID,
+		TenantID:       tenantID,
 		CartID:         cartUUID,
 		ProductSkuID:   skuUUID,
 		Quantity:       int32(quantity),

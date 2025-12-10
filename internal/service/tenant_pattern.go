@@ -103,19 +103,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// extractTenantID is a helper that extracts tenant ID from context.
+// ExtractTenantID is a helper that extracts tenant ID from context.
 // Returns tenant.ErrNoTenant if no tenant in context.
 //
 // This is the standard pattern for service methods:
 //
 //	func (s *MyService) DoSomething(ctx context.Context) error {
-//	    tenantID, err := extractTenantID(ctx)
+//	    tenantID, err := service.ExtractTenantID(ctx)
 //	    if err != nil {
 //	        return err
 //	    }
 //	    // Use tenantID in queries...
 //	}
-func extractTenantID(ctx context.Context) (pgtype.UUID, error) {
+func ExtractTenantID(ctx context.Context) (pgtype.UUID, error) {
 	tenantID := tenant.IDFromContext(ctx)
 	if !tenantID.Valid {
 		return pgtype.UUID{}, tenant.ErrNoTenant
@@ -123,9 +123,9 @@ func extractTenantID(ctx context.Context) (pgtype.UUID, error) {
 	return tenantID, nil
 }
 
-// extractTenantIDStr is a helper that extracts tenant ID as string from context.
+// ExtractTenantIDStr is a helper that extracts tenant ID as string from context.
 // Useful when services need to pass tenant ID to external providers (Stripe, etc.).
-func extractTenantIDStr(ctx context.Context) (string, error) {
+func ExtractTenantIDStr(ctx context.Context) (string, error) {
 	t := tenant.FromContext(ctx)
 	if t == nil {
 		return "", tenant.ErrNoTenant
@@ -152,7 +152,7 @@ type ExampleRefactoredService struct {
 
 // DoSomething shows the pattern for extracting tenant from context.
 func (s *ExampleRefactoredService) DoSomething(ctx context.Context) error {
-	tenantID, err := extractTenantID(ctx)
+	tenantID, err := ExtractTenantID(ctx)
 	if err != nil {
 		return err // Returns tenant.ErrNoTenant
 	}

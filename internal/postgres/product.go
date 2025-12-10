@@ -8,29 +8,23 @@ import (
 
 	"github.com/dukerupert/hiri/internal/domain"
 	"github.com/dukerupert/hiri/internal/repository"
+	"github.com/dukerupert/hiri/internal/service"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // ProductService implements domain.ProductService using PostgreSQL.
 type ProductService struct {
-	repo     repository.Querier
-	tenantID pgtype.UUID
+	repo repository.Querier
 }
 
 // Compile-time check that ProductService implements domain.ProductService.
 var _ domain.ProductService = (*ProductService)(nil)
 
 // NewProductService creates a new PostgreSQL-backed product service.
-func NewProductService(repo repository.Querier, tenantID string) (*ProductService, error) {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		return nil, fmt.Errorf("invalid tenant ID: %w", err)
-	}
-
+func NewProductService(repo repository.Querier) *ProductService {
 	return &ProductService{
-		repo:     repo,
-		tenantID: tenantUUID,
-	}, nil
+		repo: repo,
+	}
 }
 
 // =============================================================================
@@ -39,7 +33,12 @@ func NewProductService(repo repository.Querier, tenantID string) (*ProductServic
 
 // ListProducts returns all active public products for the tenant.
 func (s *ProductService) ListProducts(ctx context.Context) ([]domain.ProductListItem, error) {
-	rows, err := s.repo.ListActiveProducts(ctx, s.tenantID)
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := s.repo.ListActiveProducts(ctx, tenantID)
 	if err != nil {
 		return nil, domain.Internal(err, "product.list", "failed to list products")
 	}
@@ -68,8 +67,13 @@ func (s *ProductService) ListProducts(ctx context.Context) ([]domain.ProductList
 
 // ListProductsFiltered returns products matching the given filters.
 func (s *ProductService) ListProductsFiltered(ctx context.Context, filter domain.ProductFilter) ([]domain.ProductListItem, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	rows, err := s.repo.ListActiveProductsFiltered(ctx, repository.ListActiveProductsFilteredParams{
-		TenantID:    s.tenantID,
+		TenantID:    tenantID,
 		RoastLevel:  pgTextFromPtr(filter.RoastLevel),
 		Origin:      pgTextFromPtr(filter.Origin),
 		TastingNote: pgTextFromPtr(filter.TastingNote),
@@ -102,8 +106,13 @@ func (s *ProductService) ListProductsFiltered(ctx context.Context, filter domain
 
 // GetProductDetail retrieves a product with SKUs, pricing, and images.
 func (s *ProductService) GetProductDetail(ctx context.Context, slug string) (*domain.ProductDetail, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	repoProduct, err := s.repo.GetProductBySlug(ctx, repository.GetProductBySlugParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		Slug:     slug,
 	})
 	if err != nil {
@@ -123,7 +132,7 @@ func (s *ProductService) GetProductDetail(ctx context.Context, slug string) (*do
 		return nil, domain.Internal(err, "product.get_detail", "failed to get product images")
 	}
 
-	priceList, err := s.repo.GetDefaultPriceList(ctx, s.tenantID)
+	priceList, err := s.repo.GetDefaultPriceList(ctx, tenantID)
 	if err != nil {
 		return nil, domain.Internal(err, "product.get_detail", "failed to get default price list")
 	}
@@ -165,6 +174,11 @@ func (s *ProductService) GetProductDetail(ctx context.Context, slug string) (*do
 
 // GetProductPrice retrieves pricing for a specific SKU.
 func (s *ProductService) GetProductPrice(ctx context.Context, skuID string) (*domain.ProductPrice, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var skuUUID pgtype.UUID
 	if err := skuUUID.Scan(skuID); err != nil {
 		return nil, domain.Invalid("product.get_price", "invalid SKU ID")
@@ -178,7 +192,7 @@ func (s *ProductService) GetProductPrice(ctx context.Context, skuID string) (*do
 		return nil, domain.Internal(err, "product.get_price", "failed to get SKU")
 	}
 
-	priceList, err := s.repo.GetDefaultPriceList(ctx, s.tenantID)
+	priceList, err := s.repo.GetDefaultPriceList(ctx, tenantID)
 	if err != nil {
 		return nil, domain.Internal(err, "product.get_price", "failed to get default price list")
 	}
@@ -203,6 +217,11 @@ func (s *ProductService) GetProductPrice(ctx context.Context, skuID string) (*do
 
 // GetSKUForCheckout retrieves SKU details with product info for checkout display.
 func (s *ProductService) GetSKUForCheckout(ctx context.Context, skuID string) (*domain.SKUCheckoutDetail, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var skuUUID pgtype.UUID
 	if err := skuUUID.Scan(skuID); err != nil {
 		return nil, domain.Invalid("product.get_sku_for_checkout", "invalid SKU ID")
@@ -210,7 +229,7 @@ func (s *ProductService) GetSKUForCheckout(ctx context.Context, skuID string) (*
 
 	row, err := s.repo.GetSKUWithProduct(ctx, repository.GetSKUWithProductParams{
 		ID:       skuUUID,
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -219,7 +238,7 @@ func (s *ProductService) GetSKUForCheckout(ctx context.Context, skuID string) (*
 		return nil, domain.Internal(err, "product.get_sku_for_checkout", "failed to get SKU with product")
 	}
 
-	priceList, err := s.repo.GetDefaultPriceList(ctx, s.tenantID)
+	priceList, err := s.repo.GetDefaultPriceList(ctx, tenantID)
 	if err != nil {
 		return nil, domain.Internal(err, "product.get_sku_for_checkout", "failed to get default price list")
 	}
@@ -262,7 +281,12 @@ func (s *ProductService) GetSKUForCheckout(ctx context.Context, skuID string) (*
 
 // GetFilterOptions returns available filter values.
 func (s *ProductService) GetFilterOptions(ctx context.Context) (*domain.ProductFilterOptions, error) {
-	options, err := s.repo.GetProductFilterOptions(ctx, s.tenantID)
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	options, err := s.repo.GetProductFilterOptions(ctx, tenantID)
 	if err != nil {
 		return nil, domain.Internal(err, "product.get_filter_options", "failed to get filter options")
 	}
@@ -285,9 +309,14 @@ func (s *ProductService) GetFilterOptions(ctx context.Context) (*domain.ProductF
 
 // GetProductByID retrieves a product by ID (includes inactive).
 func (s *ProductService) GetProductByID(ctx context.Context, id pgtype.UUID) (*domain.Product, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	repoProduct, err := s.repo.GetProductByID(ctx, repository.GetProductByIDParams{
 		ID:       id,
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -302,8 +331,13 @@ func (s *ProductService) GetProductByID(ctx context.Context, id pgtype.UUID) (*d
 
 // CreateProduct creates a new product.
 func (s *ProductService) CreateProduct(ctx context.Context, params domain.CreateProductParams) (*domain.Product, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	repoProduct, err := s.repo.CreateProduct(ctx, repository.CreateProductParams{
-		TenantID:         s.tenantID,
+		TenantID:         tenantID,
 		Name:             params.Name,
 		Slug:             params.Slug,
 		Description:      params.Description,
@@ -330,10 +364,15 @@ func (s *ProductService) CreateProduct(ctx context.Context, params domain.Create
 
 // UpdateProduct updates an existing product.
 func (s *ProductService) UpdateProduct(ctx context.Context, id pgtype.UUID, params domain.UpdateProductParams) error {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
 	// First fetch existing product
 	existing, err := s.repo.GetProductByID(ctx, repository.GetProductByIDParams{
 		ID:       id,
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -362,7 +401,7 @@ func (s *ProductService) UpdateProduct(ctx context.Context, id pgtype.UUID, para
 
 	_, err = s.repo.UpdateProduct(ctx, repository.UpdateProductParams{
 		ID:               id,
-		TenantID:         s.tenantID,
+		TenantID:         tenantID,
 		Name:             name,
 		Slug:             slug,
 		Description:      params.Description,
@@ -387,9 +426,14 @@ func (s *ProductService) UpdateProduct(ctx context.Context, id pgtype.UUID, para
 
 // DeleteProduct soft-deletes a product (sets status to archived).
 func (s *ProductService) DeleteProduct(ctx context.Context, id pgtype.UUID) error {
-	err := s.repo.DeleteProduct(ctx, repository.DeleteProductParams{
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = s.repo.DeleteProduct(ctx, repository.DeleteProductParams{
 		ID:       id,
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 	})
 	if err != nil {
 		return domain.Internal(err, "product.delete", "failed to delete product")
@@ -431,8 +475,13 @@ func (s *ProductService) GetSKUByID(ctx context.Context, id pgtype.UUID) (*domai
 
 // CreateSKU creates a new SKU for a product.
 func (s *ProductService) CreateSKU(ctx context.Context, params domain.CreateSKUParams) (*domain.ProductSKU, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	sku, err := s.repo.CreateProductSKU(ctx, repository.CreateProductSKUParams{
-		TenantID:          s.tenantID,
+		TenantID:          tenantID,
 		ProductID:         params.ProductID,
 		Sku:               params.SKU,
 		WeightValue:       params.WeightValue,
@@ -455,6 +504,11 @@ func (s *ProductService) CreateSKU(ctx context.Context, params domain.CreateSKUP
 
 // UpdateSKU updates an existing SKU.
 func (s *ProductService) UpdateSKU(ctx context.Context, id pgtype.UUID, params domain.UpdateSKUParams) error {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
 	// Get existing SKU
 	existing, err := s.repo.GetSKUByID(ctx, id)
 	if err != nil {
@@ -499,7 +553,7 @@ func (s *ProductService) UpdateSKU(ctx context.Context, id pgtype.UUID, params d
 	}
 
 	_, err = s.repo.UpdateProductSKU(ctx, repository.UpdateProductSKUParams{
-		TenantID:          s.tenantID,
+		TenantID:          tenantID,
 		ID:                id,
 		Sku:               skuCode,
 		WeightValue:       params.WeightValue,
@@ -522,8 +576,13 @@ func (s *ProductService) UpdateSKU(ctx context.Context, id pgtype.UUID, params d
 
 // DeleteSKU soft-deletes a SKU (sets is_active to false).
 func (s *ProductService) DeleteSKU(ctx context.Context, id pgtype.UUID) error {
-	err := s.repo.DeleteProductSKU(ctx, repository.DeleteProductSKUParams{
-		TenantID: s.tenantID,
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = s.repo.DeleteProductSKU(ctx, repository.DeleteProductSKUParams{
+		TenantID: tenantID,
 		ID:       id,
 	})
 	if err != nil {
@@ -552,8 +611,13 @@ func (s *ProductService) ListImages(ctx context.Context, productID pgtype.UUID) 
 
 // CreateImage adds an image to a product.
 func (s *ProductService) CreateImage(ctx context.Context, params domain.CreateImageParams) (*domain.ProductImage, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	img, err := s.repo.CreateProductImage(ctx, repository.CreateProductImageParams{
-		TenantID:  s.tenantID,
+		TenantID:  tenantID,
 		ProductID: params.ProductID,
 		Url:       params.URL,
 		AltText:   params.AltText,
@@ -573,6 +637,11 @@ func (s *ProductService) CreateImage(ctx context.Context, params domain.CreateIm
 
 // UpdateImage updates image metadata.
 func (s *ProductService) UpdateImage(ctx context.Context, id pgtype.UUID, params domain.UpdateImageParams) error {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
 	// Get existing image first to preserve fields we don't want to change
 	// For now, we need all fields for the update - this is a limitation of the generated query
 	sortOrder := int32(0)
@@ -580,8 +649,8 @@ func (s *ProductService) UpdateImage(ctx context.Context, id pgtype.UUID, params
 		sortOrder = *params.SortOrder
 	}
 
-	_, err := s.repo.UpdateProductImage(ctx, repository.UpdateProductImageParams{
-		TenantID:  s.tenantID,
+	_, err = s.repo.UpdateProductImage(ctx, repository.UpdateProductImageParams{
+		TenantID:  tenantID,
 		ID:        id,
 		Url:       "", // Will be overwritten by existing - need to fetch first in real impl
 		AltText:   params.AltText,
@@ -599,8 +668,13 @@ func (s *ProductService) UpdateImage(ctx context.Context, id pgtype.UUID, params
 
 // DeleteImage removes an image from a product.
 func (s *ProductService) DeleteImage(ctx context.Context, id pgtype.UUID) error {
-	err := s.repo.DeleteProductImage(ctx, repository.DeleteProductImageParams{
-		TenantID: s.tenantID,
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = s.repo.DeleteProductImage(ctx, repository.DeleteProductImageParams{
+		TenantID: tenantID,
 		ID:       id,
 	})
 	if err != nil {
@@ -611,10 +685,15 @@ func (s *ProductService) DeleteImage(ctx context.Context, id pgtype.UUID) error 
 
 // SetPrimaryImage sets an image as the primary image for its product.
 func (s *ProductService) SetPrimaryImage(ctx context.Context, productID, imageID pgtype.UUID) error {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
 	// Note: The SetPrimaryImage query uses tenant_id and image_id (not product_id)
 	// to find and update the image's is_primary flag
-	err := s.repo.SetPrimaryImage(ctx, repository.SetPrimaryImageParams{
-		TenantID: s.tenantID,
+	err = s.repo.SetPrimaryImage(ctx, repository.SetPrimaryImageParams{
+		TenantID: tenantID,
 		ID:       imageID,
 	})
 	if err != nil {

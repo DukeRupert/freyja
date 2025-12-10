@@ -2,9 +2,7 @@ package postgres
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,43 +11,28 @@ import (
 	"github.com/dukerupert/hiri/internal/auth"
 	"github.com/dukerupert/hiri/internal/domain"
 	"github.com/dukerupert/hiri/internal/repository"
+	"github.com/dukerupert/hiri/internal/service"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // UserService implements domain.UserService using PostgreSQL.
 type UserService struct {
-	repo     repository.Querier
-	tenantID pgtype.UUID
+	repo repository.Querier
 }
 
 // Compile-time check to ensure UserService implements domain.UserService.
 var _ domain.UserService = (*UserService)(nil)
 
 // NewUserService creates a new UserService instance.
-func NewUserService(repo repository.Querier, tenantID string) (*UserService, error) {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		return nil, fmt.Errorf("invalid tenant ID: %w", err)
-	}
-
+func NewUserService(repo repository.Querier) *UserService {
 	return &UserService{
-		repo:     repo,
-		tenantID: tenantUUID,
-	}, nil
+		repo: repo,
+	}
 }
 
 // =============================================================================
 // Helper Functions
 // =============================================================================
-
-// generateSessionID generates a cryptographically secure session ID.
-func generateSessionID() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("failed to generate random bytes: %w", err)
-	}
-	return base64.URLEncoding.EncodeToString(b), nil
-}
 
 // mapRepoUserToDomain converts a repository User to a domain Customer.
 func mapRepoUserToDomain(u repository.User) *domain.Customer {
@@ -118,6 +101,11 @@ func mapRepoUserToListItem(u repository.User) domain.UserListItem {
 
 // Register creates a new user account.
 func (s *UserService) Register(ctx context.Context, email, password, firstName, lastName string) (*domain.Customer, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Validate email (basic check)
 	if email == "" || len(email) < 3 {
 		return nil, domain.ErrInvalidEmail
@@ -125,7 +113,7 @@ func (s *UserService) Register(ctx context.Context, email, password, firstName, 
 
 	// Check if user already exists
 	existingUser, err := s.repo.GetUserByEmail(ctx, repository.GetUserByEmailParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		Email:    email,
 	})
 	if err == nil && existingUser.ID.Valid {
@@ -152,7 +140,7 @@ func (s *UserService) Register(ctx context.Context, email, password, firstName, 
 	passwordHashText = pgtype.Text{String: passwordHash, Valid: true}
 
 	user, err := s.repo.CreateUser(ctx, repository.CreateUserParams{
-		TenantID:     s.tenantID,
+		TenantID:     tenantID,
 		Email:        email,
 		PasswordHash: passwordHashText,
 		FirstName:    firstNameText,
@@ -167,9 +155,14 @@ func (s *UserService) Register(ctx context.Context, email, password, firstName, 
 
 // Authenticate verifies email/password and returns the user if valid.
 func (s *UserService) Authenticate(ctx context.Context, email, password string) (*domain.Customer, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Get user by email
 	user, err := s.repo.GetUserByEmail(ctx, repository.GetUserByEmailParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		Email:    email,
 	})
 	if err != nil {
@@ -242,6 +235,11 @@ func (s *UserService) CreateSession(ctx context.Context, userID string) (string,
 
 // GetUserBySessionToken retrieves a user from a session token.
 func (s *UserService) GetUserBySessionToken(ctx context.Context, token string) (*domain.Customer, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Get session
 	session, err := s.repo.GetSessionByToken(ctx, token)
 	if err != nil {
@@ -271,7 +269,7 @@ func (s *UserService) GetUserBySessionToken(ctx context.Context, token string) (
 	// Use tenant-scoped query to prevent cross-tenant access
 	user, err := s.repo.GetUserByIDAndTenant(ctx, repository.GetUserByIDAndTenantParams{
 		ID:       userUUID,
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -297,6 +295,11 @@ func (s *UserService) DeleteSession(ctx context.Context, token string) error {
 
 // GetUserByID retrieves a user by ID.
 func (s *UserService) GetUserByID(ctx context.Context, userID string) (*domain.Customer, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var userUUID pgtype.UUID
 	if err := userUUID.Scan(userID); err != nil {
 		return nil, fmt.Errorf("invalid user ID: %w", err)
@@ -304,7 +307,7 @@ func (s *UserService) GetUserByID(ctx context.Context, userID string) (*domain.C
 
 	user, err := s.repo.GetUserByIDAndTenant(ctx, repository.GetUserByIDAndTenantParams{
 		ID:       userUUID,
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -318,8 +321,13 @@ func (s *UserService) GetUserByID(ctx context.Context, userID string) (*domain.C
 
 // GetUserByEmail retrieves a user by email.
 func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*domain.Customer, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	user, err := s.repo.GetUserByEmail(ctx, repository.GetUserByEmailParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		Email:    email,
 	})
 	if err != nil {
@@ -334,8 +342,13 @@ func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*domain
 
 // ListUsers returns all users with pagination.
 func (s *UserService) ListUsers(ctx context.Context, limit, offset int32) ([]domain.UserListItem, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	users, err := s.repo.ListUsers(ctx, repository.ListUsersParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		Limit:    limit,
 		Offset:   offset,
 	})
@@ -353,8 +366,13 @@ func (s *UserService) ListUsers(ctx context.Context, limit, offset int32) ([]dom
 
 // ListUsersByAccountType returns users filtered by account type.
 func (s *UserService) ListUsersByAccountType(ctx context.Context, accountType domain.UserAccountType) ([]domain.UserListItem, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	users, err := s.repo.ListUsersByAccountType(ctx, repository.ListUsersByAccountTypeParams{
-		TenantID:    s.tenantID,
+		TenantID:    tenantID,
 		AccountType: string(accountType),
 	})
 	if err != nil {
@@ -371,7 +389,12 @@ func (s *UserService) ListUsersByAccountType(ctx context.Context, accountType do
 
 // CountUsers returns the total count of users.
 func (s *UserService) CountUsers(ctx context.Context) (int64, error) {
-	count, err := s.repo.CountUsers(ctx, s.tenantID)
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	count, err := s.repo.CountUsers(ctx, tenantID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count users: %w", err)
 	}
@@ -384,6 +407,11 @@ func (s *UserService) CountUsers(ctx context.Context) (int64, error) {
 
 // UpdateUserProfile updates basic user profile information.
 func (s *UserService) UpdateUserProfile(ctx context.Context, userID string, params domain.UpdateUserProfileParams) error {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
 	var userUUID pgtype.UUID
 	if err := userUUID.Scan(userID); err != nil {
 		return fmt.Errorf("invalid user ID: %w", err)
@@ -391,7 +419,7 @@ func (s *UserService) UpdateUserProfile(ctx context.Context, userID string, para
 
 	repoParams := repository.UpdateUserProfileParams{
 		ID:       userUUID,
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 	}
 
 	if params.FirstName != nil {
@@ -413,6 +441,11 @@ func (s *UserService) UpdateUserProfile(ctx context.Context, userID string, para
 
 // UpdateUserPassword updates a user's password.
 func (s *UserService) UpdateUserPassword(ctx context.Context, userID, newPassword string) error {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
 	var userUUID pgtype.UUID
 	if err := userUUID.Scan(userID); err != nil {
 		return fmt.Errorf("invalid user ID: %w", err)
@@ -425,7 +458,7 @@ func (s *UserService) UpdateUserPassword(ctx context.Context, userID, newPasswor
 
 	if err := s.repo.UpdateUserPassword(ctx, repository.UpdateUserPasswordParams{
 		ID:           userUUID,
-		TenantID:     s.tenantID,
+		TenantID:     tenantID,
 		PasswordHash: pgtype.Text{String: passwordHash, Valid: true},
 	}); err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
@@ -453,6 +486,11 @@ func (s *UserService) UpdateUserStatus(ctx context.Context, userID string, statu
 
 // AdminUpdateCustomer updates customer details (admin only).
 func (s *UserService) AdminUpdateCustomer(ctx context.Context, userID string, params domain.AdminUpdateCustomerParams) error {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
 	var userUUID pgtype.UUID
 	if err := userUUID.Scan(userID); err != nil {
 		return fmt.Errorf("invalid user ID: %w", err)
@@ -460,7 +498,7 @@ func (s *UserService) AdminUpdateCustomer(ctx context.Context, userID string, pa
 
 	if err := s.repo.AdminUpdateCustomer(ctx, repository.AdminUpdateCustomerParams{
 		ID:           userUUID,
-		TenantID:     s.tenantID,
+		TenantID:     tenantID,
 		FirstName:    params.FirstName,
 		LastName:     params.LastName,
 		Phone:        params.Phone,
@@ -562,8 +600,13 @@ func (s *UserService) UpdateWholesaleCustomer(ctx context.Context, userID string
 
 // GetCustomersForBillingCycle returns customers due for billing.
 func (s *UserService) GetCustomersForBillingCycle(ctx context.Context, billingCycle domain.BillingCycle, day int32) ([]domain.Customer, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	rows, err := s.repo.GetCustomersForBillingCycle(ctx, repository.GetCustomersForBillingCycleParams{
-		TenantID:     s.tenantID,
+		TenantID:     tenantID,
 		BillingCycle: pgtype.Text{String: string(billingCycle), Valid: true},
 	})
 	if err != nil {
@@ -597,13 +640,18 @@ func (s *UserService) GetCustomersForBillingCycle(ctx context.Context, billingCy
 
 // ListAddresses returns all saved addresses for a user.
 func (s *UserService) ListAddresses(ctx context.Context, userID string) ([]domain.UserAddress, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var userUUID pgtype.UUID
 	if err := userUUID.Scan(userID); err != nil {
 		return nil, fmt.Errorf("invalid user ID: %w", err)
 	}
 
 	rows, err := s.repo.ListAddressesForUser(ctx, repository.ListAddressesForUserParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		UserID:   userUUID,
 	})
 	if err != nil {
@@ -634,13 +682,18 @@ func (s *UserService) ListAddresses(ctx context.Context, userID string) ([]domai
 
 // ListPaymentMethods returns all saved payment methods for a user.
 func (s *UserService) ListPaymentMethods(ctx context.Context, userID string) ([]domain.UserPaymentMethod, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var userUUID pgtype.UUID
 	if err := userUUID.Scan(userID); err != nil {
 		return nil, fmt.Errorf("invalid user ID: %w", err)
 	}
 
 	rows, err := s.repo.ListPaymentMethodsForUser(ctx, repository.ListPaymentMethodsForUserParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		UserID:   userUUID,
 	})
 	if err != nil {
@@ -665,6 +718,11 @@ func (s *UserService) ListPaymentMethods(ctx context.Context, userID string) ([]
 
 // GetAccountSummary returns aggregate counts for the account dashboard.
 func (s *UserService) GetAccountSummary(ctx context.Context, userID string) (domain.AccountSummary, error) {
+	tenantID, err := service.ExtractTenantID(ctx)
+	if err != nil {
+		return domain.AccountSummary{}, err
+	}
+
 	var summary domain.AccountSummary
 
 	var userUUID pgtype.UUID
@@ -674,7 +732,7 @@ func (s *UserService) GetAccountSummary(ctx context.Context, userID string) (dom
 
 	// Get address counts
 	addressCounts, err := s.repo.CountAddressesForUser(ctx, repository.CountAddressesForUserParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		UserID:   userUUID,
 	})
 	if err != nil {
@@ -690,7 +748,7 @@ func (s *UserService) GetAccountSummary(ctx context.Context, userID string) (dom
 
 	// Get payment method counts
 	paymentCounts, err := s.repo.CountPaymentMethodsForUser(ctx, repository.CountPaymentMethodsForUserParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		UserID:   userUUID,
 	})
 	if err != nil {
@@ -703,7 +761,7 @@ func (s *UserService) GetAccountSummary(ctx context.Context, userID string) (dom
 
 	// Get order count
 	orderCount, err := s.repo.CountOrdersForUser(ctx, repository.CountOrdersForUserParams{
-		TenantID: s.tenantID,
+		TenantID: tenantID,
 		UserID:   userUUID,
 	})
 	if err != nil {
