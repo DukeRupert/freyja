@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/dukerupert/hiri/internal/cookie"
 )
 
 // Test GetSessionIDFromCookie
@@ -155,42 +157,43 @@ func TestSetSessionCookie(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
+			cookieConfig := cookie.NewConfig("test.local", tt.secure)
 
-			SetSessionCookie(w, tt.sessionID, tt.secure)
+			SetSessionCookie(w, tt.sessionID, cookieConfig)
 
 			cookies := w.Result().Cookies()
 			if len(cookies) != 1 {
 				t.Fatalf("expected 1 cookie, got %d", len(cookies))
 			}
 
-			cookie := cookies[0]
+			c := cookies[0]
 
-			if cookie.Name != tt.expectedName {
-				t.Errorf("expected Name %q, got %q", tt.expectedName, cookie.Name)
+			if c.Name != tt.expectedName {
+				t.Errorf("expected Name %q, got %q", tt.expectedName, c.Name)
 			}
 
-			if cookie.Value != tt.expectedValue {
-				t.Errorf("expected Value %q, got %q", tt.expectedValue, cookie.Value)
+			if c.Value != tt.expectedValue {
+				t.Errorf("expected Value %q, got %q", tt.expectedValue, c.Value)
 			}
 
-			if cookie.Path != tt.expectedPath {
-				t.Errorf("expected Path %q, got %q", tt.expectedPath, cookie.Path)
+			if c.Path != tt.expectedPath {
+				t.Errorf("expected Path %q, got %q", tt.expectedPath, c.Path)
 			}
 
-			if cookie.MaxAge != tt.expectedMaxAge {
-				t.Errorf("expected MaxAge %d, got %d", tt.expectedMaxAge, cookie.MaxAge)
+			if c.MaxAge != tt.expectedMaxAge {
+				t.Errorf("expected MaxAge %d, got %d", tt.expectedMaxAge, c.MaxAge)
 			}
 
-			if cookie.HttpOnly != tt.expectedHttpOnly {
-				t.Errorf("expected HttpOnly %v, got %v", tt.expectedHttpOnly, cookie.HttpOnly)
+			if c.HttpOnly != tt.expectedHttpOnly {
+				t.Errorf("expected HttpOnly %v, got %v", tt.expectedHttpOnly, c.HttpOnly)
 			}
 
-			if cookie.Secure != tt.expectedSecure {
-				t.Errorf("expected Secure %v, got %v", tt.expectedSecure, cookie.Secure)
+			if c.Secure != tt.expectedSecure {
+				t.Errorf("expected Secure %v, got %v", tt.expectedSecure, c.Secure)
 			}
 
-			if cookie.SameSite != tt.expectedSameSite {
-				t.Errorf("expected SameSite %v, got %v", tt.expectedSameSite, cookie.SameSite)
+			if c.SameSite != tt.expectedSameSite {
+				t.Errorf("expected SameSite %v, got %v", tt.expectedSameSite, c.SameSite)
 			}
 		})
 	}
@@ -200,20 +203,21 @@ func TestSetSessionCookie(t *testing.T) {
 func TestSetSessionCookie_ExpirationTime(t *testing.T) {
 	w := httptest.NewRecorder()
 	sessionID := "test-session"
+	cookieConfig := cookie.NewConfig("test.local", false)
 
-	SetSessionCookie(w, sessionID, false)
+	SetSessionCookie(w, sessionID, cookieConfig)
 
 	cookies := w.Result().Cookies()
 	if len(cookies) != 1 {
 		t.Fatalf("expected 1 cookie, got %d", len(cookies))
 	}
 
-	cookie := cookies[0]
+	c := cookies[0]
 
 	// MaxAge should be 30 days in seconds
 	expectedMaxAge := 30 * 24 * 60 * 60
-	if cookie.MaxAge != expectedMaxAge {
-		t.Errorf("expected MaxAge %d seconds (30 days), got %d", expectedMaxAge, cookie.MaxAge)
+	if c.MaxAge != expectedMaxAge {
+		t.Errorf("expected MaxAge %d seconds (30 days), got %d", expectedMaxAge, c.MaxAge)
 	}
 
 	// Note: In httptest.ResponseRecorder, the Expires field is not automatically
@@ -226,10 +230,11 @@ func TestSetSessionCookie_ExpirationTime(t *testing.T) {
 // Test round-trip: set cookie and then read it
 func TestSessionCookie_RoundTrip(t *testing.T) {
 	sessionID := "round-trip-session-12345"
+	cookieConfig := cookie.NewConfig("test.local", false)
 
 	// Set the cookie
 	w := httptest.NewRecorder()
-	SetSessionCookie(w, sessionID, false)
+	SetSessionCookie(w, sessionID, cookieConfig)
 
 	// Extract the Set-Cookie header
 	setCookieHeader := w.Header().Get("Set-Cookie")
@@ -271,37 +276,38 @@ func TestSetSessionCookie_SecurityAttributes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			SetSessionCookie(w, "test-session", tt.secure)
+			cookieConfig := cookie.NewConfig("test.local", tt.secure)
+			SetSessionCookie(w, "test-session", cookieConfig)
 
 			cookies := w.Result().Cookies()
 			if len(cookies) != 1 {
 				t.Fatalf("expected 1 cookie, got %d", len(cookies))
 			}
 
-			cookie := cookies[0]
+			c := cookies[0]
 
 			// HttpOnly must ALWAYS be true (prevents XSS attacks)
-			if !cookie.HttpOnly {
+			if !c.HttpOnly {
 				t.Error("HttpOnly must be true to prevent XSS attacks")
 			}
 
 			// SameSite must be Lax or Strict (prevents CSRF attacks)
-			if cookie.SameSite != http.SameSiteLaxMode && cookie.SameSite != http.SameSiteStrictMode {
-				t.Errorf("SameSite should be Lax or Strict for CSRF protection, got %v", cookie.SameSite)
+			if c.SameSite != http.SameSiteLaxMode && c.SameSite != http.SameSiteStrictMode {
+				t.Errorf("SameSite should be Lax or Strict for CSRF protection, got %v", c.SameSite)
 			}
 
 			// Secure should match the parameter
-			if cookie.Secure != tt.secure {
-				t.Errorf("expected Secure=%v, got %v", tt.secure, cookie.Secure)
+			if c.Secure != tt.secure {
+				t.Errorf("expected Secure=%v, got %v", tt.secure, c.Secure)
 			}
 
 			// Path should be root to apply to entire application
-			if cookie.Path != "/" {
+			if c.Path != "/" {
 				t.Error("Path should be '/' to apply cookie to entire application")
 			}
 
 			// MaxAge should be set (not relying solely on Expires)
-			if cookie.MaxAge <= 0 {
+			if c.MaxAge <= 0 {
 				t.Error("MaxAge should be positive for persistent session")
 			}
 		})
