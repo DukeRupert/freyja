@@ -40,57 +40,47 @@ func NewConfig(baseDomain string, secure bool) *Config {
 //   - HttpOnly: true (not accessible via JavaScript)
 //   - SameSite: Lax (sent on top-level navigations and GET from third-party)
 //   - Secure: based on config
-//
-// TODO: Implement cookie setting logic
-//   - Build http.Cookie with proper domain scoping
-//   - Call http.SetCookie(w, cookie)
-//   - Log cookie creation at debug level
 func (c *Config) SetSession(w http.ResponseWriter, name, value string, maxAge int) {
-	// TODO: Implement
-	// - Create &http.Cookie{
-	//     Name:     name,
-	//     Value:    value,
-	//     Domain:   "." + c.BaseDomain,
-	//     Path:     "/",
-	//     MaxAge:   maxAge,
-	//     HttpOnly: true,
-	//     Secure:   c.Secure,
-	//     SameSite: http.SameSiteLaxMode,
-	//   }
-	// - http.SetCookie(w, cookie)
-	panic("cookie.SetSession not implemented")
+	cookie := &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Domain:   "." + c.BaseDomain,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   c.Secure,
+		SameSite: http.SameSiteLaxMode,
+	}
+	http.SetCookie(w, cookie)
 }
 
 // ClearSession removes a session cookie by setting MaxAge to -1.
-//
-// TODO: Implement cookie clearing logic
-//   - Set the cookie with empty value and MaxAge=-1
-//   - Domain must match the original cookie's domain
 func (c *Config) ClearSession(w http.ResponseWriter, name string) {
-	// TODO: Implement
-	// - Create &http.Cookie{
-	//     Name:     name,
-	//     Value:    "",
-	//     Domain:   "." + c.BaseDomain,
-	//     Path:     "/",
-	//     MaxAge:   -1,
-	//     HttpOnly: true,
-	//   }
-	// - http.SetCookie(w, cookie)
-	panic("cookie.ClearSession not implemented")
+	cookie := &http.Cookie{
+		Name:     name,
+		Value:    "",
+		Domain:   "." + c.BaseDomain,
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+	}
+	http.SetCookie(w, cookie)
 }
 
 // SetSessionWithExpiry sets a session cookie with an explicit expiration time.
 // Use this when you need precise expiration control (e.g., "remember me" functionality).
-//
-// TODO: Implement cookie setting with explicit Expires field
-//   - Similar to SetSession but uses Expires instead of MaxAge
-//   - Useful for cookies that should expire at a specific time
 func (c *Config) SetSessionWithExpiry(w http.ResponseWriter, name, value string, expires time.Time) {
-	// TODO: Implement
-	// - Create cookie with Expires field set
-	// - MaxAge takes precedence, so don't set both
-	panic("cookie.SetSessionWithExpiry not implemented")
+	cookie := &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Domain:   "." + c.BaseDomain,
+		Path:     "/",
+		Expires:  expires,
+		HttpOnly: true,
+		Secure:   c.Secure,
+		SameSite: http.SameSiteLaxMode,
+	}
+	http.SetCookie(w, cookie)
 }
 
 // Get retrieves a cookie value from the request.

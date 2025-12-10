@@ -32,33 +32,17 @@ import (
 //	    _, err = w.invoiceService.GenerateConsolidatedInvoice(tenantCtx, params)
 //	    return err
 //	}
-//
-// TODO: Implement tenant context injection
-//   - Extract tenant_id from job record
-//   - Create tenant.Tenant with minimal info (ID is sufficient for most operations)
-//   - If full tenant info is needed, resolve via tenant.Resolver
-//   - Call tenant.NewContext to inject into context
 func withTenantContext(ctx context.Context, job *repository.Job) (context.Context, error) {
-	// TODO: Implement
-	//
-	// Option 1: Minimal tenant (just ID) - sufficient for most jobs
-	// if !job.TenantID.Valid {
-	//     return ctx, tenant.ErrNoTenant
-	// }
-	// t := &tenant.Tenant{
-	//     ID:     job.TenantID,
-	//     Status: "active", // Assume active for background jobs
-	// }
-	// return tenant.NewContext(ctx, t), nil
-	//
-	// Option 2: Full tenant resolution (if job needs tenant name, slug, etc.)
-	// t, err := w.tenantResolver.ByID(ctx, job.TenantID)
-	// if err != nil {
-	//     return nil, err
-	// }
-	// return tenant.NewContext(ctx, t), nil
+	if !job.TenantID.Valid {
+		return ctx, tenant.ErrNoTenant
+	}
 
-	panic("withTenantContext not implemented")
+	t := &tenant.Tenant{
+		ID:     job.TenantID,
+		Status: "active", // Assume active for background jobs
+	}
+
+	return tenant.NewContext(ctx, t), nil
 }
 
 // withTenantContextFromID creates tenant context from a raw UUID.

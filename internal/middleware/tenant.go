@@ -61,89 +61,87 @@ func ResolveTenant(cfg TenantConfig) func(http.Handler) http.Handler {
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// TODO: Implement tenant resolution
-			//
 			// Step 1: Extract host without port
-			// host := r.Host
-			// if colonIndex := strings.Index(host, ":"); colonIndex != -1 {
-			//     host = host[:colonIndex]
-			// }
-			//
-			// Step 2: Check for AppDomain (skip resolution)
-			// if host == cfg.AppDomain || host == stripPort(cfg.AppDomain) {
-			//     next.ServeHTTP(w, r)
-			//     return
-			// }
-			//
-			// Step 3: Check for BaseDomain apex (marketing site, skip resolution)
-			// baseDomainHost := stripPort(cfg.BaseDomain)
-			// if host == baseDomainHost {
-			//     next.ServeHTTP(w, r)
-			//     return
-			// }
-			//
-			// Step 4: Extract subdomain
-			// subdomain := extractSubdomain(host, baseDomainHost)
-			//
-			// Step 5: Handle www redirect
-			// if subdomain == "www" {
-			//     redirectURL := "https://" + cfg.BaseDomain + r.URL.Path
-			//     if r.URL.RawQuery != "" {
-			//         redirectURL += "?" + r.URL.RawQuery
-			//     }
-			//     http.Redirect(w, r, redirectURL, http.StatusMovedPermanently)
-			//     return
-			// }
-			//
-			// Step 6: Resolve tenant
-			// var t *tenant.Tenant
-			// var err error
-			// if subdomain != "" {
-			//     // Subdomain routing
-			//     t, err = cfg.Resolver.BySlug(r.Context(), subdomain)
-			// } else {
-			//     // Custom domain routing
-			//     t, err = cfg.Resolver.ByCustomDomain(r.Context(), host)
-			// }
-			//
-			// Step 7: Handle resolution errors
-			// if err != nil {
-			//     if errors.Is(err, tenant.ErrTenantNotFound) {
-			//         respondNotFound(w, r)
-			//         return
-			//     }
-			//     if errors.Is(err, tenant.ErrCustomDomainNotActive) {
-			//         respondNotFound(w, r)
-			//         return
-			//     }
-			//     respondInternalError(w, r, err)
-			//     return
-			// }
-			//
-			// Step 8: Check tenant status
-			// switch t.Status {
-			// case "active":
-			//     // Continue normally
-			// case "pending":
-			//     respondNotFound(w, r)
-			//     return
-			// case "suspended":
-			//     respondServiceUnavailable(w, r, "This store is temporarily unavailable")
-			//     return
-			// case "cancelled":
-			//     respondNotFound(w, r)
-			//     return
-			// default:
-			//     logger.Warn("unknown tenant status", "tenant_id", t.ID, "status", t.Status)
-			//     respondNotFound(w, r)
-			//     return
-			// }
-			//
-			// Step 9: Add tenant to context and continue
-			// ctx := tenant.NewContext(r.Context(), t)
-			// next.ServeHTTP(w, r.WithContext(ctx))
+			host := r.Host
+			if colonIndex := strings.Index(host, ":"); colonIndex != -1 {
+				host = host[:colonIndex]
+			}
 
-			panic("ResolveTenant middleware not implemented")
+			// Step 2: Check for AppDomain (skip resolution)
+			appDomainHost := stripPort(cfg.AppDomain)
+			if host == appDomainHost {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// Step 3: Check for BaseDomain apex (marketing site, skip resolution)
+			baseDomainHost := stripPort(cfg.BaseDomain)
+			if host == baseDomainHost {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// Step 4: Extract subdomain
+			subdomain := extractSubdomainForTenant(host, baseDomainHost)
+
+			// Step 5: Handle www redirect
+			if subdomain == "www" {
+				redirectURL := "https://" + cfg.BaseDomain + r.URL.Path
+				if r.URL.RawQuery != "" {
+					redirectURL += "?" + r.URL.RawQuery
+				}
+				http.Redirect(w, r, redirectURL, http.StatusMovedPermanently)
+				return
+			}
+
+			// Step 6: Resolve tenant
+			var t *tenant.Tenant
+			var err error
+			if subdomain != "" {
+				// Subdomain routing
+				t, err = cfg.Resolver.BySlug(r.Context(), subdomain)
+			} else {
+				// Custom domain routing
+				t, err = cfg.Resolver.ByCustomDomain(r.Context(), host)
+			}
+
+			// Step 7: Handle resolution errors
+			if err != nil {
+				if err == tenant.ErrTenantNotFound {
+					respondTenantNotFound(w, r)
+					return
+				}
+				if err == tenant.ErrCustomDomainNotActive {
+					respondTenantNotFound(w, r)
+					return
+				}
+				logger.Error("tenant resolution failed", "host", host, "error", err)
+				respondTenantInternalError(w, r, err)
+				return
+			}
+
+			// Step 8: Check tenant status
+			switch t.Status {
+			case "active":
+				// Continue normally
+			case "pending":
+				respondTenantNotFound(w, r)
+				return
+			case "suspended":
+				respondTenantServiceUnavailable(w, r, "This store is temporarily unavailable")
+				return
+			case "cancelled":
+				respondTenantNotFound(w, r)
+				return
+			default:
+				logger.Warn("unknown tenant status", "tenant_id", t.ID, "status", t.Status)
+				respondTenantNotFound(w, r)
+				return
+			}
+
+			// Step 9: Add tenant to context and continue
+			ctx := tenant.NewContext(r.Context(), t)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
@@ -152,22 +150,14 @@ func ResolveTenant(cfg TenantConfig) func(http.Handler) http.Handler {
 // Returns 404 if no tenant is found. Use this on routes that require tenant context.
 //
 // This should be applied AFTER ResolveTenant middleware.
-//
-// TODO: Implement tenant requirement check
-//   - Extract tenant from context using tenant.FromContext
-//   - If nil, respond with 404
-//   - Otherwise continue to next handler
 func RequireTenant(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// TODO: Implement
-		// t := tenant.FromContext(r.Context())
-		// if t == nil {
-		//     respondNotFound(w, r)
-		//     return
-		// }
-		// next.ServeHTTP(w, r)
-
-		panic("RequireTenant middleware not implemented")
+		t := tenant.FromContext(r.Context())
+		if t == nil {
+			respondTenantNotFound(w, r)
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 
