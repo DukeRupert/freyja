@@ -5,7 +5,9 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/dukerupert/hiri/internal/repository"
 	"github.com/dukerupert/hiri/internal/service"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // DevBypassHandler provides a development-only bypass for the Stripe checkout flow.
@@ -14,6 +16,7 @@ import (
 type DevBypassHandler struct {
 	onboardingService service.OnboardingService
 	operatorService   service.OperatorService
+	repo              repository.Querier
 	baseURL           string
 }
 
@@ -21,11 +24,13 @@ type DevBypassHandler struct {
 func NewDevBypassHandler(
 	onboardingService service.OnboardingService,
 	operatorService service.OperatorService,
+	repo repository.Querier,
 	baseURL string,
 ) *DevBypassHandler {
 	return &DevBypassHandler{
 		onboardingService: onboardingService,
 		operatorService:   operatorService,
+		repo:              repo,
 		baseURL:           baseURL,
 	}
 }
@@ -141,6 +146,23 @@ func (h *DevBypassHandler) HandleDevSignup(w http.ResponseWriter, r *http.Reques
 		"operator_id", operatorID,
 		"email", email,
 	)
+
+	// Activate tenant directly (bypass Stripe subscription confirmation)
+	var tenantPgUUID pgtype.UUID
+	_ = tenantPgUUID.Scan(tenantID.String())
+	err = h.repo.SetTenantStatus(ctx, repository.SetTenantStatusParams{
+		ID:     tenantPgUUID,
+		Status: "active",
+	})
+	if err != nil {
+		slog.Error("dev bypass: failed to activate tenant",
+			"tenant_id", tenantID,
+			"error", err,
+		)
+		// Continue anyway - operator can still log in
+	} else {
+		slog.Info("dev bypass: tenant activated", "tenant_id", tenantID)
+	}
 
 	// Set password directly (bypasses setup email flow)
 	err = h.operatorService.SetPassword(ctx, operatorID, password)
