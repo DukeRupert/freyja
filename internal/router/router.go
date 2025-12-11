@@ -53,6 +53,11 @@ func (r *Router) Patch(pattern string, handler http.HandlerFunc, middleware ...M
 	r.handle(http.MethodPatch, pattern, handler, middleware)
 }
 
+// Options registers an OPTIONS route (typically for CORS preflight)
+func (r *Router) Options(pattern string, handler http.HandlerFunc, middleware ...Middleware) {
+	r.handle(http.MethodOptions, pattern, handler, middleware)
+}
+
 // Handle registers a route with explicit method
 func (r *Router) Handle(method, pattern string, handler http.Handler, middleware ...Middleware) {
 	r.mux.Handle(method+" "+pattern, r.wrap(handler, middleware))

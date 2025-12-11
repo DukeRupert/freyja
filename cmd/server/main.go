@@ -293,9 +293,32 @@ func run() error {
 		checkoutURL = cfg.BaseURL + "/api/saas/checkout"
 	}
 
+	// Initialize SaaS operator and onboarding services
+	operatorService := service.NewOperatorService(repo, logger)
+	saasOnboardingService := service.NewOnboardingService(
+		repo,
+		operatorService,
+		service.OnboardingConfig{
+			SaaSPriceID:      cfg.Stripe.SaaSPriceID,
+			BaseURL:          cfg.BaseURL,
+			SetupTokenExpiry: 48 * time.Hour,
+		},
+		logger,
+	)
+
+	// Initialize SaaS handlers
+	saasCheckoutHandler := saas.NewCheckoutHandler(saasOnboardingService, cfg.BaseURL)
+	saasAuthHandler := saas.NewAuthHandler(operatorService, renderer, cfg.BaseURL, cookieConfig)
+	saasSetupHandler := saas.NewSetupHandler(operatorService, saasOnboardingService, renderer, cfg.BaseURL)
+	saasWebhookHandler := saas.NewWebhookHandler(saasOnboardingService, billingProvider, cfg.Stripe.SaaSWebhookSecret)
+
 	saasDeps := routes.SaaSDeps{
-		Handler:     saasHandler,
-		CheckoutURL: checkoutURL,
+		Handler:         saasHandler,
+		CheckoutHandler: saasCheckoutHandler,
+		AuthHandler:     saasAuthHandler,
+		SetupHandler:    saasSetupHandler,
+		WebhookHandler:  saasWebhookHandler,
+		CheckoutURL:     checkoutURL,
 	}
 
 	// Initialize page service (needed by both storefront and admin)

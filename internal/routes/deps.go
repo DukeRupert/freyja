@@ -11,8 +11,23 @@ import (
 
 // SaaSDeps contains dependencies for SaaS marketing routes
 type SaaSDeps struct {
-	Handler     *saas.PageHandler
-	CheckoutURL string // URL for checkout API (e.g., https://app.hiri.coffee/api/saas/checkout)
+	// Page rendering (landing, pricing, about, etc.)
+	Handler *saas.PageHandler
+
+	// Checkout (creates Stripe checkout session)
+	CheckoutHandler *saas.CheckoutHandler
+
+	// Auth (login, logout, password reset)
+	AuthHandler *saas.AuthHandler
+
+	// Setup (account setup after checkout)
+	SetupHandler *saas.SetupHandler
+
+	// Webhook (Stripe webhook handler)
+	WebhookHandler *saas.WebhookHandler
+
+	// CheckoutURL is passed to pricing page template for client-side fetch
+	CheckoutURL string
 }
 
 // StorefrontDeps contains dependencies for storefront routes

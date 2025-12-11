@@ -75,9 +75,11 @@ type AdminConfig struct {
 }
 
 type StripeConfig struct {
-	SecretKey      string
-	PublishableKey string
-	WebhookSecret  string
+	SecretKey        string
+	PublishableKey   string
+	WebhookSecret    string // Webhook secret for tenant/storefront events
+	SaaSPriceID      string // Stripe price ID for SaaS subscription ($149/month)
+	SaaSWebhookSecret string // Webhook secret for SaaS subscription events
 }
 
 type EmailConfig struct {
@@ -130,9 +132,11 @@ func NewConfig() (*Config, error) {
 		BaseURL:       getEnv("BASE_URL", "http://localhost:3000"),
 		EncryptionKey: getEnv("ENCRYPTION_KEY", ""), // Must be set in production
 		Stripe: StripeConfig{
-			SecretKey:      getEnv("STRIPE_SECRET_KEY", "sk_test_your_key_here"),
-			PublishableKey: getEnv("STRIPE_PUBLISHABLE_KEY", "pk_test_your_key_here"),
-			WebhookSecret:  getEnv("STRIPE_WEBHOOK_SECRET", "whsec_your_webhook_secret_here"),
+			SecretKey:        getEnv("STRIPE_SECRET_KEY", "sk_test_your_key_here"),
+			PublishableKey:   getEnv("STRIPE_PUBLISHABLE_KEY", "pk_test_your_key_here"),
+			WebhookSecret:    getEnv("STRIPE_WEBHOOK_SECRET", "whsec_your_webhook_secret_here"),
+			SaaSPriceID:      getEnv("STRIPE_SAAS_PRICE_ID", ""),       // Required for SaaS signup
+			SaaSWebhookSecret: getEnv("STRIPE_SAAS_WEBHOOK_SECRET", ""), // Separate webhook for SaaS events
 		},
 		Email: EmailConfig{
 			Host:          getEnv("SMTP_HOST", "localhost"),
