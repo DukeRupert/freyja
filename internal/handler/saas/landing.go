@@ -36,6 +36,11 @@ func NewPageHandler(templatesDir string) (*PageHandler, error) {
 		"contact",
 		"privacy",
 		"terms",
+		"login",
+		"setup",
+		"forgot-password",
+		"reset-password",
+		"resend-setup",
 	}
 
 	// Parse each page with the layout
@@ -117,4 +122,15 @@ func (h *PageHandler) Pricing(checkoutURL string) http.HandlerFunc {
 			return
 		}
 	}
+}
+
+// RenderTemplate renders a named template with custom data.
+// This is used by auth handlers that need to pass form data to templates.
+func (h *PageHandler) RenderTemplate(w http.ResponseWriter, name string, data interface{}) error {
+	tmpl, ok := h.templates[name]
+	if !ok {
+		return domain.Errorf(domain.ENOTFOUND, "", "Template not found: %s", name)
+	}
+
+	return tmpl.ExecuteTemplate(w, "saas-base", data)
 }

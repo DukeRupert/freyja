@@ -308,7 +308,7 @@ func run() error {
 
 	// Initialize SaaS handlers
 	saasCheckoutHandler := saas.NewCheckoutHandler(saasOnboardingService, cfg.BaseURL)
-	saasAuthHandler := saas.NewAuthHandler(operatorService, renderer, cfg.BaseURL, cookieConfig)
+	saasAuthHandler := saas.NewAuthHandler(operatorService, saasHandler, cfg.BaseURL, cookieConfig)
 	saasSetupHandler := saas.NewSetupHandler(operatorService, saasOnboardingService, renderer, cfg.BaseURL)
 	saasWebhookHandler := saas.NewWebhookHandler(saasOnboardingService, billingProvider, cfg.Stripe.SaaSWebhookSecret)
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -28,7 +29,7 @@ const (
 // AuthHandler handles operator authentication flows
 type AuthHandler struct {
 	operatorService service.OperatorService
-	renderer        *handler.Renderer
+	pageHandler     *PageHandler
 	baseURL         string
 	cookieConfig    *cookie.Config
 }
@@ -36,13 +37,13 @@ type AuthHandler struct {
 // NewAuthHandler creates a new auth handler
 func NewAuthHandler(
 	operatorService service.OperatorService,
-	renderer *handler.Renderer,
+	pageHandler *PageHandler,
 	baseURL string,
 	cookieConfig *cookie.Config,
 ) *AuthHandler {
 	return &AuthHandler{
 		operatorService: operatorService,
-		renderer:        renderer,
+		pageHandler:     pageHandler,
 		baseURL:         baseURL,
 		cookieConfig:    cookieConfig,
 	}
@@ -53,23 +54,37 @@ func (h *AuthHandler) ShowLoginForm(w http.ResponseWriter, r *http.Request) {
 	h.showLoginFormWithError(w, r, nil, "")
 }
 
+// AuthPageData holds data for auth page templates
+type AuthPageData struct {
+	Year        int
+	CurrentPath string
+	CSRFToken   string
+	Error       string
+	Email       string
+	Success     string
+	Token       string // For password reset token
+}
+
 func (h *AuthHandler) showLoginFormWithError(w http.ResponseWriter, r *http.Request, formError *string, email string) {
-	data := map[string]interface{}{
-		"CurrentPath": r.URL.Path,
+	data := AuthPageData{
+		Year:        time.Now().Year(),
+		CurrentPath: r.URL.Path,
 	}
 
 	if csrfToken := middleware.GetCSRFToken(r.Context()); csrfToken != "" {
-		data["CSRFToken"] = csrfToken
+		data.CSRFToken = csrfToken
 	}
 
 	if formError != nil {
-		data["Error"] = *formError
+		data.Error = *formError
 	}
 	if email != "" {
-		data["Email"] = email
+		data.Email = email
 	}
 
-	h.renderer.RenderHTTP(w, "saas/login", data)
+	if err := h.pageHandler.RenderTemplate(w, "login", data); err != nil {
+		handler.ErrorResponse(w, r, err)
+	}
 }
 
 // HandleLogin handles POST /login
@@ -179,22 +194,25 @@ func (h *AuthHandler) ShowForgotPasswordForm(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *AuthHandler) showForgotPasswordFormWithMessage(w http.ResponseWriter, r *http.Request, successMsg *string, errorMsg *string) {
-	data := map[string]interface{}{
-		"CurrentPath": r.URL.Path,
+	data := AuthPageData{
+		Year:        time.Now().Year(),
+		CurrentPath: r.URL.Path,
 	}
 
 	if csrfToken := middleware.GetCSRFToken(r.Context()); csrfToken != "" {
-		data["CSRFToken"] = csrfToken
+		data.CSRFToken = csrfToken
 	}
 
 	if successMsg != nil {
-		data["Success"] = *successMsg
+		data.Success = *successMsg
 	}
 	if errorMsg != nil {
-		data["Error"] = *errorMsg
+		data.Error = *errorMsg
 	}
 
-	h.renderer.RenderHTTP(w, "saas/forgot-password", data)
+	if err := h.pageHandler.RenderTemplate(w, "forgot-password", data); err != nil {
+		handler.ErrorResponse(w, r, err)
+	}
 }
 
 // HandleForgotPassword handles POST /forgot-password
@@ -250,20 +268,23 @@ func (h *AuthHandler) ShowResetPasswordForm(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *AuthHandler) showResetPasswordFormWithError(w http.ResponseWriter, r *http.Request, token string, formError *string) {
-	data := map[string]interface{}{
-		"CurrentPath": r.URL.Path,
-		"Token":       token,
+	data := AuthPageData{
+		Year:        time.Now().Year(),
+		CurrentPath: r.URL.Path,
+		Token:       token,
 	}
 
 	if csrfToken := middleware.GetCSRFToken(r.Context()); csrfToken != "" {
-		data["CSRFToken"] = csrfToken
+		data.CSRFToken = csrfToken
 	}
 
 	if formError != nil {
-		data["Error"] = *formError
+		data.Error = *formError
 	}
 
-	h.renderer.RenderHTTP(w, "saas/reset-password", data)
+	if err := h.pageHandler.RenderTemplate(w, "reset-password", data); err != nil {
+		handler.ErrorResponse(w, r, err)
+	}
 }
 
 // HandleResetPassword handles POST /reset-password
