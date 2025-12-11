@@ -17,8 +17,13 @@
       <nav class="relative z-50 flex justify-between items-center" x-data="{ mobileMenuOpen: false }">
         <!-- Logo -->
         <div class="flex items-center">
-          <a href="/" class="text-xl font-semibold text-neutral-900 tracking-tight">
-            Hiri
+          <a href="/" class="flex items-center gap-2" aria-label="Hiri - Home">
+            <!-- Hiri Mark -->
+            <svg class="h-8 w-auto" viewBox="0 0 56 44" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M 6 4 C 14 14, 10 26, -2 36 C 10 42, 26 44, 38 38 C 34 14, 6 4, 6 4 Z" fill="#2D7A7A" opacity="0.35"/>
+              <path d="M 20 4 C 28 14, 24 26, 12 36 C 24 42, 42 44, 56 38 C 52 14, 20 4, 20 4 Z" fill="#2D7A7A"/>
+            </svg>
+            <span class="text-xl font-semibold text-neutral-900 tracking-tight">hiri</span>
           </a>
         </div>
 
@@ -84,8 +89,13 @@
   <footer class="bg-neutral-900">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="py-16">
-        <a href="/" class="mx-auto block text-center text-xl font-semibold text-white tracking-tight">
-          Hiri
+        <a href="/" class="mx-auto flex items-center justify-center gap-2" aria-label="Hiri - Home">
+          <!-- Hiri Mark (white for dark background) -->
+          <svg class="h-8 w-auto" viewBox="0 0 56 44" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M 6 4 C 14 14, 10 26, -2 36 C 10 42, 26 44, 38 38 C 34 14, 6 4, 6 4 Z" fill="white" opacity="0.35"/>
+            <path d="M 20 4 C 28 14, 24 26, 12 36 C 24 42, 42 44, 56 38 C 52 14, 20 4, 20 4 Z" fill="white"/>
+          </svg>
+          <span class="text-xl font-semibold text-white tracking-tight">hiri</span>
         </a>
         <nav class="mt-10" aria-label="Footer navigation">
           <div class="flex flex-wrap justify-center gap-x-8 gap-y-4 text-sm">
