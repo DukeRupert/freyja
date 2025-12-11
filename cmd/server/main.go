@@ -59,7 +59,9 @@ func run() error {
 	logger := internal.NewLogger(os.Stdout, cfg.Env, cfg.LogLevel)
 
 	// Initialize cookie configuration for domain-scoped cookies
-	cookieConfig := cookie.NewConfig(cfg.Domain.BaseDomain, cfg.Env != "development")
+	// Secure=false in dev/development (HTTP), Secure=true in production (HTTPS)
+	secureCookies := cfg.Env != "dev" && cfg.Env != "development"
+	cookieConfig := cookie.NewConfig(cfg.Domain.BaseDomain, secureCookies)
 
 	// Initialize telemetry
 	logger.Info("Initializing telemetry...")
@@ -283,14 +285,16 @@ func run() error {
 		return fmt.Errorf("failed to initialize saas handler: %w", err)
 	}
 
-	// Determine checkout URL based on configuration
+	// Determine checkout URL and admin URL based on configuration
 	// In host-routing mode, point to app domain; otherwise use same origin
-	var checkoutURL string
+	var checkoutURL, adminURL string
 	if cfg.Domain.HostRouting && cfg.Domain.AppDomain != "" {
 		checkoutURL = "https://" + cfg.Domain.AppDomain + "/api/saas/checkout"
+		adminURL = "https://" + cfg.Domain.AppDomain + "/admin"
 	} else {
-		// Development mode - checkout is on same origin at port 3000
+		// Development mode - checkout and admin are on port 3000
 		checkoutURL = cfg.BaseURL + "/api/saas/checkout"
+		adminURL = cfg.BaseURL + "/admin"
 	}
 
 	// Initialize SaaS operator and onboarding services
@@ -308,7 +312,7 @@ func run() error {
 
 	// Initialize SaaS handlers
 	saasCheckoutHandler := saas.NewCheckoutHandler(saasOnboardingService, cfg.BaseURL)
-	saasAuthHandler := saas.NewAuthHandler(operatorService, saasHandler, cfg.BaseURL, cookieConfig)
+	saasAuthHandler := saas.NewAuthHandler(operatorService, saasHandler, cfg.BaseURL, adminURL, cookieConfig)
 	saasSetupHandler := saas.NewSetupHandler(operatorService, saasOnboardingService, renderer, cfg.BaseURL)
 	saasWebhookHandler := saas.NewWebhookHandler(saasOnboardingService, billingProvider, cfg.Stripe.SaaSWebhookSecret)
 

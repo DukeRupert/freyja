@@ -31,6 +31,7 @@ type AuthHandler struct {
 	operatorService service.OperatorService
 	pageHandler     *PageHandler
 	baseURL         string
+	adminURL        string // Full URL to admin dashboard (e.g., http://localhost:3000/admin)
 	cookieConfig    *cookie.Config
 }
 
@@ -39,12 +40,14 @@ func NewAuthHandler(
 	operatorService service.OperatorService,
 	pageHandler *PageHandler,
 	baseURL string,
+	adminURL string,
 	cookieConfig *cookie.Config,
 ) *AuthHandler {
 	return &AuthHandler{
 		operatorService: operatorService,
 		pageHandler:     pageHandler,
 		baseURL:         baseURL,
+		adminURL:        adminURL,
 		cookieConfig:    cookieConfig,
 	}
 }
@@ -162,8 +165,8 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	// Set session cookie (note: cookie config handles domain scoping, path is not scoped)
 	h.cookieConfig.SetSession(w, OperatorCookieName, token, OperatorSessionMaxAge)
 
-	// Redirect to admin dashboard
-	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+	// Redirect to admin dashboard (on app domain, not marketing site)
+	http.Redirect(w, r, h.adminURL, http.StatusSeeOther)
 }
 
 // HandleLogout handles POST /logout

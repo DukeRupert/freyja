@@ -35,7 +35,7 @@ func NewConfig(baseDomain string, secure bool) *Config {
 // SetSession sets a session cookie that is shared across all subdomains.
 //
 // The cookie will be set with:
-//   - Domain: "." + BaseDomain (shared across subdomains)
+//   - Domain: "." + BaseDomain (shared across subdomains), or empty for host-only
 //   - Path: "/" (available on all paths)
 //   - HttpOnly: true (not accessible via JavaScript)
 //   - SameSite: Lax (sent on top-level navigations and GET from third-party)
@@ -44,12 +44,16 @@ func (c *Config) SetSession(w http.ResponseWriter, name, value string, maxAge in
 	cookie := &http.Cookie{
 		Name:     name,
 		Value:    value,
-		Domain:   "." + c.BaseDomain,
 		Path:     "/",
 		MaxAge:   maxAge,
 		HttpOnly: true,
 		Secure:   c.Secure,
 		SameSite: http.SameSiteLaxMode,
+	}
+	// Only set Domain if BaseDomain is configured (for subdomain sharing)
+	// When empty, cookie is host-only (works for localhost development)
+	if c.BaseDomain != "" {
+		cookie.Domain = "." + c.BaseDomain
 	}
 	http.SetCookie(w, cookie)
 }
@@ -59,10 +63,12 @@ func (c *Config) ClearSession(w http.ResponseWriter, name string) {
 	cookie := &http.Cookie{
 		Name:     name,
 		Value:    "",
-		Domain:   "." + c.BaseDomain,
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
+	}
+	if c.BaseDomain != "" {
+		cookie.Domain = "." + c.BaseDomain
 	}
 	http.SetCookie(w, cookie)
 }
@@ -73,12 +79,14 @@ func (c *Config) SetSessionWithExpiry(w http.ResponseWriter, name, value string,
 	cookie := &http.Cookie{
 		Name:     name,
 		Value:    value,
-		Domain:   "." + c.BaseDomain,
 		Path:     "/",
 		Expires:  expires,
 		HttpOnly: true,
 		Secure:   c.Secure,
 		SameSite: http.SameSiteLaxMode,
+	}
+	if c.BaseDomain != "" {
+		cookie.Domain = "." + c.BaseDomain
 	}
 	http.SetCookie(w, cookie)
 }
