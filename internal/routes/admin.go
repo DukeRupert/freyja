@@ -1,23 +1,43 @@
 package routes
 
 import (
+	"github.com/dukerupert/hiri/internal/cookie"
 	"github.com/dukerupert/hiri/internal/middleware"
+	"github.com/dukerupert/hiri/internal/repository"
 	"github.com/dukerupert/hiri/internal/router"
+	"github.com/dukerupert/hiri/internal/service"
 )
 
 // RegisterAdminRoutes registers all admin dashboard routes.
-// Auth routes are public, all other routes are protected by admin authentication middleware.
+// Auth routes are public, all other routes are protected by operator authentication middleware.
 //
 // These routes are served at /admin/* and share the same
 // domain/port as the storefront.
-func RegisterAdminRoutes(r *router.Router, deps AdminDeps) {
+func RegisterAdminRoutes(
+	r *router.Router,
+	deps AdminDeps,
+	operatorService service.OperatorService,
+	queries *repository.Queries,
+	cookieConfig *cookie.Config,
+) {
 	// Admin auth routes (public - no authentication required)
 	// Note: POST /admin/login is registered in main.go with rate limiting
 	r.Get("/admin/login", deps.LoginHandler.ShowForm)
 	r.Post("/admin/logout", deps.LogoutHandler.HandleSubmit)
 
-	// All other admin routes require admin authentication
-	admin := r.Group(middleware.RequireAdmin)
+	// Password reset routes (public - no authentication required)
+	r.Get("/admin/forgot-password", deps.ForgotPasswordHandler.ShowForm)
+	r.Post("/admin/forgot-password", deps.ForgotPasswordHandler.HandleSubmit)
+	r.Get("/admin/reset-password", deps.ResetPasswordHandler.ShowForm)
+	r.Post("/admin/reset-password", deps.ResetPasswordHandler.HandleSubmit)
+
+	// All other admin routes require operator authentication and active tenant
+	// Middleware chain: WithOperator -> RequireOperator -> RequireActiveTenant
+	admin := r.Group(
+		middleware.WithOperator(operatorService),
+		middleware.RequireOperator(cookieConfig),
+		middleware.RequireActiveTenant(queries),
+	)
 
 	// Dashboard
 	admin.Get("/admin", deps.DashboardHandler.ServeHTTP)

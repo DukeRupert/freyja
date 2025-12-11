@@ -66,9 +66,11 @@ type StorefrontDeps struct {
 
 // AdminDeps contains dependencies for admin routes
 type AdminDeps struct {
-	// Auth
-	LoginHandler  *admin.LoginHandler
-	LogoutHandler *admin.LogoutHandler
+	// Auth (operator-based authentication)
+	LoginHandler          *admin.LoginHandler
+	LogoutHandler         *admin.LogoutHandler
+	ForgotPasswordHandler *admin.ForgotPasswordHandler
+	ResetPasswordHandler  *admin.ResetPasswordHandler
 
 	// Dashboard
 	DashboardHandler http.Handler

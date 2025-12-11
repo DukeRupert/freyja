@@ -429,21 +429,24 @@ func run() error {
 	customDomainService := service.NewCustomDomainService(repo, logger)
 
 	// Admin dependencies (consolidated handlers)
+	// Now uses OperatorService for authentication (multi-tenant SaaS operators)
 	adminDeps := routes.AdminDeps{
-		LoginHandler:        admin.NewLoginHandler(userService, renderer, cookieConfig),
-		LogoutHandler:       admin.NewLogoutHandler(userService, cookieConfig),
-		DashboardHandler:    admin.NewDashboardHandler(repo, renderer, cfg.TenantID, onboardingService),
-		ProductHandler:      admin.NewProductHandler(repo, renderer, fileStorage, cfg.TenantID),
-		OrderHandler:        admin.NewOrderHandler(repo, renderer, cfg.TenantID),
-		CustomerHandler:     admin.NewCustomerHandler(repo, invoiceService, renderer, cfg.TenantID),
-		SubscriptionHandler: admin.NewSubscriptionHandler(repo, renderer, cfg.TenantID),
-		InvoiceHandler:      admin.NewInvoiceHandler(invoiceService, repo, renderer, cfg.TenantID),
-		PriceListHandler:    admin.NewPriceListHandler(repo, renderer, cfg.TenantID),
-		TaxRateHandler:      admin.NewTaxRateHandler(repo, renderer, cfg.TenantID),
-		IntegrationsHandler: admin.NewIntegrationsHandler(repo, renderer, cfg.TenantID, encryptor, providerValidator, providerRegistry),
-		CustomDomainHandler: admin.NewCustomDomainHandler(customDomainService, renderer),
-		PageHandler:         admin.NewPageHandler(pageService, renderer, cfg.TenantID),
-		OnboardingHandler:   admin.NewOnboardingHandler(onboardingService, renderer, cfg.TenantID),
+		LoginHandler:          admin.NewLoginHandler(operatorService, renderer, cookieConfig),
+		LogoutHandler:         admin.NewLogoutHandler(operatorService, cookieConfig),
+		ForgotPasswordHandler: admin.NewForgotPasswordHandler(operatorService, renderer),
+		ResetPasswordHandler:  admin.NewResetPasswordHandler(operatorService, renderer),
+		DashboardHandler:      admin.NewDashboardHandler(repo, renderer, cfg.TenantID, onboardingService),
+		ProductHandler:        admin.NewProductHandler(repo, renderer, fileStorage, cfg.TenantID),
+		OrderHandler:          admin.NewOrderHandler(repo, renderer, cfg.TenantID),
+		CustomerHandler:       admin.NewCustomerHandler(repo, invoiceService, renderer, cfg.TenantID),
+		SubscriptionHandler:   admin.NewSubscriptionHandler(repo, renderer, cfg.TenantID),
+		InvoiceHandler:        admin.NewInvoiceHandler(invoiceService, repo, renderer, cfg.TenantID),
+		PriceListHandler:      admin.NewPriceListHandler(repo, renderer, cfg.TenantID),
+		TaxRateHandler:        admin.NewTaxRateHandler(repo, renderer, cfg.TenantID),
+		IntegrationsHandler:   admin.NewIntegrationsHandler(repo, renderer, cfg.TenantID, encryptor, providerValidator, providerRegistry),
+		CustomDomainHandler:   admin.NewCustomDomainHandler(customDomainService, renderer),
+		PageHandler:           admin.NewPageHandler(pageService, renderer, cfg.TenantID),
+		OnboardingHandler:     admin.NewOnboardingHandler(onboardingService, renderer, cfg.TenantID),
 	}
 
 	// Webhook dependencies
@@ -554,7 +557,7 @@ func run() error {
 
 	// Register route groups
 	routes.RegisterStorefrontRoutes(r, storefrontDeps, tenantMiddleware)
-	routes.RegisterAdminRoutes(r, adminDeps)
+	routes.RegisterAdminRoutes(r, adminDeps, operatorService, repo, cookieConfig)
 	routes.RegisterAPIRoutes(r, apiDeps)
 	routes.RegisterWebhookRoutes(r, webhookDeps)
 

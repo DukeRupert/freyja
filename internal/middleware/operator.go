@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -72,17 +73,25 @@ func WithOperator(operatorService service.OperatorService) func(http.Handler) ht
 
 // RequireOperator ensures the operator is authenticated, redirecting to login if not.
 // Must be used after WithOperator middleware.
+// Redirects to /admin/login for admin routes, /login for other routes.
 func RequireOperator(cookieConfig *cookie.Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			operator := GetOperatorFromContext(r.Context())
+
+			// Determine login URL based on path prefix
+			loginURL := "/login"
+			if strings.HasPrefix(r.URL.Path, "/admin") {
+				loginURL = "/admin/login"
+			}
+
 			if operator == nil {
 				// Not authenticated, redirect to login with return URL
 				returnTo := r.URL.Path
 				if r.URL.RawQuery != "" {
 					returnTo += "?" + r.URL.RawQuery
 				}
-				http.Redirect(w, r, "/login?return_to="+url.QueryEscape(returnTo), http.StatusSeeOther)
+				http.Redirect(w, r, loginURL+"?return_to="+url.QueryEscape(returnTo), http.StatusSeeOther)
 				return
 			}
 
@@ -94,7 +103,7 @@ func RequireOperator(cookieConfig *cookie.Config) func(http.Handler) http.Handle
 				)
 				// Clear cookie and redirect to login
 				cookieConfig.ClearSession(w, operatorCookieName)
-				http.Redirect(w, r, "/login?error=account_inactive", http.StatusSeeOther)
+				http.Redirect(w, r, loginURL+"?error=account_inactive", http.StatusSeeOther)
 				return
 			}
 
