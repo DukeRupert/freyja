@@ -56,6 +56,13 @@ func RegisterSaaSRoutes(r *router.Router, deps SaaSDeps) {
 	if deps.WebhookHandler != nil {
 		r.Post("/webhooks/stripe/saas", deps.WebhookHandler.HandleStripeWebhook)
 	}
+
+	// Development-only bypass for quick tenant creation without Stripe
+	// This should NEVER be enabled in production!
+	if deps.DevBypassHandler != nil {
+		r.Get("/dev/signup", deps.DevBypassHandler.ShowDevSignupForm)
+		r.Post("/dev/signup", deps.DevBypassHandler.HandleDevSignup)
+	}
 }
 
 // redirectToPricing returns a handler that redirects to the pricing page.

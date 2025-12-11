@@ -312,13 +312,21 @@ func run() error {
 	saasSetupHandler := saas.NewSetupHandler(operatorService, saasOnboardingService, renderer, cfg.BaseURL)
 	saasWebhookHandler := saas.NewWebhookHandler(saasOnboardingService, billingProvider, cfg.Stripe.SaaSWebhookSecret)
 
+	// Dev bypass handler - only enabled in development mode
+	var saasDevBypassHandler *saas.DevBypassHandler
+	if cfg.Env == "dev" || cfg.Env == "development" {
+		saasDevBypassHandler = saas.NewDevBypassHandler(saasOnboardingService, operatorService, cfg.BaseURL)
+		logger.Warn("DEV MODE: /dev/signup bypass enabled - do NOT use in production!")
+	}
+
 	saasDeps := routes.SaaSDeps{
-		Handler:         saasHandler,
-		CheckoutHandler: saasCheckoutHandler,
-		AuthHandler:     saasAuthHandler,
-		SetupHandler:    saasSetupHandler,
-		WebhookHandler:  saasWebhookHandler,
-		CheckoutURL:     checkoutURL,
+		Handler:          saasHandler,
+		CheckoutHandler:  saasCheckoutHandler,
+		AuthHandler:      saasAuthHandler,
+		SetupHandler:     saasSetupHandler,
+		WebhookHandler:   saasWebhookHandler,
+		DevBypassHandler: saasDevBypassHandler,
+		CheckoutURL:      checkoutURL,
 	}
 
 	// Initialize page service (needed by both storefront and admin)

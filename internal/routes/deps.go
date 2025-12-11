@@ -26,6 +26,9 @@ type SaaSDeps struct {
 	// Webhook (Stripe webhook handler)
 	WebhookHandler *saas.WebhookHandler
 
+	// DevBypassHandler for development-only signup bypass (nil in production)
+	DevBypassHandler *saas.DevBypassHandler
+
 	// CheckoutURL is passed to pricing page template for client-side fetch
 	CheckoutURL string
 }
