@@ -4,7 +4,9 @@
   <img alt="Hiri" src="web/static/brand/hiri-logo.svg" height="44">
 </picture>
 
-E-commerce platform built exclusively for coffee roasters.
+Everything you need to sell coffee online—retail, wholesale, subscriptions—one flat price.
+
+*Launching Spring 2026*
 
 ## The Problem
 
@@ -16,22 +18,9 @@ Small coffee roasters face a difficult choice when selling online:
 
 The result: roasters overpay for fragmented tools or simply don't offer capabilities that would grow their business.
 
-## The Solution
+## Who It's For
 
-Hiri provides integrated B2C and B2B e-commerce at a flat $149/month—no plugins, no transaction fees.
-
-### Features
-
-- **Coffee-first product catalog** — Origin, process, roast level, and tasting notes as first-class attributes
-- **Flexible pricing** — Multiple price lists for retail, wholesale tiers, and custom accounts
-- **Built-in subscriptions** — Weekly to bi-monthly frequencies, pause/skip/cancel, failed payment handling
-- **Wholesale accounts** — Application workflow, net terms (Net 15/30), minimum order quantities
-- **Consolidated invoicing** — Accumulate orders within billing cycles, generate single invoices
-- **One predictable price** — Everything included for $149/month
-
-### Target Customer
-
-Independent coffee roasters with 1-5 locations who sell online and want to grow or formalize wholesale—without enterprise complexity or pricing.
+Independent roasters with 1–5 locations who sell online and want to grow wholesale—without paying for enterprise software they'll never fully use.
 
 ## About the Name
 
@@ -39,6 +28,15 @@ Hiri is the name for the traditional trade voyages of the Motu people of Papua N
 
 The name reflects both the project's purpose (enabling trade) and its origin (the founder grew up in a Motu village).
 
-## License
+## The Solution
 
-**Proprietary** — All rights reserved. This software is not open source. Unauthorized copying, modification, distribution, or use is prohibited.
+Hiri provides integrated B2C and B2B e-commerce at a flat $149/month—no plugins, no transaction fees.
+
+### Features
+
+- **Your coffee, presented properly** — Origin, process, roast level, and tasting notes are built in—no custom fields or workarounds
+- **Price it your way** — Manage retail, wholesale tiers, and special account pricing in one place
+- **Subscriptions that just work** — Weekly to bi-monthly frequencies, customer self-service for pause/skip/cancel, automatic retry on failed payments
+- **Wholesale without the spreadsheets** — Cafés apply online, you approve them, set their payment terms (Net 15/30), and enforce minimums—all in one place
+- **One invoice, not twenty** — Bundle a wholesale customer's monthly orders into a single invoice
+- **No surprises on your bill** — $149/month. No transaction fees, no plugins to buy, no tiers to unlock
