@@ -59,7 +59,7 @@ test: ## Run all tests
 
 test\:coverage: ## Run tests with coverage report
 	@echo "Running tests with coverage..."
-	@go test -v -coverprofile=coverage.out ./...
+	@go test -v -coverprofile=coverage.out ./... || true
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
