@@ -67,12 +67,16 @@ func (m *mockPaymentTermsService) CalculateDueDateFromTerms(terms *repository.Pa
 // mockBillingProvider implements billing.Provider for testing
 type mockBillingProvider struct {
 	createCustomerResult *billing.Customer
+	createCustomerErr    error // when set, CreateCustomer returns this error
 	createInvoiceResult  *billing.Invoice
 	finalizeInvoiceResult *billing.Invoice
 	sendErr              error
 }
 
 func (m *mockBillingProvider) CreateCustomer(ctx context.Context, params billing.CreateCustomerParams) (*billing.Customer, error) {
+	if m.createCustomerErr != nil {
+		return nil, m.createCustomerErr
+	}
 	if m.createCustomerResult == nil {
 		return &billing.Customer{ID: "cus_test123"}, nil
 	}
@@ -317,6 +321,11 @@ func Test_CreateInvoice_OnlyWholesaleUsersAllowed(t *testing.T) {
 					GetOrderItems(ctx, orderID).
 					Return([]repository.GetOrderItemsRow{}, nil)
 
+				// CreateInvoiceItem is called for shipping line item (ShippingCents > 0)
+				mockRepo.EXPECT().
+					CreateInvoiceItem(ctx, gomock.Any()).
+					Return(repository.InvoiceItem{}, nil).AnyTimes()
+
 				mockRepo.EXPECT().
 					GetInvoiceByID(ctx, gomock.Any()).
 					Return(repository.Invoice{
@@ -529,6 +538,11 @@ func Test_CreateInvoice_AllOrdersMustBeWholesaleType(t *testing.T) {
 					GetOrderItems(ctx, orderID).
 					Return([]repository.GetOrderItemsRow{}, nil)
 
+				// CreateInvoiceItem for shipping (ShippingCents > 0)
+				mockRepo.EXPECT().
+					CreateInvoiceItem(ctx, gomock.Any()).
+					Return(repository.InvoiceItem{}, nil).AnyTimes()
+
 				mockRepo.EXPECT().
 					GetInvoiceByID(ctx, gomock.Any()).
 					Return(repository.Invoice{
@@ -679,6 +693,11 @@ func Test_CreateInvoice_PaymentTermsCorrectlyApplied(t *testing.T) {
 			mockRepo.EXPECT().
 				GetOrderItems(ctx, orderID).
 				Return([]repository.GetOrderItemsRow{}, nil)
+
+			// CreateInvoiceItem for shipping (ShippingCents > 0)
+			mockRepo.EXPECT().
+				CreateInvoiceItem(ctx, gomock.Any()).
+				Return(repository.InvoiceItem{}, nil).AnyTimes()
 
 			mockRepo.EXPECT().
 				GetInvoiceByID(ctx, gomock.Any()).
@@ -912,7 +931,12 @@ func Test_GenerateConsolidatedInvoice_FindsUninvoicedOrders(t *testing.T) {
 				Days: 30,
 			},
 		}
-		mockBilling := &mockBillingProvider{}
+		// Make CreateCustomer return an error so SendInvoice fails fast
+		// Since SendImmediately=true is hardcoded, we need SendInvoice to fail gracefully
+		// The error is ignored (_ = s.SendInvoice) so this won't break the test
+		mockBilling := &mockBillingProvider{
+			createCustomerErr: errors.New("stripe unavailable - expected in test"),
+		}
 
 		svc := NewInvoiceService(mockRepo, mockPaymentTerms, mockBilling)
 
@@ -1001,28 +1025,19 @@ func Test_GenerateConsolidatedInvoice_FindsUninvoicedOrders(t *testing.T) {
 			Return([]repository.GetOrderItemsRow{}, nil).
 			Times(2)
 
-		// Expect calls for GetInvoice
+		// CreateInvoiceItem for shipping (ShippingCents > 0) - 2 orders
 		mockRepo.EXPECT().
-			GetInvoiceByID(ctx, gomock.Any()).
-			Return(repository.Invoice{
-				ID:       createTestInvoiceID(),
-				TenantID: tenantID,
-				UserID:   userID,
-				Status:   "draft",
-			}, nil)
+			CreateInvoiceItem(ctx, gomock.Any()).
+			Return(repository.InvoiceItem{}, nil).AnyTimes()
 
+		// For SendInvoice (SendImmediately=true) - GetBillingCustomerByUserID will be called,
+		// then CreateCustomer will fail (from mockBilling.createCustomerErr), so SendInvoice
+		// returns early. The error is ignored (_ = s.SendInvoice).
 		mockRepo.EXPECT().
-			GetInvoiceItems(ctx, gomock.Any()).
-			Return([]repository.InvoiceItem{}, nil)
+			GetBillingCustomerByUserID(ctx, gomock.Any()).
+			Return(repository.BillingCustomer{}, errors.New("not found"))
 
-		mockRepo.EXPECT().
-			GetInvoiceOrders(ctx, gomock.Any()).
-			Return([]repository.GetInvoiceOrdersRow{}, nil)
-
-		mockRepo.EXPECT().
-			GetInvoicePayments(ctx, gomock.Any()).
-			Return([]repository.InvoicePayment{}, nil)
-
+		// SendInvoice calls GetUserByID when GetBillingCustomerByUserID fails (to get user info for Stripe)
 		mockRepo.EXPECT().
 			GetUserByID(ctx, userID).
 			Return(repository.User{
@@ -1030,12 +1045,30 @@ func Test_GenerateConsolidatedInvoice_FindsUninvoicedOrders(t *testing.T) {
 				TenantID:    tenantID,
 				Email:       "test@example.com",
 				AccountType: "wholesale",
-			}, nil)
+			}, nil).AnyTimes()
 
-		// For SendInvoice (SendImmediately=true)
+		// GetInvoiceByID is called by SendInvoice (to validate draft status) and by GetInvoice (return value)
 		mockRepo.EXPECT().
 			GetInvoiceByID(ctx, gomock.Any()).
-			Return(repository.Invoice{}, errors.New("not found"))
+			Return(repository.Invoice{
+				ID:       createTestInvoiceID(),
+				TenantID: tenantID,
+				UserID:   userID,
+				Status:   "draft",
+			}, nil).AnyTimes()
+
+		// GetInvoice returns invoice with items, orders, payments
+		mockRepo.EXPECT().
+			GetInvoiceItems(ctx, gomock.Any()).
+			Return([]repository.InvoiceItem{}, nil).AnyTimes()
+
+		mockRepo.EXPECT().
+			GetInvoiceOrders(ctx, gomock.Any()).
+			Return([]repository.GetInvoiceOrdersRow{}, nil).AnyTimes()
+
+		mockRepo.EXPECT().
+			GetInvoicePayments(ctx, gomock.Any()).
+			Return([]repository.InvoicePayment{}, nil).AnyTimes()
 
 		params := ConsolidatedInvoiceParams{
 			UserID:             userID.String(),
@@ -1152,7 +1185,7 @@ func Test_MarkInvoicesOverdue_UpdatesStatusCorrectly(t *testing.T) {
 					},
 				}, nil)
 
-			// If should update, expect UpdateInvoiceStatus and GetUserByID
+			// If should update, expect UpdateInvoiceStatus, GetUserByID, and EnqueueJob
 			if tt.shouldUpdate {
 				mockRepo.EXPECT().
 					UpdateInvoiceStatus(ctx, repository.UpdateInvoiceStatusParams{
@@ -1168,6 +1201,11 @@ func Test_MarkInvoicesOverdue_UpdatesStatusCorrectly(t *testing.T) {
 						ID:    userID,
 						Email: "test@example.com",
 					}, nil)
+
+				// EnqueueJob for overdue email notification
+				mockRepo.EXPECT().
+					EnqueueJob(ctx, gomock.Any()).
+					Return(repository.Job{}, nil)
 			}
 
 			count, err := svc.MarkInvoicesOverdue(ctx)
@@ -1232,6 +1270,11 @@ func Test_MarkInvoicesOverdue_OnlyInvoicesPastDueDate(t *testing.T) {
 			ID:    userID,
 			Email: "test@example.com",
 		}, nil)
+
+	// EnqueueJob for overdue email notification
+	mockRepo.EXPECT().
+		EnqueueJob(ctx, gomock.Any()).
+		Return(repository.Job{}, nil)
 
 	count, err := svc.MarkInvoicesOverdue(ctx)
 
