@@ -1,31 +1,68 @@
-# Freyja Business Analysis
+# Hiri Business Case
 
-## Market Opportunity
+## Purpose
 
-Small coffee roasters (1-5 locations, $200k-2M annual revenue) face a gap in e-commerce tooling. Their options:
+Hiri is an e-commerce platform built exclusively for coffee roasters. It provides the business-critical features that small roasting operations need to sell both direct-to-consumer and wholesale—without the enterprise pricing or complexity of general-purpose platforms.
 
-**General platforms with plugins ($150-350/month)**
-Shopify or similar plus subscriptions app plus wholesale app plus invoicing app. Works, but expensive, fragmented, and none of it understands coffee.
+**Core thesis:** By building exclusively for coffee products, we eliminate the complexity that general-purpose platforms must carry. This lets a solo developer build and maintain what would otherwise require a team, passing the cost savings to customers.
 
-**Wholesale-specific platforms (15-25% commission or $300+/month)**
-Built for large distributors, overbuilt and overpriced for small producers.
+## The Problem
 
-**Basic e-commerce ($30-80/month)**
-Handles B2C adequately but offers no real B2B support. Roasters outgrow it quickly once wholesale accounts matter.
+Small coffee roasters (1-5 locations) face a difficult choice when setting up e-commerce:
 
-Freyja targets the gap: business-critical features at small-business prices, purpose-built for coffee.
+**General platforms (Shopify, WooCommerce, BigCommerce)**
+- Handle B2C well but B2B is an afterthought or expensive add-on
+- Wholesale pricing tiers, net terms, and custom billing intervals require plugins that cost $50-300/month each
+- Subscription functionality often requires yet another paid app
+- None of these tools understand coffee—roasters end up hacking together solutions for roast dates, grind options, and origin metadata
+
+**Wholesale-focused platforms**
+- Built for large distributors, not small producers
+- Overcomplicated for a roaster doing $200k-2M in annual revenue
+- Pricing reflects enterprise sales cycles, not small business budgets
+
+**The result:** Roasters either overpay for features they need, cobble together fragile integrations, or simply don't offer capabilities (like subscriptions or proper wholesale accounts) that would grow their business.
+
+## Target Customer
+
+Independent coffee roasters with 1-5 retail locations who:
+
+- Sell roasted coffee online (B2C) and want to grow or formalize wholesale (B2B)
+- Currently use a patchwork of tools or a platform that doesn't quite fit
+- Have revenue between $200k-2M annually
+- Value reliability and simplicity over endless customization options
+- Would rather pay a fair, predictable price than negotiate enterprise contracts
+
+## What Hiri Is Not
+
+- A general-purpose e-commerce platform (we will never sell "products"—only coffee)
+- A marketplace (each roaster gets their own store)
+- A platform for large-scale distributors or multinational coffee companies
+- A point-of-sale system (focused on online sales, not in-store)
+
+## Success Criteria
+
+Hiri succeeds if a small roaster can:
+
+1. Set up a complete online store in a day, not a week
+2. Manage both retail and wholesale customers in one place
+3. Offer subscriptions without integrating a third-party service
+4. Invoice wholesale accounts on flexible terms without spreadsheets
+5. Pay a price that makes sense for their business size
 
 ---
 
-## Competitive Positioning
+## Market Opportunity
+
+Small coffee roasters (1-5 locations, $200k-2M annual revenue) face a gap in e-commerce tooling:
 
 | Solution | Monthly Cost | B2B Support | Subscriptions | Coffee-Specific |
 |----------|--------------|-------------|---------------|-----------------|
-| Shopify Basic | $39 | ❌ | ❌ | ❌ |
-| Shopify + plugins | $150-350 | Plugin | Plugin | ❌ |
-| BigCommerce + B2B | $300+ | Built-in | Plugin | ❌ |
-| Wholesale platforms | 15-25% cut | ✅ | ❌ | ❌ |
-| **Freyja** | **$149** | **Built-in** | **Built-in** | **✅** |
+| Shopify Basic | $39 | - | - | - |
+| Shopify + plugins | $150-350 | Plugin | Plugin | - |
+| BigCommerce + B2B | $300+ | Built-in | Plugin | - |
+| Wholesale platforms | 15-25% cut | Yes | - | - |
+| **Hiri** | **$149** | **Built-in** | **Built-in** | **Yes** |
 
 **Example customer scenario:**
 
@@ -36,167 +73,74 @@ A roaster doing $50k/month in combined B2C and B2B sales currently pays:
 - Invoice app: $30
 - **Total: $199/month** across four separate tools
 
-Freyja offers one integrated system for $149/month with no transaction fees. Clear value, simpler operations.
+Hiri offers one integrated system for $149/month with no transaction fees.
 
 ---
 
-## Pricing Strategy
+## Pricing
 
 **Model:** Flat monthly subscription
 
-**Price point:** $149/month
+| Plan | Price |
+|------|-------|
+| Monthly | $149/month |
+| Annual | $129/month ($1,548/year) |
 
-**Annual option:** $129/month ($1,548/year paid upfront)
+**What's included:** Everything. No plugins, no tiers, no transaction fees.
 
-**Rationale:**
-- Simple to communicate: "Everything you need for $149/month, no plugins, no transaction fees"
-- Undercuts typical Shopify + plugins stack by $50-200/month
-- Predictable for customers—no surprise costs as they grow
-- Annual discount improves cash flow and reduces churn
-- Room to add tiers later based on observed usage patterns
-
-**What's not included:**
-- Stripe payment processing fees (2.9% + $0.30) — passed through to customer, industry standard
-- No Freyja transaction fees — cost transparency is a selling point
+**What's not included:** Stripe payment processing fees (2.9% + $0.30)—passed through at cost, industry standard.
 
 ---
 
-## Architecture Decision: Multi-Tenant
+## Unit Economics
 
-Freyja will use a multi-tenant architecture (shared database, all customers in one instance).
+### Cost Structure
 
-**Why multi-tenant:**
+**Fixed costs (monthly):**
+- Base VPS (application + database): $50-100
+- Domain/DNS: ~$2
+- Transactional email: $0-20
+- **Total: ~$75-125/month**
 
-| Benefit | Impact |
-|---------|--------|
-| Lower infrastructure cost per customer | ~$3-7 variable cost vs $15-30 for single-tenant |
-| Single deployment updates all customers | Manageable by solo developer |
-| One database to back up and monitor | Simpler operations |
-| Scales efficiently to 100+ customers | Infrastructure grows slowly with customer count |
+**Variable costs (per customer/month):**
+- Incremental compute/database: $1-3
+- Email volume: $1-3
+- File storage: $0.50-1
+- **Total: ~$3-7/month**
 
-**Tradeoffs accepted:**
+### Contribution Margin
 
-| Risk | Mitigation |
-|------|------------|
-| Noisy neighbor (one customer slows others) | Unlikely at target scale; monitor and address if needed |
-| Data isolation concerns | Rigorous tenant_id scoping, tested in CI |
-| One bug affects everyone | Staged rollouts, good test coverage |
+$149 price - $5 average variable cost = **$144/month per customer**
 
-**Future option:** Offer single-tenant as a premium tier if larger customers demand dedicated resources.
+### Break-Even
 
----
+| Milestone | Customers | Monthly Revenue | Gross Margin |
+|-----------|-----------|-----------------|--------------|
+| Cash break-even | 1 | $149 | $44 |
+| Time break-even* | 14 | $2,086 | $2,000 |
+| Sustainable | 25 | $3,725 | $3,450 |
+| Profitable | 50 | $7,450 | $7,000 |
 
-## Cost Structure
-
-### Fixed Costs (monthly, regardless of customer count)
-
-| Item | Cost |
-|------|------|
-| Base VPS (application + database) | $50-100 |
-| Domain and DNS | ~$2 |
-| Transactional email service | $0-20 |
-| Error tracking (free tier) | $0 |
-| **Total fixed** | **~$75-125/month** |
-
-### Variable Costs (per customer/month)
-
-| Item | Cost |
-|------|------|
-| Incremental compute and database | $1-3 |
-| Email volume | $1-3 |
-| File storage (product images) | $0.50-1 |
-| **Total variable** | **~$3-7/month** |
-
-Support (email only, handled by founder) is not included as a cash cost but is a significant time investment, especially in early stages.
-
----
-
-## Break-Even Analysis
-
-**Contribution margin per customer:**
-$149 price - $5 average variable cost = **$144/month**
-
-**Cash break-even:**
-$100 fixed costs ÷ $144 contribution = **1 customer**
-
-Infrastructure costs are covered almost immediately. The meaningful break-even is founder time.
-
-**Time-adjusted break-even:**
-
-If founder time is valued at $100/hour and Freyja requires 20 hours/month at low customer counts:
-- Opportunity cost: $2,000/month
-- Break-even: ~14 customers
-
-This is a rough heuristic. Actual time investment will vary based on support load and development pace.
-
----
-
-## Growth Projections
-
-| Customers | Monthly Revenue | Variable Costs | Fixed Costs | Gross Margin |
-|-----------|-----------------|----------------|-------------|--------------|
-| 5 | $745 | $25 | $100 | $620 |
-| 10 | $1,490 | $50 | $100 | $1,340 |
-| 25 | $3,725 | $125 | $150* | $3,450 |
-| 50 | $7,450 | $250 | $200* | $7,000 |
-| 100 | $14,900 | $500 | $400* | $14,000 |
-
-*Fixed costs increase modestly with scale (larger VPS, paid tiers of services).
-
-**At 25 customers:** Revenue supports part-time support hire or continued solo operation with healthy margin.
-
-**At 50+ customers:** Business is sustainable and profitable. Decision point on whether to grow aggressively or maintain as lifestyle business.
-
----
-
-## Support Model
-
-**Initial approach:** Email only, handled by founder
-
-**Rationale:**
-- Keeps costs at zero until revenue supports hiring
-- Direct customer contact builds product insight
-- Email creates natural async buffer, manageable alongside development
-
-**Transition point:** At ~25 customers, evaluate whether to:
-- Hire part-time support help
-- Implement self-service knowledge base to reduce volume
-- Continue solo if volume is manageable
-
-**Not planned:**
-- Live chat (high interrupt cost for solo developer)
-- Phone support (doesn't scale, not expected at this price point)
-
----
-
-## Risks and Mitigations
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Low customer acquisition | Medium | High | Validate with 5-10 design partners before heavy development |
-| Support volume overwhelms founder | Medium | Medium | Build good documentation, consider self-service portal early |
-| Larger competitor copies features | Low | Medium | Speed and focus; they can't justify eng time for small niche |
-| Churn from customers outgrowing platform | Low | Low | Target market has natural ceiling; larger roasters aren't the goal |
-| Stripe dependency | Low | High | Abstract billing interface allows future alternatives |
+*Assuming founder time valued at $100/hour, 20 hours/month at low customer counts.
 
 ---
 
 ## Validation Milestones
 
-Before heavy investment, validate demand:
-
-1. **Design partners (0-5 customers):** Find 3-5 roasters willing to use early builds and provide feedback. Can be free or heavily discounted.
+1. **Design partners (0-5 customers):** Find 3-5 roasters willing to use early builds and provide feedback. Free or heavily discounted.
 
 2. **Paying pilot (5-10 customers):** Convert design partners and acquire new customers at $99-149/month. Validates willingness to pay.
 
-3. **Sustainable operation (25+ customers):** Revenue covers costs with margin. Product is validated; focus shifts to growth.
+3. **Sustainable operation (25+ customers):** Revenue covers costs with margin. Product validated; focus shifts to growth.
 
 ---
 
-## Summary
+## Risks
 
-The niche exists: small roasters paying $150-350/month for fragmented tools, or making do without proper B2B features. Freyja offers an integrated solution at $149/month with clear value.
-
-Multi-tenant architecture keeps variable costs around $5/customer, yielding strong unit economics. Cash break-even is nearly immediate; time break-even is ~14 customers.
-
-The question isn't whether the product can work economically—it's whether the target customers can be reached efficiently. That's a marketing and distribution problem to solve alongside product development.
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Low customer acquisition | Medium | High | Validate with design partners before heavy development |
+| Support volume overwhelms founder | Medium | Medium | Build good documentation, self-service portal |
+| Larger competitor copies features | Low | Medium | Speed and focus; they can't justify eng time for small niche |
+| Churn from customers outgrowing | Low | Low | Target market has natural ceiling |
+| Stripe dependency | Low | High | Abstract billing interface allows future alternatives |

@@ -82,6 +82,41 @@ The palette draws subtle inspiration from Hiri Moale festival colors—the red o
 - Semantic colors appear only when conveying status or feedback
 - The palette should feel warm and grounded, never cold or stark
 
+### Logo
+
+The logo combines a stylized double crab-claw sail mark with the Hiri wordmark.
+
+**Mark:** Two overlapping sail shapes inspired by lakatoi crab-claw sails. The back sail renders at 35% opacity to create depth.
+
+**Wordmark:** "hiri" in lowercase Outfit Semibold.
+
+| Element | Specification |
+|---------|---------------|
+| Typeface | Outfit (Google Fonts) |
+| Weight | Semibold (600) |
+| Case | lowercase |
+| Letter spacing | -0.01em (standard), 0.25em (app icon) |
+| Primary color | #2D7A7A (Gulf teal) |
+| Back sail opacity | 35% (logo), 40% (app icon) |
+
+**Variants:**
+- **Primary**: Teal mark + dark wordmark on light background
+- **Dark mode**: Off-white mark + wordmark on dark background
+- **Brand background**: Off-white mark + wordmark on teal background
+- **Monochrome**: Single color (dark or light) for both elements
+
+**App icon:** Sails + wordmark on teal rounded square (rx="14" on 64px = ~22% radius). At sizes below 32px, use sails-only version for legibility.
+
+**Clear space:** Maintain padding equal to the height of the "h" in the wordmark on all sides.
+
+**Usage:**
+- Don't stretch, rotate, or alter proportions
+- Don't change the sail opacity relationship
+- Don't use colors outside the defined palette
+- Don't add effects (shadows, gradients, outlines)
+
+See `planning/LOGO.html` for visual reference and SVG source.
+
 ### Typography
 
 **Font stack:** System sans-serif
@@ -424,8 +459,8 @@ The Hiri name comes from the traditional trade voyages of the Motu people of Pap
 **Color inspiration:**
 The palette draws from Hiri Moale festival imagery—the red ochre and white of ceremonial body paint, the golden grass skirts swaying in the Hiri Hanenamo dance, the terracotta of traded clay pots (uro), the deep wood of lakatoi hulls, and the coastal teal of Gulf waters. These appear in muted, professional form throughout the interface.
 
-**Subtle nods (use sparingly):**
-- Logo: Could incorporate sail or wave geometry (the lakatoi trading canoes had distinctive crab-claw sails)
+**Subtle nods:**
+- Logo: The double crab-claw sail mark references the distinctive sails of lakatoi trading canoes
 - Accent palette: Warm, earthy tones complement the coffee context and echo the coastal/trade heritage
 - Language: The word "hiri" itself is the primary brand expression
 

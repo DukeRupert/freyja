@@ -6,135 +6,39 @@
 
 E-commerce platform built exclusively for coffee roasters.
 
-## Quick Start
+## The Problem
 
-### Prerequisites
+Small coffee roasters face a difficult choice when selling online:
 
-- Go 1.25.4 or later
-- Docker and Docker Compose
-- Make
+- **General platforms** handle B2C well, but wholesale pricing, net terms, and subscriptions require expensive plugins ($150-350/month total)
+- **Wholesale platforms** are overbuilt and overpriced for businesses doing $200k-2M annually
+- **None of them understand coffee**—roasters hack together solutions for roast dates, grind options, and origin metadata
 
-### Initial Setup
+The result: roasters overpay for fragmented tools or simply don't offer capabilities that would grow their business.
 
-1. **Install development tools:**
-   ```bash
-   make install-tools
-   ```
+## The Solution
 
-   This installs:
-   - `goose` - Database migrations
-   - `sqlc` - Type-safe SQL queries
-   - `air` - Live reload for development
+Hiri provides integrated B2C and B2B e-commerce at a flat $149/month—no plugins, no transaction fees.
 
-2. **Start Docker services:**
-   ```bash
-   make docker-up
-   ```
+### Features
 
-   This starts:
-   - PostgreSQL on port 5432
-   - Mailhog on ports 1025 (SMTP) and 8025 (Web UI)
+- **Coffee-first product catalog** — Origin, process, roast level, and tasting notes as first-class attributes
+- **Flexible pricing** — Multiple price lists for retail, wholesale tiers, and custom accounts
+- **Built-in subscriptions** — Weekly to bi-monthly frequencies, pause/skip/cancel, failed payment handling
+- **Wholesale accounts** — Application workflow, net terms (Net 15/30), minimum order quantities
+- **Consolidated invoicing** — Accumulate orders within billing cycles, generate single invoices
+- **One predictable price** — Everything included for $149/month
 
-3. **Configure environment:**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your settings (defaults work for local development)
-   ```
+### Target Customer
 
-4. **Install Go dependencies:**
-   ```bash
-   make deps
-   ```
+Independent coffee roasters with 1-5 locations who sell online and want to grow or formalize wholesale—without enterprise complexity or pricing.
 
-5. **Run migrations** (once database schema is created):
-   ```bash
-   make migrate
-   ```
+## About the Name
 
-6. **Generate sqlc code** (once queries are written):
-   ```bash
-   make sqlc-gen
-   ```
+Hiri is the name for the traditional trade voyages of the Motu people of Papua New Guinea. For centuries, Motu traders sailed large multi-hulled canoes called *lakatoi* along the Gulf of Papua, exchanging clay pots for sago. The trade language developed for these voyages—Hiri Motu—became one of Papua New Guinea's three official languages.
 
-7. **Start development server:**
-   ```bash
-   make dev
-   ```
-
-   The application will start on http://localhost:3000 with live reload enabled.
-
-## Development
-
-### Available Commands
-
-Run `make help` to see all available commands:
-
-```bash
-make help              # Show all available commands
-make dev               # Start development server with live reload
-make build             # Build the application
-make test              # Run tests
-make test-coverage     # Run tests with coverage report
-make migrate           # Run database migrations
-make migrate-down      # Rollback last migration
-make migrate-create    # Create new migration (NAME=migration_name)
-make sqlc-gen          # Generate sqlc code
-make docker-up         # Start Docker services
-make docker-down       # Stop Docker services
-make clean             # Clean build artifacts
-```
-
-### Project Structure
-
-```
-hiri/
-├── cmd/server/              # Application entry point
-├── internal/
-│   ├── config/              # Configuration
-│   ├── domain/              # Business domain types
-│   ├── billing/             # Payment processing (Stripe)
-│   ├── shipping/            # Shipping providers
-│   ├── email/               # Email sending
-│   ├── repository/          # Database queries (sqlc generated)
-│   ├── handler/             # HTTP handlers
-│   ├── middleware/          # HTTP middleware
-│   ├── jobs/                # Background jobs
-│   └── worker/              # Job processing
-├── migrations/              # SQL migrations
-├── sqlc/                    # sqlc configuration and queries
-├── web/                     # Templates and static assets
-└── planning/                # Project documentation
-```
-
-### Development Workflow
-
-1. Write database migrations in `migrations/`
-2. Run `make migrate` to apply migrations
-3. Write SQL queries in `sqlc/queries/`
-4. Run `make sqlc-gen` to generate type-safe Go code
-5. Write handlers, middleware, and business logic
-6. Run `make dev` for live reload during development
-7. Run `make test` to verify changes
-
-### Services
-
-- **Application**: http://localhost:3000
-- **PostgreSQL**: localhost:5432
-  - Database: `hiri`
-  - User: `hiri`
-  - Password: `password`
-- **Mailhog Web UI**: http://localhost:8025
-- **Mailhog SMTP**: localhost:1025
-
-## Documentation
-
-- [Project Purpose](planning/PURPOSE.md) - Vision and target customer
-- [Technical Decisions](planning/TECHNICAL.md) - Architecture and technology choices
-- [Roadmap](planning/ROADMAP.md) - Feature roadmap and milestones
-- [Business Model](planning/BUSINESS.md) - Market positioning and economics
-- [UI Direction](planning/UI_DIRECTION.md) - Design philosophy and guidelines
-- [Claude Code Guide](CLAUDE.md) - Guide for AI-assisted development
+The name reflects both the project's purpose (enabling trade) and its origin (the founder grew up in a Motu village).
 
 ## License
 
-Proprietary - All rights reserved
+**Proprietary** — All rights reserved. This software is not open source. Unauthorized copying, modification, distribution, or use is prohibited.
