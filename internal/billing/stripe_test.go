@@ -950,7 +950,7 @@ func TestPostMVP_MethodsReturnNotImplemented(t *testing.T) {
 	})
 
 	t.Run("CreateSubscription returns not implemented", func(t *testing.T) {
-		sub, err := mock.CreateSubscription(ctx, SubscriptionParams{
+		sub, err := mock.CreateSubscription(ctx, CreateSubscriptionParams{
 			CustomerID: "cus_test_123",
 			PriceID:    "price_test_123",
 			Quantity:   1,

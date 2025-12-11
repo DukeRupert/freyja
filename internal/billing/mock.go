@@ -192,7 +192,7 @@ func (m *MockProvider) UpdateCustomer(ctx context.Context, customerID string, pa
 }
 
 // CreateSubscription creates a mock subscription.
-func (m *MockProvider) CreateSubscription(ctx context.Context, params SubscriptionParams) (*Subscription, error) {
+func (m *MockProvider) CreateSubscription(ctx context.Context, params CreateSubscriptionParams) (*Subscription, error) {
 	m.CallLog = append(m.CallLog, "CreateSubscription")
 	return nil, ErrNotImplemented
 }
@@ -236,6 +236,54 @@ func (m *MockProvider) CreateCustomerPortalSession(ctx context.Context, params C
 // RefundPayment refunds a mock payment.
 func (m *MockProvider) RefundPayment(ctx context.Context, params RefundParams) (*Refund, error) {
 	m.CallLog = append(m.CallLog, "RefundPayment")
+	return nil, ErrNotImplemented
+}
+
+// CreateProduct creates a mock product.
+func (m *MockProvider) CreateProduct(ctx context.Context, params CreateProductParams) (*Product, error) {
+	m.CallLog = append(m.CallLog, "CreateProduct")
+	return nil, ErrNotImplemented
+}
+
+// GetInvoice retrieves a mock invoice.
+func (m *MockProvider) GetInvoice(ctx context.Context, params GetInvoiceParams) (*Invoice, error) {
+	m.CallLog = append(m.CallLog, "GetInvoice")
+	return nil, ErrNotImplemented
+}
+
+// CreateInvoice creates a mock invoice.
+func (m *MockProvider) CreateInvoice(ctx context.Context, params CreateInvoiceParams) (*Invoice, error) {
+	m.CallLog = append(m.CallLog, "CreateInvoice")
+	return nil, ErrNotImplemented
+}
+
+// AddInvoiceItem adds an item to a mock invoice.
+func (m *MockProvider) AddInvoiceItem(ctx context.Context, params AddInvoiceItemParams) error {
+	m.CallLog = append(m.CallLog, "AddInvoiceItem")
+	return ErrNotImplemented
+}
+
+// FinalizeInvoice finalizes a mock invoice.
+func (m *MockProvider) FinalizeInvoice(ctx context.Context, params FinalizeInvoiceParams) (*Invoice, error) {
+	m.CallLog = append(m.CallLog, "FinalizeInvoice")
+	return nil, ErrNotImplemented
+}
+
+// SendInvoice sends a mock invoice.
+func (m *MockProvider) SendInvoice(ctx context.Context, params SendInvoiceParams) error {
+	m.CallLog = append(m.CallLog, "SendInvoice")
+	return ErrNotImplemented
+}
+
+// VoidInvoice voids a mock invoice.
+func (m *MockProvider) VoidInvoice(ctx context.Context, params VoidInvoiceParams) error {
+	m.CallLog = append(m.CallLog, "VoidInvoice")
+	return ErrNotImplemented
+}
+
+// PayInvoice pays a mock invoice.
+func (m *MockProvider) PayInvoice(ctx context.Context, params PayInvoiceParams) (*Invoice, error) {
+	m.CallLog = append(m.CallLog, "PayInvoice")
 	return nil, ErrNotImplemented
 }
 
