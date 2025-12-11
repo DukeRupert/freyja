@@ -2,7 +2,6 @@ package admin
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/dukerupert/hiri/internal/domain"
@@ -10,31 +9,22 @@ import (
 	"github.com/dukerupert/hiri/internal/middleware"
 	"github.com/dukerupert/hiri/internal/onboarding"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // OnboardingHandler handles onboarding checklist routes
 type OnboardingHandler struct {
 	service  *onboarding.Service
 	renderer *handler.Renderer
-	tenantID pgtype.UUID
 }
 
 // NewOnboardingHandler creates a new onboarding handler
 func NewOnboardingHandler(
 	service *onboarding.Service,
 	renderer *handler.Renderer,
-	tenantID string,
 ) *OnboardingHandler {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		panic(fmt.Sprintf("invalid tenant ID: %v", err))
-	}
-
 	return &OnboardingHandler{
 		service:  service,
 		renderer: renderer,
-		tenantID: tenantUUID,
 	}
 }
 
@@ -43,8 +33,13 @@ func NewOnboardingHandler(
 // Can return JSON (for API) or HTML (for dashboard widget).
 func (h *OnboardingHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantIDPg := getTenantID(ctx)
+	if !tenantIDPg.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
-	tenantID, err := uuid.FromBytes(h.tenantID.Bytes[:])
+	tenantID, err := uuid.FromBytes(tenantIDPg.Bytes[:])
 	if err != nil {
 		handler.InternalErrorResponse(w, r, err)
 		return
@@ -80,8 +75,13 @@ func (h *OnboardingHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 // Always returns JSON response for API clients.
 func (h *OnboardingHandler) GetStatusJSON(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantIDPg := getTenantID(ctx)
+	if !tenantIDPg.Valid {
+		writeJSONError(w, "No tenant context", http.StatusUnauthorized)
+		return
+	}
 
-	tenantID, err := uuid.FromBytes(h.tenantID.Bytes[:])
+	tenantID, err := uuid.FromBytes(tenantIDPg.Bytes[:])
 	if err != nil {
 		writeJSONError(w, "Invalid tenant ID", http.StatusInternalServerError)
 		return
@@ -101,6 +101,11 @@ func (h *OnboardingHandler) GetStatusJSON(w http.ResponseWriter, r *http.Request
 // Marks an optional item as skipped.
 func (h *OnboardingHandler) SkipItem(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantIDPg := getTenantID(ctx)
+	if !tenantIDPg.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
 	itemID := r.PathValue("item_id")
 	if itemID == "" {
@@ -108,7 +113,7 @@ func (h *OnboardingHandler) SkipItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tenantID, err := uuid.FromBytes(h.tenantID.Bytes[:])
+	tenantID, err := uuid.FromBytes(tenantIDPg.Bytes[:])
 	if err != nil {
 		handler.InternalErrorResponse(w, r, err)
 		return
@@ -145,6 +150,11 @@ func (h *OnboardingHandler) SkipItem(w http.ResponseWriter, r *http.Request) {
 // Removes skip flag from an item.
 func (h *OnboardingHandler) UnskipItem(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantIDPg := getTenantID(ctx)
+	if !tenantIDPg.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
 	itemID := r.PathValue("item_id")
 	if itemID == "" {
@@ -152,7 +162,7 @@ func (h *OnboardingHandler) UnskipItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tenantID, err := uuid.FromBytes(h.tenantID.Bytes[:])
+	tenantID, err := uuid.FromBytes(tenantIDPg.Bytes[:])
 	if err != nil {
 		handler.InternalErrorResponse(w, r, err)
 		return
@@ -181,8 +191,13 @@ func (h *OnboardingHandler) UnskipItem(w http.ResponseWriter, r *http.Request) {
 // Returns a simple boolean indicating if the store is ready to launch.
 func (h *OnboardingHandler) IsLaunchReady(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantIDPg := getTenantID(ctx)
+	if !tenantIDPg.Valid {
+		writeJSONError(w, "No tenant context", http.StatusUnauthorized)
+		return
+	}
 
-	tenantID, err := uuid.FromBytes(h.tenantID.Bytes[:])
+	tenantID, err := uuid.FromBytes(tenantIDPg.Bytes[:])
 	if err != nil {
 		writeJSONError(w, "Invalid tenant ID", http.StatusInternalServerError)
 		return

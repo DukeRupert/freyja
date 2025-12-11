@@ -1,42 +1,38 @@
 package admin
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/dukerupert/hiri/internal/domain"
 	"github.com/dukerupert/hiri/internal/handler"
 	"github.com/dukerupert/hiri/internal/middleware"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // PageHandler handles admin pages management routes
 type PageHandler struct {
 	pageService domain.PageService
 	renderer    *handler.Renderer
-	tenantID    pgtype.UUID
 }
 
 // NewPageHandler creates a new pages handler
-func NewPageHandler(pageService domain.PageService, renderer *handler.Renderer, tenantID string) *PageHandler {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		panic(fmt.Sprintf("invalid tenant ID: %v", err))
-	}
-
+func NewPageHandler(pageService domain.PageService, renderer *handler.Renderer) *PageHandler {
 	return &PageHandler{
 		pageService: pageService,
 		renderer:    renderer,
-		tenantID:    tenantUUID,
 	}
 }
 
 // ListPage handles GET /admin/settings/pages
 func (h *PageHandler) ListPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
-	pages, err := h.pageService.ListPages(ctx, h.tenantID)
+	pages, err := h.pageService.ListPages(ctx, tenantID)
 	if err != nil {
 		handler.InternalErrorResponse(w, r, err)
 		return
@@ -91,6 +87,11 @@ func (h *PageHandler) ListPage(w http.ResponseWriter, r *http.Request) {
 // EditPage handles GET /admin/settings/pages/{slug}
 func (h *PageHandler) EditPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
 	slug := r.PathValue("slug")
 	if slug == "" || !domain.IsValidPageSlug(slug) {
@@ -99,7 +100,7 @@ func (h *PageHandler) EditPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	page, err := h.pageService.GetPage(ctx, domain.GetPageParams{
-		TenantID: h.tenantID,
+		TenantID: tenantID,
 		Slug:     slug,
 	})
 
@@ -155,6 +156,11 @@ func (h *PageHandler) EditPage(w http.ResponseWriter, r *http.Request) {
 // UpdatePage handles POST /admin/settings/pages/{slug}
 func (h *PageHandler) UpdatePage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
 	slug := r.PathValue("slug")
 	if slug == "" || !domain.IsValidPageSlug(slug) {
@@ -181,7 +187,7 @@ func (h *PageHandler) UpdatePage(w http.ResponseWriter, r *http.Request) {
 	// Check if page exists - if not, create it
 	// UpdatePage handles upsert-like behavior, so we don't need to check if page exists first
 	_, err := h.pageService.UpdatePage(ctx, domain.UpdatePageParams{
-		TenantID:         h.tenantID,
+		TenantID:         tenantID,
 		Slug:             slug,
 		Title:            title,
 		Content:          content,
@@ -214,12 +220,17 @@ func (h *PageHandler) UpdatePage(w http.ResponseWriter, r *http.Request) {
 // Creates default pages for tenant if they don't exist
 func (h *PageHandler) InitializePages(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
 	// TODO: Get store name and email from tenant config
 	storeName := "Your Coffee Roasters"
 	contactEmail := "support@example.com"
 
-	err := h.pageService.EnsureDefaultPages(ctx, h.tenantID, storeName, contactEmail)
+	err := h.pageService.EnsureDefaultPages(ctx, tenantID, storeName, contactEmail)
 	if err != nil {
 		handler.InternalErrorResponse(w, r, err)
 		return

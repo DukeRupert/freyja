@@ -17,20 +17,13 @@ import (
 type TaxRateHandler struct {
 	repo     repository.Querier
 	renderer *handler.Renderer
-	tenantID pgtype.UUID
 }
 
 // NewTaxRateHandler creates a new tax rate handler
-func NewTaxRateHandler(repo repository.Querier, renderer *handler.Renderer, tenantID string) *TaxRateHandler {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		panic(fmt.Sprintf("invalid tenant ID: %v", err))
-	}
-
+func NewTaxRateHandler(repo repository.Querier, renderer *handler.Renderer) *TaxRateHandler {
 	return &TaxRateHandler{
 		repo:     repo,
 		renderer: renderer,
-		tenantID: tenantUUID,
 	}
 }
 
@@ -49,8 +42,13 @@ func usStateCodes() []string {
 // ListPage handles GET /admin/settings/tax-rates
 func (h *TaxRateHandler) ListPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
-	taxRates, err := h.repo.ListTaxRates(ctx, h.tenantID)
+	taxRates, err := h.repo.ListTaxRates(ctx, tenantID)
 	if err != nil {
 		handler.InternalErrorResponse(w, r, err)
 		return
@@ -109,6 +107,11 @@ func (h *TaxRateHandler) ListPage(w http.ResponseWriter, r *http.Request) {
 // Create handles POST /admin/settings/tax-rates
 func (h *TaxRateHandler) Create(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
 	if err := r.ParseForm(); err != nil {
 		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
@@ -147,7 +150,7 @@ func (h *TaxRateHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = h.repo.CreateTaxRate(ctx, repository.CreateTaxRateParams{
-		TenantID:    h.tenantID,
+		TenantID:    tenantID,
 		State:       state,
 		Rate:        rateNumeric,
 		TaxShipping: taxShipping,
@@ -165,6 +168,11 @@ func (h *TaxRateHandler) Create(w http.ResponseWriter, r *http.Request) {
 // Update handles PUT /admin/settings/tax-rates/{id}
 func (h *TaxRateHandler) Update(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
 	taxRateID := r.PathValue("id")
 	if taxRateID == "" {
@@ -208,7 +216,7 @@ func (h *TaxRateHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = h.repo.UpdateTaxRate(ctx, repository.UpdateTaxRateParams{
-		TenantID:    h.tenantID,
+		TenantID:    tenantID,
 		ID:          taxRateUUID,
 		Rate:        rateNumeric,
 		TaxShipping: taxShipping,
@@ -232,6 +240,11 @@ func (h *TaxRateHandler) Update(w http.ResponseWriter, r *http.Request) {
 // Delete handles DELETE /admin/settings/tax-rates/{id}
 func (h *TaxRateHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
 	taxRateID := r.PathValue("id")
 	if taxRateID == "" {
@@ -246,7 +259,7 @@ func (h *TaxRateHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := h.repo.DeleteTaxRate(ctx, repository.DeleteTaxRateParams{
-		TenantID: h.tenantID,
+		TenantID: tenantID,
 		ID:       taxRateUUID,
 	})
 	if err != nil {

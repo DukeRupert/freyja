@@ -430,23 +430,24 @@ func run() error {
 
 	// Admin dependencies (consolidated handlers)
 	// Now uses OperatorService for authentication (multi-tenant SaaS operators)
+	// Handler tenantID is derived from operator context (set by middleware)
 	adminDeps := routes.AdminDeps{
 		LoginHandler:          admin.NewLoginHandler(operatorService, renderer, cookieConfig),
 		LogoutHandler:         admin.NewLogoutHandler(operatorService, cookieConfig),
 		ForgotPasswordHandler: admin.NewForgotPasswordHandler(operatorService, renderer),
 		ResetPasswordHandler:  admin.NewResetPasswordHandler(operatorService, renderer),
-		DashboardHandler:      admin.NewDashboardHandler(repo, renderer, cfg.TenantID, onboardingService),
-		ProductHandler:        admin.NewProductHandler(repo, renderer, fileStorage, cfg.TenantID),
-		OrderHandler:          admin.NewOrderHandler(repo, renderer, cfg.TenantID),
-		CustomerHandler:       admin.NewCustomerHandler(repo, invoiceService, renderer, cfg.TenantID),
-		SubscriptionHandler:   admin.NewSubscriptionHandler(repo, renderer, cfg.TenantID),
-		InvoiceHandler:        admin.NewInvoiceHandler(invoiceService, repo, renderer, cfg.TenantID),
-		PriceListHandler:      admin.NewPriceListHandler(repo, renderer, cfg.TenantID),
-		TaxRateHandler:        admin.NewTaxRateHandler(repo, renderer, cfg.TenantID),
-		IntegrationsHandler:   admin.NewIntegrationsHandler(repo, renderer, cfg.TenantID, encryptor, providerValidator, providerRegistry),
+		DashboardHandler:      admin.NewDashboardHandler(repo, renderer, onboardingService),
+		ProductHandler:        admin.NewProductHandler(repo, renderer, fileStorage),
+		OrderHandler:          admin.NewOrderHandler(repo, renderer),
+		CustomerHandler:       admin.NewCustomerHandler(repo, invoiceService, renderer),
+		SubscriptionHandler:   admin.NewSubscriptionHandler(repo, renderer),
+		InvoiceHandler:        admin.NewInvoiceHandler(invoiceService, repo, renderer),
+		PriceListHandler:      admin.NewPriceListHandler(repo, renderer),
+		TaxRateHandler:        admin.NewTaxRateHandler(repo, renderer),
+		IntegrationsHandler:   admin.NewIntegrationsHandler(repo, renderer, encryptor, providerValidator, providerRegistry),
 		CustomDomainHandler:   admin.NewCustomDomainHandler(customDomainService, renderer),
-		PageHandler:           admin.NewPageHandler(pageService, renderer, cfg.TenantID),
-		OnboardingHandler:     admin.NewOnboardingHandler(onboardingService, renderer, cfg.TenantID),
+		PageHandler:           admin.NewPageHandler(pageService, renderer),
+		OnboardingHandler:     admin.NewOnboardingHandler(onboardingService, renderer),
 	}
 
 	// Webhook dependencies

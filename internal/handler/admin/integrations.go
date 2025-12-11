@@ -23,7 +23,6 @@ import (
 type IntegrationsHandler struct {
 	repo      repository.Querier
 	renderer  *handler.Renderer
-	tenantID  pgtype.UUID
 	encryptor crypto.Encryptor
 	validator *provider.DefaultValidator
 	registry  provider.ProviderRegistry
@@ -33,20 +32,13 @@ type IntegrationsHandler struct {
 func NewIntegrationsHandler(
 	repo repository.Querier,
 	renderer *handler.Renderer,
-	tenantID string,
 	encryptor crypto.Encryptor,
 	validator *provider.DefaultValidator,
 	registry provider.ProviderRegistry,
 ) *IntegrationsHandler {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		panic(fmt.Sprintf("invalid tenant ID: %v", err))
-	}
-
 	return &IntegrationsHandler{
 		repo:      repo,
 		renderer:  renderer,
-		tenantID:  tenantUUID,
 		encryptor: encryptor,
 		validator: validator,
 		registry:  registry,
@@ -64,6 +56,11 @@ type ProviderSummary struct {
 // ListPage handles GET /admin/settings/integrations
 func (h *IntegrationsHandler) ListPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
 	providerTypes := []provider.ProviderType{
 		provider.ProviderTypeBilling,
@@ -76,7 +73,7 @@ func (h *IntegrationsHandler) ListPage(w http.ResponseWriter, r *http.Request) {
 
 	for _, providerType := range providerTypes {
 		config, err := h.repo.GetDefaultProviderConfig(ctx, repository.GetDefaultProviderConfigParams{
-			TenantID: h.tenantID,
+			TenantID: tenantID,
 			Type:     string(providerType),
 		})
 
@@ -107,6 +104,11 @@ func (h *IntegrationsHandler) ListPage(w http.ResponseWriter, r *http.Request) {
 // ConfigPage handles GET /admin/settings/integrations/{type}
 func (h *IntegrationsHandler) ConfigPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
 	providerTypeStr := r.PathValue("type")
 	if providerTypeStr == "" {
@@ -117,7 +119,7 @@ func (h *IntegrationsHandler) ConfigPage(w http.ResponseWriter, r *http.Request)
 	providerType := provider.ProviderType(providerTypeStr)
 
 	config, err := h.repo.GetDefaultProviderConfig(ctx, repository.GetDefaultProviderConfigParams{
-		TenantID: h.tenantID,
+		TenantID: tenantID,
 		Type:     string(providerType),
 	})
 
@@ -176,6 +178,11 @@ func (h *IntegrationsHandler) ConfigPage(w http.ResponseWriter, r *http.Request)
 // SaveConfig handles POST /admin/settings/integrations/{type}
 func (h *IntegrationsHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
 	providerTypeStr := r.PathValue("type")
 	if providerTypeStr == "" {
@@ -208,7 +215,7 @@ func (h *IntegrationsHandler) SaveConfig(w http.ResponseWriter, r *http.Request)
 	}
 
 	tenantConfig := &provider.TenantProviderConfig{
-		TenantID:  h.tenantID,
+		TenantID:  tenantID,
 		Type:      providerType,
 		Name:      providerName,
 		Config:    configMap,
@@ -238,23 +245,23 @@ func (h *IntegrationsHandler) SaveConfig(w http.ResponseWriter, r *http.Request)
 
 	// Invalidate cache BEFORE database update to ensure subsequent requests
 	// will fetch fresh config. This prevents stale data between update and invalidation.
-	h.registry.InvalidateCache(h.tenantID, providerType)
+	h.registry.InvalidateCache(tenantID, providerType)
 
 	existingConfig, err := h.repo.GetDefaultProviderConfig(ctx, repository.GetDefaultProviderConfigParams{
-		TenantID: h.tenantID,
+		TenantID: tenantID,
 		Type:     string(providerType),
 	})
 
 	if err == nil && existingConfig.ID.Valid {
 		// Verify tenant ownership before updating
-		if existingConfig.TenantID != h.tenantID {
+		if existingConfig.TenantID != tenantID {
 			handler.ErrorResponse(w, r, domain.Errorf(domain.EFORBIDDEN, "", "Unauthorized"))
 			return
 		}
 
 		_, err = h.repo.UpdateProviderConfig(ctx, repository.UpdateProviderConfigParams{
 			ID:       existingConfig.ID,
-			TenantID: h.tenantID,
+			TenantID: tenantID,
 			Name: pgtype.Text{
 				String: string(providerName),
 				Valid:  true,
@@ -282,7 +289,7 @@ func (h *IntegrationsHandler) SaveConfig(w http.ResponseWriter, r *http.Request)
 		}
 	} else {
 		_, err = h.repo.CreateProviderConfig(ctx, repository.CreateProviderConfigParams{
-			TenantID:        h.tenantID,
+			TenantID:        tenantID,
 			Type:            string(providerType),
 			Name:            string(providerName),
 			IsActive:        true,
@@ -307,6 +314,13 @@ func (h *IntegrationsHandler) SaveConfig(w http.ResponseWriter, r *http.Request)
 
 // ValidateConfig handles POST /admin/settings/integrations/{type}/validate
 func (h *IntegrationsHandler) ValidateConfig(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	providerTypeStr := r.PathValue("type")
 	if providerTypeStr == "" {
 		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Provider type required"))
@@ -324,7 +338,7 @@ func (h *IntegrationsHandler) ValidateConfig(w http.ResponseWriter, r *http.Requ
 	configMap := buildConfigMap(r, providerType, providerName)
 
 	tenantConfig := &provider.TenantProviderConfig{
-		TenantID: h.tenantID,
+		TenantID: tenantID,
 		Type:     providerType,
 		Name:     providerName,
 		Config:   configMap,

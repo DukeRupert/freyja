@@ -7,9 +7,9 @@ import (
 
 	"github.com/dukerupert/hiri/internal/domain"
 	"github.com/dukerupert/hiri/internal/handler"
+	"github.com/dukerupert/hiri/internal/middleware"
 	"github.com/dukerupert/hiri/internal/onboarding"
 	"github.com/dukerupert/hiri/internal/repository"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -17,21 +17,14 @@ import (
 type DashboardHandler struct {
 	repo              repository.Querier
 	renderer          *handler.Renderer
-	tenantID          pgtype.UUID
 	onboardingService *onboarding.Service
 }
 
 // NewDashboardHandler creates a new dashboard handler
-func NewDashboardHandler(repo repository.Querier, renderer *handler.Renderer, tenantID string, onboardingService *onboarding.Service) *DashboardHandler {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		panic(fmt.Sprintf("invalid tenant ID: %v", err))
-	}
-
+func NewDashboardHandler(repo repository.Querier, renderer *handler.Renderer, onboardingService *onboarding.Service) *DashboardHandler {
 	return &DashboardHandler{
 		repo:              repo,
 		renderer:          renderer,
-		tenantID:          tenantUUID,
 		onboardingService: onboardingService,
 	}
 }
@@ -42,6 +35,20 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
+
+	// Get tenant ID from operator context (set by middleware)
+	tenantUUID := middleware.GetTenantIDFromOperator(ctx)
+	if tenantUUID == [16]byte{} {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
+	// Convert to pgtype.UUID for database queries
+	var tenantID pgtype.UUID
+	tenantID.Bytes = tenantUUID
+	tenantID.Valid = true
+
 	// Get order stats (last 30 days)
 	thirtyDaysAgo := pgtype.Timestamptz{}
 	if err := thirtyDaysAgo.Scan(time.Now().AddDate(0, 0, -30)); err != nil {
@@ -49,8 +56,8 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orderStats, err := h.repo.GetOrderStats(r.Context(), repository.GetOrderStatsParams{
-		TenantID:  h.tenantID,
+	orderStats, err := h.repo.GetOrderStats(ctx, repository.GetOrderStatsParams{
+		TenantID:  tenantID,
 		CreatedAt: thirtyDaysAgo,
 	})
 	if err != nil {
@@ -59,15 +66,15 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user stats
-	userStats, err := h.repo.GetUserStats(r.Context(), h.tenantID)
+	userStats, err := h.repo.GetUserStats(ctx, tenantID)
 	if err != nil {
 		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
 	// Get recent orders
-	recentOrders, err := h.repo.ListOrders(r.Context(), repository.ListOrdersParams{
-		TenantID: h.tenantID,
+	recentOrders, err := h.repo.ListOrders(ctx, repository.ListOrdersParams{
+		TenantID: tenantID,
 		Limit:    10,
 		Offset:   0,
 	})
@@ -128,13 +135,7 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get onboarding status
-	tenantUUID, err := uuid.FromBytes(h.tenantID.Bytes[:])
-	if err != nil {
-		handler.InternalErrorResponse(w, r, err)
-		return
-	}
-
-	onboardingStatus, err := h.onboardingService.GetStatus(r.Context(), tenantUUID)
+	onboardingStatus, err := h.onboardingService.GetStatus(ctx, tenantUUID)
 	if err != nil {
 		// Log but don't fail - dashboard should still work without onboarding
 		onboardingStatus = nil

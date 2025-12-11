@@ -29,27 +29,27 @@ type ProductHandler struct {
 	repo     repository.Querier
 	renderer *handler.Renderer
 	storage  storage.Storage
-	tenantID pgtype.UUID
 }
 
 // NewProductHandler creates a new product handler
-func NewProductHandler(repo repository.Querier, renderer *handler.Renderer, storage storage.Storage, tenantID string) *ProductHandler {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		panic(fmt.Sprintf("invalid tenant ID: %v", err))
-	}
-
+func NewProductHandler(repo repository.Querier, renderer *handler.Renderer, storage storage.Storage) *ProductHandler {
 	return &ProductHandler{
 		repo:     repo,
 		renderer: renderer,
 		storage:  storage,
-		tenantID: tenantUUID,
 	}
 }
 
 // List handles GET /admin/products
 func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
-	products, err := h.repo.ListAllProducts(r.Context(), h.tenantID)
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
+	products, err := h.repo.ListAllProducts(ctx, tenantID)
 	if err != nil {
 		handler.InternalErrorResponse(w, r, err)
 		return
@@ -65,6 +65,13 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // Detail handles GET /admin/products/{id}
 func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	productID := r.PathValue("id")
 	if productID == "" {
 		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Product ID required"))
@@ -77,8 +84,8 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	product, err := h.repo.GetProductByID(r.Context(), repository.GetProductByIDParams{
-		TenantID: h.tenantID,
+	product, err := h.repo.GetProductByID(ctx, repository.GetProductByIDParams{
+		TenantID: tenantID,
 		ID:       productUUID,
 	})
 	if err != nil {
@@ -155,6 +162,13 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 // ShowForm handles GET /admin/products/new and GET /admin/products/{id}/edit
 func (h *ProductHandler) ShowForm(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	productID := r.PathValue("id")
 
 	var product repository.Product
@@ -167,8 +181,8 @@ func (h *ProductHandler) ShowForm(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		p, err := h.repo.GetProductByID(r.Context(), repository.GetProductByIDParams{
-			TenantID: h.tenantID,
+		p, err := h.repo.GetProductByID(ctx, repository.GetProductByIDParams{
+			TenantID: tenantID,
 			ID:       productUUID,
 		})
 		if err != nil {
@@ -196,6 +210,13 @@ func (h *ProductHandler) ShowForm(w http.ResponseWriter, r *http.Request) {
 
 // HandleForm handles POST /admin/products/new and POST /admin/products/{id}/edit
 func (h *ProductHandler) HandleForm(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	if err := r.ParseForm(); err != nil {
 		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
@@ -246,8 +267,8 @@ func (h *ProductHandler) HandleForm(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		_, err := h.repo.UpdateProduct(r.Context(), repository.UpdateProductParams{
-			TenantID:         h.tenantID,
+		_, err := h.repo.UpdateProduct(ctx, repository.UpdateProductParams{
+			TenantID:         tenantID,
 			ID:               productUUID,
 			Name:             r.FormValue("name"),
 			Slug:             r.FormValue("slug"),
@@ -299,8 +320,8 @@ func (h *ProductHandler) HandleForm(w http.ResponseWriter, r *http.Request) {
 		baseProductID := pgtype.UUID{Valid: false}
 		whiteLabelCustomerID := pgtype.UUID{Valid: false}
 
-		_, err := h.repo.CreateProduct(r.Context(), repository.CreateProductParams{
-			TenantID:             h.tenantID,
+		_, err := h.repo.CreateProduct(ctx, repository.CreateProductParams{
+			TenantID:             tenantID,
 			Name:                 r.FormValue("name"),
 			Slug:                 r.FormValue("slug"),
 			ShortDescription:     makePgText(r.FormValue("short_description")),
@@ -331,6 +352,13 @@ func (h *ProductHandler) HandleForm(w http.ResponseWriter, r *http.Request) {
 
 // ShowSKUForm handles GET /admin/products/{product_id}/skus/new and GET /admin/products/{product_id}/skus/{sku_id}/edit
 func (h *ProductHandler) ShowSKUForm(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	productID := r.PathValue("product_id")
 	if productID == "" {
 		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Product ID required"))
@@ -343,8 +371,8 @@ func (h *ProductHandler) ShowSKUForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	product, err := h.repo.GetProductByID(r.Context(), repository.GetProductByIDParams{
-		TenantID: h.tenantID,
+	product, err := h.repo.GetProductByID(ctx, repository.GetProductByIDParams{
+		TenantID: tenantID,
 		ID:       productUUID,
 	})
 	if err != nil {
@@ -390,6 +418,13 @@ func (h *ProductHandler) ShowSKUForm(w http.ResponseWriter, r *http.Request) {
 
 // HandleSKUForm handles POST /admin/products/{product_id}/skus/new and POST /admin/products/{product_id}/skus/{sku_id}/edit
 func (h *ProductHandler) HandleSKUForm(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	if err := r.ParseForm(); err != nil {
 		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
@@ -402,8 +437,8 @@ func (h *ProductHandler) HandleSKUForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	product, err := h.repo.GetProductByID(r.Context(), repository.GetProductByIDParams{
-		TenantID: h.tenantID,
+	product, err := h.repo.GetProductByID(ctx, repository.GetProductByIDParams{
+		TenantID: tenantID,
 		ID:       productUUID,
 	})
 	if err != nil {
@@ -456,8 +491,8 @@ func (h *ProductHandler) HandleSKUForm(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		_, err = h.repo.UpdateProductSKU(r.Context(), repository.UpdateProductSKUParams{
-			TenantID:          h.tenantID,
+		_, err = h.repo.UpdateProductSKU(ctx, repository.UpdateProductSKUParams{
+			TenantID:          tenantID,
 			ID:                skuUUID,
 			Sku:               skuCode,
 			WeightValue:       weightNumeric,
@@ -478,8 +513,8 @@ func (h *ProductHandler) HandleSKUForm(w http.ResponseWriter, r *http.Request) {
 
 		http.Redirect(w, r, "/admin/products/"+productID, http.StatusSeeOther)
 	} else {
-		newSKU, err := h.repo.CreateProductSKU(r.Context(), repository.CreateProductSKUParams{
-			TenantID:          h.tenantID,
+		newSKU, err := h.repo.CreateProductSKU(ctx, repository.CreateProductSKUParams{
+			TenantID:          tenantID,
 			ProductID:         productUUID,
 			Sku:               skuCode,
 			WeightValue:       weightNumeric,
@@ -498,7 +533,7 @@ func (h *ProductHandler) HandleSKUForm(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if err := h.createDefaultPricing(r.Context(), newSKU.ID, basePriceCents); err != nil {
+		if err := h.createDefaultPricing(ctx, tenantID, newSKU.ID, basePriceCents); err != nil {
 			fmt.Printf("Warning: failed to create default pricing: %v\n", err)
 		}
 
@@ -507,14 +542,14 @@ func (h *ProductHandler) HandleSKUForm(w http.ResponseWriter, r *http.Request) {
 }
 
 // createDefaultPricing automatically creates a price list entry for the default retail price list
-func (h *ProductHandler) createDefaultPricing(ctx context.Context, skuID pgtype.UUID, priceCents int32) error {
-	priceList, err := h.repo.GetDefaultPriceList(ctx, h.tenantID)
+func (h *ProductHandler) createDefaultPricing(ctx context.Context, tenantID pgtype.UUID, skuID pgtype.UUID, priceCents int32) error {
+	priceList, err := h.repo.GetDefaultPriceList(ctx, tenantID)
 	if err != nil {
 		return err
 	}
 
 	_, err = h.repo.CreatePriceListEntry(ctx, repository.CreatePriceListEntryParams{
-		TenantID:            h.tenantID,
+		TenantID:            tenantID,
 		PriceListID:         priceList.ID,
 		ProductSkuID:        skuID,
 		PriceCents:          priceCents,
@@ -633,6 +668,13 @@ func generateImageKey(tenantID, productID pgtype.UUID, filename string) string {
 
 // UploadImage handles POST /admin/products/{id}/images/upload
 func (h *ProductHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	productID := r.PathValue("id")
 	if productID == "" {
 		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Product ID required"))
@@ -645,8 +687,8 @@ func (h *ProductHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := h.repo.GetProductByID(r.Context(), repository.GetProductByIDParams{
-		TenantID: h.tenantID,
+	_, err := h.repo.GetProductByID(ctx, repository.GetProductByIDParams{
+		TenantID: tenantID,
 		ID:       productUUID,
 	})
 	if err != nil {
@@ -672,7 +714,7 @@ func (h *ProductHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check max images per product
-	existingImages, _ := h.repo.GetProductImages(r.Context(), productUUID)
+	existingImages, _ := h.repo.GetProductImages(ctx, productUUID)
 	const maxImagesPerProduct = 20
 	if len(existingImages) >= maxImagesPerProduct {
 		h.renderImageError(w, fmt.Sprintf("Maximum of %d images per product reached", maxImagesPerProduct))
@@ -687,9 +729,9 @@ func (h *ProductHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	contentType := http.DetectContentType(buffer[:n])
 	_, _ = file.Seek(0, io.SeekStart)
 
-	key := generateImageKey(h.tenantID, productUUID, fileHeader.Filename)
+	key := generateImageKey(tenantID, productUUID, fileHeader.Filename)
 
-	url, err := h.storage.Put(r.Context(), key, file, contentType)
+	url, err := h.storage.Put(ctx, key, file, contentType)
 	if err != nil {
 		h.renderImageError(w, "Failed to store image. Please try again.")
 		return
@@ -703,8 +745,8 @@ func (h *ProductHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	heightInt := pgtype.Int4{Int32: int32(height), Valid: metaErr == nil}
 	fileSizeInt := pgtype.Int4{Int32: int32(fileHeader.Size), Valid: true}
 
-	_, err = h.repo.CreateProductImage(r.Context(), repository.CreateProductImageParams{
-		TenantID:  h.tenantID,
+	_, err = h.repo.CreateProductImage(ctx, repository.CreateProductImageParams{
+		TenantID:  tenantID,
 		ProductID: productUUID,
 		Url:       url,
 		AltText:   pgtype.Text{Valid: false},
@@ -716,16 +758,23 @@ func (h *ProductHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		// Clean up orphaned file (best-effort, ignore error)
-		_ = h.storage.Delete(r.Context(), key)
+		_ = h.storage.Delete(ctx, key)
 		h.renderImageError(w, "Failed to save image. Please try again.")
 		return
 	}
 
-	h.renderImageGallery(w, r, productUUID)
+	h.renderImageGallery(w, r, tenantID, productUUID)
 }
 
 // DeleteImage handles DELETE /admin/products/{product_id}/images/{image_id}
 func (h *ProductHandler) DeleteImage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	productID := r.PathValue("product_id")
 	imageID := r.PathValue("image_id")
 
@@ -739,7 +788,7 @@ func (h *ProductHandler) DeleteImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	images, err := h.repo.GetProductImages(r.Context(), productUUID)
+	images, err := h.repo.GetProductImages(ctx, productUUID)
 	if err != nil {
 		handler.InternalErrorResponse(w, r, err)
 		return
@@ -753,8 +802,8 @@ func (h *ProductHandler) DeleteImage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.repo.DeleteProductImage(r.Context(), repository.DeleteProductImageParams{
-		TenantID: h.tenantID,
+	if err := h.repo.DeleteProductImage(ctx, repository.DeleteProductImageParams{
+		TenantID: tenantID,
 		ID:       imageUUID,
 	}); err != nil {
 		handler.InternalErrorResponse(w, r, err)
@@ -763,14 +812,21 @@ func (h *ProductHandler) DeleteImage(w http.ResponseWriter, r *http.Request) {
 
 	if imageURL != "" {
 		key := strings.TrimPrefix(imageURL, "/uploads/")
-		_ = h.storage.Delete(r.Context(), key)
+		_ = h.storage.Delete(ctx, key)
 	}
 
-	h.renderImageGallery(w, r, productUUID)
+	h.renderImageGallery(w, r, tenantID, productUUID)
 }
 
 // SetPrimary handles POST /admin/products/{product_id}/images/{image_id}/primary
 func (h *ProductHandler) SetPrimary(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	productID := r.PathValue("product_id")
 	imageID := r.PathValue("image_id")
 
@@ -784,20 +840,27 @@ func (h *ProductHandler) SetPrimary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.repo.SetPrimaryImage(r.Context(), repository.SetPrimaryImageParams{
-		TenantID: h.tenantID,
+	if err := h.repo.SetPrimaryImage(ctx, repository.SetPrimaryImageParams{
+		TenantID: tenantID,
 		ID:       imageUUID,
 	}); err != nil {
 		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
-	h.renderImageGallery(w, r, productUUID)
+	h.renderImageGallery(w, r, tenantID, productUUID)
 }
 
 // UpdateImageMetadata handles POST /admin/products/{product_id}/images/{image_id}/metadata
 // Updates alt text, width, and height for an image
 func (h *ProductHandler) UpdateImageMetadata(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	productID := r.PathValue("product_id")
 	imageID := r.PathValue("image_id")
 
@@ -820,7 +883,7 @@ func (h *ProductHandler) UpdateImageMetadata(w http.ResponseWriter, r *http.Requ
 	widthStr := r.FormValue("width")
 	heightStr := r.FormValue("height")
 
-	images, err := h.repo.GetProductImages(r.Context(), productUUID)
+	images, err := h.repo.GetProductImages(ctx, productUUID)
 	if err != nil {
 		handler.InternalErrorResponse(w, r, err)
 		return
@@ -849,8 +912,8 @@ func (h *ProductHandler) UpdateImageMetadata(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	_, err = h.repo.UpdateProductImage(r.Context(), repository.UpdateProductImageParams{
-		TenantID:  h.tenantID,
+	_, err = h.repo.UpdateProductImage(ctx, repository.UpdateProductImageParams{
+		TenantID:  tenantID,
 		ID:        imageUUID,
 		Url:       currentImage.Url,
 		AltText:   pgtype.Text{String: altText, Valid: altText != ""},
@@ -865,12 +928,13 @@ func (h *ProductHandler) UpdateImageMetadata(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	h.renderImageGallery(w, r, productUUID)
+	h.renderImageGallery(w, r, tenantID, productUUID)
 }
 
 // renderImageGallery renders just the image gallery section for htmx swap
-func (h *ProductHandler) renderImageGallery(w http.ResponseWriter, r *http.Request, productUUID pgtype.UUID) {
-	images, err := h.repo.GetProductImages(r.Context(), productUUID)
+func (h *ProductHandler) renderImageGallery(w http.ResponseWriter, r *http.Request, tenantID pgtype.UUID, productUUID pgtype.UUID) {
+	ctx := r.Context()
+	images, err := h.repo.GetProductImages(ctx, productUUID)
 	if err != nil {
 		handler.InternalErrorResponse(w, r, err)
 		return

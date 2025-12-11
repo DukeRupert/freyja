@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -17,21 +16,14 @@ type InvoiceHandler struct {
 	invoiceService domain.InvoiceService
 	repo           repository.Querier
 	renderer       *handler.Renderer
-	tenantID       pgtype.UUID
 }
 
 // NewInvoiceHandler creates a new invoice handler
-func NewInvoiceHandler(invoiceService domain.InvoiceService, repo repository.Querier, renderer *handler.Renderer, tenantID string) *InvoiceHandler {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		panic(fmt.Sprintf("invalid tenant ID: %v", err))
-	}
-
+func NewInvoiceHandler(invoiceService domain.InvoiceService, repo repository.Querier, renderer *handler.Renderer) *InvoiceHandler {
 	return &InvoiceHandler{
 		invoiceService: invoiceService,
 		repo:           repo,
 		renderer:       renderer,
-		tenantID:       tenantUUID,
 	}
 }
 
@@ -241,8 +233,15 @@ func (h *InvoiceHandler) HandlePayment(w http.ResponseWriter, r *http.Request) {
 
 // ShowCreateForm handles GET /admin/invoices/new
 func (h *InvoiceHandler) ShowCreateForm(w http.ResponseWriter, r *http.Request) {
-	customers, err := h.repo.ListWholesaleCustomers(r.Context(), repository.ListWholesaleCustomersParams{
-		TenantID: h.tenantID,
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
+	customers, err := h.repo.ListWholesaleCustomers(ctx, repository.ListWholesaleCustomersParams{
+		TenantID: tenantID,
 		Limit:    100,
 		Offset:   0,
 	})
@@ -261,6 +260,13 @@ func (h *InvoiceHandler) ShowCreateForm(w http.ResponseWriter, r *http.Request) 
 
 // HandleCreate handles POST /admin/invoices/new
 func (h *InvoiceHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	if err := r.ParseForm(); err != nil {
 		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
 		return
@@ -278,8 +284,8 @@ func (h *InvoiceHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orders, err := h.repo.GetUninvoicedOrdersForUser(r.Context(), repository.GetUninvoicedOrdersForUserParams{
-		TenantID: h.tenantID,
+	orders, err := h.repo.GetUninvoicedOrdersForUser(ctx, repository.GetUninvoicedOrdersForUserParams{
+		TenantID: tenantID,
 		UserID:   customerUUID,
 	})
 	if err != nil {
@@ -298,7 +304,7 @@ func (h *InvoiceHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	invoice, err := h.invoiceService.CreateInvoice(r.Context(), service.CreateInvoiceParams{
+	invoice, err := h.invoiceService.CreateInvoice(ctx, service.CreateInvoiceParams{
 		UserID:   customerID,
 		OrderIDs: orderIDs,
 	})

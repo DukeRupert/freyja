@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/dukerupert/hiri/internal/domain"
@@ -15,39 +14,39 @@ type CustomerHandler struct {
 	repo           repository.Querier
 	invoiceService domain.InvoiceService
 	renderer       *handler.Renderer
-	tenantID       pgtype.UUID
 }
 
 // NewCustomerHandler creates a new customer handler
-func NewCustomerHandler(repo repository.Querier, invoiceService domain.InvoiceService, renderer *handler.Renderer, tenantID string) *CustomerHandler {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		panic(fmt.Sprintf("invalid tenant ID: %v", err))
-	}
-
+func NewCustomerHandler(repo repository.Querier, invoiceService domain.InvoiceService, renderer *handler.Renderer) *CustomerHandler {
 	return &CustomerHandler{
 		repo:           repo,
 		invoiceService: invoiceService,
 		renderer:       renderer,
-		tenantID:       tenantUUID,
 	}
 }
 
 // List handles GET /admin/customers
 func (h *CustomerHandler) List(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	accountType := r.URL.Query().Get("type")
 
 	var users []repository.User
 	var err error
 
 	if accountType != "" {
-		users, err = h.repo.ListUsersByAccountType(r.Context(), repository.ListUsersByAccountTypeParams{
-			TenantID:    h.tenantID,
+		users, err = h.repo.ListUsersByAccountType(ctx, repository.ListUsersByAccountTypeParams{
+			TenantID:    tenantID,
 			AccountType: accountType,
 		})
 	} else {
-		users, err = h.repo.ListUsers(r.Context(), repository.ListUsersParams{
-			TenantID: h.tenantID,
+		users, err = h.repo.ListUsers(ctx, repository.ListUsersParams{
+			TenantID: tenantID,
 			Limit:    100,
 			Offset:   0,
 		})
@@ -116,6 +115,13 @@ func (h *CustomerHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // Detail handles GET /admin/customers/{id}
 func (h *CustomerHandler) Detail(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	customerID := r.PathValue("id")
 	if customerID == "" {
 		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Customer ID required"))
@@ -128,27 +134,27 @@ func (h *CustomerHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customer, err := h.repo.GetUserByID(r.Context(), customerUUID)
+	customer, err := h.repo.GetUserByID(ctx, customerUUID)
 	if err != nil {
 		handler.NotFoundResponse(w, r)
 		return
 	}
 
-	if customer.TenantID != h.tenantID {
+	if customer.TenantID != tenantID {
 		handler.NotFoundResponse(w, r)
 		return
 	}
 
 	var invoices []repository.Invoice
 	if customer.AccountType == "wholesale" {
-		invoices, err = h.invoiceService.ListInvoicesForUser(r.Context(), customerID, 20, 0)
+		invoices, err = h.invoiceService.ListInvoicesForUser(ctx, customerID, 20, 0)
 		if err != nil {
 			invoices = nil
 		}
 	}
 
-	addresses, err := h.repo.ListAddressesForUser(r.Context(), repository.ListAddressesForUserParams{
-		TenantID: h.tenantID,
+	addresses, err := h.repo.ListAddressesForUser(ctx, repository.ListAddressesForUserParams{
+		TenantID: tenantID,
 		UserID:   customerUUID,
 	})
 	if err != nil {
@@ -166,8 +172,8 @@ func (h *CustomerHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	var paymentTerms *repository.PaymentTerm
 	if customer.AccountType == "wholesale" && customer.PaymentTermsID.Valid {
-		pt, err := h.repo.GetPaymentTermsByID(r.Context(), repository.GetPaymentTermsByIDParams{
-			TenantID: h.tenantID,
+		pt, err := h.repo.GetPaymentTermsByID(ctx, repository.GetPaymentTermsByIDParams{
+			TenantID: tenantID,
 			ID:       customer.PaymentTermsID,
 		})
 		if err == nil {
@@ -189,6 +195,13 @@ func (h *CustomerHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 // Edit handles GET /admin/customers/{id}/edit
 func (h *CustomerHandler) Edit(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	customerID := r.PathValue("id")
 	if customerID == "" {
 		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Customer ID required"))
@@ -201,13 +214,13 @@ func (h *CustomerHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customer, err := h.repo.GetUserByID(r.Context(), customerUUID)
+	customer, err := h.repo.GetUserByID(ctx, customerUUID)
 	if err != nil {
 		handler.NotFoundResponse(w, r)
 		return
 	}
 
-	if customer.TenantID != h.tenantID {
+	if customer.TenantID != tenantID {
 		handler.NotFoundResponse(w, r)
 		return
 	}
@@ -222,14 +235,14 @@ func (h *CustomerHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get payment terms for dropdown
-	paymentTerms, _ := h.repo.ListPaymentTerms(r.Context(), h.tenantID)
+	paymentTerms, _ := h.repo.ListPaymentTerms(ctx, tenantID)
 
 	data := map[string]interface{}{
-		"CurrentPath":  r.URL.Path,
-		"Customer":     customer,
-		"CustomerID":   customerID,
-		"FullName":     fullName,
-		"PaymentTerms": paymentTerms,
+		"CurrentPath":   r.URL.Path,
+		"Customer":      customer,
+		"CustomerID":    customerID,
+		"FullName":      fullName,
+		"PaymentTerms":  paymentTerms,
 		"StatusOptions": []string{"active", "suspended", "closed"},
 	}
 
@@ -238,6 +251,13 @@ func (h *CustomerHandler) Edit(w http.ResponseWriter, r *http.Request) {
 
 // Update handles POST /admin/customers/{id}
 func (h *CustomerHandler) Update(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	customerID := r.PathValue("id")
 	if customerID == "" {
 		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Customer ID required"))
@@ -250,13 +270,13 @@ func (h *CustomerHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customer, err := h.repo.GetUserByID(r.Context(), customerUUID)
+	customer, err := h.repo.GetUserByID(ctx, customerUUID)
 	if err != nil {
 		handler.NotFoundResponse(w, r)
 		return
 	}
 
-	if customer.TenantID != h.tenantID {
+	if customer.TenantID != tenantID {
 		handler.NotFoundResponse(w, r)
 		return
 	}
@@ -269,7 +289,7 @@ func (h *CustomerHandler) Update(w http.ResponseWriter, r *http.Request) {
 	// Build update params
 	params := repository.AdminUpdateCustomerParams{
 		ID:       customerUUID,
-		TenantID: h.tenantID,
+		TenantID: tenantID,
 	}
 
 	// Handle optional text fields
@@ -298,7 +318,7 @@ func (h *CustomerHandler) Update(w http.ResponseWriter, r *http.Request) {
 		params.InternalNote = pgtype.Text{String: internalNote, Valid: true}
 	}
 
-	err = h.repo.AdminUpdateCustomer(r.Context(), params)
+	err = h.repo.AdminUpdateCustomer(ctx, params)
 	if err != nil {
 		handler.InternalErrorResponse(w, r, err)
 		return
@@ -310,6 +330,13 @@ func (h *CustomerHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 // WholesaleApproval handles POST /admin/customers/{id}/wholesale/{action}
 func (h *CustomerHandler) WholesaleApproval(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	customerID := r.PathValue("id")
 	if customerID == "" {
 		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Customer ID required"))
@@ -328,13 +355,13 @@ func (h *CustomerHandler) WholesaleApproval(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	customer, err := h.repo.GetUserByID(r.Context(), customerUUID)
+	customer, err := h.repo.GetUserByID(ctx, customerUUID)
 	if err != nil {
 		handler.NotFoundResponse(w, r)
 		return
 	}
 
-	if customer.TenantID != h.tenantID {
+	if customer.TenantID != tenantID {
 		handler.NotFoundResponse(w, r)
 		return
 	}
@@ -351,7 +378,7 @@ func (h *CustomerHandler) WholesaleApproval(w http.ResponseWriter, r *http.Reque
 		newStatus = "rejected"
 	}
 
-	err = h.repo.UpdateWholesaleApplication(r.Context(), repository.UpdateWholesaleApplicationParams{
+	err = h.repo.UpdateWholesaleApplication(ctx, repository.UpdateWholesaleApplicationParams{
 		ID:                         customerUUID,
 		WholesaleApplicationStatus: pgtype.Text{String: newStatus, Valid: true},
 		WholesaleApplicationNotes:  pgtype.Text{},

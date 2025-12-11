@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -18,27 +17,27 @@ import (
 type OrderHandler struct {
 	repo     repository.Querier
 	renderer *handler.Renderer
-	tenantID pgtype.UUID
 }
 
 // NewOrderHandler creates a new order handler
-func NewOrderHandler(repo repository.Querier, renderer *handler.Renderer, tenantID string) *OrderHandler {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		panic(fmt.Sprintf("invalid tenant ID: %v", err))
-	}
-
+func NewOrderHandler(repo repository.Querier, renderer *handler.Renderer) *OrderHandler {
 	return &OrderHandler{
 		repo:     repo,
 		renderer: renderer,
-		tenantID: tenantUUID,
 	}
 }
 
 // List handles GET /admin/orders
 func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
-	orders, err := h.repo.ListOrders(r.Context(), repository.ListOrdersParams{
-		TenantID: h.tenantID,
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
+	orders, err := h.repo.ListOrders(ctx, repository.ListOrdersParams{
+		TenantID: tenantID,
 		Limit:    100,
 		Offset:   0,
 	})
@@ -58,6 +57,13 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // Detail handles GET /admin/orders/{id}
 func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	orderID := r.PathValue("id")
 	if orderID == "" {
 		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Order ID required"))
@@ -70,8 +76,8 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	order, err := h.repo.GetOrderWithDetails(r.Context(), repository.GetOrderWithDetailsParams{
-		TenantID: h.tenantID,
+	order, err := h.repo.GetOrderWithDetails(ctx, repository.GetOrderWithDetailsParams{
+		TenantID: tenantID,
 		ID:       orderUUID,
 	})
 	if err != nil {
@@ -103,6 +109,13 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 // UpdateStatus handles POST /admin/orders/{id}/status
 func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	orderID := r.PathValue("id")
 	if orderID == "" {
 		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Order ID required"))
@@ -126,8 +139,8 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.repo.UpdateOrderStatus(r.Context(), repository.UpdateOrderStatusParams{
-		TenantID: h.tenantID,
+	err := h.repo.UpdateOrderStatus(ctx, repository.UpdateOrderStatusParams{
+		TenantID: tenantID,
 		ID:       orderUUID,
 		Status:   status,
 	})
@@ -142,6 +155,12 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 // CreateShipment handles POST /admin/orders/{id}/shipments
 func (h *OrderHandler) CreateShipment(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
+
 	logger := middleware.GetLogger(ctx, slog.Default())
 
 	orderID := r.PathValue("id")
@@ -171,7 +190,7 @@ func (h *OrderHandler) CreateShipment(w http.ResponseWriter, r *http.Request) {
 
 	// Get order details for the shipping confirmation email
 	order, err := h.repo.GetOrderWithDetails(ctx, repository.GetOrderWithDetailsParams{
-		TenantID: h.tenantID,
+		TenantID: tenantID,
 		ID:       orderUUID,
 	})
 	if err != nil {
@@ -189,7 +208,7 @@ func (h *OrderHandler) CreateShipment(w http.ResponseWriter, r *http.Request) {
 	trackingText.Valid = true
 
 	_, err = h.repo.CreateShipment(ctx, repository.CreateShipmentParams{
-		TenantID:         h.tenantID,
+		TenantID:         tenantID,
 		OrderID:          orderUUID,
 		Carrier:          carrierText,
 		TrackingNumber:   trackingText,
@@ -201,7 +220,7 @@ func (h *OrderHandler) CreateShipment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = h.repo.UpdateOrderFulfillmentStatus(ctx, repository.UpdateOrderFulfillmentStatusParams{
-		TenantID:          h.tenantID,
+		TenantID:          tenantID,
 		ID:                orderUUID,
 		FulfillmentStatus: "fulfilled",
 	})
@@ -210,7 +229,7 @@ func (h *OrderHandler) CreateShipment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = h.repo.UpdateOrderStatus(ctx, repository.UpdateOrderStatusParams{
-		TenantID: h.tenantID,
+		TenantID: tenantID,
 		ID:       orderUUID,
 		Status:   "shipped",
 	})
@@ -220,7 +239,7 @@ func (h *OrderHandler) CreateShipment(w http.ResponseWriter, r *http.Request) {
 
 	// Enqueue shipping confirmation email
 	if order.CustomerEmail.Valid && order.CustomerEmail.String != "" {
-		tenantUUID, err := uuid.FromBytes(h.tenantID.Bytes[:])
+		tenantUUID, err := uuid.FromBytes(tenantID.Bytes[:])
 		if err != nil {
 			logger.Error("failed to convert tenant ID", "error", err)
 		} else {

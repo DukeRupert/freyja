@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/dukerupert/hiri/internal/domain"
@@ -14,35 +13,33 @@ import (
 type SubscriptionHandler struct {
 	repo     repository.Querier
 	renderer *handler.Renderer
-	tenantID pgtype.UUID
 }
 
 // NewSubscriptionHandler creates a new subscription handler
-func NewSubscriptionHandler(repo repository.Querier, renderer *handler.Renderer, tenantID string) *SubscriptionHandler {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		panic(fmt.Sprintf("invalid tenant ID: %v", err))
-	}
-
+func NewSubscriptionHandler(repo repository.Querier, renderer *handler.Renderer) *SubscriptionHandler {
 	return &SubscriptionHandler{
 		repo:     repo,
 		renderer: renderer,
-		tenantID: tenantUUID,
 	}
 }
 
 // List handles GET /admin/subscriptions
 func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
-	stats, err := h.repo.GetSubscriptionStats(ctx, h.tenantID)
+	stats, err := h.repo.GetSubscriptionStats(ctx, tenantID)
 	if err != nil {
 		handler.InternalErrorResponse(w, r, err)
 		return
 	}
 
 	subscriptions, err := h.repo.ListSubscriptions(ctx, repository.ListSubscriptionsParams{
-		TenantID: h.tenantID,
+		TenantID: tenantID,
 		Limit:    100,
 		Offset:   0,
 	})
@@ -64,6 +61,11 @@ func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 // Detail handles GET /admin/subscriptions/{id}
 func (h *SubscriptionHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
 	subscriptionIDStr := r.PathValue("id")
 	if subscriptionIDStr == "" {
@@ -78,7 +80,7 @@ func (h *SubscriptionHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	subscription, err := h.repo.GetSubscriptionWithDetails(ctx, repository.GetSubscriptionWithDetailsParams{
-		TenantID: h.tenantID,
+		TenantID: tenantID,
 		ID:       subscriptionID,
 	})
 
@@ -88,7 +90,7 @@ func (h *SubscriptionHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	items, err := h.repo.ListSubscriptionItemsForSubscription(ctx, repository.ListSubscriptionItemsForSubscriptionParams{
-		TenantID:       h.tenantID,
+		TenantID:       tenantID,
 		SubscriptionID: subscriptionID,
 	})
 

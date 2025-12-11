@@ -16,28 +16,26 @@ import (
 type PriceListHandler struct {
 	repo     repository.Querier
 	renderer *handler.Renderer
-	tenantID pgtype.UUID
 }
 
 // NewPriceListHandler creates a new price list handler
-func NewPriceListHandler(repo repository.Querier, renderer *handler.Renderer, tenantID string) *PriceListHandler {
-	var tenantUUID pgtype.UUID
-	if err := tenantUUID.Scan(tenantID); err != nil {
-		panic(fmt.Sprintf("invalid tenant ID: %v", err))
-	}
-
+func NewPriceListHandler(repo repository.Querier, renderer *handler.Renderer) *PriceListHandler {
 	return &PriceListHandler{
 		repo:     repo,
 		renderer: renderer,
-		tenantID: tenantUUID,
 	}
 }
 
 // List handles GET /admin/price-lists
 func (h *PriceListHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
-	priceLists, err := h.repo.ListAllPriceLists(ctx, h.tenantID)
+	priceLists, err := h.repo.ListAllPriceLists(ctx, tenantID)
 	if err != nil {
 		handler.InternalErrorResponse(w, r, err)
 		return
@@ -79,6 +77,11 @@ func (h *PriceListHandler) List(w http.ResponseWriter, r *http.Request) {
 // Detail handles GET /admin/price-lists/{id}
 func (h *PriceListHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
 	priceListID := r.PathValue("id")
 	if priceListID == "" {
@@ -93,7 +96,7 @@ func (h *PriceListHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	priceList, err := h.repo.GetPriceListWithEntryCount(ctx, repository.GetPriceListWithEntryCountParams{
-		TenantID: h.tenantID,
+		TenantID: tenantID,
 		ID:       priceListUUID,
 	})
 	if err != nil {
@@ -149,6 +152,11 @@ func (h *PriceListHandler) ShowForm(w http.ResponseWriter, r *http.Request) {
 // HandleForm handles POST /admin/price-lists/new and POST /admin/price-lists/{id}/edit
 func (h *PriceListHandler) HandleForm(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
 	if err := r.ParseForm(); err != nil {
 		handler.ErrorResponse(w, r, domain.Errorf(domain.EINVALID, "", "Invalid form data"))
@@ -180,7 +188,7 @@ func (h *PriceListHandler) HandleForm(w http.ResponseWriter, r *http.Request) {
 		}
 
 		_, err := h.repo.UpdatePriceList(ctx, repository.UpdatePriceListParams{
-			TenantID:    h.tenantID,
+			TenantID:    tenantID,
 			ID:          priceListUUID,
 			Name:        name,
 			Description: pgtype.Text{String: description, Valid: description != ""},
@@ -195,7 +203,7 @@ func (h *PriceListHandler) HandleForm(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Create new
 		pl, err := h.repo.CreatePriceList(ctx, repository.CreatePriceListParams{
-			TenantID:    h.tenantID,
+			TenantID:    tenantID,
 			Name:        name,
 			Description: pgtype.Text{String: description, Valid: description != ""},
 			ListType:    listType,
@@ -217,6 +225,11 @@ func (h *PriceListHandler) HandleForm(w http.ResponseWriter, r *http.Request) {
 // UpdateEntry handles POST /admin/price-lists/{id}/entries
 func (h *PriceListHandler) UpdateEntry(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
 	priceListID := r.PathValue("id")
 	if priceListID == "" {
@@ -252,12 +265,12 @@ func (h *PriceListHandler) UpdateEntry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = h.repo.UpsertPriceListEntry(ctx, repository.UpsertPriceListEntryParams{
-		TenantID:             h.tenantID,
-		PriceListID:          priceListUUID,
-		ProductSkuID:         skuUUID,
-		PriceCents:           int32(priceCents),
-		CompareAtPriceCents:  pgtype.Int4{},
-		IsAvailable:          isAvailable,
+		TenantID:            tenantID,
+		PriceListID:         priceListUUID,
+		ProductSkuID:        skuUUID,
+		PriceCents:          int32(priceCents),
+		CompareAtPriceCents: pgtype.Int4{},
+		IsAvailable:         isAvailable,
 	})
 	if err != nil {
 		handler.InternalErrorResponse(w, r, err)
@@ -276,6 +289,11 @@ func (h *PriceListHandler) UpdateEntry(w http.ResponseWriter, r *http.Request) {
 // Delete handles POST /admin/price-lists/{id}/delete
 func (h *PriceListHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	tenantID := getTenantID(ctx)
+	if !tenantID.Valid {
+		handler.ErrorResponse(w, r, domain.Errorf(domain.EUNAUTHORIZED, "", "No tenant context"))
+		return
+	}
 
 	priceListID := r.PathValue("id")
 	if priceListID == "" {
@@ -302,7 +320,7 @@ func (h *PriceListHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = h.repo.DeletePriceList(ctx, repository.DeletePriceListParams{
-		TenantID: h.tenantID,
+		TenantID: tenantID,
 		ID:       priceListUUID,
 	})
 	if err != nil {
