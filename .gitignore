@@ -9,6 +9,10 @@ node_modules/
 bin/
 web/static/css/output.css
 
+# Test coverage
+coverage.out
+coverage.html
+
 # Temp files
 /tmp/
 *.tmp
