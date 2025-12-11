@@ -15,7 +15,7 @@ const (
 	// UserContextKey is the context key for storing the authenticated user
 	UserContextKey contextKey = "user"
 
-	sessionCookieName = "freyja_session"
+	sessionCookieName = "hiri_session"
 )
 
 // WithUser extracts the user from the session cookie and adds it to the request context

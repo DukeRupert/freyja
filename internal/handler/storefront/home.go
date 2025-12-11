@@ -70,7 +70,7 @@ func (h *HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := HomePageData{
-		StoreName:        "Freyja Coffee", // TODO: Get from tenant config
+		StoreName:        "Your Coffee Roasters", // TODO: Get from tenant config
 		FeaturedProducts: featured,
 		Year:             time.Now().Year(),
 		User:             middleware.GetUserFromContext(ctx),

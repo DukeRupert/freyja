@@ -64,7 +64,7 @@ func (h *PagesHandler) renderPage(w http.ResponseWriter, r *http.Request, slug s
 	}
 
 	data := PageData{
-		StoreName:   "Freyja Coffee", // TODO: Get from tenant config
+		StoreName:   "Your Coffee Roasters", // TODO: Get from tenant config
 		Title:       page.Title,
 		Content:     template.HTML(page.Content), // Trust HTML from database (sanitized by Tiptap)
 		LastUpdated: page.LastUpdatedLabel,

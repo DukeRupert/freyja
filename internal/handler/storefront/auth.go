@@ -18,7 +18,7 @@ import (
 var _ = domain.ErrUserNotFound
 
 const (
-	sessionCookieName = "freyja_session"
+	sessionCookieName = "hiri_session"
 	sessionMaxAge     = 30 * 24 * 60 * 60 // 30 days in seconds
 )
 

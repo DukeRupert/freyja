@@ -80,21 +80,21 @@ type DNSInstructions struct {
 // DNSRecord represents a single DNS record instruction
 type DNSRecord struct {
 	Type  string // "CNAME" or "TXT"
-	Name  string // e.g., "shop.example.com" or "_freyja-verify.shop.example.com"
-	Value string // e.g., "custom.freyja.app" or "freyja-verify=abc123..."
+	Name  string // e.g., "shop.example.com" or "_hiri-verify.shop.example.com"
+	Value string // e.g., "custom.hiri.coffee" or "hiri-verify=abc123..."
 	TTL   int    // Recommended TTL in seconds (3600 = 1 hour)
 }
 
 // CustomDomainConstants defines configuration constants
 const (
 	// CustomDomainCNAMETarget is the target for CNAME records
-	CustomDomainCNAMETarget = "custom.freyja.app"
+	CustomDomainCNAMETarget = "custom.hiri.coffee"
 
 	// CustomDomainTXTPrefix is the subdomain prefix for TXT verification records
-	CustomDomainTXTPrefix = "_freyja-verify"
+	CustomDomainTXTPrefix = "_hiri-verify"
 
 	// CustomDomainTXTValuePrefix is the prefix for TXT record values
-	CustomDomainTXTValuePrefix = "freyja-verify="
+	CustomDomainTXTValuePrefix = "hiri-verify="
 
 	// CustomDomainVerificationTokenLength is the number of random bytes for tokens
 	CustomDomainVerificationTokenLength = 32 // 64 hex chars

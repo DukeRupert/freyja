@@ -156,7 +156,7 @@ type InvoiceSentEmail struct {
 }
 
 func (e InvoiceSentEmail) Subject() string {
-	return "Invoice " + e.InvoiceNumber + " from Freyja Coffee"
+	return "Invoice " + e.InvoiceNumber + " from Hiri"
 }
 
 func (e InvoiceSentEmail) TemplateName() string {
@@ -249,7 +249,7 @@ type OperatorSetupEmail struct {
 }
 
 func (e OperatorSetupEmail) Subject() string {
-	return "Complete Your Freyja Account Setup"
+	return "Complete Your Hiri Account Setup"
 }
 
 func (e OperatorSetupEmail) TemplateName() string {
@@ -265,7 +265,7 @@ type OperatorPasswordResetEmail struct {
 }
 
 func (e OperatorPasswordResetEmail) Subject() string {
-	return "Reset Your Freyja Password"
+	return "Reset Your Hiri Password"
 }
 
 func (e OperatorPasswordResetEmail) TemplateName() string {
@@ -280,7 +280,7 @@ type PlatformPaymentFailedEmail struct {
 }
 
 func (e PlatformPaymentFailedEmail) Subject() string {
-	return "Payment Issue with Your Freyja Subscription"
+	return "Payment Issue with Your Hiri Subscription"
 }
 
 func (e PlatformPaymentFailedEmail) TemplateName() string {
@@ -295,7 +295,7 @@ type PlatformSuspendedEmail struct {
 }
 
 func (e PlatformSuspendedEmail) Subject() string {
-	return "Your Freyja Store Has Been Suspended"
+	return "Your Hiri Store Has Been Suspended"
 }
 
 func (e PlatformSuspendedEmail) TemplateName() string {

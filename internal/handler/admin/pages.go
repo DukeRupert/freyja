@@ -216,8 +216,8 @@ func (h *PageHandler) InitializePages(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// TODO: Get store name and email from tenant config
-	storeName := "Freyja Coffee"
-	contactEmail := "support@freyjacoffee.com"
+	storeName := "Your Coffee Roasters"
+	contactEmail := "support@example.com"
 
 	err := h.pageService.EnsureDefaultPages(ctx, h.tenantID, storeName, contactEmail)
 	if err != nil {

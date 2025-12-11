@@ -16,7 +16,7 @@ import (
 
 const (
 	// OperatorCookieName is the cookie name for operator sessions
-	OperatorCookieName = "freyja_operator"
+	OperatorCookieName = "hiri_operator"
 
 	// OperatorCookiePath restricts cookie to admin routes
 	OperatorCookiePath = "/admin"

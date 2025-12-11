@@ -65,7 +65,7 @@ func run() error {
 	logger.Info("Initializing telemetry...")
 
 	// Initialize business metrics (Prometheus)
-	telemetry.InitBusinessMetrics("freyja")
+	telemetry.InitBusinessMetrics("hiri")
 	logger.Info("Business metrics initialized")
 
 	// Initialize Sentry error tracking
@@ -432,7 +432,7 @@ func run() error {
 	// ==========================================================================
 
 	// Initialize Prometheus metrics
-	metrics := middleware.NewMetrics("freyja")
+	metrics := middleware.NewMetrics("hiri")
 
 	// Environment-specific middleware configuration
 	isDev := cfg.Env == "development"

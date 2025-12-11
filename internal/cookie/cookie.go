@@ -99,14 +99,14 @@ func Get(r *http.Request, name string) string {
 // Using constants ensures consistency and makes refactoring easier.
 const (
 	// SessionCookieName is the main session cookie for authenticated users.
-	SessionCookieName = "freyja_session"
+	SessionCookieName = "hiri_session"
 
 	// CSRFCookieName stores the CSRF token for form protection.
-	CSRFCookieName = "freyja_csrf"
+	CSRFCookieName = "hiri_csrf"
 
 	// CartCookieName stores the anonymous cart ID for guest users.
-	CartCookieName = "freyja_cart"
+	CartCookieName = "hiri_cart"
 
 	// FlashCookieName stores flash messages between redirects.
-	FlashCookieName = "freyja_flash"
+	FlashCookieName = "hiri_flash"
 )

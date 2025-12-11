@@ -12,12 +12,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// BaseDomain is the platform domain (e.g., "freyja.app")
+// BaseDomain is the platform domain (e.g., "hiri.coffee")
 // In production, this should come from configuration
-const BaseDomain = "freyja.app"
+const BaseDomain = "hiri.coffee"
 
 // ResolveTenantByHost resolves the tenant from the request host.
-// It handles both custom domains and subdomains (*.freyja.app).
+// It handles both custom domains and subdomains (*.hiri.coffee).
 //
 // This middleware should be applied to routes that need tenant context
 // based on hostname (primarily storefront routes in multi-tenant mode).
@@ -36,7 +36,7 @@ func ResolveTenantByHost(queries *repository.Queries) func(http.Handler) http.Ha
 
 			var tenant *repository.Tenant
 
-			// Case 1: Request is on a custom domain (no .freyja.app suffix)
+			// Case 1: Request is on a custom domain (no .hiri.coffee suffix)
 			if !strings.HasSuffix(host, "."+BaseDomain) && host != BaseDomain {
 				// Lookup tenant by custom_domain
 				tenantRow, lookupErr := queries.GetTenantByCustomDomain(ctx, pgtype.Text{String: host, Valid: true})
@@ -76,10 +76,10 @@ func ResolveTenantByHost(queries *repository.Queries) func(http.Handler) http.Ha
 					return
 				}
 			} else {
-				// Case 2: Request is on default subdomain (*.freyja.app)
+				// Case 2: Request is on default subdomain (*.hiri.coffee)
 				subdomain := extractSubdomain(host, BaseDomain)
 				if subdomain == "" {
-					// Direct access to freyja.app (no subdomain) - this is the marketing site
+					// Direct access to hiri.coffee (no subdomain) - this is the marketing site
 					// Let the request proceed without tenant context
 					next.ServeHTTP(w, r)
 					return
@@ -137,7 +137,7 @@ func CustomDomainRedirect(next http.Handler) http.Handler {
 
 		// Only redirect if:
 		// 1. Tenant has active custom domain
-		// 2. Request is on default subdomain (*.freyja.app)
+		// 2. Request is on default subdomain (*.hiri.coffee)
 		// 3. Request is NOT to protected routes (admin/saas/api/webhooks)
 		host := r.Host
 		if colonIndex := strings.Index(host, ":"); colonIndex != -1 {
@@ -170,7 +170,7 @@ func CustomDomainRedirect(next http.Handler) http.Handler {
 }
 
 // extractSubdomain extracts the subdomain from a host.
-// Input: "roastercoffee.freyja.app", "freyja.app"
+// Input: "roastercoffee.hiri.coffee", "hiri.coffee"
 // Output: "roastercoffee" or "" if no subdomain
 func extractSubdomain(host, baseDomain string) string {
 	// Check if host ends with .baseDomain
@@ -182,7 +182,7 @@ func extractSubdomain(host, baseDomain string) string {
 	// Extract subdomain
 	subdomain := strings.TrimSuffix(host, suffix)
 	if subdomain == "" || strings.Contains(subdomain, ".") {
-		// Empty or nested subdomain (e.g., "sub.tenant.freyja.app")
+		// Empty or nested subdomain (e.g., "sub.tenant.hiri.coffee")
 		return ""
 	}
 

@@ -25,7 +25,7 @@ var (
 	ErrDomainNotConfigured   = domain.Errorf(domain.ENOTFOUND, "", "No custom domain configured")
 	ErrDomainNotVerified     = domain.Errorf(domain.EINVALID, "", "Domain has not been verified yet")
 	ErrDomainAlreadyActive   = domain.Errorf(domain.ECONFLICT, "", "Domain is already active")
-	ErrCNAMENotConfigured    = domain.Errorf(domain.EINVALID, "", "CNAME record not found or does not point to custom.freyja.app")
+	ErrCNAMENotConfigured    = domain.Errorf(domain.EINVALID, "", "CNAME record not found or does not point to custom.hiri.coffee")
 	ErrTXTNotConfigured      = domain.Errorf(domain.EINVALID, "", "TXT verification record not found")
 	ErrVerificationFailed    = domain.Errorf(domain.EINVALID, "", "Domain verification failed")
 	ErrDomainHealthCheckFail = domain.Errorf(domain.EINVALID, "", "Domain health check failed")
@@ -54,8 +54,8 @@ type CustomDomainService interface {
 	// Business logic:
 	// - Ensure domain is in 'pending' or 'failed' status (can retry failed)
 	// - Mark status as 'verifying' to prevent concurrent checks
-	// - Perform CNAME lookup: domain → custom.freyja.app
-	// - Perform TXT lookup: _freyja-verify.domain → freyja-verify=<token>
+	// - Perform CNAME lookup: domain → custom.hiri.coffee
+	// - Perform TXT lookup: _hiri-verify.domain → hiri-verify=<token>
 	// - If both valid: mark as 'verified', set verified_at timestamp
 	// - If invalid: mark as 'failed', store error message
 	// - Use 10-second timeout on DNS lookups (prevent hanging)
@@ -108,7 +108,7 @@ type CustomDomainService interface {
 	//
 	// Business logic:
 	// - Lookup CNAME for domain
-	// - If CNAME points to custom.freyja.app: update last_checked_at
+	// - If CNAME points to custom.hiri.coffee: update last_checked_at
 	// - If CNAME missing/invalid: mark as 'failed', set error message
 	// - Send email notification to tenant if domain fails health check
 	// - Return error only if database update fails (not if DNS fails)
@@ -262,7 +262,7 @@ func (s *customDomainService) CheckVerification(ctx context.Context, tenantID uu
 	} else {
 		if verification.ErrorMessage == "" {
 			if !verification.CNAMEValid {
-				verification.ErrorMessage = "CNAME record not found or does not point to custom.freyja.app"
+				verification.ErrorMessage = "CNAME record not found or does not point to custom.hiri.coffee"
 			}
 			if !verification.TXTValid {
 				if verification.ErrorMessage != "" {

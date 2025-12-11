@@ -20,7 +20,7 @@ type Metrics struct {
 // NewMetrics creates and registers Prometheus metrics
 func NewMetrics(namespace string) *Metrics {
 	if namespace == "" {
-		namespace = "freyja"
+		namespace = "hiri"
 	}
 
 	m := &Metrics{

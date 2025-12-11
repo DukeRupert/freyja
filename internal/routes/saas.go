@@ -5,7 +5,7 @@ import (
 )
 
 // RegisterSaaSRoutes registers all SaaS marketing routes.
-// These routes are for the Freyja platform marketing site itself,
+// These routes are for the Hiri platform marketing site itself,
 // not for tenant storefronts.
 //
 // When ready to split, these routes can be served on a separate

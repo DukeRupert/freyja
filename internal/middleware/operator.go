@@ -26,7 +26,7 @@ const (
 	TenantIDContextKey contextKey = "tenant_id"
 
 	// operatorCookieName matches the constant in handler/saas/auth.go
-	operatorCookieName = "freyja_operator"
+	operatorCookieName = "hiri_operator"
 )
 
 // WithOperator extracts the operator from the session cookie and adds them to the request context.

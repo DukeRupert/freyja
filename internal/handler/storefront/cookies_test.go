@@ -18,7 +18,7 @@ func TestGetSessionIDFromCookie(t *testing.T) {
 	}{
 		{
 			name:           "returns session ID when cookie exists",
-			cookieName:     "freyja_session",
+			cookieName:     "hiri_session",
 			cookieValue:    "valid-session-id-12345",
 			expectedResult: "valid-session-id-12345",
 		},
@@ -34,25 +34,25 @@ func TestGetSessionIDFromCookie(t *testing.T) {
 		},
 		{
 			name:           "handles UUID-formatted session IDs",
-			cookieName:     "freyja_session",
+			cookieName:     "hiri_session",
 			cookieValue:    "123e4567-e89b-12d3-a456-426614174000",
 			expectedResult: "123e4567-e89b-12d3-a456-426614174000",
 		},
 		{
 			name:           "handles empty cookie value",
-			cookieName:     "freyja_session",
+			cookieName:     "hiri_session",
 			cookieValue:    "",
 			expectedResult: "",
 		},
 		{
 			name:           "handles long session IDs",
-			cookieName:     "freyja_session",
+			cookieName:     "hiri_session",
 			cookieValue:    "very-long-session-id-with-lots-of-characters-12345678901234567890",
 			expectedResult: "very-long-session-id-with-lots-of-characters-12345678901234567890",
 		},
 		{
 			name:           "handles session IDs with special characters",
-			cookieName:     "freyja_session",
+			cookieName:     "hiri_session",
 			cookieValue:    "session_id-with.special+chars",
 			expectedResult: "session_id-with.special+chars",
 		},
@@ -96,7 +96,7 @@ func TestSetSessionCookie(t *testing.T) {
 			name:             "sets cookie with correct attributes in insecure mode",
 			sessionID:        "test-session-id-12345",
 			secure:           false,
-			expectedName:     "freyja_session",
+			expectedName:     "hiri_session",
 			expectedValue:    "test-session-id-12345",
 			expectedPath:     "/",
 			expectedMaxAge:   30 * 24 * 60 * 60, // 30 days
@@ -108,7 +108,7 @@ func TestSetSessionCookie(t *testing.T) {
 			name:             "sets cookie with correct attributes in secure mode",
 			sessionID:        "test-session-id-67890",
 			secure:           true,
-			expectedName:     "freyja_session",
+			expectedName:     "hiri_session",
 			expectedValue:    "test-session-id-67890",
 			expectedPath:     "/",
 			expectedMaxAge:   30 * 24 * 60 * 60,
@@ -120,7 +120,7 @@ func TestSetSessionCookie(t *testing.T) {
 			name:             "handles UUID session IDs",
 			sessionID:        "123e4567-e89b-12d3-a456-426614174000",
 			secure:           false,
-			expectedName:     "freyja_session",
+			expectedName:     "hiri_session",
 			expectedValue:    "123e4567-e89b-12d3-a456-426614174000",
 			expectedPath:     "/",
 			expectedMaxAge:   30 * 24 * 60 * 60,
@@ -132,7 +132,7 @@ func TestSetSessionCookie(t *testing.T) {
 			name:             "handles empty session ID",
 			sessionID:        "",
 			secure:           false,
-			expectedName:     "freyja_session",
+			expectedName:     "hiri_session",
 			expectedValue:    "",
 			expectedPath:     "/",
 			expectedMaxAge:   30 * 24 * 60 * 60,
@@ -144,7 +144,7 @@ func TestSetSessionCookie(t *testing.T) {
 			name:             "handles long session IDs",
 			sessionID:        "very-long-session-id-with-many-characters-to-test-edge-cases-12345678901234567890",
 			secure:           true,
-			expectedName:     "freyja_session",
+			expectedName:     "hiri_session",
 			expectedValue:    "very-long-session-id-with-many-characters-to-test-edge-cases-12345678901234567890",
 			expectedPath:     "/",
 			expectedMaxAge:   30 * 24 * 60 * 60,
@@ -324,7 +324,7 @@ func TestGetSessionIDFromCookie_MultipleCookies(t *testing.T) {
 		Value: "other_value_1",
 	})
 	req.AddCookie(&http.Cookie{
-		Name:  "freyja_session",
+		Name:  "hiri_session",
 		Value: "correct-session-id",
 	})
 	req.AddCookie(&http.Cookie{

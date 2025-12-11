@@ -164,7 +164,7 @@ func (s *onboardingService) CreateCheckoutSession(ctx context.Context, params Cr
 		// Subscription data
 		SubscriptionData: &stripe.CheckoutSessionSubscriptionDataParams{
 			Metadata: map[string]string{
-				"source": "freyja_saas_checkout",
+				"source": "hiri_saas_checkout",
 			},
 		},
 		// Allow promotion codes

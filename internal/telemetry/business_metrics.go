@@ -83,7 +83,7 @@ type BusinessMetrics struct {
 // NewBusinessMetrics creates and registers all business metrics
 func NewBusinessMetrics(namespace string) *BusinessMetrics {
 	if namespace == "" {
-		namespace = "freyja"
+		namespace = "hiri"
 	}
 
 	subsystem := "business"
